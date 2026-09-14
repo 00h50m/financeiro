@@ -4,6 +4,7 @@ import Dashboard from './components/Dashboard'
 import Compras from './components/Compras'
 import Parcelamentos from './components/Parcelamentos'
 import Faturas from './components/Faturas'
+import ImportarFatura from './components/ImportarFatura'
 import Renda from './components/Renda'
 import Fixos from './components/Fixos'
 import Cartoes from './components/Cartoes'
@@ -13,6 +14,7 @@ const ABAS = [
   { id: 'compras', label: 'Compras', Component: Compras },
   { id: 'parcelamentos', label: 'Parcelamentos', Component: Parcelamentos },
   { id: 'faturas', label: 'Faturas', Component: Faturas },
+  { id: 'importar', label: 'Importar', Component: ImportarFatura },
   { id: 'renda', label: 'Renda', Component: Renda },
   { id: 'fixos', label: 'Fixos', Component: Fixos },
   { id: 'cartoes', label: 'Cartões', Component: Cartoes },

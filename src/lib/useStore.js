@@ -102,6 +102,21 @@ export function useStore() {
     if (r.error) throw r.error
   })
 
+  // IMPORTAÇÃO DE FATURA (CSV)
+  // Não usa `op`: o chamador precisa do erro para dar feedback próprio na tela de importação.
+  async function importarTransacoes(rows) {
+    setSyncState('syncing')
+    try {
+      const r = await sb.from('compras').insert(rows)
+      if (r.error) throw r.error
+      await loadAll()
+      setSyncState('ok')
+    } catch (e) {
+      setSyncState('error')
+      throw e
+    }
+  }
+
   return {
     cartoes, compras, rendas, fixos, faturas,
     loading, syncState, error, loadAll,
@@ -110,5 +125,6 @@ export function useStore() {
     upsertRenda,
     addFixo, updateFixo, delFixo,
     upsertFatura, delFatura,
+    importarTransacoes,
   }
 }
