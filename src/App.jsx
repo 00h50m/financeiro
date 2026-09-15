@@ -8,6 +8,7 @@ import ImportarFatura from './components/ImportarFatura'
 import Renda from './components/Renda'
 import Fixos from './components/Fixos'
 import Cartoes from './components/Cartoes'
+import Categorias from './components/Categorias'
 
 const ABAS = [
   { id: 'dashboard', label: 'Dashboard', Component: Dashboard },
@@ -18,6 +19,7 @@ const ABAS = [
   { id: 'renda', label: 'Renda', Component: Renda },
   { id: 'fixos', label: 'Fixos', Component: Fixos },
   { id: 'cartoes', label: 'Cartões', Component: Cartoes },
+  { id: 'categorias', label: 'Categorias', Component: Categorias },
 ]
 
 export default function App() {

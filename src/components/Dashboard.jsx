@@ -29,6 +29,22 @@ export default function Dashboard({ store }) {
       .reduce((s, p) => s + p.valor, 0),
   }))
 
+  const porCategoriaMap = {}
+  compras.forEach((c) => {
+    const valorMes = gerarParcelas(c, cartoes).filter((p) => p.mes === mes).reduce((s, p) => s + p.valor, 0)
+    if (!valorMes) return
+    if (!porCategoriaMap[c.categoria]) porCategoriaMap[c.categoria] = { total: 0, subs: {} }
+    porCategoriaMap[c.categoria].total += valorMes
+    porCategoriaMap[c.categoria].subs[c.subcategoria] = (porCategoriaMap[c.categoria].subs[c.subcategoria] || 0) + valorMes
+  })
+  const porCategoria = Object.entries(porCategoriaMap)
+    .map(([categoria, { total, subs }]) => ({
+      categoria,
+      total,
+      subs: Object.entries(subs).sort((a, b) => b[1] - a[1]),
+    }))
+    .sort((a, b) => b.total - a.total)
+
   return (
     <div className="page">
       <div className="section-label">{mesLabel(mes)} · resumo do mês</div>
@@ -97,6 +113,49 @@ export default function Dashboard({ store }) {
             </tr>
           </tbody>
         </table>
+      </div>
+
+      <div className="section-label">gastos por categoria · {mesLabel(mes)}</div>
+      <div className="card">
+        {porCategoria.length === 0 ? (
+          <div className="empty">Nenhuma compra lançada em {mesLabel(mes)} ainda.</div>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>Categoria</th>
+                <th style={{ textAlign: 'right' }}>Valor</th>
+                <th>Participação</th>
+              </tr>
+            </thead>
+            <tbody>
+              {porCategoria.map(({ categoria, total, subs }) => {
+                const pct = totalParc > 0 ? Math.round((total / totalParc) * 100) : 0
+                return (
+                  <tr key={categoria}>
+                    <td>
+                      <div style={{ fontWeight: 500 }}>{categoria}</div>
+                      {subs.length > 1 && (
+                        <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
+                          {subs.map(([s, v]) => `${s} ${fmt(v)}`).join(' · ')}
+                        </div>
+                      )}
+                    </td>
+                    <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(total)}</td>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div className="prog-bar" style={{ flex: 1 }}>
+                          <div className="prog-fill" style={{ width: pct + '%', background: 'var(--blue)' }} />
+                        </div>
+                        <span style={{ fontSize: 11, color: 'var(--text3)', minWidth: 28 }}>{pct}%</span>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        )}
       </div>
 
       <div className="section-label">projeção · próximos 6 meses</div>

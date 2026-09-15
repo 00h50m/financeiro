@@ -1,16 +1,3 @@
-export const CATEGORIAS = {
-  'Casa': ['Condomínio', 'Energia', 'Manutenção', 'Decoração', 'IPTU', 'Outros'],
-  'Alimentação': ['Mercado', 'Delivery', 'Restaurante', 'Padaria', 'Lanche', 'Outros'],
-  'Transporte': ['Combustível', 'Estacionamento', 'Uber/99', 'Manutenção veículo', 'Pedágio', 'Outros'],
-  'Saúde': ['Farmácia', 'Consulta', 'Plano de saúde', 'Academia', 'Exame', 'Outros'],
-  'Vestuário': ['Roupas', 'Calçados', 'Acessórios', 'Outros'],
-  'Lazer': ['Viagem', 'Entretenimento', 'Presente', 'Bar/Balada', 'Hobby', 'Outros'],
-  'Assinaturas': ['Streaming', 'Apps', 'Anuidade cartão', 'Internet', 'Celular', 'Outros'],
-  'Animais': ['Ração', 'Veterinário', 'Pet shop', 'Medicamento', 'Outros'],
-  'Financeiro': ['Empréstimo', 'IPVA', 'Seguro', 'IOF', 'Outros'],
-  'Diversos': ['Outros'],
-}
-
 export const PESSOAS = ['Giovanna', 'Sabrina', 'Casa']
 
 export const RENDA_CAMPOS = [

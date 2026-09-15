@@ -1,21 +1,21 @@
 import { useState } from 'react'
 import Papa from 'papaparse'
-import { CATEGORIAS, PESSOAS, fmt } from '../lib/utils'
+import { PESSOAS, fmt } from '../lib/utils'
 
 const COLUNAS_ESPERADAS = ['data', 'descricao', 'valor', 'categoria', 'parcela_atual', 'parcela_total', 'cartao', 'observacao']
 
-function linhaValida(l) {
+function linhaValida(l, categorias) {
   return !!l.data
     && !!l.descricao
     && l.valor !== '' && !isNaN(Number(l.valor))
-    && !!l.categoria && !!CATEGORIAS[l.categoria]
+    && !!l.categoria && categorias.some((c) => c.nome === l.categoria)
     && !!l.subcategoria
     && !!l.pessoa
     && !!l.cartao_id
 }
 
 export default function ImportarFatura({ store }) {
-  const { cartoes, importarTransacoes } = store
+  const { cartoes, categorias, importarTransacoes } = store
   const [linhas, setLinhas] = useState([])
   const [nomeArquivo, setNomeArquivo] = useState('')
   const [erroArquivo, setErroArquivo] = useState('')
@@ -50,7 +50,9 @@ export default function ImportarFatura({ store }) {
         const enriquecidas = res.data
           .filter((r) => Object.values(r).some((v) => (v || '').toString().trim() !== ''))
           .map((r, i) => {
-            const categoria = CATEGORIAS[r.categoria?.trim()] ? r.categoria.trim() : ''
+            const nomeCategoria = (r.categoria || '').trim()
+            const catObj = categorias.find((c) => c.nome === nomeCategoria)
+            const categoria = catObj ? nomeCategoria : ''
             const cartaoNome = (r.cartao || '').trim()
             const cartao = resolverCartao(cartaoNome)
             const parcelaAtual = (r.parcela_atual || '').trim()
@@ -61,7 +63,7 @@ export default function ImportarFatura({ store }) {
               descricao: (r.descricao || '').trim(),
               valor: (r.valor || '').trim(),
               categoria,
-              subcategoria: categoria ? CATEGORIAS[categoria][0] : '',
+              subcategoria: categoria ? (catObj.subcategorias[0] || '') : '',
               parcela_atual: parcelaAtual,
               parcela_total: parcelaTotal,
               cartaoNome,
@@ -84,11 +86,12 @@ export default function ImportarFatura({ store }) {
   }
 
   function mudarCategoria(id, categoria) {
-    atualizarLinha(id, { categoria, subcategoria: CATEGORIAS[categoria]?.[0] || '' })
+    const subs = categorias.find((c) => c.nome === categoria)?.subcategorias || []
+    atualizarLinha(id, { categoria, subcategoria: subs[0] || '' })
   }
 
   const selecionadas = linhas.filter((l) => l.incluir)
-  const prontas = selecionadas.filter(linhaValida)
+  const prontas = selecionadas.filter((l) => linhaValida(l, categorias))
   const comProblema = selecionadas.length - prontas.length
 
   async function confirmar() {
@@ -212,7 +215,7 @@ export default function ImportarFatura({ store }) {
                       <td style={{ minWidth: 140 }}>
                         <select value={l.categoria} onChange={(e) => mudarCategoria(l._id, e.target.value)}>
                           <option value="">Selecione...</option>
-                          {Object.keys(CATEGORIAS).map((c) => <option key={c}>{c}</option>)}
+                          {categorias.map((c) => <option key={c.id}>{c.nome}</option>)}
                         </select>
                       </td>
                       <td style={{ minWidth: 140 }}>
@@ -221,7 +224,7 @@ export default function ImportarFatura({ store }) {
                           disabled={!l.categoria}
                           onChange={(e) => atualizarLinha(l._id, { subcategoria: e.target.value })}
                         >
-                          {(CATEGORIAS[l.categoria] || []).map((s) => <option key={s}>{s}</option>)}
+                          {(categorias.find((c) => c.nome === l.categoria)?.subcategorias || []).map((s) => <option key={s}>{s}</option>)}
                         </select>
                       </td>
                       <td style={{ minWidth: 110 }}>

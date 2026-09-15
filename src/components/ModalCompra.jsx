@@ -1,12 +1,12 @@
 import { useState } from 'react'
-import { CATEGORIAS, PESSOAS, fmt, calcMesInicio, mesLabel } from '../lib/utils'
+import { PESSOAS, fmt, calcMesInicio, mesLabel } from '../lib/utils'
 
-export default function ModalCompra({ cartoes, onSave, onClose }) {
+export default function ModalCompra({ cartoes, categorias, onSave, onClose }) {
   const [f, setF] = useState({
     data_compra: new Date().toISOString().slice(0, 10),
     descricao: '',
-    categoria: 'Alimentação',
-    subcategoria: 'Mercado',
+    categoria: categorias[0]?.nome || '',
+    subcategoria: categorias[0]?.subcategorias?.[0] || '',
     pessoa: 'Giovanna',
     cartao_id: cartoes[0]?.id || '',
     valor_total: '',
@@ -14,25 +14,46 @@ export default function ModalCompra({ cartoes, onSave, onClose }) {
     obs: '',
   })
   const [saving, setSaving] = useState(false)
+  const [itensLancados, setItensLancados] = useState(0)
   const s = (k) => (e) => setF((p) => ({ ...p, [k]: e.target.value }))
 
-  const subcats = CATEGORIAS[f.categoria] || ['Outros']
+  const subcats = categorias.find((c) => c.nome === f.categoria)?.subcategorias || ['Outros']
   const cartao = cartoes.find((c) => c.id === f.cartao_id)
   const mesInicio = f.data_compra && cartao ? calcMesInicio(f.data_compra, cartao) : ''
   const valorParc = f.valor_total && f.parcelas ? Number(f.valor_total) / Number(f.parcelas) : 0
-  const ok = f.descricao && f.valor_total && f.cartao_id && !saving
+  const ok = f.descricao && f.valor_total && f.cartao_id && f.categoria && !saving
 
-  async function save() {
+  async function save(fechar) {
     if (!ok) return
     setSaving(true)
     await onSave({ ...f, valor_total: Number(f.valor_total), parcelas: Number(f.parcelas) })
     setSaving(false)
+    setItensLancados((n) => n + 1)
+    if (fechar) {
+      onClose()
+    } else {
+      setF((p) => ({
+        ...p,
+        descricao: '',
+        categoria: categorias[0]?.nome || '',
+        subcategoria: categorias[0]?.subcategorias?.[0] || '',
+        valor_total: '',
+        obs: '',
+      }))
+    }
   }
 
   return (
     <div className="overlay" onClick={(e) => { if (e.target.className === 'overlay') onClose() }}>
       <div className="modal">
         <div className="modal-title">Nova compra</div>
+
+        {itensLancados > 0 && (
+          <div className="alert alert-green">
+            ✓ {itensLancados} {itensLancados === 1 ? 'item lançado' : 'itens lançados'} deste pedido. Data, cartão,
+            pessoa e parcelas continuam preenchidos — ajuste descrição, categoria e valor do próximo item.
+          </div>
+        )}
 
         <div className="form-row cols2">
           <div className="form-group">
@@ -66,10 +87,11 @@ export default function ModalCompra({ cartoes, onSave, onClose }) {
               value={f.categoria}
               onChange={(e) => {
                 const cat = e.target.value
-                setF((p) => ({ ...p, categoria: cat, subcategoria: CATEGORIAS[cat]?.[0] || 'Outros' }))
+                const subs = categorias.find((c) => c.nome === cat)?.subcategorias || []
+                setF((p) => ({ ...p, categoria: cat, subcategoria: subs[0] || 'Outros' }))
               }}
             >
-              {Object.keys(CATEGORIAS).map((c) => <option key={c}>{c}</option>)}
+              {categorias.map((c) => <option key={c.id}>{c.nome}</option>)}
             </select>
           </div>
           <div className="form-group">
@@ -108,13 +130,21 @@ export default function ModalCompra({ cartoes, onSave, onClose }) {
         <div className="form-row">
           <div className="form-group">
             <label>Observação (opcional)</label>
-            <input placeholder="Detalhes extras..." value={f.obs} onChange={s('obs')} />
+            <input placeholder="Ex: Pedido Mercado Livre #123" value={f.obs} onChange={s('obs')} />
           </div>
         </div>
 
+        <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: -8, marginBottom: 14 }}>
+          Pedido com vários itens de categorias diferentes (ex: Mercado Livre)? Lance um item de cada vez com
+          "Salvar e lançar outro item" — mesma data, cartão e parcelas, só muda descrição/categoria/valor.
+        </div>
+
         <div className="modal-footer">
-          <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
-          <button className="btn btn-primary" onClick={save} disabled={!ok}>
+          <button className="btn btn-ghost" onClick={onClose}>{itensLancados > 0 ? 'Concluir' : 'Cancelar'}</button>
+          <button className="btn btn-ghost" onClick={() => save(false)} disabled={!ok}>
+            {saving ? 'Salvando...' : '+ Salvar e lançar outro item'}
+          </button>
+          <button className="btn btn-primary" onClick={() => save(true)} disabled={!ok}>
             {saving ? 'Salvando...' : 'Salvar compra'}
           </button>
         </div>

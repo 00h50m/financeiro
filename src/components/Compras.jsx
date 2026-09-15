@@ -3,14 +3,14 @@ import { fmt, PESSOAS } from '../lib/utils'
 import ModalCompra from './ModalCompra'
 
 export default function Compras({ store }) {
-  const { compras, cartoes, addCompra, delCompra } = store
+  const { compras, cartoes, categorias, addCompra, delCompra } = store
   const [modal, setModal] = useState(false)
   const [filtro, setFiltro] = useState('')
   const [filtroPessoa, setFiltroPessoa] = useState('')
 
   const lista = useMemo(() =>
     compras.filter((c) =>
-      (!filtro || (c.descricao + c.categoria + c.subcategoria).toLowerCase().includes(filtro.toLowerCase())) &&
+      (!filtro || (c.descricao + c.categoria + c.subcategoria + (c.obs || '')).toLowerCase().includes(filtro.toLowerCase())) &&
       (!filtroPessoa || c.pessoa === filtroPessoa)
     ), [compras, filtro, filtroPessoa])
 
@@ -19,7 +19,8 @@ export default function Compras({ store }) {
       {modal && (
         <ModalCompra
           cartoes={cartoes}
-          onSave={async (d) => { await addCompra(d); setModal(false) }}
+          categorias={categorias}
+          onSave={addCompra}
           onClose={() => setModal(false)}
         />
       )}

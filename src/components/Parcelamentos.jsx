@@ -10,6 +10,18 @@ export default function Parcelamentos({ store }) {
   const totalMes = ativas.reduce((s, c) =>
     s + gerarParcelas(c, cartoes).filter((p) => p.mes === mes).reduce((ss, p) => ss + p.valor, 0), 0)
 
+  const porCartaoMap = {}
+  ativas.forEach((c) => {
+    const restante = gerarParcelas(c, cartoes).filter((p) => p.mes >= mes).reduce((s, p) => s + p.valor, 0)
+    const nome = cartoes.find((x) => x.id === c.cartao_id)?.nome || 'Sem cartão'
+    if (!porCartaoMap[nome]) porCartaoMap[nome] = { restante: 0, qtd: 0 }
+    porCartaoMap[nome].restante += restante
+    porCartaoMap[nome].qtd += 1
+  })
+  const porCartao = Object.entries(porCartaoMap)
+    .map(([nome, v]) => ({ nome, ...v }))
+    .sort((a, b) => b.restante - a.restante)
+
   function renderGrupo(pessoa) {
     const lista = ativas.filter((c) => c.pessoa === pessoa)
     if (!lista.length) return null
@@ -96,10 +108,46 @@ export default function Parcelamentos({ store }) {
         </div>
       </div>
 
-      {ativas.length === 0 && (
+      {ativas.length === 0 ? (
         <div className="empty">
           Nenhum parcelamento ativo.{'\n'}As compras parceladas aparecem aqui automaticamente.
         </div>
+      ) : (
+        <>
+          <div className="section-label">dívida restante por cartão</div>
+          <div className="card">
+            <table>
+              <thead>
+                <tr>
+                  <th>Cartão</th>
+                  <th style={{ textAlign: 'center' }}>Compras ativas</th>
+                  <th style={{ textAlign: 'right' }}>Restante</th>
+                  <th>Participação</th>
+                </tr>
+              </thead>
+              <tbody>
+                {porCartao.map(({ nome, qtd, restante }) => {
+                  const pct = totalRestante > 0 ? Math.round((restante / totalRestante) * 100) : 0
+                  return (
+                    <tr key={nome}>
+                      <td><span className="badge badge-gray">{nome}</span></td>
+                      <td style={{ textAlign: 'center', fontFamily: 'DM Mono', fontSize: 13 }}>{qtd}</td>
+                      <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(restante)}</td>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div className="prog-bar" style={{ flex: 1 }}>
+                            <div className="prog-fill" style={{ width: pct + '%', background: 'var(--amber)' }} />
+                          </div>
+                          <span style={{ fontSize: 11, color: 'var(--text3)', minWidth: 28 }}>{pct}%</span>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
       {PESSOAS.map((p) => renderGrupo(p))}
