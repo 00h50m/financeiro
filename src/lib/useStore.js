@@ -61,6 +61,10 @@ export function useStore() {
     const r = await sb.from('cartoes').insert(data)
     if (r.error) throw r.error
   })
+  const updateCartao = (id, data) => op(async () => {
+    const r = await sb.from('cartoes').update(data).eq('id', id)
+    if (r.error) throw r.error
+  })
   const delCartao = (id) => op(async () => {
     const r = await sb.from('cartoes').delete().eq('id', id)
     if (r.error) throw r.error
@@ -157,7 +161,7 @@ export function useStore() {
   return {
     cartoes, compras, rendas, fixos, faturas, categorias,
     loading, syncState, error, loadAll,
-    addCartao, delCartao,
+    addCartao, updateCartao, delCartao,
     addCompra, delCompra,
     upsertRenda,
     addFixo, updateFixo, delFixo,
