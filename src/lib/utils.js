@@ -62,3 +62,22 @@ export const gerarParcelas = (compra, cartoes) => {
 
 export const totalRenda = (r) =>
   RENDA_CAMPOS.reduce((s, [k]) => s + Number(r?.[k] || 0), 0)
+
+// minúsculas, sem acentos, sem espaços extras — usado para comparar descrições "como estão"
+export const normalizarTexto = (s) =>
+  (s || '')
+    .toString()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, ' ')
+
+// normalização mais agressiva: além do acima, remove números, "*"/"#" e datas/contadores de
+// parcela embutidos na descrição (ex: "AMAZON * 3/10" e "AMAZON * 4/10" viram a mesma chave)
+export const normalizarDescricao = (s) =>
+  normalizarTexto(s)
+    .replace(/[0-9]/g, ' ')
+    .replace(/[*#/.,-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()

@@ -1,0 +1,7 @@
+data,descricao,valor,categoria,parcela_atual,parcela_total,cartao,observacao
+2026-08-05,Uber,25.90,Transporte,1,1,Nubank,
+2026-08-10,Amazon * 2/10,45.00,,2,10,Nubank,Tênis
+2026-09-12,iFood,42.00,Alimentação,1,1,Nubank,
+2026-09-15,Farmacia Sao Paulo,60.00,,1,1,Nubank,
+2026-09-15,Farmacia Sao Paulo,60.00,,1,1,Nubank,
+2026-09-18,Compra Parcelada Ghost * 2/5,80.00,,2,5,Nubank,
