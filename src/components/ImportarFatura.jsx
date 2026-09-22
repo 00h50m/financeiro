@@ -1,8 +1,86 @@
 import { useState } from 'react'
 import Papa from 'papaparse'
-import { PESSOAS, fmt } from '../lib/utils'
+import { PESSOAS, fmt, mesLabel, calcMesInicio } from '../lib/utils'
 
 const COLUNAS_ESPERADAS = ['data', 'descricao', 'valor', 'categoria', 'parcela_atual', 'parcela_total', 'cartao', 'observacao']
+const TOLERANCIA_VALOR = 0.02
+
+function normBasico(s) {
+  return (s || '')
+    .toString()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+// Normalização mais agressiva, usada só para casar descrições com o histórico de compras
+// (remove *, números e datas — ex: "*NETFLIX 03/09" e "NETFLIX 12/08" viram a mesma chave).
+function normHistorico(s) {
+  return normBasico(s)
+    .replace(/\*/g, ' ')
+    .replace(/\b\d{1,2}\/\d{1,2}(\/\d{2,4})?\b/g, ' ')
+    .replace(/\d+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function construirHistoricoCategorias(compras) {
+  const contagem = {}
+  compras.forEach((c) => {
+    const chave = normHistorico(c.descricao)
+    if (!chave || !c.categoria || !c.subcategoria) return
+    if (!contagem[chave]) contagem[chave] = {}
+    const catChave = `${c.categoria}|||${c.subcategoria}`
+    contagem[chave][catChave] = (contagem[chave][catChave] || 0) + 1
+  })
+  const melhor = {}
+  Object.entries(contagem).forEach(([chave, opcoes]) => {
+    let bestKey = null
+    let bestN = 0
+    Object.entries(opcoes).forEach(([k, n]) => { if (n > bestN) { bestN = n; bestKey = k } })
+    if (bestKey) {
+      const [categoria, subcategoria] = bestKey.split('|||')
+      melhor[chave] = { categoria, subcategoria }
+    }
+  })
+  return melhor
+}
+
+function buscarDuplicataExistente(l, compras) {
+  const descNorm = normBasico(l.descricao)
+  const valorLinha = Number(l.valor)
+  return compras.some((c) =>
+    c.cartao_id === l.cartao_id &&
+    (c.data_compra || '').slice(0, 10) === l.data &&
+    normBasico(c.descricao) === descNorm &&
+    Math.abs(Number(c.valor_total) - valorLinha) < TOLERANCIA_VALOR
+  )
+}
+
+function buscarParcelaExistente(l, compras) {
+  const total = Number(l.parcela_total) || 0
+  if (!total || !l.cartao_id) return null
+  const valorLinha = Number(l.valor)
+  const descNorm = normBasico(l.descricao)
+  return compras.find((c) => {
+    if (Number(c.parcelas) !== total) return false
+    if (c.cartao_id !== l.cartao_id) return false
+    if (normBasico(c.descricao) !== descNorm) return false
+    const valorParcelaExistente = Number(c.valor_total) / Number(c.parcelas)
+    return Math.abs(valorParcelaExistente - valorLinha) < TOLERANCIA_VALOR
+  }) || null
+}
+
+function marcarDuplicatasNoCsv(linhas) {
+  const contagem = {}
+  const chaveDe = (l) => `${l.data}|${normBasico(l.descricao)}|${Number(l.valor)}|${l.cartao_id || normBasico(l.cartaoNome)}`
+  linhas.forEach((l) => {
+    const k = chaveDe(l)
+    contagem[k] = (contagem[k] || 0) + 1
+  })
+  return linhas.map((l) => ({ ...l, duplicataCsv: contagem[chaveDe(l)] > 1 }))
+}
 
 function linhaValida(l, categorias) {
   return !!l.data
@@ -15,7 +93,7 @@ function linhaValida(l, categorias) {
 }
 
 export default function ImportarFatura({ store }) {
-  const { cartoes, categorias, importarTransacoes } = store
+  const { cartoes, categorias, compras, faturas, importarTransacoes } = store
   const [linhas, setLinhas] = useState([])
   const [nomeArquivo, setNomeArquivo] = useState('')
   const [erroArquivo, setErroArquivo] = useState('')
@@ -47,32 +125,74 @@ export default function ImportarFatura({ store }) {
           return
         }
 
-        const enriquecidas = res.data
+        const historico = construirHistoricoCategorias(compras)
+
+        let enriquecidas = res.data
           .filter((r) => Object.values(r).some((v) => (v || '').toString().trim() !== ''))
           .map((r, i) => {
-            const nomeCategoria = (r.categoria || '').trim()
-            const catObj = categorias.find((c) => c.nome === nomeCategoria)
-            const categoria = catObj ? nomeCategoria : ''
+            const nomeCategoriaCsv = (r.categoria || '').trim()
+            const catCsvObj = categorias.find((c) => c.nome === nomeCategoriaCsv)
             const cartaoNome = (r.cartao || '').trim()
             const cartao = resolverCartao(cartaoNome)
             const parcelaAtual = (r.parcela_atual || '').trim()
             const parcelaTotal = (r.parcela_total || '').trim()
-            return {
+            const descricao = (r.descricao || '').trim()
+
+            const sugestao = historico[normHistorico(descricao)] || null
+            let categoria = ''
+            let subcategoria = ''
+            let sugerida = false
+
+            if (catCsvObj) {
+              categoria = nomeCategoriaCsv
+              if (sugestao && sugestao.categoria === categoria && catCsvObj.subcategorias.includes(sugestao.subcategoria)) {
+                subcategoria = sugestao.subcategoria
+                sugerida = true
+              } else {
+                subcategoria = catCsvObj.subcategorias[0] || ''
+              }
+            } else if (sugestao) {
+              const catHist = categorias.find((c) => c.nome === sugestao.categoria)
+              if (catHist) {
+                categoria = catHist.nome
+                subcategoria = catHist.subcategorias.includes(sugestao.subcategoria) ? sugestao.subcategoria : (catHist.subcategorias[0] || '')
+                sugerida = true
+              }
+            }
+
+            const linha = {
               _id: i,
               data: (r.data || '').trim(),
-              descricao: (r.descricao || '').trim(),
+              descricao,
               valor: (r.valor || '').trim(),
               categoria,
-              subcategoria: categoria ? (catObj.subcategorias[0] || '') : '',
+              subcategoria,
+              sugerida,
               parcela_atual: parcelaAtual,
               parcela_total: parcelaTotal,
               cartaoNome,
               cartao_id: cartao?.id || '',
               pessoa: cartao?.titular || PESSOAS[0],
               observacao: (r.observacao || '').trim(),
-              incluir: !parcelaAtual || Number(parcelaAtual) <= 1,
+            }
+
+            const duplicataExistente = buscarDuplicataExistente(linha, compras)
+            const parcelaExistente = Number(parcelaAtual) > 1 ? buscarParcelaExistente(linha, compras) : null
+            const parcelaEmAndamento = Number(parcelaAtual) > 1
+
+            let incluir = !parcelaEmAndamento
+            if (duplicataExistente) incluir = false
+
+            return {
+              ...linha,
+              duplicataExistente,
+              parcelaEmAndamento,
+              parcelaEncontrada: parcelaEmAndamento ? !!parcelaExistente : null,
+              incluir,
             }
           })
+
+        enriquecidas = marcarDuplicatasNoCsv(enriquecidas)
 
         setLinhas(enriquecidas)
         setNomeArquivo(file.name)
@@ -87,12 +207,35 @@ export default function ImportarFatura({ store }) {
 
   function mudarCategoria(id, categoria) {
     const subs = categorias.find((c) => c.nome === categoria)?.subcategorias || []
-    atualizarLinha(id, { categoria, subcategoria: subs[0] || '' })
+    atualizarLinha(id, { categoria, subcategoria: subs[0] || '', sugerida: false })
   }
 
   const selecionadas = linhas.filter((l) => l.incluir)
   const prontas = selecionadas.filter((l) => linhaValida(l, categorias))
   const comProblema = selecionadas.length - prontas.length
+  const duplicatasExistentesCount = linhas.filter((l) => l.duplicataExistente).length
+  const duplicatasCsvCount = linhas.filter((l) => l.duplicataCsv).length
+  const linhasNovas = linhas.length - duplicatasExistentesCount
+
+  const conferencia = (() => {
+    const grupos = {}
+    linhas.filter((l) => l.incluir && l.cartao_id && l.data && l.valor !== '').forEach((l) => {
+      const cartaoObj = cartoes.find((c) => c.id === l.cartao_id)
+      const mes = cartaoObj ? calcMesInicio(l.data, cartaoObj) : l.data.slice(0, 7)
+      const key = `${l.cartao_id}|${mes}`
+      if (!grupos[key]) grupos[key] = { cartao_id: l.cartao_id, mes, soma: 0 }
+      grupos[key].soma += Number(l.valor) || 0
+    })
+    return Object.values(grupos)
+      .map((g) => {
+        const cartaoObj = cartoes.find((c) => c.id === g.cartao_id)
+        const fatura = faturas.find((f) => f.cartao_id === g.cartao_id && f.mes === g.mes)
+        const valorReal = fatura ? Number(fatura.valor_real) : null
+        const diff = valorReal != null ? valorReal - g.soma : null
+        return { ...g, cartaoNome: cartaoObj?.nome || '—', valorReal, diff }
+      })
+      .sort((a, b) => (a.cartaoNome + a.mes).localeCompare(b.cartaoNome + b.mes))
+  })()
 
   async function confirmar() {
     if (prontas.length === 0) return
@@ -125,8 +268,8 @@ export default function ImportarFatura({ store }) {
       <div className="alert alert-blue">
         Suba o CSV já padronizado (gerado fora do app, a partir do PDF da fatura). Confira e ajuste as linhas
         abaixo antes de confirmar — nada é gravado até você clicar em "Confirmar importação".
-        Linhas de parcela em andamento (parcela atual maior que 1) vêm desmarcadas por padrão, para não duplicar
-        um parcelamento já lançado — marque manualmente só se for a primeira vez que essa compra aparece no app.
+        Linhas de parcela em andamento (parcela atual maior que 1) e possíveis duplicatas vêm desmarcadas por
+        padrão — marque manualmente só se tiver certeza de que a linha deve ser lançada.
       </div>
 
       <div className="toolbar">
@@ -159,6 +302,61 @@ export default function ImportarFatura({ store }) {
         </div>
       ) : (
         <>
+          <div className="alert alert-blue">
+            {linhasNovas} linha{linhasNovas !== 1 ? 's novas' : ' nova'}, {duplicatasExistentesCount} {duplicatasExistentesCount !== 1 ? 'possíveis duplicatas' : 'possível duplicata'} (já lançada{duplicatasExistentesCount !== 1 ? 's' : ''} em Compras)
+            {duplicatasCsvCount > 0 && ` · ${duplicatasCsvCount} linha${duplicatasCsvCount !== 1 ? 's' : ''} repetida${duplicatasCsvCount !== 1 ? 's' : ''} dentro do próprio arquivo`}
+          </div>
+
+          {conferencia.length > 0 && (
+            <>
+              <div className="section-label">conferência com a fatura</div>
+              <div className="card">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Cartão</th>
+                      <th>Mês</th>
+                      <th style={{ textAlign: 'right' }}>Soma selecionada</th>
+                      <th style={{ textAlign: 'right' }}>Fatura real</th>
+                      <th style={{ textAlign: 'right' }}>Diferença</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {conferencia.map((g) => {
+                      const bateu = g.valorReal != null && Math.abs(g.diff) <= 0.05
+                      const semFatura = g.valorReal == null
+                      return (
+                        <tr key={g.cartao_id + g.mes}>
+                          <td><span className="badge badge-gray">{g.cartaoNome}</span></td>
+                          <td style={{ fontFamily: 'DM Mono', fontSize: 12 }}>{mesLabel(g.mes)}</td>
+                          <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(g.soma)}</td>
+                          <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>
+                            {semFatura ? '—' : fmt(g.valorReal)}
+                          </td>
+                          <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13, color: semFatura ? 'var(--text3)' : bateu ? 'var(--text3)' : g.diff > 0 ? 'var(--red)' : 'var(--amber)' }}>
+                            {semFatura ? '—' : bateu ? '—' : (g.diff > 0 ? '+' : '') + fmt(g.diff)}
+                          </td>
+                          <td>
+                            {semFatura ? (
+                              <span className="badge badge-gray">fatura não cadastrada</span>
+                            ) : bateu ? (
+                              <span className="badge badge-green">✓ bate</span>
+                            ) : g.diff > 0 ? (
+                              <span className="badge badge-red">falta {fmt(g.diff)}</span>
+                            ) : (
+                              <span className="badge badge-amber">excede {fmt(Math.abs(g.diff))}</span>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+
           {comProblema > 0 && (
             <div className="alert alert-amber">
               ⚠ {comProblema} linha{comProblema > 1 ? 's marcadas' : ' marcada'} para importar {comProblema > 1 ? 'estão' : 'está'} com
@@ -185,7 +383,6 @@ export default function ImportarFatura({ store }) {
                 {linhas.map((l) => {
                   const total = Number(l.parcela_total) || 1
                   const atual = Number(l.parcela_atual) || 1
-                  const emAndamento = atual > 1
                   return (
                     <tr key={l._id} style={{ opacity: l.incluir ? 1 : 0.5 }}>
                       <td style={{ textAlign: 'center' }}>
@@ -198,8 +395,12 @@ export default function ImportarFatura({ store }) {
                       <td style={{ minWidth: 130 }}>
                         <input type="date" value={l.data} onChange={(e) => atualizarLinha(l._id, { data: e.target.value })} />
                       </td>
-                      <td style={{ minWidth: 160 }}>
+                      <td style={{ minWidth: 170 }}>
                         <input value={l.descricao} onChange={(e) => atualizarLinha(l._id, { descricao: e.target.value })} />
+                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 }}>
+                          {l.duplicataExistente && <span className="badge badge-amber">já lançada</span>}
+                          {l.duplicataCsv && <span className="badge badge-gray">repetida no arquivo</span>}
+                        </div>
                       </td>
                       <td style={{ minWidth: 100 }}>
                         <input
@@ -222,10 +423,11 @@ export default function ImportarFatura({ store }) {
                         <select
                           value={l.subcategoria}
                           disabled={!l.categoria}
-                          onChange={(e) => atualizarLinha(l._id, { subcategoria: e.target.value })}
+                          onChange={(e) => atualizarLinha(l._id, { subcategoria: e.target.value, sugerida: false })}
                         >
                           {(categorias.find((c) => c.nome === l.categoria)?.subcategorias || []).map((s) => <option key={s}>{s}</option>)}
                         </select>
+                        {l.sugerida && <div style={{ marginTop: 4 }}><span className="badge badge-blue">sugerida</span></div>}
                       </td>
                       <td style={{ minWidth: 110 }}>
                         <select value={l.pessoa} onChange={(e) => atualizarLinha(l._id, { pessoa: e.target.value })}>
@@ -241,14 +443,23 @@ export default function ImportarFatura({ store }) {
                           <div style={{ fontSize: 10, color: 'var(--red)' }}>não encontrado: {l.cartaoNome}</div>
                         )}
                       </td>
-                      <td style={{ textAlign: 'center', minWidth: 90 }}>
+                      <td style={{ textAlign: 'center', minWidth: 110 }}>
                         {total > 1 ? (
                           <span className="badge badge-amber">{atual}/{total}</span>
                         ) : (
                           <span className="badge badge-gray">à vista</span>
                         )}
-                        {emAndamento && (
-                          <div style={{ fontSize: 10, color: 'var(--amber)', marginTop: 2 }}>em andamento</div>
+                        {l.parcelaEmAndamento && (
+                          l.parcelaEncontrada ? (
+                            <div style={{ marginTop: 4 }}>
+                              <span className="badge badge-green" style={{ fontSize: 10 }}>parcela de compra já lançada</span>
+                            </div>
+                          ) : (
+                            <div style={{ marginTop: 4 }}>
+                              <span className="badge badge-red" style={{ fontSize: 10 }}>parcelamento não encontrado</span>
+                              <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>se marcar, vira compra nova</div>
+                            </div>
+                          )
                         )}
                       </td>
                       <td style={{ minWidth: 140 }}>
