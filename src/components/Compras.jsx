@@ -1,9 +1,9 @@
 import { useState, useMemo } from 'react'
-import { fmt, PESSOAS } from '../lib/utils'
+import { fmt, corPessoa } from '../lib/utils'
 import ModalCompra from './ModalCompra'
 
 export default function Compras({ store }) {
-  const { compras, cartoes, categorias, addCompra, delCompra } = store
+  const { compras, cartoes, categorias, pessoas, addCompra, delCompra } = store
   const [modal, setModal] = useState(false)
   const [filtro, setFiltro] = useState('')
   const [filtroPessoa, setFiltroPessoa] = useState('')
@@ -20,6 +20,7 @@ export default function Compras({ store }) {
         <ModalCompra
           cartoes={cartoes}
           categorias={categorias}
+          pessoas={pessoas}
           onSave={addCompra}
           onClose={() => setModal(false)}
         />
@@ -33,7 +34,7 @@ export default function Compras({ store }) {
         <input placeholder="Buscar..." value={filtro} onChange={(e) => setFiltro(e.target.value)} />
         <select value={filtroPessoa} onChange={(e) => setFiltroPessoa(e.target.value)} style={{ width: 140 }}>
           <option value="">Todas</option>
-          {PESSOAS.map((p) => <option key={p}>{p}</option>)}
+          {pessoas.map((p) => <option key={p.id} value={p.nome}>{p.nome}</option>)}
         </select>
         <button className="btn btn-primary" onClick={() => setModal(true)} style={{ marginLeft: 'auto' }}>
           + Nova compra
@@ -71,7 +72,7 @@ export default function Compras({ store }) {
                       {c.obs && <div style={{ fontSize: 11, color: 'var(--text3)' }}>{c.obs}</div>}
                     </td>
                     <td>
-                      <span className={`badge ${c.pessoa === 'Giovanna' ? 'badge-purple' : c.pessoa === 'Sabrina' ? 'badge-blue' : 'badge-gray'}`}>
+                      <span className={`badge badge-${corPessoa(pessoas, c.pessoa)}`}>
                         {c.pessoa}
                       </span>
                     </td>

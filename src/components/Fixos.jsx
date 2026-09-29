@@ -1,24 +1,53 @@
 import { useState } from 'react'
-import { fmt, mesLabel, nowYM, PESSOAS } from '../lib/utils'
+import { fmt, mesLabel, nowYM } from '../lib/utils'
 
 export default function Fixos({ store }) {
-  const { fixos, addFixo, updateFixo, delFixo } = store
+  const { fixos, categorias, addFixo, updateFixo, delFixo } = store
   const [modal, setModal] = useState(false)
   const [editId, setEditId] = useState(null)
-  const [form, setForm] = useState({ nome: '', valor: '', pessoa: 'Casa', mes_fim: '' })
+  const [form, setForm] = useState({
+    nome: '', valor: '',
+    categoria: categorias[0]?.nome || '',
+    subcategoria: categorias[0]?.subcategorias?.[0] || '',
+    mes_fim: '', dia_vencimento: '',
+  })
   const [saving, setSaving] = useState(false)
   const s = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
 
+  const subcats = categorias.find((c) => c.nome === form.categoria)?.subcategorias || []
+
   function abrir(fx) {
-    if (fx) { setForm({ nome: fx.nome, valor: fx.valor, pessoa: fx.pessoa, mes_fim: fx.mes_fim || '' }); setEditId(fx.id) }
-    else { setForm({ nome: '', valor: '', pessoa: 'Casa', mes_fim: '' }); setEditId(null) }
+    if (fx) {
+      setForm({
+        nome: fx.nome, valor: fx.valor,
+        categoria: fx.categoria || categorias[0]?.nome || '',
+        subcategoria: fx.subcategoria || categorias.find((c) => c.nome === fx.categoria)?.subcategorias?.[0] || '',
+        mes_fim: fx.mes_fim || '', dia_vencimento: fx.dia_vencimento || '',
+      })
+      setEditId(fx.id)
+    } else {
+      setForm({
+        nome: '', valor: '',
+        categoria: categorias[0]?.nome || '',
+        subcategoria: categorias[0]?.subcategorias?.[0] || '',
+        mes_fim: '', dia_vencimento: '',
+      })
+      setEditId(null)
+    }
     setModal(true)
   }
 
   async function salvar() {
-    if (!form.nome || !form.valor) return
+    if (!form.nome || !form.valor || !form.categoria) return
     setSaving(true)
-    const dados = { nome: form.nome, valor: Number(form.valor), pessoa: form.pessoa, mes_fim: form.mes_fim || null }
+    const dados = {
+      nome: form.nome,
+      valor: Number(form.valor),
+      categoria: form.categoria,
+      subcategoria: form.subcategoria,
+      mes_fim: form.mes_fim || null,
+      dia_vencimento: form.dia_vencimento ? Number(form.dia_vencimento) : null,
+    }
     if (editId) await updateFixo(editId, dados)
     else await addFixo({ ...dados, ativo: true })
     setSaving(false)
@@ -28,6 +57,7 @@ export default function Fixos({ store }) {
   const mesAtual = nowYM()
   const ativosAgora = fixos.filter((f) => f.ativo && (!f.mes_fim || f.mes_fim >= mesAtual))
   const total = ativosAgora.reduce((s, f) => s + Number(f.valor), 0)
+  const ok = form.nome && form.valor && form.categoria && !saving
 
   return (
     <div className="page">
@@ -35,22 +65,42 @@ export default function Fixos({ store }) {
         <div className="overlay" onClick={(e) => { if (e.target.className === 'overlay') setModal(false) }}>
           <div className="modal">
             <div className="modal-title">{editId ? 'Editar fixo' : 'Novo gasto fixo'}</div>
-            <div className="form-row cols2">
+            <div className="form-row">
               <div className="form-group">
                 <label>Nome</label>
                 <input placeholder="Ex: Condomínio" value={form.nome} onChange={s('nome')} autoFocus />
               </div>
-              <div className="form-group">
-                <label>Pessoa</label>
-                <select value={form.pessoa} onChange={s('pessoa')}>
-                  {PESSOAS.map((p) => <option key={p}>{p}</option>)}
-                </select>
-              </div>
             </div>
             <div className="form-row cols2">
               <div className="form-group">
+                <label>Categoria</label>
+                <select
+                  value={form.categoria}
+                  onChange={(e) => {
+                    const cat = e.target.value
+                    const subs = categorias.find((c) => c.nome === cat)?.subcategorias || []
+                    setForm((p) => ({ ...p, categoria: cat, subcategoria: subs[0] || '' }))
+                  }}
+                >
+                  <option value="">Selecione...</option>
+                  {categorias.map((c) => <option key={c.id}>{c.nome}</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Subcategoria</label>
+                <select value={form.subcategoria} onChange={s('subcategoria')} disabled={!form.categoria}>
+                  {subcats.map((sub) => <option key={sub}>{sub}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="form-row cols3">
+              <div className="form-group">
                 <label>Valor padrão mensal (R$)</label>
                 <input type="number" step="0.01" value={form.valor} onChange={s('valor')} placeholder="0,00" />
+              </div>
+              <div className="form-group">
+                <label>Dia de vencimento (opcional)</label>
+                <input type="number" min="1" max="31" value={form.dia_vencimento} onChange={s('dia_vencimento')} placeholder="Ex: 10" />
               </div>
               <div className="form-group">
                 <label>Termina em (opcional)</label>
@@ -64,7 +114,7 @@ export default function Fixos({ store }) {
             )}
             <div className="modal-footer">
               <button className="btn btn-ghost" onClick={() => setModal(false)}>Cancelar</button>
-              <button className="btn btn-primary" onClick={salvar} disabled={saving}>
+              <button className="btn btn-primary" onClick={salvar} disabled={!ok}>
                 {saving ? 'Salvando...' : 'Salvar'}
               </button>
             </div>
@@ -87,7 +137,7 @@ export default function Fixos({ store }) {
             <thead>
               <tr>
                 <th>Nome</th>
-                <th>Pessoa</th>
+                <th>Categoria</th>
                 <th style={{ textAlign: 'right' }}>Valor/mês</th>
                 <th style={{ textAlign: 'center' }}>Status</th>
                 <th />
@@ -106,10 +156,18 @@ export default function Fixos({ store }) {
                         </div>
                       )}
                     </td>
-                    <td>
-                      <span className={`badge ${f.pessoa === 'Giovanna' ? 'badge-purple' : f.pessoa === 'Sabrina' ? 'badge-blue' : 'badge-gray'}`}>
-                        {f.pessoa}
-                      </span>
+                    <td style={{ fontSize: 12, color: 'var(--text2)' }}>
+                      {f.categoria ? (
+                        <>
+                          {f.categoria}<br />
+                          <span style={{ color: 'var(--text3)' }}>{f.subcategoria}</span>
+                        </>
+                      ) : (
+                        <span style={{ color: 'var(--text3)' }}>sem categoria</span>
+                      )}
+                      {f.dia_vencimento && (
+                        <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>vence dia {f.dia_vencimento}</div>
+                      )}
                     </td>
                     <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(f.valor)}</td>
                     <td style={{ textAlign: 'center' }}>

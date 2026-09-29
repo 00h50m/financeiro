@@ -10,6 +10,7 @@ export function useStore() {
   const [categorias, setCategorias] = useState([])
   const [fixosPagamentos, setFixosPagamentos] = useState([])
   const [saldoAjustes, setSaldoAjustes] = useState([])
+  const [pessoas, setPessoas] = useState([])
   const [loading, setLoading] = useState(true)
   const [syncState, setSyncState] = useState('ok')
   const [error, setError] = useState(null)
@@ -18,7 +19,7 @@ export function useStore() {
     if (!silent) setLoading(true)
     setError(null)
     try {
-      const [c, co, r, fx, fa, cat, fxp, sa] = await Promise.all([
+      const [c, co, r, fx, fa, cat, fxp, sa, ps] = await Promise.all([
         sb.from('cartoes').select('*').order('created_at'),
         sb.from('compras').select('*').order('data_compra', { ascending: false }),
         sb.from('rendas').select('*').order('mes', { ascending: false }),
@@ -27,6 +28,7 @@ export function useStore() {
         sb.from('categorias').select('*').order('nome'),
         sb.from('fixos_pagamentos').select('*'),
         sb.from('saldo_ajustes').select('*'),
+        sb.from('pessoas').select('*').order('created_at'),
       ])
       if (c.error) throw c.error
       if (co.error) throw co.error
@@ -36,6 +38,7 @@ export function useStore() {
       if (cat.error) throw cat.error
       if (fxp.error) throw fxp.error
       if (sa.error) throw sa.error
+      if (ps.error) throw ps.error
       setCartoes(c.data || [])
       setCompras(co.data || [])
       setRendas(r.data || [])
@@ -44,6 +47,7 @@ export function useStore() {
       setCategorias(cat.data || [])
       setFixosPagamentos(fxp.data || [])
       setSaldoAjustes(sa.data || [])
+      setPessoas(ps.data || [])
     } catch (e) {
       setError(e.message || 'Erro ao conectar com o banco')
     }
@@ -173,6 +177,30 @@ export function useStore() {
     if (rc.error) throw rc.error
   })
 
+  // PESSOAS
+  const addPessoa = (nome, cor) => op(async () => {
+    const r = await sb.from('pessoas').insert({ nome, cor })
+    if (r.error) throw r.error
+  })
+  const delPessoa = (id) => op(async () => {
+    const r = await sb.from('pessoas').delete().eq('id', id)
+    if (r.error) throw r.error
+  })
+  const mudarCorPessoa = (id, cor) => op(async () => {
+    const r = await sb.from('pessoas').update({ cor }).eq('id', id)
+    if (r.error) throw r.error
+  })
+  const renomearPessoa = (id, nomeAntigo, nomeNovo) => op(async () => {
+    const r = await sb.from('pessoas').update({ nome: nomeNovo }).eq('id', id)
+    if (r.error) throw r.error
+    const rc = await sb.from('compras').update({ pessoa: nomeNovo }).eq('pessoa', nomeAntigo)
+    if (rc.error) throw rc.error
+    const rf = await sb.from('fixos').update({ pessoa: nomeNovo }).eq('pessoa', nomeAntigo)
+    if (rf.error) throw rf.error
+    const rt = await sb.from('cartoes').update({ titular: nomeNovo }).eq('titular', nomeAntigo)
+    if (rt.error) throw rt.error
+  })
+
   // IMPORTAÇÃO DE FATURA (CSV)
   // Não usa `op`: o chamador precisa do erro para dar feedback próprio na tela de importação.
   async function importarTransacoes(rows) {
@@ -189,7 +217,7 @@ export function useStore() {
   }
 
   return {
-    cartoes, compras, rendas, fixos, faturas, categorias, fixosPagamentos, saldoAjustes,
+    cartoes, compras, rendas, fixos, faturas, categorias, fixosPagamentos, saldoAjustes, pessoas,
     loading, syncState, error, loadAll,
     addCartao, updateCartao, delCartao,
     addCompra, updateCompra, delCompra,
@@ -200,6 +228,7 @@ export function useStore() {
     definirAjusteSaldo,
     addCategoria, delCategoria, renomearCategoria,
     addSubcategoria, delSubcategoria, renomearSubcategoria,
+    addPessoa, delPessoa, mudarCorPessoa, renomearPessoa,
     importarTransacoes,
   }
 }

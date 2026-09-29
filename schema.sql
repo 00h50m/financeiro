@@ -66,18 +66,32 @@ create table if not exists rendas (
 -- FIXOS (gastos fixos mensais)
 -- `mes_fim` (YYYY-MM, opcional): último mês em que essa conta ainda conta
 -- como ativa — para fixos com prazo (ex: financiamento). Null = sem fim.
+-- `dia_vencimento` (opcional): dia do mês em que a conta vence, só para
+-- ajudar a priorizar pagamento — não afeta nenhum cálculo.
+-- `categoria`/`subcategoria`: mesma lista usada em compras (tabela
+-- `categorias`) — substitui o antigo campo `pessoa`, que não era usado em
+-- nenhum cálculo (fixos entram no Dashboard sempre como bloco único).
+-- `pessoa` continua na tabela por compatibilidade mas não é mais preenchido
+-- pelo app.
 -- ============================================================
 create table if not exists fixos (
   id uuid primary key default gen_random_uuid(),
   nome text not null,
   valor numeric not null,
-  pessoa text not null,
+  pessoa text,
+  categoria text,
+  subcategoria text,
   ativo boolean not null default true,
   mes_fim text,
+  dia_vencimento int,
   created_at timestamptz not null default now()
 );
 
 alter table fixos add column if not exists mes_fim text;
+alter table fixos add column if not exists dia_vencimento int;
+alter table fixos add column if not exists categoria text;
+alter table fixos add column if not exists subcategoria text;
+alter table fixos alter column pessoa drop not null;
 
 -- ============================================================
 -- FATURAS (valor real informado pelo banco, por cartão/mês)
@@ -127,6 +141,27 @@ insert into categorias (nome, subcategorias) values
 on conflict (nome) do nothing;
 
 -- ============================================================
+-- PESSOAS
+-- Antes era uma lista fixa no código (Giovanna, Sabrina, Casa). `cor` é uma
+-- das classes de badge já existentes no app (purple, blue, green, amber,
+-- red, gray) — não introduz cor nova. `pessoa` em compras/fixos e `titular`
+-- em cartoes continuam texto livre (não FK); renomear aqui atualiza em
+-- cascata essas três tabelas.
+-- ============================================================
+create table if not exists pessoas (
+  id uuid primary key default gen_random_uuid(),
+  nome text not null unique,
+  cor text not null default 'gray',
+  created_at timestamptz not null default now()
+);
+
+insert into pessoas (nome, cor) values
+  ('Giovanna', 'purple'),
+  ('Sabrina', 'blue'),
+  ('Casa', 'gray')
+on conflict (nome) do nothing;
+
+-- ============================================================
 -- FIXOS_PAGAMENTOS (controle de pagamento dos gastos fixos, por mês)
 -- `fixos` é um cadastro/template (recorrente enquanto ativo=true); esta
 -- tabela guarda, por mês, se aquela conta fixa foi paga.
@@ -157,14 +192,13 @@ create table if not exists saldo_ajustes (
 -- RLS
 -- Ajuste conforme a política já usada nas outras tabelas do seu projeto.
 -- Se as tabelas acima NÃO têm RLS habilitado (o app usa só a anon key, sem
--- login), deixe `categorias`, `fixos_pagamentos` e `saldo_ajustes` do mesmo
--- jeito para não quebrar o acesso. IMPORTANTE: se a tabela for criada pelo
--- Table Editor do Supabase (em vez do SQL Editor), ele habilita RLS
--- automaticamente sem nenhuma policy — isso já bloqueou o app antes. Rode
--- este bloco pelo SQL Editor e, se aparecer erro "row-level security policy"
--- em alguma tabela nova, rode (trocando o nome da tabela):
---   alter table fixos_pagamentos disable row level security;
---   alter table saldo_ajustes disable row level security;
+-- login), deixe `categorias`, `fixos_pagamentos`, `saldo_ajustes` e `pessoas`
+-- do mesmo jeito para não quebrar o acesso. IMPORTANTE: se a tabela for
+-- criada pelo Table Editor do Supabase (em vez do SQL Editor), ele habilita
+-- RLS automaticamente sem nenhuma policy — isso já bloqueou o app antes.
+-- Rode este bloco pelo SQL Editor e, se aparecer erro "row-level security
+-- policy" em alguma tabela nova, rode (trocando o nome da tabela):
+--   alter table pessoas disable row level security;
 -- ============================================================
 -- alter table categorias enable row level security;
 -- create policy "allow all" on categorias for all using (true) with check (true);

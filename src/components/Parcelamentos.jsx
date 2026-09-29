@@ -1,7 +1,7 @@
-import { fmtK, fmt, mesLabel, nowYM, gerarParcelas, PESSOAS } from '../lib/utils'
+import { fmtK, fmt, mesLabel, nowYM, gerarParcelas } from '../lib/utils'
 
 export default function Parcelamentos({ store }) {
-  const { compras, cartoes } = store
+  const { compras, cartoes, pessoas } = store
   const mes = nowYM()
 
   const ativas = compras.filter((c) => gerarParcelas(c, cartoes).some((p) => p.mes >= mes))
@@ -150,7 +150,7 @@ export default function Parcelamentos({ store }) {
         </>
       )}
 
-      {PESSOAS.map((p) => renderGrupo(p))}
+      {pessoas.map((p) => renderGrupo(p.nome))}
     </div>
   )
 }

@@ -1,7 +1,7 @@
-import { fmt, fmtK, mesLabel, nowYM, addMonths, gerarParcelas, totalRenda, PESSOAS } from '../lib/utils'
+import { fmt, fmtK, mesLabel, nowYM, addMonths, gerarParcelas, totalRenda, corPessoa, corPessoaCss } from '../lib/utils'
 
 export default function Dashboard({ store }) {
-  const { compras, cartoes, rendas, fixos } = store
+  const { compras, cartoes, rendas, fixos, pessoas } = store
   const mes = nowYM()
 
   const fixosAtivosNoMes = (m) => fixos.filter((f) => f.ativo && (!f.mes_fim || f.mes_fim >= m))
@@ -25,7 +25,7 @@ export default function Dashboard({ store }) {
     return { mes: m, compromisso: tot, renda: rTot, saldo: rTot - tot }
   })
 
-  const gastoPessoa = PESSOAS.map((pessoa) => ({
+  const gastoPessoa = pessoas.map(({ nome: pessoa }) => ({
     pessoa,
     valor: compras
       .flatMap((c) => (c.pessoa === pessoa ? gerarParcelas(c, cartoes).filter((p) => p.mes === mes) : []))
@@ -39,6 +39,14 @@ export default function Dashboard({ store }) {
     if (!porCategoriaMap[c.categoria]) porCategoriaMap[c.categoria] = { total: 0, subs: {} }
     porCategoriaMap[c.categoria].total += valorMes
     porCategoriaMap[c.categoria].subs[c.subcategoria] = (porCategoriaMap[c.categoria].subs[c.subcategoria] || 0) + valorMes
+  })
+  fixosAtivosNoMes(mes).forEach((f) => {
+    if (!f.categoria) return
+    if (!porCategoriaMap[f.categoria]) porCategoriaMap[f.categoria] = { total: 0, subs: {} }
+    porCategoriaMap[f.categoria].total += Number(f.valor)
+    if (f.subcategoria) {
+      porCategoriaMap[f.categoria].subs[f.subcategoria] = (porCategoriaMap[f.categoria].subs[f.subcategoria] || 0) + Number(f.valor)
+    }
   })
   const porCategoria = Object.entries(porCategoriaMap)
     .map(([categoria, { total, subs }]) => ({
@@ -93,7 +101,7 @@ export default function Dashboard({ store }) {
               return (
                 <tr key={pessoa}>
                   <td>
-                    <span className={`badge ${pessoa === 'Giovanna' ? 'badge-purple' : pessoa === 'Sabrina' ? 'badge-blue' : 'badge-gray'}`}>
+                    <span className={`badge badge-${corPessoa(pessoas, pessoa)}`}>
                       {pessoa}
                     </span>
                   </td>
@@ -101,7 +109,7 @@ export default function Dashboard({ store }) {
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <div className="prog-bar" style={{ flex: 1 }}>
-                        <div className="prog-fill" style={{ width: p2 + '%', background: pessoa === 'Giovanna' ? 'var(--purple)' : pessoa === 'Sabrina' ? 'var(--blue)' : 'var(--text3)' }} />
+                        <div className="prog-fill" style={{ width: p2 + '%', background: corPessoaCss(pessoas, pessoa) }} />
                       </div>
                       <span style={{ fontSize: 11, color: 'var(--text3)', minWidth: 28 }}>{p2}%</span>
                     </div>
@@ -121,7 +129,7 @@ export default function Dashboard({ store }) {
       <div className="section-label">gastos por categoria · {mesLabel(mes)}</div>
       <div className="card">
         {porCategoria.length === 0 ? (
-          <div className="empty">Nenhuma compra lançada em {mesLabel(mes)} ainda.</div>
+          <div className="empty">Nenhum gasto categorizado em {mesLabel(mes)} ainda.</div>
         ) : (
           <table>
             <thead>
@@ -133,7 +141,7 @@ export default function Dashboard({ store }) {
             </thead>
             <tbody>
               {porCategoria.map(({ categoria, total, subs }) => {
-                const pct = totalParc > 0 ? Math.round((total / totalParc) * 100) : 0
+                const pct = totalMes > 0 ? Math.round((total / totalMes) * 100) : 0
                 return (
                   <tr key={categoria}>
                     <td>

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import Papa from 'papaparse'
-import { PESSOAS, fmt, mesLabel, calcMesInicio } from '../lib/utils'
+import { fmt, mesLabel, calcMesInicio } from '../lib/utils'
 
 const COLUNAS_ESPERADAS = ['data', 'descricao', 'valor', 'categoria', 'parcela_atual', 'parcela_total', 'cartao', 'observacao']
 const TOLERANCIA_VALOR = 0.02
@@ -93,7 +93,7 @@ function linhaValida(l, categorias) {
 }
 
 export default function ImportarFatura({ store }) {
-  const { cartoes, categorias, compras, faturas, importarTransacoes } = store
+  const { cartoes, categorias, compras, faturas, pessoas, importarTransacoes } = store
   const [linhas, setLinhas] = useState([])
   const [nomeArquivo, setNomeArquivo] = useState('')
   const [erroArquivo, setErroArquivo] = useState('')
@@ -172,7 +172,7 @@ export default function ImportarFatura({ store }) {
               parcela_total: parcelaTotal,
               cartaoNome,
               cartao_id: cartao?.id || '',
-              pessoa: cartao?.titular || PESSOAS[0],
+              pessoa: cartao?.titular || pessoas[0]?.nome || '',
               observacao: (r.observacao || '').trim(),
             }
 
@@ -431,7 +431,7 @@ export default function ImportarFatura({ store }) {
                       </td>
                       <td style={{ minWidth: 110 }}>
                         <select value={l.pessoa} onChange={(e) => atualizarLinha(l._id, { pessoa: e.target.value })}>
-                          {PESSOAS.map((p) => <option key={p}>{p}</option>)}
+                          {pessoas.map((p) => <option key={p.id}>{p.nome}</option>)}
                         </select>
                       </td>
                       <td style={{ minWidth: 150 }}>

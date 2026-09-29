@@ -1,13 +1,13 @@
 import { useState } from 'react'
-import { PESSOAS, fmt, calcMesInicio, mesLabel } from '../lib/utils'
+import { fmt, calcMesInicio, mesLabel } from '../lib/utils'
 
-export default function ModalCompra({ cartoes, categorias, onSave, onClose }) {
+export default function ModalCompra({ cartoes, categorias, pessoas, onSave, onClose }) {
   const [f, setF] = useState({
     data_compra: new Date().toISOString().slice(0, 10),
     descricao: '',
     categoria: categorias[0]?.nome || '',
     subcategoria: categorias[0]?.subcategorias?.[0] || '',
-    pessoa: 'Giovanna',
+    pessoa: pessoas[0]?.nome || '',
     cartao_id: cartoes[0]?.id || '',
     valor_total: '',
     parcelas: '1',
@@ -71,7 +71,7 @@ export default function ModalCompra({ cartoes, categorias, onSave, onClose }) {
           <div className="form-group">
             <label>Quem</label>
             <select value={f.pessoa} onChange={s('pessoa')}>
-              {PESSOAS.map((p) => <option key={p}>{p}</option>)}
+              {pessoas.map((p) => <option key={p.id}>{p.nome}</option>)}
             </select>
           </div>
         </div>

@@ -1,4 +1,11 @@
-export const PESSOAS = ['Giovanna', 'Sabrina', 'Casa']
+export const CORES_PESSOA = ['purple', 'blue', 'green', 'amber', 'red', 'gray']
+
+export const proximaCorPessoa = (pessoas) => CORES_PESSOA[pessoas.length % CORES_PESSOA.length]
+
+export const corPessoa = (pessoas, nome) => pessoas.find((p) => p.nome === nome)?.cor || 'gray'
+
+const CSS_VAR_COR = { purple: 'var(--purple)', blue: 'var(--blue)', green: 'var(--green)', amber: 'var(--amber)', red: 'var(--red)', gray: 'var(--text3)' }
+export const corPessoaCss = (pessoas, nome) => CSS_VAR_COR[corPessoa(pessoas, nome)] || CSS_VAR_COR.gray
 
 export const RENDA_CAMPOS = [
   ['giovanna', 'Salário Giovanna'],

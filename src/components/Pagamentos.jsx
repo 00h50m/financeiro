@@ -14,8 +14,11 @@ export default function Pagamentos({ store }) {
     setAjusteInput(String(saldoAjustes.find((a) => a.mes === mes)?.ajuste || 0))
   }, [mes, saldoAjustes])
 
-  // FIXOS (respeitando mes_fim, para financiamentos e afins)
-  const fixosAtivos = fixos.filter((f) => f.ativo && (!f.mes_fim || f.mes_fim >= mes))
+  // FIXOS (respeitando mes_fim, para financiamentos e afins) — ordenados por
+  // dia de vencimento, pra ajudar a priorizar o que pagar primeiro.
+  const fixosAtivos = fixos
+    .filter((f) => f.ativo && (!f.mes_fim || f.mes_fim >= mes))
+    .sort((a, b) => (a.dia_vencimento || 99) - (b.dia_vencimento || 99))
   const fixoPagamento = (fixoId) => fixosPagamentos.find((p) => p.fixo_id === fixoId && p.mes === mes)
 
   // FATURAS DOS CARTÕES
@@ -168,7 +171,8 @@ export default function Pagamentos({ store }) {
               <tr>
                 <th style={{ textAlign: 'center' }}>Pago</th>
                 <th>Nome</th>
-                <th>Pessoa</th>
+                <th>Categoria</th>
+                <th style={{ textAlign: 'center' }}>Vence</th>
                 <th style={{ textAlign: 'right' }}>Valor</th>
                 <th>Pago em</th>
               </tr>
@@ -182,10 +186,18 @@ export default function Pagamentos({ store }) {
                       <input type="checkbox" checked={!!pg?.pago} onChange={() => toggleFixo(f)} />
                     </td>
                     <td style={{ fontWeight: 500, textDecoration: pg?.pago ? 'line-through' : 'none' }}>{f.nome}</td>
-                    <td>
-                      <span className={`badge ${f.pessoa === 'Giovanna' ? 'badge-purple' : f.pessoa === 'Sabrina' ? 'badge-blue' : 'badge-gray'}`}>
-                        {f.pessoa}
-                      </span>
+                    <td style={{ fontSize: 12, color: 'var(--text2)' }}>
+                      {f.categoria ? (
+                        <>
+                          {f.categoria}<br />
+                          <span style={{ color: 'var(--text3)' }}>{f.subcategoria}</span>
+                        </>
+                      ) : (
+                        <span style={{ color: 'var(--text3)' }}>—</span>
+                      )}
+                    </td>
+                    <td style={{ textAlign: 'center', fontFamily: 'DM Mono', fontSize: 12, color: 'var(--text3)' }}>
+                      {f.dia_vencimento ? `dia ${f.dia_vencimento}` : '—'}
                     </td>
                     <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(f.valor)}</td>
                     <td style={{ fontSize: 12, color: 'var(--text3)', fontFamily: 'DM Mono' }}>{dataFmt(pg?.data_pagamento) || '—'}</td>

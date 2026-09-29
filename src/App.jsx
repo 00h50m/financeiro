@@ -10,6 +10,7 @@ import Renda from './components/Renda'
 import Fixos from './components/Fixos'
 import Cartoes from './components/Cartoes'
 import Categorias from './components/Categorias'
+import Pessoas from './components/Pessoas'
 
 const ABAS = [
   { id: 'dashboard', label: 'Dashboard', Component: Dashboard },
@@ -22,6 +23,7 @@ const ABAS = [
   { id: 'fixos', label: 'Fixos', Component: Fixos },
   { id: 'cartoes', label: 'Cartões', Component: Cartoes },
   { id: 'categorias', label: 'Categorias', Component: Categorias },
+  { id: 'pessoas', label: 'Pessoas', Component: Pessoas },
 ]
 
 export default function App() {

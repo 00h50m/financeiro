@@ -1,11 +1,11 @@
 import { useState } from 'react'
-import { PESSOAS } from '../lib/utils'
+import { corPessoa } from '../lib/utils'
 
 export default function Cartoes({ store }) {
-  const { cartoes, addCartao, updateCartao, delCartao } = store
+  const { cartoes, pessoas, addCartao, updateCartao, delCartao } = store
   const [modal, setModal] = useState(false)
   const [editId, setEditId] = useState(null)
-  const [form, setForm] = useState({ nome: '', titular: 'Giovanna', fechamento: '', vencimento: '' })
+  const [form, setForm] = useState({ nome: '', titular: pessoas[0]?.nome || '', fechamento: '', vencimento: '' })
   const [saving, setSaving] = useState(false)
   const s = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
 
@@ -14,7 +14,7 @@ export default function Cartoes({ store }) {
       setForm({ nome: cartao.nome, titular: cartao.titular, fechamento: cartao.fechamento || '', vencimento: cartao.vencimento || '' })
       setEditId(cartao.id)
     } else {
-      setForm({ nome: '', titular: 'Giovanna', fechamento: '', vencimento: '' })
+      setForm({ nome: '', titular: pessoas[0]?.nome || '', fechamento: '', vencimento: '' })
       setEditId(null)
     }
     setModal(true)
@@ -44,7 +44,7 @@ export default function Cartoes({ store }) {
               <div className="form-group">
                 <label>Titular</label>
                 <select value={form.titular} onChange={s('titular')}>
-                  {PESSOAS.map((p) => <option key={p}>{p}</option>)}
+                  {pessoas.map((p) => <option key={p.id}>{p.nome}</option>)}
                 </select>
               </div>
             </div>
@@ -98,7 +98,7 @@ export default function Cartoes({ store }) {
                 <tr key={c.id}>
                   <td style={{ fontWeight: 500 }}>{c.nome}</td>
                   <td>
-                    <span className={`badge ${c.titular === 'Giovanna' ? 'badge-purple' : c.titular === 'Sabrina' ? 'badge-blue' : 'badge-gray'}`}>
+                    <span className={`badge badge-${corPessoa(pessoas, c.titular)}`}>
                       {c.titular}
                     </span>
                   </td>
