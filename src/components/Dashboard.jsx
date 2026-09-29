@@ -4,7 +4,10 @@ export default function Dashboard({ store }) {
   const { compras, cartoes, rendas, fixos } = store
   const mes = nowYM()
 
-  const totalFixos = fixos.filter((f) => f.ativo).reduce((s, f) => s + Number(f.valor), 0)
+  const fixosAtivosNoMes = (m) => fixos.filter((f) => f.ativo && (!f.mes_fim || f.mes_fim >= m))
+  const totalFixosNoMes = (m) => fixosAtivosNoMes(m).reduce((s, f) => s + Number(f.valor), 0)
+
+  const totalFixos = totalFixosNoMes(mes)
   const parcelasMes = compras.flatMap((c) => gerarParcelas(c, cartoes).filter((p) => p.mes === mes))
   const totalParc = parcelasMes.reduce((s, p) => s + p.valor, 0)
   const totalMes = totalFixos + totalParc
@@ -16,7 +19,7 @@ export default function Dashboard({ store }) {
 
   const meses6 = Array.from({ length: 6 }, (_, i) => addMonths(mes, i)).map((m) => {
     const ps = compras.flatMap((c) => gerarParcelas(c, cartoes).filter((p) => p.mes === m))
-    const tot = totalFixos + ps.reduce((s, p) => s + p.valor, 0)
+    const tot = totalFixosNoMes(m) + ps.reduce((s, p) => s + p.valor, 0)
     const r = rendas.find((x) => x.mes === m)
     const rTot = totalRenda(r)
     return { mes: m, compromisso: tot, renda: rTot, saldo: rTot - tot }

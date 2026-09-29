@@ -79,7 +79,22 @@ export default function Compras({ store }) {
                       {c.categoria}<br />
                       <span style={{ color: 'var(--text3)' }}>{c.subcategoria}</span>
                     </td>
-                    <td><span className="badge badge-gray">{cartao?.nome || '—'}</span></td>
+                    <td>
+                      {cartao ? (
+                        <span className="badge badge-gray">{cartao.nome}</span>
+                      ) : (
+                        <div>
+                          <span className="badge badge-gray">Sem cartão</span>
+                          <div style={{ marginTop: 3 }}>
+                            {c.pago ? (
+                              <span className="badge badge-green" style={{ fontSize: 10 }}>pago</span>
+                            ) : (
+                              <span className="badge badge-amber" style={{ fontSize: 10 }}>a pagar</span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </td>
                     <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(c.valor_total)}</td>
                     <td style={{ textAlign: 'center' }}>
                       {Number(c.parcelas) > 1 ? (

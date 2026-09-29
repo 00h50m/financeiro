@@ -12,6 +12,7 @@ export default function ModalCompra({ cartoes, categorias, onSave, onClose }) {
     valor_total: '',
     parcelas: '1',
     obs: '',
+    pago: false,
   })
   const [saving, setSaving] = useState(false)
   const [itensLancados, setItensLancados] = useState(0)
@@ -21,12 +22,18 @@ export default function ModalCompra({ cartoes, categorias, onSave, onClose }) {
   const cartao = cartoes.find((c) => c.id === f.cartao_id)
   const mesInicio = f.data_compra && cartao ? calcMesInicio(f.data_compra, cartao) : ''
   const valorParc = f.valor_total && f.parcelas ? Number(f.valor_total) / Number(f.parcelas) : 0
-  const ok = f.descricao && f.valor_total && f.cartao_id && f.categoria && !saving
+  const ok = f.descricao && f.valor_total && f.categoria && !saving
 
   async function save(fechar) {
     if (!ok) return
     setSaving(true)
-    await onSave({ ...f, valor_total: Number(f.valor_total), parcelas: Number(f.parcelas) })
+    await onSave({
+      ...f,
+      valor_total: Number(f.valor_total),
+      parcelas: Number(f.parcelas),
+      cartao_id: f.cartao_id || null,
+      data_pagamento: f.pago ? new Date().toISOString().slice(0, 10) : null,
+    })
     setSaving(false)
     setItensLancados((n) => n + 1)
     if (fechar) {
@@ -39,6 +46,7 @@ export default function ModalCompra({ cartoes, categorias, onSave, onClose }) {
         subcategoria: categorias[0]?.subcategorias?.[0] || '',
         valor_total: '',
         obs: '',
+        pago: false,
       }))
     }
   }
@@ -106,6 +114,7 @@ export default function ModalCompra({ cartoes, categorias, onSave, onClose }) {
           <div className="form-group">
             <label>Cartão</label>
             <select value={f.cartao_id} onChange={s('cartao_id')}>
+              <option value="">Sem cartão (dinheiro/Pix/boleto)</option>
               {cartoes.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
             </select>
           </div>
@@ -124,6 +133,20 @@ export default function ModalCompra({ cartoes, categorias, onSave, onClose }) {
             {Number(f.parcelas) === 1
               ? `Lançado em ${mesLabel(mesInicio)} · à vista · ${fmt(valorParc)}`
               : `1ª parcela em ${mesLabel(mesInicio)} · ${fmt(valorParc)}/mês × ${f.parcelas}x = ${fmt(Number(f.valor_total))}`}
+          </div>
+        )}
+
+        {!f.cartao_id && (
+          <div className="form-row">
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+              <input type="checkbox" checked={f.pago} onChange={(e) => setF((p) => ({ ...p, pago: e.target.checked }))} />
+              Já paguei essa conta
+            </label>
+            {!f.pago && (
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
+                Sem cartão vinculado, essa conta vai aparecer como pendência na aba Pagamentos até você marcar como paga.
+              </div>
+            )}
           </div>
         )}
 
