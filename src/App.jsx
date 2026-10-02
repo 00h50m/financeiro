@@ -57,15 +57,21 @@ export default function App() {
     <div className="app">
       <nav className="nav">
         <span className="nav-logo">Gi & Sabi</span>
-        {ABAS.map((a) => (
-          <button
-            key={a.id}
-            className={`nav-btn ${aba === a.id ? 'active' : ''}`}
-            onClick={() => setAba(a.id)}
-          >
-            {a.label}
-          </button>
-        ))}
+        <div className="nav-tabs">
+          {ABAS.map((a) => (
+            <button
+              key={a.id}
+              className={`nav-btn ${aba === a.id ? 'active' : ''}`}
+              onClick={(e) => {
+                setAba(a.id)
+                e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
+                window.scrollTo({ top: 0 })
+              }}
+            >
+              {a.label}
+            </button>
+          ))}
+        </div>
         <div
           className={`sync-dot ${store.syncState === 'syncing' ? 'syncing' : store.syncState === 'error' ? 'error' : ''}`}
           title={store.syncState === 'ok' ? 'Sincronizado' : store.syncState === 'syncing' ? 'Salvando...' : 'Erro de sync'}

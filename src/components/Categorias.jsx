@@ -196,7 +196,7 @@ export default function Categorias({ store }) {
               ))}
             </div>
 
-            <div style={{ display: 'flex', gap: 8, maxWidth: 320 }}>
+            <div style={{ display: 'flex', gap: 8, maxWidth: 320, width: '100%' }}>
               <input
                 placeholder="Nova subcategoria..."
                 value={novaSub[cat.id] || ''}

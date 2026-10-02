@@ -142,7 +142,7 @@ export default function Pagamentos({ store }) {
             Dinheiro disponível calculado = renda do mês ({fmt(rendaMes)}) − já pago ({fmt(pago)}){ajusteAtual !== 0 && ` ${ajusteAtual > 0 ? '+' : '−'} ajuste (${fmt(Math.abs(ajusteAtual))})`}.
             {' '}Use o ajuste para corrigir com saldo de meses anteriores ou dinheiro fora da renda cadastrada.
           </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div className="wrap-row">
             <label style={{ fontSize: 12, color: 'var(--text2)' }}>Ajuste manual (R$)</label>
             <input
               type="number" step="0.01"

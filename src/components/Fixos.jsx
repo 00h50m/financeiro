@@ -179,9 +179,11 @@ export default function Fixos({ store }) {
                         {!f.ativo ? 'Pausado' : encerrado ? 'Encerrado' : 'Ativo'}
                       </button>
                     </td>
-                    <td style={{ display: 'flex', gap: 6 }}>
-                      <button className="btn btn-ghost btn-sm" onClick={() => abrir(f)}>Editar</button>
-                      <button className="btn btn-danger" onClick={() => { if (confirm(`Remover "${f.nome}"?`)) delFixo(f.id) }}>×</button>
+                    <td>
+                      <div className="cell-actions">
+                        <button className="btn btn-ghost btn-sm" onClick={() => abrir(f)}>Editar</button>
+                        <button className="btn btn-danger" onClick={() => { if (confirm(`Remover "${f.nome}"?`)) delFixo(f.id) }}>×</button>
+                      </div>
                     </td>
                   </tr>
                 )

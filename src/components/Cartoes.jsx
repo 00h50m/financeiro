@@ -104,12 +104,14 @@ export default function Cartoes({ store }) {
                   </td>
                   <td style={{ textAlign: 'center', fontFamily: 'DM Mono' }}>{c.fechamento ? `dia ${c.fechamento}` : '—'}</td>
                   <td style={{ textAlign: 'center', fontFamily: 'DM Mono' }}>{c.vencimento ? `dia ${c.vencimento}` : '—'}</td>
-                  <td style={{ display: 'flex', gap: 6 }}>
-                    <button className="btn btn-ghost btn-sm" onClick={() => abrir(c)}>Editar</button>
-                    <button
-                      className="btn btn-danger"
-                      onClick={() => { if (confirm(`Remover "${c.nome}"? As compras vinculadas perdem o cartão.`)) delCartao(c.id) }}
-                    >×</button>
+                  <td>
+                    <div className="cell-actions">
+                      <button className="btn btn-ghost btn-sm" onClick={() => abrir(c)}>Editar</button>
+                      <button
+                        className="btn btn-danger"
+                        onClick={() => { if (confirm(`Remover "${c.nome}"? As compras vinculadas perdem o cartão.`)) delCartao(c.id) }}
+                      >×</button>
+                    </div>
                   </td>
                 </tr>
               ))}
