@@ -1,10 +1,24 @@
 import { useState } from 'react'
 
 export default function Categorias({ store }) {
-  const { categorias, addCategoria, delCategoria, renomearCategoria, addSubcategoria, delSubcategoria, renomearSubcategoria } = store
+  const {
+    categorias, compras, fixos,
+    addCategoria, delCategoria, renomearCategoria,
+    addSubcategoria, delSubcategoria, renomearSubcategoria,
+    migrarCategoria, migrarSubcategoria,
+  } = store
   const [novoNome, setNovoNome] = useState('')
   const [novaSub, setNovaSub] = useState({})
   const [saving, setSaving] = useState(false)
+  const [migracao, setMigracao] = useState(null)
+
+  function contarUsoCategoria(nome) {
+    return compras.filter((c) => c.categoria === nome).length + fixos.filter((f) => f.categoria === nome).length
+  }
+  function contarUsoSubcategoria(catNome, subNome) {
+    return compras.filter((c) => c.categoria === catNome && c.subcategoria === subNome).length +
+      fixos.filter((f) => f.categoria === catNome && f.subcategoria === subNome).length
+  }
 
   async function criarCategoria() {
     const nome = novoNome.trim()
@@ -32,9 +46,17 @@ export default function Categorias({ store }) {
   }
 
   function remover(cat) {
-    if (confirm(`Remover a categoria "${cat.nome}"?\n\nCompras já lançadas com essa categoria não são alteradas — ela só deixa de aparecer como opção ao lançar novas compras.`)) {
-      delCategoria(cat.id)
+    const n = contarUsoCategoria(cat.nome)
+    if (n === 0) {
+      if (confirm(`Remover a categoria "${cat.nome}"? Nenhuma compra ou conta fixa usa ela hoje.`)) delCategoria(cat.id)
+      return
     }
+    const outras = categorias.filter((c) => c.id !== cat.id)
+    if (outras.length === 0) {
+      alert('Essa é a única categoria cadastrada — crie outra antes de remover esta.')
+      return
+    }
+    setMigracao({ tipo: 'categoria', cat, contagem: n, destino: outras[0].nome })
   }
 
   function adicionarSub(cat) {
@@ -49,9 +71,17 @@ export default function Categorias({ store }) {
   }
 
   function removerSub(cat, sub) {
-    if (confirm(`Remover a subcategoria "${sub}"?`)) {
-      delSubcategoria(cat.id, cat.subcategorias.filter((s) => s !== sub))
+    const n = contarUsoSubcategoria(cat.nome, sub)
+    const outras = cat.subcategorias.filter((s) => s !== sub)
+    if (n === 0) {
+      if (confirm(`Remover a subcategoria "${sub}"?`)) delSubcategoria(cat.id, outras)
+      return
     }
+    if (outras.length === 0) {
+      alert(`"${sub}" é a única subcategoria de "${cat.nome}" e há ${n} movimentação(ões) usando ela. Crie outra subcategoria antes de remover esta.`)
+      return
+    }
+    setMigracao({ tipo: 'subcategoria', cat, sub, contagem: n, destino: outras[0] })
   }
 
   function renomearSub(cat, sub) {
@@ -67,12 +97,59 @@ export default function Categorias({ store }) {
     renomearSubcategoria(cat.id, cat.nome, subcategorias, sub, nome)
   }
 
+  async function confirmarMigracao() {
+    if (!migracao) return
+    if (migracao.tipo === 'categoria') {
+      await migrarCategoria(migracao.cat.nome, migracao.destino)
+      await delCategoria(migracao.cat.id)
+    } else {
+      const subcategorias = migracao.cat.subcategorias.filter((s) => s !== migracao.sub)
+      await migrarSubcategoria(migracao.cat.nome, migracao.sub, migracao.destino)
+      await delSubcategoria(migracao.cat.id, subcategorias)
+    }
+    setMigracao(null)
+  }
+
   return (
     <div className="page">
+      {migracao && (
+        <div className="overlay" onClick={(e) => { if (e.target.className === 'overlay') setMigracao(null) }}>
+          <div className="modal">
+            <div className="modal-title">
+              {migracao.tipo === 'categoria' ? `Remover categoria "${migracao.cat.nome}"` : `Remover subcategoria "${migracao.sub}"`}
+            </div>
+            <div className="alert alert-amber">
+              {migracao.contagem} {migracao.contagem === 1 ? 'movimentação usa' : 'movimentações usam'} essa
+              {migracao.tipo === 'categoria' ? ' categoria' : ' subcategoria'} hoje. Escolha para onde elas vão —
+              nenhuma fica sem classificação.
+            </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Migrar movimentações para</label>
+                <select
+                  value={migracao.destino}
+                  onChange={(e) => setMigracao((m) => ({ ...m, destino: e.target.value }))}
+                >
+                  {migracao.tipo === 'categoria'
+                    ? categorias.filter((c) => c.id !== migracao.cat.id).map((c) => <option key={c.id}>{c.nome}</option>)
+                    : migracao.cat.subcategorias.filter((s) => s !== migracao.sub).map((s) => <option key={s}>{s}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-ghost" onClick={() => setMigracao(null)}>Cancelar</button>
+              <button className="btn btn-danger" style={{ padding: '8px 16px', fontSize: 13 }} onClick={confirmarMigracao}>
+                Migrar e remover
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="alert alert-blue">
-        Categorias e subcategorias usadas ao lançar compras e ao importar faturas. Renomear atualiza
-        automaticamente as compras já lançadas com o nome antigo; remover uma categoria ou subcategoria só
-        tira ela das opções — compras antigas mantêm o texto que já tinham.
+        Categorias e subcategorias usadas ao lançar compras, fixos e ao importar faturas. Renomear atualiza
+        automaticamente os registros já lançados com o nome antigo. Remover uma categoria ou subcategoria que já
+        tem movimentações pede para você escolher para onde elas vão antes — nenhum registro fica órfão.
       </div>
 
       <div className="toolbar">

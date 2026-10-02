@@ -158,6 +158,8 @@ export function useStore() {
     if (r.error) throw r.error
     const rc = await sb.from('compras').update({ categoria: nomeNovo }).eq('categoria', nomeAntigo)
     if (rc.error) throw rc.error
+    const rf = await sb.from('fixos').update({ categoria: nomeNovo }).eq('categoria', nomeAntigo)
+    if (rf.error) throw rf.error
   })
   const addSubcategoria = (id, subcategorias) => op(async () => {
     const r = await sb.from('categorias').update({ subcategorias }).eq('id', id)
@@ -175,6 +177,32 @@ export function useStore() {
       .eq('categoria', categoriaNome)
       .eq('subcategoria', subAntiga)
     if (rc.error) throw rc.error
+    const rf = await sb.from('fixos')
+      .update({ subcategoria: subNova })
+      .eq('categoria', categoriaNome)
+      .eq('subcategoria', subAntiga)
+    if (rf.error) throw rf.error
+  })
+  // Usadas ao excluir uma categoria/subcategoria com movimentações: migra o
+  // texto gravado em compras/fixos para o destino escolhido ANTES de remover
+  // a opção antiga, para nunca deixar um registro órfão.
+  const migrarCategoria = (categoriaAntiga, categoriaNova) => op(async () => {
+    const rc = await sb.from('compras').update({ categoria: categoriaNova }).eq('categoria', categoriaAntiga)
+    if (rc.error) throw rc.error
+    const rf = await sb.from('fixos').update({ categoria: categoriaNova }).eq('categoria', categoriaAntiga)
+    if (rf.error) throw rf.error
+  })
+  const migrarSubcategoria = (categoriaNome, subAntiga, subNova) => op(async () => {
+    const rc = await sb.from('compras')
+      .update({ subcategoria: subNova })
+      .eq('categoria', categoriaNome)
+      .eq('subcategoria', subAntiga)
+    if (rc.error) throw rc.error
+    const rf = await sb.from('fixos')
+      .update({ subcategoria: subNova })
+      .eq('categoria', categoriaNome)
+      .eq('subcategoria', subAntiga)
+    if (rf.error) throw rf.error
   })
 
   // PESSOAS
@@ -228,6 +256,7 @@ export function useStore() {
     definirAjusteSaldo,
     addCategoria, delCategoria, renomearCategoria,
     addSubcategoria, delSubcategoria, renomearSubcategoria,
+    migrarCategoria, migrarSubcategoria,
     addPessoa, delPessoa, mudarCorPessoa, renomearPessoa,
     importarTransacoes,
   }
