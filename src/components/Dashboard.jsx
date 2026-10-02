@@ -1,8 +1,11 @@
+import { useState, Fragment } from 'react'
 import { fmt, fmtK, mesLabel, nowYM, addMonths, gerarParcelas, totalRenda, corPessoa, corPessoaCss } from '../lib/utils'
 
 export default function Dashboard({ store }) {
   const { compras, cartoes, rendas, fixos, pessoas } = store
   const mes = nowYM()
+  const [abertas, setAbertas] = useState({})
+  const alternar = (categoria) => setAbertas((a) => ({ ...a, [categoria]: !a[categoria] }))
 
   const fixosAtivosNoMes = (m) => fixos.filter((f) => f.ativo && (!f.mes_fim || f.mes_fim >= m))
   const totalFixosNoMes = (m) => fixosAtivosNoMes(m).reduce((s, f) => s + Number(f.valor), 0)
@@ -33,26 +36,34 @@ export default function Dashboard({ store }) {
   }))
 
   const porCategoriaMap = {}
+  const garantir = (categoria) => {
+    if (!porCategoriaMap[categoria]) porCategoriaMap[categoria] = { total: 0, itens: [] }
+    return porCategoriaMap[categoria]
+  }
   compras.forEach((c) => {
-    const valorMes = gerarParcelas(c, cartoes).filter((p) => p.mes === mes).reduce((s, p) => s + p.valor, 0)
-    if (!valorMes) return
-    if (!porCategoriaMap[c.categoria]) porCategoriaMap[c.categoria] = { total: 0, subs: {} }
-    porCategoriaMap[c.categoria].total += valorMes
-    porCategoriaMap[c.categoria].subs[c.subcategoria] = (porCategoriaMap[c.categoria].subs[c.subcategoria] || 0) + valorMes
+    const p = gerarParcelas(c, cartoes).find((x) => x.mes === mes)
+    if (!p || !p.valor) return
+    const cat = garantir(c.categoria)
+    cat.total += p.valor
+    cat.itens.push({
+      nome: c.descricao,
+      sub: c.subcategoria,
+      valor: p.valor,
+      origem: cartoes.find((x) => x.id === c.cartao_id)?.nome || 'Sem cartão',
+      detalhe: p.total > 1 ? `parcela ${p.num}/${p.total}` : 'à vista',
+    })
   })
   fixosAtivosNoMes(mes).forEach((f) => {
     if (!f.categoria) return
-    if (!porCategoriaMap[f.categoria]) porCategoriaMap[f.categoria] = { total: 0, subs: {} }
-    porCategoriaMap[f.categoria].total += Number(f.valor)
-    if (f.subcategoria) {
-      porCategoriaMap[f.categoria].subs[f.subcategoria] = (porCategoriaMap[f.categoria].subs[f.subcategoria] || 0) + Number(f.valor)
-    }
+    const cat = garantir(f.categoria)
+    cat.total += Number(f.valor)
+    cat.itens.push({ nome: f.nome, sub: f.subcategoria, valor: Number(f.valor), origem: 'Conta fixa', detalhe: f.dia_vencimento ? `vence dia ${f.dia_vencimento}` : '' })
   })
   const porCategoria = Object.entries(porCategoriaMap)
-    .map(([categoria, { total, subs }]) => ({
+    .map(([categoria, { total, itens }]) => ({
       categoria,
       total,
-      subs: Object.entries(subs).sort((a, b) => b[1] - a[1]),
+      itens: [...itens].sort((a, b) => b.valor - a.valor),
     }))
     .sort((a, b) => b.total - a.total)
 
@@ -140,28 +151,57 @@ export default function Dashboard({ store }) {
               </tr>
             </thead>
             <tbody>
-              {porCategoria.map(({ categoria, total, subs }) => {
+              {porCategoria.map(({ categoria, total, itens }) => {
                 const pct = totalMes > 0 ? Math.round((total / totalMes) * 100) : 0
+                const aberta = !!abertas[categoria]
                 return (
-                  <tr key={categoria}>
-                    <td>
-                      <div style={{ fontWeight: 500 }}>{categoria}</div>
-                      {subs.length > 1 && (
-                        <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
-                          {subs.map(([s, v]) => `${s} ${fmt(v)}`).join(' · ')}
+                  <Fragment key={categoria}>
+                    <tr onClick={() => alternar(categoria)} style={{ cursor: 'pointer' }} title="Clique para ver os gastos desta categoria">
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <span style={{ fontSize: 10, color: 'var(--text3)', width: 10 }}>{aberta ? '▼' : '▶'}</span>
+                          <div>
+                            <div style={{ fontWeight: 500 }}>{categoria}</div>
+                            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
+                              {itens.length} {itens.length === 1 ? 'gasto' : 'gastos'}
+                            </div>
+                          </div>
                         </div>
-                      )}
-                    </td>
-                    <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(total)}</td>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div className="prog-bar" style={{ flex: 1 }}>
-                          <div className="prog-fill" style={{ width: pct + '%', background: 'var(--blue)' }} />
+                      </td>
+                      <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(total)}</td>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div className="prog-bar" style={{ flex: 1 }}>
+                            <div className="prog-fill" style={{ width: pct + '%', background: 'var(--blue)' }} />
+                          </div>
+                          <span style={{ fontSize: 11, color: 'var(--text3)', minWidth: 28 }}>{pct}%</span>
                         </div>
-                        <span style={{ fontSize: 11, color: 'var(--text3)', minWidth: 28 }}>{pct}%</span>
-                      </div>
-                    </td>
-                  </tr>
+                      </td>
+                    </tr>
+                    {aberta && (
+                      <tr>
+                        <td colSpan={3} style={{ padding: 0, background: 'var(--bg3)' }}>
+                          <table>
+                            <tbody>
+                              {itens.map((it, i) => (
+                                <tr key={i}>
+                                  <td style={{ paddingLeft: 38, background: 'transparent' }}>
+                                    <div style={{ fontWeight: 500, fontSize: 13 }}>{it.nome}</div>
+                                    <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
+                                      {[it.sub, it.origem, it.detalhe].filter(Boolean).join(' · ')}
+                                    </div>
+                                  </td>
+                                  <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 12, background: 'transparent', width: 130 }}>
+                                    {fmt(it.valor)}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 )
               })}
             </tbody>

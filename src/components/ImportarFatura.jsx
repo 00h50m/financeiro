@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import Papa from 'papaparse'
-import { fmt, mesLabel, calcMesInicio } from '../lib/utils'
+import { fmt, mesLabel, calcMesInicio, addMonths, nowYM } from '../lib/utils'
 
 const COLUNAS_ESPERADAS = ['data', 'descricao', 'valor', 'categoria', 'parcela_atual', 'parcela_total', 'cartao', 'observacao']
 const TOLERANCIA_VALOR = 0.02
+
+const round2 = (n) => Math.round(n * 100) / 100
 
 function normBasico(s) {
   return (s || '')
@@ -47,9 +49,23 @@ function construirHistoricoCategorias(compras) {
   return melhor
 }
 
-function buscarDuplicataExistente(l, compras) {
+// modo: 'parcela' = a coluna valor do CSV é o valor de UMA parcela (padrão de fatura de cartão);
+//       'total'   = a coluna valor é o valor total da compra parcelada.
+function valorParcelaLinha(l, modo) {
+  const v = Number(l.valor)
+  const n = Number(l.parcela_total) || 1
+  return n > 1 && modo === 'total' ? v / n : v
+}
+
+function valorTotalLinha(l, modo) {
+  const v = Number(l.valor)
+  const n = Number(l.parcela_total) || 1
+  return n > 1 && modo === 'parcela' ? round2(v * n) : v
+}
+
+function buscarDuplicataExistente(l, compras, modo) {
   const descNorm = normBasico(l.descricao)
-  const valorLinha = Number(l.valor)
+  const valorLinha = valorTotalLinha(l, modo)
   return compras.some((c) =>
     c.cartao_id === l.cartao_id &&
     (c.data_compra || '').slice(0, 10) === l.data &&
@@ -58,17 +74,17 @@ function buscarDuplicataExistente(l, compras) {
   )
 }
 
-function buscarParcelaExistente(l, compras) {
+function buscarParcelaExistente(l, compras, modo) {
   const total = Number(l.parcela_total) || 0
   if (!total || !l.cartao_id) return null
-  const valorLinha = Number(l.valor)
+  const valorParcela = valorParcelaLinha(l, modo)
   const descNorm = normBasico(l.descricao)
   return compras.find((c) => {
     if (Number(c.parcelas) !== total) return false
     if (c.cartao_id !== l.cartao_id) return false
     if (normBasico(c.descricao) !== descNorm) return false
     const valorParcelaExistente = Number(c.valor_total) / Number(c.parcelas)
-    return Math.abs(valorParcelaExistente - valorLinha) < TOLERANCIA_VALOR
+    return Math.abs(valorParcelaExistente - valorParcela) < TOLERANCIA_VALOR
   }) || null
 }
 
@@ -82,7 +98,22 @@ function marcarDuplicatasNoCsv(linhas) {
   return linhas.map((l) => ({ ...l, duplicataCsv: contagem[chaveDe(l)] > 1 }))
 }
 
-function linhaValida(l, categorias) {
+// Reavalia os avisos (já lançada / parcelamento encontrado / repetida no arquivo)
+// sem mexer no que a usuária já marcou ou editou.
+function recalcular(linhas, compras, modo) {
+  const comFlags = linhas.map((l) => {
+    const emAndamento = Number(l.parcela_atual) > 1
+    return {
+      ...l,
+      parcelaEmAndamento: emAndamento,
+      duplicataExistente: buscarDuplicataExistente(l, compras, modo),
+      parcelaEncontrada: emAndamento ? !!buscarParcelaExistente(l, compras, modo) : null,
+    }
+  })
+  return marcarDuplicatasNoCsv(comFlags)
+}
+
+function linhaValida(l, categorias, mesFatura) {
   return !!l.data
     && !!l.descricao
     && l.valor !== '' && !isNaN(Number(l.valor))
@@ -90,6 +121,7 @@ function linhaValida(l, categorias) {
     && !!l.subcategoria
     && !!l.pessoa
     && !!l.cartao_id
+    && (!(Number(l.parcela_atual) > 1) || !!mesFatura)
 }
 
 export default function ImportarFatura({ store }) {
@@ -99,6 +131,9 @@ export default function ImportarFatura({ store }) {
   const [erroArquivo, setErroArquivo] = useState('')
   const [importando, setImportando] = useState(false)
   const [resultado, setResultado] = useState(null)
+  const [modoValor, setModoValor] = useState('parcela')
+  const [mesFatura, setMesFatura] = useState('')
+  const [cartaoGlobal, setCartaoGlobal] = useState('')
 
   function resolverCartao(nome) {
     const n = (nome || '').trim().toLowerCase()
@@ -113,6 +148,7 @@ export default function ImportarFatura({ store }) {
     setErroArquivo('')
     setResultado(null)
     setLinhas([])
+    setCartaoGlobal('')
 
     Papa.parse(file, {
       header: true,
@@ -127,7 +163,7 @@ export default function ImportarFatura({ store }) {
 
         const historico = construirHistoricoCategorias(compras)
 
-        let enriquecidas = res.data
+        const base = res.data
           .filter((r) => Object.values(r).some((v) => (v || '').toString().trim() !== ''))
           .map((r, i) => {
             const nomeCategoriaCsv = (r.categoria || '').trim()
@@ -160,7 +196,7 @@ export default function ImportarFatura({ store }) {
               }
             }
 
-            const linha = {
+            return {
               _id: i,
               data: (r.data || '').trim(),
               descricao,
@@ -175,24 +211,22 @@ export default function ImportarFatura({ store }) {
               pessoa: cartao?.titular || pessoas[0]?.nome || '',
               observacao: (r.observacao || '').trim(),
             }
-
-            const duplicataExistente = buscarDuplicataExistente(linha, compras)
-            const parcelaExistente = Number(parcelaAtual) > 1 ? buscarParcelaExistente(linha, compras) : null
-            const parcelaEmAndamento = Number(parcelaAtual) > 1
-
-            let incluir = !parcelaEmAndamento
-            if (duplicataExistente) incluir = false
-
-            return {
-              ...linha,
-              duplicataExistente,
-              parcelaEmAndamento,
-              parcelaEncontrada: parcelaEmAndamento ? !!parcelaExistente : null,
-              incluir,
-            }
           })
 
-        enriquecidas = marcarDuplicatasNoCsv(enriquecidas)
+        // Mês da fatura: o mais comum entre as linhas que não são parcela em andamento
+        const contagemMes = {}
+        base.forEach((l) => {
+          if (!l.cartao_id || !l.data || Number(l.parcela_atual) > 1) return
+          const m = calcMesInicio(l.data, cartoes.find((c) => c.id === l.cartao_id))
+          contagemMes[m] = (contagemMes[m] || 0) + 1
+        })
+        const inferido = Object.entries(contagemMes).sort((a, b) => b[1] - a[1])[0]?.[0] || nowYM()
+        setMesFatura(inferido)
+
+        const enriquecidas = recalcular(base, compras, modoValor).map((l) => ({
+          ...l,
+          incluir: !l.duplicataExistente && !(l.parcelaEmAndamento && l.parcelaEncontrada),
+        }))
 
         setLinhas(enriquecidas)
         setNomeArquivo(file.name)
@@ -202,7 +236,11 @@ export default function ImportarFatura({ store }) {
   }
 
   function atualizarLinha(id, patch) {
-    setLinhas((ls) => ls.map((l) => (l._id === id ? { ...l, ...patch } : l)))
+    const reavaliar = ['cartao_id', 'data', 'descricao', 'valor'].some((k) => k in patch)
+    setLinhas((ls) => {
+      const novo = ls.map((l) => (l._id === id ? { ...l, ...patch } : l))
+      return reavaliar ? recalcular(novo, compras, modoValor) : novo
+    })
   }
 
   function mudarCategoria(id, categoria) {
@@ -210,21 +248,44 @@ export default function ImportarFatura({ store }) {
     atualizarLinha(id, { categoria, subcategoria: subs[0] || '', sugerida: false })
   }
 
+  function aplicarCartaoGlobal(id) {
+    setCartaoGlobal(id)
+    if (!id) return
+    const cartao = cartoes.find((c) => c.id === id)
+    setLinhas((ls) => recalcular(
+      ls.map((l) => ({ ...l, cartao_id: id, pessoa: cartao?.titular || l.pessoa })),
+      compras,
+      modoValor,
+    ))
+  }
+
+  function mudarModoValor(m) {
+    setModoValor(m)
+    setLinhas((ls) => recalcular(ls, compras, m))
+  }
+
   const selecionadas = linhas.filter((l) => l.incluir)
-  const prontas = selecionadas.filter((l) => linhaValida(l, categorias))
+  const prontas = selecionadas.filter((l) => linhaValida(l, categorias, mesFatura))
   const comProblema = selecionadas.length - prontas.length
   const duplicatasExistentesCount = linhas.filter((l) => l.duplicataExistente).length
   const duplicatasCsvCount = linhas.filter((l) => l.duplicataCsv).length
   const linhasNovas = linhas.length - duplicatasExistentesCount
+  const parceladasEmAndamento = linhas.filter((l) => l.incluir && l.parcelaEmAndamento && !l.parcelaEncontrada).length
 
   const conferencia = (() => {
     const grupos = {}
     linhas.filter((l) => l.incluir && l.cartao_id && l.data && l.valor !== '').forEach((l) => {
       const cartaoObj = cartoes.find((c) => c.id === l.cartao_id)
-      const mes = cartaoObj ? calcMesInicio(l.data, cartaoObj) : l.data.slice(0, 7)
+      let mes
+      if (l.parcelaEmAndamento) {
+        if (!mesFatura) return
+        mes = mesFatura
+      } else {
+        mes = cartaoObj ? calcMesInicio(l.data, cartaoObj) : l.data.slice(0, 7)
+      }
       const key = `${l.cartao_id}|${mes}`
       if (!grupos[key]) grupos[key] = { cartao_id: l.cartao_id, mes, soma: 0 }
-      grupos[key].soma += Number(l.valor) || 0
+      grupos[key].soma += valorParcelaLinha(l, modoValor) || 0
     })
     return Object.values(grupos)
       .map((g) => {
@@ -241,17 +302,25 @@ export default function ImportarFatura({ store }) {
     if (prontas.length === 0) return
     setImportando(true)
     setResultado(null)
-    const payload = prontas.map((l) => ({
-      data_compra: l.data,
-      descricao: l.descricao,
-      categoria: l.categoria,
-      subcategoria: l.subcategoria,
-      pessoa: l.pessoa,
-      cartao_id: l.cartao_id,
-      valor_total: Number(l.valor),
-      parcelas: Number(l.parcela_total) || 1,
-      obs: l.observacao || undefined,
-    }))
+    const payload = prontas.map((l) => {
+      const n = Number(l.parcela_total) || 1
+      const k = Number(l.parcela_atual) || 1
+      // Parcela em andamento: a compra é registrada começando k-1 meses antes do mês da fatura,
+      // então as parcelas já pagas ficam no passado e as demais (k..n) já caem nos meses certos.
+      const dataCompra = k > 1 ? `${addMonths(mesFatura, -(k - 1))}-01` : l.data
+      const nota = k > 1 ? `Parcela ${k}/${n} na importação (início estimado pela fatura de ${mesLabel(mesFatura)})` : ''
+      return {
+        data_compra: dataCompra,
+        descricao: l.descricao,
+        categoria: l.categoria,
+        subcategoria: l.subcategoria,
+        pessoa: l.pessoa,
+        cartao_id: l.cartao_id,
+        valor_total: valorTotalLinha(l, modoValor),
+        parcelas: n,
+        obs: [l.observacao, nota].filter(Boolean).join(' · ') || undefined,
+      }
+    })
     try {
       await importarTransacoes(payload)
       setResultado({ ok: true, n: payload.length })
@@ -268,8 +337,9 @@ export default function ImportarFatura({ store }) {
       <div className="alert alert-blue">
         Suba o CSV já padronizado (gerado fora do app, a partir do PDF da fatura). Confira e ajuste as linhas
         abaixo antes de confirmar — nada é gravado até você clicar em "Confirmar importação".
-        Linhas de parcela em andamento (parcela atual maior que 1) e possíveis duplicatas vêm desmarcadas por
-        padrão — marque manualmente só se tiver certeza de que a linha deve ser lançada.
+        Compras parceladas já em andamento (ex: parcela 3/10) entram com o parcelamento completo: as parcelas
+        já pagas ficam no passado e as demais já são lançadas nos próximos meses daquele cartão. Possíveis
+        duplicatas e parcelamentos que já existem em Compras vêm desmarcados.
       </div>
 
       <div className="toolbar">
@@ -302,6 +372,34 @@ export default function ImportarFatura({ store }) {
         </div>
       ) : (
         <>
+          <div className="card" style={{ padding: 14 }}>
+            <div className="form-row cols3" style={{ marginBottom: 8 }}>
+              <div className="form-group">
+                <label>Cartão desta fatura</label>
+                <select value={cartaoGlobal} onChange={(e) => aplicarCartaoGlobal(e.target.value)}>
+                  <option value="">Usar o cartão de cada linha</option>
+                  {cartoes.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Mês da fatura</label>
+                <input type="month" value={mesFatura} onChange={(e) => setMesFatura(e.target.value)} />
+              </div>
+              <div className="form-group">
+                <label>Valor das parceladas no CSV</label>
+                <select value={modoValor} onChange={(e) => mudarModoValor(e.target.value)}>
+                  <option value="parcela">É o valor da parcela (padrão de fatura)</option>
+                  <option value="total">É o valor total da compra</option>
+                </select>
+              </div>
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text3)', lineHeight: 1.6 }}>
+              "Cartão desta fatura" aplica o mesmo cartão a todas as linhas (e o titular dele como pessoa). O mês da
+              fatura é usado para posicionar as parcelas em andamento no tempo certo.
+              {parceladasEmAndamento > 0 && ` ${parceladasEmAndamento} parcelamento${parceladasEmAndamento > 1 ? 's' : ''} em andamento será${parceladasEmAndamento > 1 ? 'ão' : ''} lançado${parceladasEmAndamento > 1 ? 's' : ''} por inteiro.`}
+            </div>
+          </div>
+
           <div className="alert alert-blue">
             {linhasNovas} linha{linhasNovas !== 1 ? 's novas' : ' nova'}, {duplicatasExistentesCount} {duplicatasExistentesCount !== 1 ? 'possíveis duplicatas' : 'possível duplicata'} (já lançada{duplicatasExistentesCount !== 1 ? 's' : ''} em Compras)
             {duplicatasCsvCount > 0 && ` · ${duplicatasCsvCount} linha${duplicatasCsvCount !== 1 ? 's' : ''} repetida${duplicatasCsvCount !== 1 ? 's' : ''} dentro do próprio arquivo`}
@@ -360,7 +458,7 @@ export default function ImportarFatura({ store }) {
           {comProblema > 0 && (
             <div className="alert alert-amber">
               ⚠ {comProblema} linha{comProblema > 1 ? 's marcadas' : ' marcada'} para importar {comProblema > 1 ? 'estão' : 'está'} com
-              dados incompletos (categoria ou cartão não identificados) — corrija ou desmarque antes de confirmar.
+              dados incompletos (categoria, cartão ou mês da fatura não identificados) — corrija ou desmarque antes de confirmar.
             </div>
           )}
           <div className="card" style={{ overflowX: 'auto' }}>
@@ -412,6 +510,11 @@ export default function ImportarFatura({ store }) {
                         {l.valor !== '' && Number(l.valor) < 0 && (
                           <div style={{ fontSize: 10, color: 'var(--text3)' }}>estorno/crédito</div>
                         )}
+                        {total > 1 && l.valor !== '' && !isNaN(Number(l.valor)) && (
+                          <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>
+                            {fmt(valorParcelaLinha(l, modoValor))}/mês · total {fmt(valorTotalLinha(l, modoValor))}
+                          </div>
+                        )}
                       </td>
                       <td style={{ minWidth: 140 }}>
                         <select value={l.categoria} onChange={(e) => mudarCategoria(l._id, e.target.value)}>
@@ -443,7 +546,7 @@ export default function ImportarFatura({ store }) {
                           <div style={{ fontSize: 10, color: 'var(--red)' }}>não encontrado: {l.cartaoNome}</div>
                         )}
                       </td>
-                      <td style={{ textAlign: 'center', minWidth: 110 }}>
+                      <td style={{ textAlign: 'center', minWidth: 130 }}>
                         {total > 1 ? (
                           <span className="badge badge-amber">{atual}/{total}</span>
                         ) : (
@@ -452,12 +555,14 @@ export default function ImportarFatura({ store }) {
                         {l.parcelaEmAndamento && (
                           l.parcelaEncontrada ? (
                             <div style={{ marginTop: 4 }}>
-                              <span className="badge badge-green" style={{ fontSize: 10 }}>parcela de compra já lançada</span>
+                              <span className="badge badge-green" style={{ fontSize: 10 }}>parcelamento já lançado</span>
                             </div>
                           ) : (
                             <div style={{ marginTop: 4 }}>
-                              <span className="badge badge-red" style={{ fontSize: 10 }}>parcelamento não encontrado</span>
-                              <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>se marcar, vira compra nova</div>
+                              <span className="badge badge-blue" style={{ fontSize: 10 }}>parcelamento novo</span>
+                              <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>
+                                lança {atual} a {total} ({total - atual + 1} restantes)
+                              </div>
                             </div>
                           )
                         )}
@@ -474,7 +579,7 @@ export default function ImportarFatura({ store }) {
           <div style={{ fontSize: 12, color: 'var(--text3)' }}>
             {linhas.length} linha{linhas.length > 1 ? 's' : ''} no arquivo · {selecionadas.length} marcada{selecionadas.length !== 1 ? 's' : ''} para importar
             {comProblema > 0 && ` · ${comProblema} com pendência`}
-            {prontas.length > 0 && ` · ${fmt(prontas.reduce((s, l) => s + Number(l.valor), 0))} no total`}
+            {prontas.length > 0 && ` · ${fmt(prontas.reduce((s, l) => s + valorParcelaLinha(l, modoValor), 0))} nesta fatura`}
           </div>
         </>
       )}
