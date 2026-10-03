@@ -87,6 +87,9 @@ input:focus-visible, select:focus-visible { outline: none; }
   background: transparent; color: var(--text3); margin-top: 8px; white-space: nowrap;
 }
 .sidebar-recolher:hover { background: var(--bg3); color: var(--text2); }
+.sidebar-sair { padding: 9px 10px; }
+.sidebar-sair .sidebar-item-label { display: flex; flex-direction: column; line-height: 1.3; min-width: 0; }
+.sidebar-email { font-size: 10.5px; color: var(--text3); overflow: hidden; text-overflow: ellipsis; max-width: 160px; }
 .sidebar-backdrop { display: none; }
 
 .sidebar-recolhida .sidebar { width: 66px; }
@@ -185,6 +188,10 @@ select option { background: var(--bg3); }
 .toolbar { display: flex; gap: 8px; margin-bottom: 16px; align-items: center; flex-wrap: wrap; }
 .toolbar input, .toolbar select { max-width: 200px; }
 .mono { font-family: 'DM Mono', monospace; }
+.login { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+.login-card { width: 100%; max-width: 380px; background: var(--bg2); border: 1px solid var(--border2); border-radius: 14px; padding: 28px 24px; }
+.login-logo { font-size: 20px; font-weight: 500; }
+.login-sub { font-size: 13px; color: var(--text3); margin: 4px 0 22px; }
 .sim-grid { display: grid; grid-template-columns: minmax(300px, 380px) 1fr; gap: 20px; align-items: start; margin-bottom: 8px; }
 .sim-grid .section-label:first-child { margin-top: 0; }
 .sim-tabela td, .sim-tabela th { white-space: nowrap; }
@@ -204,7 +211,7 @@ select option { background: var(--bg3); }
   .sidebar.aberta { transform: translateX(0); }
   .sidebar-backdrop { display: block; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.6); z-index: 30; }
   .sidebar-fechar, .topbar-menu { display: inline-flex; }
-  .sidebar-recolher { display: none; }
+  .sidebar-recolher:not(.sidebar-sair) { display: none; }
   .sidebar-recolhida .sidebar { width: min(280px, 86vw); }
   .sidebar-recolhida .sidebar-logo, .sidebar-recolhida .sidebar-item-label { display: inline; }
   .sidebar-recolhida .sidebar-topo::before { content: none; }

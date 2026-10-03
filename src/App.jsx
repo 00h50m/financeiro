@@ -12,6 +12,8 @@ import Simulador from './components/Simulador'
 import Cartoes from './components/Cartoes'
 import Categorias from './components/Categorias'
 import Pessoas from './components/Pessoas'
+import Login from './components/Login'
+import { sb } from './lib/supabase'
 
 const ICONES = {
   dashboard: 'M3 3h7v9H3z M14 3h7v5h-7z M14 12h7v9h-7z M3 16h7v5H3z',
@@ -29,6 +31,7 @@ const ICONES = {
   menu: 'M3 12h18 M3 6h18 M3 18h18',
   fechar: 'M18 6L6 18 M6 6l12 12',
   recolher: 'M15 18l-6-6 6-6',
+  sair: 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4 M16 17l5-5-5-5 M21 12H9',
 }
 
 function Icone({ nome, size = 18 }) {
@@ -81,7 +84,28 @@ function gravarLocal(chave, valor) {
   try { localStorage.setItem(chave, valor) } catch { /* sem armazenamento: segue sem lembrar */ }
 }
 
+// Controla a sessão: o useStore (e portanto qualquer leitura no banco) só roda depois do login.
 export default function App() {
+  const [sessao, setSessao] = useState(undefined) // undefined = verificando
+
+  useEffect(() => {
+    sb.auth.getSession().then(({ data }) => setSessao(data.session))
+    const { data } = sb.auth.onAuthStateChange((_evento, s) => setSessao(s))
+    return () => data.subscription.unsubscribe()
+  }, [])
+
+  if (sessao === undefined) {
+    return (
+      <div className="loading">
+        <div className="spinner" />
+      </div>
+    )
+  }
+  if (!sessao) return <Login />
+  return <AppLogado email={sessao.user.email} />
+}
+
+function AppLogado({ email }) {
   const [aba, setAba] = useState(() => {
     const salva = lerLocal('aba', 'dashboard')
     return ABAS.some((a) => a.id === salva) ? salva : 'dashboard'
@@ -162,6 +186,10 @@ export default function App() {
           ))}
         </nav>
 
+        <button className="sidebar-recolher sidebar-sair" onClick={() => sb.auth.signOut()} title={`Sair (${email})`}>
+          <Icone nome="sair" />
+          <span className="sidebar-item-label">Sair <span className="sidebar-email">{email}</span></span>
+        </button>
         <button
           className="sidebar-recolher"
           onClick={() => setRecolhida((r) => !r)}

@@ -218,6 +218,11 @@ create table if not exists saldo_ajustes (
 
 -- ============================================================
 -- RLS
+-- ATUAL: o app tem login (Supabase Auth) e as tabelas ficam protegidas com
+-- RLS ligado + política "usuarios logados" — veja rls_login.sql. Tabelas
+-- novas devem seguir o mesmo padrão (não usar mais `disable row level
+-- security`). As notas abaixo são do período anterior, sem login.
+--
 -- Ajuste conforme a política já usada nas outras tabelas do seu projeto.
 -- Se as tabelas acima NÃO têm RLS habilitado (o app usa só a anon key, sem
 -- login), deixe `categorias`, `fixos_pagamentos`, `saldo_ajustes` e `pessoas`
