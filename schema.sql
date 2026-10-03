@@ -234,6 +234,20 @@ drop policy if exists "usuarios logados" on orcamentos;
 create policy "usuarios logados" on orcamentos for all to authenticated using (true) with check (true);
 
 -- ============================================================
+-- CONFIG (chave/valor) — veja também config.sql
+-- Usada hoje pela Reserva de emergência: reserva_valor, reserva_atualizada,
+-- reserva_meta_meses, reserva_base.
+-- ============================================================
+create table if not exists config (
+  chave text primary key,
+  valor jsonb not null,
+  atualizado_em timestamptz not null default now()
+);
+alter table config enable row level security;
+drop policy if exists "usuarios logados" on config;
+create policy "usuarios logados" on config for all to authenticated using (true) with check (true);
+
+-- ============================================================
 -- RLS
 -- ATUAL: o app tem login (Supabase Auth) e as tabelas ficam protegidas com
 -- RLS ligado + política "usuarios logados" — veja rls_login.sql. Tabelas
