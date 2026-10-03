@@ -1,14 +1,13 @@
 import { useState, Fragment } from 'react'
-import { fmt, fmtK, mesLabel, nowYM, addMonths, gerarParcelas, totalRenda, corPessoa, corPessoaCss, tituloCompra } from '../lib/utils'
+import { fmt, fmtK, mesLabel, nowYM, addMonths, gerarParcelas, totalRenda, corPessoa, corPessoaCss, fixosAtivos, gastosPorCategoria, statusTeto } from '../lib/utils'
 
-export default function Dashboard({ store }) {
-  const { compras, cartoes, rendas, fixos, pessoas } = store
+export default function Dashboard({ store, irPara }) {
+  const { compras, cartoes, rendas, fixos, pessoas, orcamentos } = store
   const mes = nowYM()
   const [abertas, setAbertas] = useState({})
   const alternar = (categoria) => setAbertas((a) => ({ ...a, [categoria]: !a[categoria] }))
 
-  const fixosAtivosNoMes = (m) => fixos.filter((f) => f.ativo && (!f.mes_fim || f.mes_fim >= m))
-  const totalFixosNoMes = (m) => fixosAtivosNoMes(m).reduce((s, f) => s + Number(f.valor), 0)
+  const totalFixosNoMes = (m) => fixosAtivos(fixos, m).reduce((s, f) => s + Number(f.valor), 0)
 
   const totalFixos = totalFixosNoMes(mes)
   const parcelasMes = compras.flatMap((c) => gerarParcelas(c, cartoes).filter((p) => p.mes === mes))
@@ -35,37 +34,17 @@ export default function Dashboard({ store }) {
       .reduce((s, p) => s + p.valor, 0),
   }))
 
-  const porCategoriaMap = {}
-  const garantir = (categoria) => {
-    if (!porCategoriaMap[categoria]) porCategoriaMap[categoria] = { total: 0, itens: [] }
-    return porCategoriaMap[categoria]
-  }
-  compras.forEach((c) => {
-    const p = gerarParcelas(c, cartoes).find((x) => x.mes === mes)
-    if (!p || !p.valor) return
-    const cat = garantir(c.categoria)
-    cat.total += p.valor
-    cat.itens.push({
-      nome: tituloCompra(c),
-      sub: c.subcategoria,
-      valor: p.valor,
-      origem: cartoes.find((x) => x.id === c.cartao_id)?.nome || 'Sem cartão',
-      detalhe: p.total > 1 ? `parcela ${p.num}/${p.total}` : 'à vista',
-    })
-  })
-  fixosAtivosNoMes(mes).forEach((f) => {
-    if (!f.categoria) return
-    const cat = garantir(f.categoria)
-    cat.total += Number(f.valor)
-    cat.itens.push({ nome: f.nome, sub: f.subcategoria, valor: Number(f.valor), origem: 'Conta fixa', detalhe: f.dia_vencimento ? `vence dia ${f.dia_vencimento}` : '' })
-  })
+  const porCategoriaMap = gastosPorCategoria(compras, cartoes, fixos, mes)
   const porCategoria = Object.entries(porCategoriaMap)
     .map(([categoria, { total, itens }]) => ({
       categoria,
       total,
+      teto: Number(orcamentos.find((o) => o.categoria === categoria)?.valor) || 0,
       itens: [...itens].sort((a, b) => b.valor - a.valor),
     }))
     .sort((a, b) => b.total - a.total)
+
+  const estouradas = porCategoria.filter((c) => statusTeto(c.total, c.teto) === 'estourou')
 
   return (
     <div className="page">
@@ -137,6 +116,14 @@ export default function Dashboard({ store }) {
         </table>
       </div>
 
+      {estouradas.length > 0 && (
+        <div className="alert alert-red" style={{ marginTop: 20 }}>
+          <strong>{estouradas.length === 1 ? '1 categoria passou' : `${estouradas.length} categorias passaram`} do teto este mês:</strong>{' '}
+          {estouradas.map((c) => `${c.categoria} (${fmtK(c.total)} de ${fmtK(c.teto)})`).join(' · ')}.{' '}
+          <a href="#orcamento" onClick={(e) => { e.preventDefault(); irPara?.('orcamento') }} style={{ color: 'inherit', textDecoration: 'underline' }}>Ver orçamento</a>
+        </div>
+      )}
+
       <div className="section-label">gastos por categoria · {mesLabel(mes)}</div>
       <div className="card">
         {porCategoria.length === 0 ? (
@@ -151,7 +138,8 @@ export default function Dashboard({ store }) {
               </tr>
             </thead>
             <tbody>
-              {porCategoria.map(({ categoria, total, itens }) => {
+              {porCategoria.map(({ categoria, total, itens, teto }) => {
+                const statusT = statusTeto(total, teto)
                 const pct = totalMes > 0 ? Math.round((total / totalMes) * 100) : 0
                 const aberta = !!abertas[categoria]
                 return (
@@ -161,9 +149,14 @@ export default function Dashboard({ store }) {
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                           <span style={{ fontSize: 10, color: 'var(--text3)', width: 10 }}>{aberta ? '▼' : '▶'}</span>
                           <div>
-                            <div style={{ fontWeight: 500 }}>{categoria}</div>
+                            <div style={{ fontWeight: 500 }}>
+                              {categoria}
+                              {statusT === 'estourou' && <span className="badge badge-red" style={{ marginLeft: 8, fontSize: 10 }}>estourou o teto</span>}
+                              {statusT === 'perto' && <span className="badge badge-amber" style={{ marginLeft: 8, fontSize: 10 }}>{Math.round((total / teto) * 100)}% do teto</span>}
+                            </div>
                             <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
                               {itens.length} {itens.length === 1 ? 'gasto' : 'gastos'}
+                              {teto > 0 && ` · teto ${fmtK(teto)}`}
                             </div>
                           </div>
                         </div>

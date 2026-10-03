@@ -217,6 +217,20 @@ create table if not exists saldo_ajustes (
 );
 
 -- ============================================================
+-- ORCAMENTOS (teto mensal por categoria) — veja também orcamentos.sql
+-- `categoria` é o nome da categoria (texto, sem FK); o app mantém em sincronia
+-- ao renomear/excluir categorias.
+-- ============================================================
+create table if not exists orcamentos (
+  categoria text primary key,
+  valor numeric not null check (valor >= 0),
+  atualizado_em timestamptz not null default now()
+);
+alter table orcamentos enable row level security;
+drop policy if exists "usuarios logados" on orcamentos;
+create policy "usuarios logados" on orcamentos for all to authenticated using (true) with check (true);
+
+-- ============================================================
 -- RLS
 -- ATUAL: o app tem login (Supabase Auth) e as tabelas ficam protegidas com
 -- RLS ligado + política "usuarios logados" — veja rls_login.sql. Tabelas

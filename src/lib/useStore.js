@@ -11,6 +11,8 @@ export function useStore() {
   const [fixosPagamentos, setFixosPagamentos] = useState([])
   const [saldoAjustes, setSaldoAjustes] = useState([])
   const [pessoas, setPessoas] = useState([])
+  const [orcamentos, setOrcamentos] = useState([])
+  const [orcamentosOk, setOrcamentosOk] = useState(true) // false = tabela ainda não criada no banco
   const [loading, setLoading] = useState(true)
   const [syncState, setSyncState] = useState('ok')
   const [error, setError] = useState(null)
@@ -19,7 +21,7 @@ export function useStore() {
     if (!silent) setLoading(true)
     setError(null)
     try {
-      const [c, co, r, fx, fa, cat, fxp, sa, ps] = await Promise.all([
+      const [c, co, r, fx, fa, cat, fxp, sa, ps, orc] = await Promise.all([
         sb.from('cartoes').select('*').order('created_at'),
         sb.from('compras').select('*').order('data_compra', { ascending: false }),
         sb.from('rendas').select('*').order('mes', { ascending: false }),
@@ -29,6 +31,7 @@ export function useStore() {
         sb.from('fixos_pagamentos').select('*'),
         sb.from('saldo_ajustes').select('*'),
         sb.from('pessoas').select('*').order('created_at'),
+        sb.from('orcamentos').select('*'),
       ])
       if (c.error) throw c.error
       if (co.error) throw co.error
@@ -48,6 +51,9 @@ export function useStore() {
       setFixosPagamentos(fxp.data || [])
       setSaldoAjustes(sa.data || [])
       setPessoas(ps.data || [])
+      // Orçamentos são opcionais: se a tabela ainda não existe, o resto do app continua funcionando.
+      setOrcamentosOk(!orc.error)
+      setOrcamentos(orc.error ? [] : orc.data || [])
     } catch (e) {
       setError(e.message || 'Erro ao conectar com o banco')
     }
@@ -144,14 +150,33 @@ export function useStore() {
     if (r.error) throw r.error
   })
 
+  // ORÇAMENTOS (teto mensal por categoria; valor vazio/0 remove o teto)
+  const definirOrcamento = (categoria, valor) => op(async () => {
+    const r = valor > 0
+      ? await sb.from('orcamentos').upsert({ categoria, valor, atualizado_em: new Date().toISOString() }, { onConflict: 'categoria' })
+      : await sb.from('orcamentos').delete().eq('categoria', categoria)
+    if (r.error) throw r.error
+  })
+  const definirOrcamentos = (lista) => op(async () => {
+    const agora = new Date().toISOString()
+    const r = await sb.from('orcamentos').upsert(
+      lista.map(({ categoria, valor }) => ({ categoria, valor, atualizado_em: agora })),
+      { onConflict: 'categoria' }
+    )
+    if (r.error) throw r.error
+  })
+
   // CATEGORIAS
   const addCategoria = (nome) => op(async () => {
     const r = await sb.from('categorias').insert({ nome, subcategorias: [] })
     if (r.error) throw r.error
   })
   const delCategoria = (id) => op(async () => {
+    const nome = categorias.find((c) => c.id === id)?.nome
     const r = await sb.from('categorias').delete().eq('id', id)
     if (r.error) throw r.error
+    // O teto de uma categoria removida não faz mais sentido.
+    if (nome && orcamentosOk) await sb.from('orcamentos').delete().eq('categoria', nome)
   })
   const renomearCategoria = (id, nomeAntigo, nomeNovo) => op(async () => {
     const r = await sb.from('categorias').update({ nome: nomeNovo }).eq('id', id)
@@ -160,6 +185,10 @@ export function useStore() {
     if (rc.error) throw rc.error
     const rf = await sb.from('fixos').update({ categoria: nomeNovo }).eq('categoria', nomeAntigo)
     if (rf.error) throw rf.error
+    if (orcamentosOk) {
+      const ro = await sb.from('orcamentos').update({ categoria: nomeNovo }).eq('categoria', nomeAntigo)
+      if (ro.error) throw ro.error
+    }
   })
   const addSubcategoria = (id, subcategorias) => op(async () => {
     const r = await sb.from('categorias').update({ subcategorias }).eq('id', id)
@@ -245,7 +274,7 @@ export function useStore() {
   }
 
   return {
-    cartoes, compras, rendas, fixos, faturas, categorias, fixosPagamentos, saldoAjustes, pessoas,
+    cartoes, compras, rendas, fixos, faturas, categorias, fixosPagamentos, saldoAjustes, pessoas, orcamentos, orcamentosOk,
     loading, syncState, error, loadAll,
     addCartao, updateCartao, delCartao,
     addCompra, updateCompra, delCompra,
@@ -254,6 +283,7 @@ export function useStore() {
     upsertFatura, delFatura,
     marcarFixoPago,
     definirAjusteSaldo,
+    definirOrcamento, definirOrcamentos,
     addCategoria, delCategoria, renomearCategoria,
     addSubcategoria, delSubcategoria, renomearSubcategoria,
     migrarCategoria, migrarSubcategoria,

@@ -13,6 +13,7 @@ import Cartoes from './components/Cartoes'
 import Categorias from './components/Categorias'
 import Pessoas from './components/Pessoas'
 import Backup from './components/Backup'
+import Orcamento from './components/Orcamento'
 import Login from './components/Login'
 import { Marca, Nome } from './components/Marca'
 import { sb } from './lib/supabase'
@@ -33,6 +34,7 @@ const ICONES = {
   menu: 'M3 12h18 M3 6h18 M3 18h18',
   fechar: 'M18 6L6 18 M6 6l12 12',
   recolher: 'M15 18l-6-6 6-6',
+  orcamento: 'M12 2a10 10 0 1 0 10 10H12z M14 2.5V10h7.5A10 10 0 0 0 14 2.5z',
   backup: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M12 15V3',
   sair: 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4 M16 17l5-5-5-5 M21 12H9',
 }
@@ -65,6 +67,7 @@ const GRUPOS = [
     abas: [
       { id: 'renda', label: 'Renda', Component: Renda },
       { id: 'fixos', label: 'Contas fixas', Component: Fixos },
+      { id: 'orcamento', label: 'Orçamento', Component: Orcamento },
       { id: 'simulador', label: 'Simulador', Component: Simulador },
     ],
   },

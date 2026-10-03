@@ -73,3 +73,43 @@ export const gerarParcelas = (compra, cartoes) => {
 
 export const totalRenda = (r) =>
   RENDA_CAMPOS.reduce((s, [k]) => s + Number(r?.[k] || 0), 0)
+
+// Contas fixas que contam como ativas em um mês (respeita o mês de término).
+export const fixosAtivos = (fixos, mes) => fixos.filter((f) => f.ativo && (!f.mes_fim || f.mes_fim >= mes))
+
+// Gastos do mês agrupados por categoria: parcela do mês de cada compra + contas fixas categorizadas.
+// Retorna { [categoria]: { total, itens: [{ nome, sub, valor, origem, detalhe }] } }.
+export const gastosPorCategoria = (compras, cartoes, fixos, mes) => {
+  const mapa = {}
+  const garantir = (categoria) => {
+    if (!mapa[categoria]) mapa[categoria] = { total: 0, itens: [] }
+    return mapa[categoria]
+  }
+  compras.forEach((c) => {
+    const p = gerarParcelas(c, cartoes).find((x) => x.mes === mes)
+    if (!p || !p.valor) return
+    const cat = garantir(c.categoria)
+    cat.total += p.valor
+    cat.itens.push({
+      nome: tituloCompra(c),
+      sub: c.subcategoria,
+      valor: p.valor,
+      origem: cartoes.find((x) => x.id === c.cartao_id)?.nome || 'Sem cartão',
+      detalhe: p.total > 1 ? `parcela ${p.num}/${p.total}` : 'à vista',
+    })
+  })
+  fixosAtivos(fixos, mes).forEach((f) => {
+    if (!f.categoria) return
+    const cat = garantir(f.categoria)
+    cat.total += Number(f.valor)
+    cat.itens.push({ nome: f.nome, sub: f.subcategoria, valor: Number(f.valor), origem: 'Conta fixa', detalhe: f.dia_vencimento ? `vence dia ${f.dia_vencimento}` : '' })
+  })
+  return mapa
+}
+
+// Situação de uma categoria frente ao teto: 'sem' | 'ok' | 'perto' | 'estourou'.
+export const statusTeto = (gasto, teto) => {
+  if (!teto) return 'sem'
+  const pct = gasto / teto
+  return pct > 1 ? 'estourou' : pct >= 0.8 ? 'perto' : 'ok'
+}
