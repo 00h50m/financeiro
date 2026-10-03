@@ -22,6 +22,9 @@ create table if not exists cartoes (
   created_at timestamptz not null default now()
 );
 
+-- Limite do cartão (R$, opcional) — usado para mostrar quanto está comprometido.
+alter table cartoes add column if not exists limite numeric;
+
 -- ============================================================
 -- COMPRAS
 -- ============================================================

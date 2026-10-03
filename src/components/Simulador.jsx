@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { fmt, fmtK, mesLabel, nowYM, addMonths, calcMesInicio, gerarParcelas, totalRenda } from '../lib/utils'
+import { fmt, fmtK, mesLabel, nowYM, addMonths, calcMesInicio, gerarParcelas, limiteUsado, totalRenda } from '../lib/utils'
 
 const MAX_PARCELAS = 48
 const CENARIOS = [1, 2, 3, 4, 5, 6, 10, 12, 18, 24]
@@ -27,7 +27,7 @@ const valorAVista = (parcela, n, juros) => {
 const ordemStatus = { green: 0, amber: 1, red: 2 }
 
 export default function Simulador({ store }) {
-  const { compras, cartoes, rendas, fixos } = store
+  const { compras, cartoes, rendas, fixos, faturas } = store
   const hoje = nowYM()
 
   const [modo, setModo] = useState('total') // 'total' | 'parcela'
@@ -79,6 +79,8 @@ export default function Simulador({ store }) {
     Math.min(...Array.from({ length: qtd }, (_, k) => folgaDe(addMonths(start, k))))
 
   const temRenda = rendasComValor.length > 0
+  const limite = Number(cartao?.limite) || 0
+  const limiteLivre = limite ? limite - limiteUsado(cartao.id, compras, cartoes, faturas, hoje).usado : 0
   const parcela = modo === 'parcela' ? v : v > 0 ? valorParcela(v, n, taxa) : 0
   const totalPago = parcela * n
   const folgaJanela = menorFolga(inicio, n)
@@ -228,6 +230,11 @@ export default function Simulador({ store }) {
         <div style={{ minWidth: 0 }}>
           <div className="section-label">resultado</div>
           {veredito()}
+          {parcela > 0 && limite > 0 && n * parcela > limiteLivre && (
+            <div className="alert alert-amber">
+              <strong>Limite do cartão:</strong> essa compra ocupa {fmt(n * parcela)} do limite, e o {cartao.nome} tem {fmt(Math.max(0, limiteLivre))} disponível.
+            </div>
+          )}
 
           <div className="metric-grid">
             <div className="metric">

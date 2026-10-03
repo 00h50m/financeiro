@@ -113,3 +113,22 @@ export const statusTeto = (gasto, teto) => {
   const pct = gasto / teto
   return pct > 1 ? 'estourou' : pct >= 0.8 ? 'perto' : 'ok'
 }
+
+// Quanto do limite de um cartão está ocupado em `mes`: parcelas do mês atual e dos meses seguintes
+// com fatura ainda não paga, mais faturas de meses anteriores registradas e não pagas.
+// Meses passados sem fatura registrada são tratados como já pagos (não há como saber).
+export const limiteUsado = (cartaoId, compras, cartoes, faturas, mes) => {
+  const faturaDe = (m) => faturas.find((f) => f.cartao_id === cartaoId && f.mes === m)
+  let atual = 0
+  let futuro = 0
+  compras.forEach((c) => {
+    if (c.cartao_id !== cartaoId) return
+    gerarParcelas(c, cartoes).forEach((p) => {
+      const fat = faturaDe(p.mes)
+      if (p.mes > mes) { if (!fat?.pago) futuro += p.valor }
+      else if (p.mes === mes) { if (!fat?.pago) atual += p.valor }
+      else if (fat && !fat.pago) atual += p.valor
+    })
+  })
+  return { atual, futuro, usado: atual + futuro }
+}

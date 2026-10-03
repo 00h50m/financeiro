@@ -1,20 +1,21 @@
 import { useState } from 'react'
-import { corPessoa } from '../lib/utils'
+import { corPessoa, fmt, fmtK, limiteUsado, nowYM } from '../lib/utils'
 
 export default function Cartoes({ store }) {
-  const { cartoes, pessoas, addCartao, updateCartao, delCartao } = store
+  const { cartoes, pessoas, compras, faturas, addCartao, updateCartao, delCartao } = store
+  const mes = nowYM()
   const [modal, setModal] = useState(false)
   const [editId, setEditId] = useState(null)
-  const [form, setForm] = useState({ nome: '', titular: pessoas[0]?.nome || '', fechamento: '', vencimento: '' })
+  const [form, setForm] = useState({ nome: '', titular: pessoas[0]?.nome || '', fechamento: '', vencimento: '', limite: '' })
   const [saving, setSaving] = useState(false)
   const s = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
 
   function abrir(cartao) {
     if (cartao) {
-      setForm({ nome: cartao.nome, titular: cartao.titular, fechamento: cartao.fechamento || '', vencimento: cartao.vencimento || '' })
+      setForm({ nome: cartao.nome, titular: cartao.titular, fechamento: cartao.fechamento || '', vencimento: cartao.vencimento || '', limite: cartao.limite ?? '' })
       setEditId(cartao.id)
     } else {
-      setForm({ nome: '', titular: pessoas[0]?.nome || '', fechamento: '', vencimento: '' })
+      setForm({ nome: '', titular: pessoas[0]?.nome || '', fechamento: '', vencimento: '', limite: '' })
       setEditId(null)
     }
     setModal(true)
@@ -24,10 +25,34 @@ export default function Cartoes({ store }) {
     if (!form.nome) return
     setSaving(true)
     const dados = { nome: form.nome, titular: form.titular, fechamento: Number(form.fechamento) || 1, vencimento: Number(form.vencimento) || 10 }
+    // `limite` só entra no payload quando preenchido (ou para limpar um limite que já existia).
+    const anterior = cartoes.find((c) => c.id === editId)
+    if (form.limite !== '' && Number(form.limite) >= 0) dados.limite = Number(form.limite)
+    else if (anterior?.limite != null) dados.limite = null
     if (editId) await updateCartao(editId, dados)
     else await addCartao({ ...dados, ativo: true })
     setSaving(false)
     setModal(false)
+  }
+
+  function renderLimite(c) {
+    const limite = Number(c.limite) || 0
+    if (!limite) return <span style={{ fontSize: 12, color: 'var(--text3)' }}>não informado</span>
+    const { atual, futuro, usado } = limiteUsado(c.id, compras, cartoes, faturas, mes)
+    const pct = Math.round((usado / limite) * 100)
+    const cor = pct > 90 ? 'var(--red)' : pct > 70 ? 'var(--amber)' : 'var(--green)'
+    return (
+      <div title={`Fatura atual e pendentes: ${fmt(atual)} · Parcelas futuras: ${fmt(futuro)}`}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 12 }}>
+          <span style={{ fontFamily: 'DM Mono' }}>{fmtK(usado)} <span style={{ color: 'var(--text3)' }}>de {fmtK(limite)}</span></span>
+          <span style={{ color: cor }}>{pct}%</span>
+        </div>
+        <div className="prog-bar"><div className="prog-fill" style={{ width: Math.min(100, pct) + '%', background: cor }} /></div>
+        <div style={{ fontSize: 11, color: usado > limite ? 'var(--red)' : 'var(--text3)', marginTop: 3 }}>
+          {usado > limite ? `acima do limite em ${fmtK(usado - limite)}` : `${fmtK(limite - usado)} disponível`}
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -56,6 +81,12 @@ export default function Cartoes({ store }) {
               <div className="form-group">
                 <label>Dia de vencimento</label>
                 <input type="number" min="1" max="31" placeholder="Ex: 10" value={form.vencimento} onChange={s('vencimento')} />
+              </div>
+            </div>
+            <div className="form-row" style={{ marginTop: 0 }}>
+              <div className="form-group">
+                <label>Limite do cartão (R$) — opcional</label>
+                <input type="number" min="0" step="100" placeholder="Ex: 5000" value={form.limite} onChange={s('limite')} />
               </div>
             </div>
             {form.fechamento && (
@@ -90,6 +121,7 @@ export default function Cartoes({ store }) {
                 <th>Titular</th>
                 <th style={{ textAlign: 'center' }}>Fechamento</th>
                 <th style={{ textAlign: 'center' }}>Vencimento</th>
+                <th style={{ minWidth: 220 }}>Limite</th>
                 <th />
               </tr>
             </thead>
@@ -104,6 +136,7 @@ export default function Cartoes({ store }) {
                   </td>
                   <td style={{ textAlign: 'center', fontFamily: 'DM Mono' }}>{c.fechamento ? `dia ${c.fechamento}` : '—'}</td>
                   <td style={{ textAlign: 'center', fontFamily: 'DM Mono' }}>{c.vencimento ? `dia ${c.vencimento}` : '—'}</td>
+                  <td>{renderLimite(c)}</td>
                   <td style={{ display: 'flex', gap: 6 }}>
                     <button className="btn btn-ghost btn-sm" onClick={() => abrir(c)}>Editar</button>
                     <button
