@@ -132,3 +132,74 @@ export const limiteUsado = (cartaoId, compras, cartoes, faturas, mes) => {
   })
   return { atual, futuro, usado: atual + futuro }
 }
+
+// ---------- PAGAMENTOS: visão detalhada do mês (fonte única para a aba Pagamentos e para a sobra) ----------
+// `d` = { fixos, fixosPagamentos, cartoes, compras, faturas }.
+export const detalhePagamentos = (d, mes) => {
+  const { fixos, fixosPagamentos, cartoes, compras, faturas } = d
+
+  // Contas fixas ativas (respeitando mes_fim), por dia de vencimento.
+  const fixosLista = fixosAtivos(fixos, mes).sort((a, b) => (a.dia_vencimento || 99) - (b.dia_vencimento || 99))
+  const fixoPagamento = (fixoId) => fixosPagamentos.find((p) => p.fixo_id === fixoId && p.mes === mes)
+
+  // Faturas dos cartões: valor real informado, ou o que foi lançado.
+  const cartaoIdsComMovimento = new Set()
+  compras.forEach((c) => {
+    if (c.cartao_id && gerarParcelas(c, cartoes).some((p) => p.mes === mes)) cartaoIdsComMovimento.add(c.cartao_id)
+  })
+  faturas.forEach((f) => { if (f.mes === mes) cartaoIdsComMovimento.add(f.cartao_id) })
+
+  const linhasCartao = [...cartaoIdsComMovimento]
+    .filter((cartao_id) => cartao_id)
+    .map((cartao_id) => {
+      const cartao = cartoes.find((c) => c.id === cartao_id)
+      const lancado = compras
+        .flatMap((c) => (c.cartao_id === cartao_id ? gerarParcelas(c, cartoes).filter((p) => p.mes === mes) : []))
+        .reduce((s, p) => s + p.valor, 0)
+      const fatura = faturas.find((f) => f.cartao_id === cartao_id && f.mes === mes)
+      return {
+        cartao_id,
+        nome: cartao?.nome || '—',
+        valor: fatura ? Number(fatura.valor_real) : lancado,
+        temFatura: !!fatura,
+        pago: fatura?.pago || false,
+        dataPagamento: fatura?.data_pagamento,
+      }
+    })
+    .sort((a, b) => a.nome.localeCompare(b.nome))
+
+  // Outras contas (sem cartão — dinheiro/Pix/boleto avulso).
+  const outrasContas = compras
+    .filter((c) => !c.cartao_id)
+    .map((c) => ({ c, parcela: gerarParcelas(c, cartoes).find((p) => p.mes === mes) }))
+    .filter(({ parcela }) => !!parcela)
+    .map(({ c, parcela }) => ({ ...c, valorParcela: parcela.valor, parcelaNum: parcela.num, parcelaTotal: parcela.total }))
+    .sort((a, b) => (a.data_compra < b.data_compra ? 1 : -1))
+
+  const totalFixos = fixosLista.reduce((s, f) => s + Number(f.valor), 0)
+  const totalFixosPagos = fixosLista.reduce((s, f) => s + (fixoPagamento(f.id)?.pago ? Number(f.valor) : 0), 0)
+  const totalCartoes = linhasCartao.reduce((s, l) => s + l.valor, 0)
+  const totalCartoesPagos = linhasCartao.reduce((s, l) => s + (l.pago ? l.valor : 0), 0)
+  const totalOutras = outrasContas.reduce((s, c) => s + c.valorParcela, 0)
+  const totalOutrasPagas = outrasContas.reduce((s, c) => s + (c.pago ? c.valorParcela : 0), 0)
+
+  const comprometido = totalFixos + totalCartoes + totalOutras
+  const pago = totalFixosPagos + totalCartoesPagos + totalOutrasPagas
+  return {
+    fixosLista, fixoPagamento, linhasCartao, outrasContas,
+    totalFixos, totalFixosPagos, totalCartoes, totalCartoesPagos, totalOutras, totalOutrasPagas,
+    comprometido, pago, totalDividas: comprometido - pago,
+  }
+}
+
+// Sobra que vem do mês anterior: o que ficaria depois de pagar tudo dele
+// (renda + sobra que ele mesmo recebeu + ajuste − comprometido). Só existe quando o mês
+// anterior tem renda cadastrada — assim meses sem renda não geram "sobra negativa" falsa.
+// `d` também precisa de { rendas, saldoAjustes }.
+export const sobraAnterior = (d, mes) => {
+  const ant = addMonths(mes, -1)
+  const rendaAnt = totalRenda(d.rendas.find((r) => r.mes === ant))
+  if (!(rendaAnt > 0)) return 0
+  const ajuste = Number(d.saldoAjustes.find((a) => a.mes === ant)?.ajuste) || 0
+  return rendaAnt + sobraAnterior(d, ant) + ajuste - detalhePagamentos(d, ant).comprometido
+}

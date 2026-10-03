@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { fmt, fmtK, mesLabel, nowYM, addMonths, gerarParcelas, totalRenda, tituloCompra, subtituloCompra } from '../lib/utils'
+import { fmt, fmtK, mesLabel, nowYM, addMonths, totalRenda, tituloCompra, subtituloCompra, detalhePagamentos, sobraAnterior } from '../lib/utils'
 
 export default function Pagamentos({ store }) {
   const {
@@ -7,6 +7,13 @@ export default function Pagamentos({ store }) {
     marcarFixoPago, upsertFatura, updateCompra, definirAjusteSaldo,
   } = store
   const [mes, setMes] = useState(nowYM())
+  const [usarSobra, setUsarSobra] = useState(() => {
+    try { return localStorage.getItem('usar_sobra') !== '0' } catch { return true }
+  })
+  function alternarSobra(v) {
+    setUsarSobra(v)
+    try { localStorage.setItem('usar_sobra', v ? '1' : '0') } catch { /* segue sem lembrar */ }
+  }
 
   const ajusteAtual = saldoAjustes.find((a) => a.mes === mes)?.ajuste || 0
   const [ajusteInput, setAjusteInput] = useState(String(ajusteAtual))
@@ -14,47 +21,11 @@ export default function Pagamentos({ store }) {
     setAjusteInput(String(saldoAjustes.find((a) => a.mes === mes)?.ajuste || 0))
   }, [mes, saldoAjustes])
 
-  // FIXOS (respeitando mes_fim, para financiamentos e afins) — ordenados por
-  // dia de vencimento, pra ajudar a priorizar o que pagar primeiro.
-  const fixosAtivos = fixos
-    .filter((f) => f.ativo && (!f.mes_fim || f.mes_fim >= mes))
-    .sort((a, b) => (a.dia_vencimento || 99) - (b.dia_vencimento || 99))
-  const fixoPagamento = (fixoId) => fixosPagamentos.find((p) => p.fixo_id === fixoId && p.mes === mes)
-
-  // FATURAS DOS CARTÕES
-  const cartaoIdsComMovimento = new Set()
-  compras.forEach((c) => {
-    if (c.cartao_id && gerarParcelas(c, cartoes).some((p) => p.mes === mes)) cartaoIdsComMovimento.add(c.cartao_id)
-  })
-  faturas.forEach((f) => { if (f.mes === mes) cartaoIdsComMovimento.add(f.cartao_id) })
-
-  const linhasCartao = [...cartaoIdsComMovimento]
-    .filter((cartao_id) => cartao_id)
-    .map((cartao_id) => {
-      const cartao = cartoes.find((c) => c.id === cartao_id)
-      const lancado = compras
-        .flatMap((c) => (c.cartao_id === cartao_id ? gerarParcelas(c, cartoes).filter((p) => p.mes === mes) : []))
-        .reduce((s, p) => s + p.valor, 0)
-      const fatura = faturas.find((f) => f.cartao_id === cartao_id && f.mes === mes)
-      const valor = fatura ? Number(fatura.valor_real) : lancado
-      return {
-        cartao_id,
-        nome: cartao?.nome || '—',
-        valor,
-        temFatura: !!fatura,
-        pago: fatura?.pago || false,
-        dataPagamento: fatura?.data_pagamento,
-      }
-    })
-    .sort((a, b) => a.nome.localeCompare(b.nome))
-
-  // OUTRAS CONTAS (sem cartão — dinheiro/Pix/boleto avulso)
-  const outrasContas = compras
-    .filter((c) => !c.cartao_id)
-    .map((c) => ({ c, parcela: gerarParcelas(c, cartoes).find((p) => p.mes === mes) }))
-    .filter(({ parcela }) => !!parcela)
-    .map(({ c, parcela }) => ({ ...c, valorParcela: parcela.valor, parcelaNum: parcela.num, parcelaTotal: parcela.total }))
-    .sort((a, b) => (a.data_compra < b.data_compra ? 1 : -1))
+  const dados = { fixos, fixosPagamentos, cartoes, compras, faturas, rendas, saldoAjustes }
+  const {
+    fixosLista: fixosAtivos, fixoPagamento, linhasCartao, outrasContas,
+    comprometido, pago, totalDividas,
+  } = detalhePagamentos(dados, mes)
 
   async function toggleOutraConta(c) {
     await updateCompra(c.id, {
@@ -63,19 +34,9 @@ export default function Pagamentos({ store }) {
     })
   }
 
-  const totalFixos = fixosAtivos.reduce((s, f) => s + Number(f.valor), 0)
-  const totalFixosPagos = fixosAtivos.reduce((s, f) => s + (fixoPagamento(f.id)?.pago ? Number(f.valor) : 0), 0)
-  const totalCartoes = linhasCartao.reduce((s, l) => s + l.valor, 0)
-  const totalCartoesPagos = linhasCartao.reduce((s, l) => s + (l.pago ? l.valor : 0), 0)
-  const totalOutras = outrasContas.reduce((s, c) => s + c.valorParcela, 0)
-  const totalOutrasPagas = outrasContas.reduce((s, c) => s + (c.pago ? c.valorParcela : 0), 0)
-
-  const comprometido = totalFixos + totalCartoes + totalOutras
-  const pago = totalFixosPagos + totalCartoesPagos + totalOutrasPagas
-  const totalDividas = comprometido - pago
-
   const rendaMes = totalRenda(rendas.find((r) => r.mes === mes))
-  const baseCalculada = rendaMes - pago
+  const sobra = usarSobra ? sobraAnterior(dados, mes) : 0
+  const baseCalculada = rendaMes + sobra - pago
   const dinheiroDisponivel = baseCalculada + ajusteAtual
   const saldo = dinheiroDisponivel - totalDividas
 
@@ -139,8 +100,15 @@ export default function Pagamentos({ store }) {
       <div className="card" style={{ padding: 14 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
           <div style={{ fontSize: 12, color: 'var(--text3)', lineHeight: 1.6 }}>
-            Dinheiro disponível calculado = renda do mês ({fmt(rendaMes)}) − já pago ({fmt(pago)}){ajusteAtual !== 0 && ` ${ajusteAtual > 0 ? '+' : '−'} ajuste (${fmt(Math.abs(ajusteAtual))})`}.
-            {' '}Use o ajuste para corrigir com saldo de meses anteriores ou dinheiro fora da renda cadastrada.
+            Dinheiro disponível = renda do mês ({fmt(rendaMes)})
+            {usarSobra && ` ${sobra < 0 ? '−' : '+'} sobra do mês anterior (${fmt(Math.abs(sobra))})`} − já pago ({fmt(pago)})
+            {ajusteAtual !== 0 && ` ${ajusteAtual > 0 ? '+' : '−'} ajuste (${fmt(Math.abs(ajusteAtual))})`}.
+            {' '}{usarSobra && sobra === 0 && 'Sem sobra do mês anterior: ele não tem renda cadastrada (ou fechou no zero). '}
+            O ajuste serve para dinheiro fora da renda cadastrada (ex.: reserva que você já tinha).
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, color: 'var(--text2)', cursor: 'pointer' }}>
+              <input type="checkbox" checked={usarSobra} onChange={(e) => alternarSobra(e.target.checked)} />
+              Somar a sobra do mês anterior (o que sobraria depois de pagar tudo dele)
+            </label>
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <label style={{ fontSize: 12, color: 'var(--text2)' }}>Ajuste manual (R$)</label>
