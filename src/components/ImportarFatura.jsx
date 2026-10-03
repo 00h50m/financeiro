@@ -1,11 +1,28 @@
 import { useState } from 'react'
 import Papa from 'papaparse'
-import { fmt, mesLabel, calcMesInicio, addMonths, nowYM } from '../lib/utils'
+import { fmt, mesLabel, calcMesInicio, addMonths, nowYM, gerarParcelas } from '../lib/utils'
 
 const COLUNAS_ESPERADAS = ['data', 'descricao', 'valor', 'categoria', 'parcela_atual', 'parcela_total', 'cartao', 'observacao']
 const TOLERANCIA_VALOR = 0.02
 
 const round2 = (n) => Math.round(n * 100) / 100
+
+// Fatura costuma trazer "Estabelecimento - Parcela 2/6": o trecho da parcela muda todo mês,
+// então ele sai do nome (a parcela fica nos campos próprios) para o casamento com o mês anterior funcionar.
+const REGEX_PARCELA = /parc(?:ela)?\.?\s*(\d+)\s*(?:\/|de)\s*(\d+)/i
+
+function extrairParcela(s) {
+  const m = (s || '').match(REGEX_PARCELA)
+  return m ? { atual: m[1], total: m[2] } : null
+}
+
+function limparDescricao(s) {
+  return (s || '')
+    .replace(new RegExp('\\s*[-\\u2013\\u2014:]?\\s*' + REGEX_PARCELA.source, 'gi'), '')
+    .replace(/\s*[-–—:]\s*$/, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
 
 function normBasico(s) {
   return (s || '')
@@ -63,13 +80,15 @@ function valorTotalLinha(l, modo) {
   return n > 1 && modo === 'parcela' ? round2(v * n) : v
 }
 
+const normNome = (s) => normBasico(limparDescricao(s))
+
 function buscarDuplicataExistente(l, compras, modo) {
-  const descNorm = normBasico(l.descricao)
+  const descNorm = normNome(l.descricao)
   const valorLinha = valorTotalLinha(l, modo)
   return compras.some((c) =>
     c.cartao_id === l.cartao_id &&
     (c.data_compra || '').slice(0, 10) === l.data &&
-    normBasico(c.descricao) === descNorm &&
+    normNome(c.descricao) === descNorm &&
     Math.abs(Number(c.valor_total) - valorLinha) < TOLERANCIA_VALOR
   )
 }
@@ -78,11 +97,11 @@ function buscarParcelaExistente(l, compras, modo) {
   const total = Number(l.parcela_total) || 0
   if (!total || !l.cartao_id) return null
   const valorParcela = valorParcelaLinha(l, modo)
-  const descNorm = normBasico(l.descricao)
+  const descNorm = normNome(l.descricao)
   return compras.find((c) => {
     if (Number(c.parcelas) !== total) return false
     if (c.cartao_id !== l.cartao_id) return false
-    if (normBasico(c.descricao) !== descNorm) return false
+    if (normNome(c.descricao) !== descNorm) return false
     const valorParcelaExistente = Number(c.valor_total) / Number(c.parcelas)
     return Math.abs(valorParcelaExistente - valorParcela) < TOLERANCIA_VALOR
   }) || null
@@ -103,11 +122,13 @@ function marcarDuplicatasNoCsv(linhas) {
 function recalcular(linhas, compras, modo) {
   const comFlags = linhas.map((l) => {
     const emAndamento = Number(l.parcela_atual) > 1
+    const compraParcela = emAndamento ? buscarParcelaExistente(l, compras, modo) : null
     return {
       ...l,
       parcelaEmAndamento: emAndamento,
       duplicataExistente: buscarDuplicataExistente(l, compras, modo),
-      parcelaEncontrada: emAndamento ? !!buscarParcelaExistente(l, compras, modo) : null,
+      parcelaEncontrada: emAndamento ? !!compraParcela : null,
+      parcelaCompra: compraParcela,
     }
   })
   return marcarDuplicatasNoCsv(comFlags)
@@ -163,6 +184,13 @@ export default function ImportarFatura({ store }) {
 
         const historico = construirHistoricoCategorias(compras)
 
+        // identificações já dadas a compras anteriores com o mesmo nome no cartão (compras vem da mais recente p/ mais antiga)
+        const identificacoes = {}
+        compras.forEach((c) => {
+          const chave = normNome(c.descricao)
+          if (c.identificacao && chave && !identificacoes[chave]) identificacoes[chave] = c.identificacao
+        })
+
         const base = res.data
           .filter((r) => Object.values(r).some((v) => (v || '').toString().trim() !== ''))
           .map((r, i) => {
@@ -170,9 +198,11 @@ export default function ImportarFatura({ store }) {
             const catCsvObj = categorias.find((c) => c.nome === nomeCategoriaCsv)
             const cartaoNome = (r.cartao || '').trim()
             const cartao = resolverCartao(cartaoNome)
-            const parcelaAtual = (r.parcela_atual || '').trim()
-            const parcelaTotal = (r.parcela_total || '').trim()
-            const descricao = (r.descricao || '').trim()
+            const descricaoBruta = (r.descricao || '').trim()
+            const noTexto = extrairParcela(descricaoBruta)
+            const parcelaAtual = (r.parcela_atual || '').trim() || noTexto?.atual || ''
+            const parcelaTotal = (r.parcela_total || '').trim() || noTexto?.total || ''
+            const descricao = limparDescricao(descricaoBruta)
 
             const sugestao = historico[normHistorico(descricao)] || null
             let categoria = ''
@@ -200,6 +230,7 @@ export default function ImportarFatura({ store }) {
               _id: i,
               data: (r.data || '').trim(),
               descricao,
+              identificacao: identificacoes[normNome(descricao)] || '',
               valor: (r.valor || '').trim(),
               categoria,
               subcategoria,
@@ -214,13 +245,17 @@ export default function ImportarFatura({ store }) {
           })
 
         // Mês da fatura: o mais comum entre as linhas que não são parcela em andamento
-        const contagemMes = {}
-        base.forEach((l) => {
-          if (!l.cartao_id || !l.data || Number(l.parcela_atual) > 1) return
-          const m = calcMesInicio(l.data, cartoes.find((c) => c.id === l.cartao_id))
-          contagemMes[m] = (contagemMes[m] || 0) + 1
-        })
-        const inferido = Object.entries(contagemMes).sort((a, b) => b[1] - a[1])[0]?.[0] || nowYM()
+        const contarMeses = (incluirEmAndamento) => {
+          const contagem = {}
+          base.forEach((l) => {
+            if (!l.cartao_id || !l.data) return
+            if (!incluirEmAndamento && Number(l.parcela_atual) > 1) return
+            const m = calcMesInicio(l.data, cartoes.find((c) => c.id === l.cartao_id))
+            contagem[m] = (contagem[m] || 0) + 1
+          })
+          return Object.entries(contagem).sort((a, b) => b[1] - a[1])[0]?.[0]
+        }
+        const inferido = contarMeses(false) || contarMeses(true) || nowYM()
         setMesFatura(inferido)
 
         const enriquecidas = recalcular(base, compras, modoValor).map((l) => ({
@@ -311,7 +346,8 @@ export default function ImportarFatura({ store }) {
       const nota = k > 1 ? `Parcela ${k}/${n} na importação (início estimado pela fatura de ${mesLabel(mesFatura)})` : ''
       return {
         data_compra: dataCompra,
-        descricao: l.descricao,
+        descricao: limparDescricao(l.descricao),
+        ...(l.identificacao.trim() ? { identificacao: l.identificacao.trim() } : {}),
         categoria: l.categoria,
         subcategoria: l.subcategoria,
         pessoa: l.pessoa,
@@ -467,7 +503,8 @@ export default function ImportarFatura({ store }) {
                 <tr>
                   <th style={{ textAlign: 'center' }}>Importar</th>
                   <th>Data</th>
-                  <th>Descrição</th>
+                  <th>No cartão</th>
+                  <th>Identificação</th>
                   <th style={{ textAlign: 'right' }}>Valor</th>
                   <th>Categoria</th>
                   <th>Subcategoria</th>
@@ -499,6 +536,13 @@ export default function ImportarFatura({ store }) {
                           {l.duplicataExistente && <span className="badge badge-amber">já lançada</span>}
                           {l.duplicataCsv && <span className="badge badge-gray">repetida no arquivo</span>}
                         </div>
+                      </td>
+                      <td style={{ minWidth: 150 }}>
+                        <input
+                          placeholder="o que é? (opcional)"
+                          value={l.identificacao}
+                          onChange={(e) => atualizarLinha(l._id, { identificacao: e.target.value })}
+                        />
                       </td>
                       <td style={{ minWidth: 100 }}>
                         <input
@@ -556,6 +600,19 @@ export default function ImportarFatura({ store }) {
                           l.parcelaEncontrada ? (
                             <div style={{ marginTop: 4 }}>
                               <span className="badge badge-green" style={{ fontSize: 10 }}>parcelamento já lançado</span>
+                              {(() => {
+                                if (!mesFatura || !l.parcelaCompra) return null
+                                const esperada = gerarParcelas(l.parcelaCompra, cartoes).find((p) => p.mes === mesFatura)?.num
+                                if (esperada === atual) return null
+                                return (
+                                  <div style={{ fontSize: 10, color: 'var(--amber)', marginTop: 2 }}>
+                                    {esperada ? `⚠ no app, ${mesLabel(mesFatura)} seria a parcela ${esperada}/${total}` : `⚠ ${mesLabel(mesFatura)} fora do período previsto no app`}
+                                  </div>
+                                )
+                              })()}
+                              {l.parcelaCompra?.identificacao && (
+                                <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>{l.parcelaCompra.identificacao}</div>
+                              )}
                             </div>
                           ) : (
                             <div style={{ marginTop: 4 }}>

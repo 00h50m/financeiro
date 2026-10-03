@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { fmt, fmtK, mesLabel, nowYM, addMonths, gerarParcelas, totalRenda } from '../lib/utils'
+import { fmt, fmtK, mesLabel, nowYM, addMonths, gerarParcelas, totalRenda, tituloCompra, subtituloCompra } from '../lib/utils'
 
 export default function Pagamentos({ store }) {
   const {
@@ -275,8 +275,9 @@ export default function Pagamentos({ store }) {
                     <input type="checkbox" checked={!!c.pago} onChange={() => toggleOutraConta(c)} />
                   </td>
                   <td style={{ fontWeight: 500, textDecoration: c.pago ? 'line-through' : 'none' }}>
-                    {c.descricao}
-                    {c.obs && <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 400 }}>{c.obs}</div>}
+                    {tituloCompra(c)}
+                    {subtituloCompra(c) && <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 400 }}>no cartão: {subtituloCompra(c)}</div>}
+                    {c.obs &&<div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 400 }}>{c.obs}</div>}
                   </td>
                   <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(c.valorParcela)}</td>
                   <td style={{ textAlign: 'center' }}>

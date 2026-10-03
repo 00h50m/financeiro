@@ -1,5 +1,5 @@
 import { useState, Fragment } from 'react'
-import { fmt, fmtK, mesLabel, nowYM, addMonths, gerarParcelas, totalRenda, corPessoa, corPessoaCss } from '../lib/utils'
+import { fmt, fmtK, mesLabel, nowYM, addMonths, gerarParcelas, totalRenda, corPessoa, corPessoaCss, tituloCompra } from '../lib/utils'
 
 export default function Dashboard({ store }) {
   const { compras, cartoes, rendas, fixos, pessoas } = store
@@ -46,7 +46,7 @@ export default function Dashboard({ store }) {
     const cat = garantir(c.categoria)
     cat.total += p.valor
     cat.itens.push({
-      nome: c.descricao,
+      nome: tituloCompra(c),
       sub: c.subcategoria,
       valor: p.valor,
       origem: cartoes.find((x) => x.id === c.cartao_id)?.nome || 'Sem cartão',

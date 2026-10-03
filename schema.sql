@@ -48,6 +48,11 @@ create table if not exists compras (
 alter table compras add column if not exists pago boolean not null default false;
 alter table compras add column if not exists data_pagamento date;
 
+-- `descricao` guarda o nome como aparece no cartão/fatura (sem o trecho
+-- "Parcela x/y", que é tratado nos campos de parcelas); `identificacao` é
+-- opcional e guarda o que a compra é, escrito pela usuária.
+alter table compras add column if not exists identificacao text;
+
 -- ============================================================
 -- RENDAS (uma linha por mês, formato YYYY-MM)
 -- ============================================================

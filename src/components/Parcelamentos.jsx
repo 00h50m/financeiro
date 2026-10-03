@@ -1,4 +1,4 @@
-import { fmtK, fmt, mesLabel, nowYM, gerarParcelas } from '../lib/utils'
+import { fmtK, fmt, mesLabel, nowYM, gerarParcelas, tituloCompra, subtituloCompra } from '../lib/utils'
 
 export default function Parcelamentos({ store }) {
   const { compras, cartoes, pessoas } = store
@@ -58,7 +58,8 @@ export default function Parcelamentos({ store }) {
                 return (
                   <tr key={c.id}>
                     <td>
-                      <div style={{ fontWeight: 500 }}>{c.descricao}</div>
+                      <div style={{ fontWeight: 500 }}>{tituloCompra(c)}</div>
+                      {subtituloCompra(c) && <div style={{ fontSize: 11, color: 'var(--text3)' }}>no cartão: {subtituloCompra(c)}</div>}
                       {c.obs && <div style={{ fontSize: 11, color: 'var(--text3)' }}>{c.obs}</div>}
                     </td>
                     <td><span className="badge badge-gray">{cartao?.nome || '—'}</span></td>

@@ -1,3 +1,7 @@
+// Compra tem `descricao` (nome como aparece no cartão) e `identificacao` (o que é, escrito pela usuária).
+export const tituloCompra = (c) => c.identificacao || c.descricao
+export const subtituloCompra = (c) => (c.identificacao ? c.descricao : '')
+
 export const CORES_PESSOA = ['purple', 'blue', 'green', 'amber', 'red', 'gray']
 
 export const proximaCorPessoa = (pessoas) => CORES_PESSOA[pessoas.length % CORES_PESSOA.length]

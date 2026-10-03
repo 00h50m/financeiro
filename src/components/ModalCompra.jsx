@@ -5,6 +5,7 @@ export default function ModalCompra({ cartoes, categorias, pessoas, onSave, onCl
   const [f, setF] = useState({
     data_compra: new Date().toISOString().slice(0, 10),
     descricao: '',
+    identificacao: '',
     categoria: categorias[0]?.nome || '',
     subcategoria: categorias[0]?.subcategorias?.[0] || '',
     pessoa: pessoas[0]?.nome || '',
@@ -27,8 +28,10 @@ export default function ModalCompra({ cartoes, categorias, pessoas, onSave, onCl
   async function save(fechar) {
     if (!ok) return
     setSaving(true)
+    const { identificacao, ...resto } = f
     await onSave({
-      ...f,
+      ...resto,
+      ...(identificacao.trim() ? { identificacao: identificacao.trim() } : {}),
       valor_total: Number(f.valor_total),
       parcelas: Number(f.parcelas),
       cartao_id: f.cartao_id || null,
@@ -42,6 +45,7 @@ export default function ModalCompra({ cartoes, categorias, pessoas, onSave, onCl
       setF((p) => ({
         ...p,
         descricao: '',
+        identificacao: '',
         categoria: categorias[0]?.nome || '',
         subcategoria: categorias[0]?.subcategorias?.[0] || '',
         valor_total: '',
@@ -76,14 +80,22 @@ export default function ModalCompra({ cartoes, categorias, pessoas, onSave, onCl
           </div>
         </div>
 
-        <div className="form-row">
+        <div className="form-row cols2">
           <div className="form-group">
-            <label>Descrição</label>
+            <label>Nome (como aparece no cartão)</label>
             <input
               placeholder="Ex: Nike Air Max, iFood, Mercado..."
               value={f.descricao}
               onChange={s('descricao')}
               autoFocus
+            />
+          </div>
+          <div className="form-group">
+            <label>Identificação (opcional)</label>
+            <input
+              placeholder="Ex: Tênis de corrida da Sabi"
+              value={f.identificacao}
+              onChange={s('identificacao')}
             />
           </div>
         </div>

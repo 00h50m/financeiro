@@ -1,18 +1,24 @@
 import { useState, useMemo } from 'react'
-import { fmt, corPessoa } from '../lib/utils'
+import { fmt, corPessoa, tituloCompra, subtituloCompra } from '../lib/utils'
 import ModalCompra from './ModalCompra'
 
 export default function Compras({ store }) {
-  const { compras, cartoes, categorias, pessoas, addCompra, delCompra } = store
+  const { compras, cartoes, categorias, pessoas, addCompra, updateCompra, delCompra } = store
   const [modal, setModal] = useState(false)
   const [filtro, setFiltro] = useState('')
   const [filtroPessoa, setFiltroPessoa] = useState('')
 
   const lista = useMemo(() =>
     compras.filter((c) =>
-      (!filtro || (c.descricao + c.categoria + c.subcategoria + (c.obs || '')).toLowerCase().includes(filtro.toLowerCase())) &&
+      (!filtro || (c.descricao + c.categoria + c.subcategoria + (c.obs || '') + (c.identificacao || '')).toLowerCase().includes(filtro.toLowerCase())) &&
       (!filtroPessoa || c.pessoa === filtroPessoa)
     ), [compras, filtro, filtroPessoa])
+
+  function editarIdentificacao(c) {
+    const novo = window.prompt(`Identificação de "${c.descricao}" (o que é essa compra). Deixe vazio para remover:`, c.identificacao || '')
+    if (novo == null) return
+    updateCompra(c.id, { identificacao: novo.trim() || null })
+  }
 
   return (
     <div className="page">
@@ -68,7 +74,15 @@ export default function Compras({ store }) {
                       {dd[2]}/{dd[1]}/{dd[0].slice(2)}
                     </td>
                     <td>
-                      <div style={{ fontWeight: 500 }}>{c.descricao}</div>
+                      <div style={{ fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {tituloCompra(c)}
+                        <button
+                          onClick={() => editarIdentificacao(c)}
+                          title="Identificar / renomear (o que é essa compra)"
+                          style={{ background: 'transparent', color: 'var(--text3)', fontSize: 12, padding: 0 }}
+                        >✎</button>
+                      </div>
+                      {subtituloCompra(c) && <div style={{ fontSize: 11, color: 'var(--text3)' }}>no cartão: {subtituloCompra(c)}</div>}
                       {c.obs && <div style={{ fontSize: 11, color: 'var(--text3)' }}>{c.obs}</div>}
                     </td>
                     <td>
