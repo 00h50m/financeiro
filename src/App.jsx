@@ -12,6 +12,7 @@ import Simulador from './components/Simulador'
 import Cartoes from './components/Cartoes'
 import Categorias from './components/Categorias'
 import Pessoas from './components/Pessoas'
+import Backup from './components/Backup'
 import Login from './components/Login'
 import { Marca, Nome } from './components/Marca'
 import { sb } from './lib/supabase'
@@ -32,6 +33,7 @@ const ICONES = {
   menu: 'M3 12h18 M3 6h18 M3 18h18',
   fechar: 'M18 6L6 18 M6 6l12 12',
   recolher: 'M15 18l-6-6 6-6',
+  backup: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M12 15V3',
   sair: 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4 M16 17l5-5-5-5 M21 12H9',
 }
 
@@ -72,6 +74,7 @@ const GRUPOS = [
       { id: 'cartoes', label: 'Cartões', Component: Cartoes },
       { id: 'categorias', label: 'Categorias', Component: Categorias },
       { id: 'pessoas', label: 'Pessoas', Component: Pessoas },
+      { id: 'backup', label: 'Backup', Component: Backup },
     ],
   },
 ]
