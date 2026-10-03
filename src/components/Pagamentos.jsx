@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { fmt, fmtK, mesLabel, nowYM, addMonths, totalRenda, tituloCompra, subtituloCompra, detalhePagamentos, sobraAnterior } from '../lib/utils'
 
 export default function Pagamentos({ store }) {
@@ -15,11 +15,8 @@ export default function Pagamentos({ store }) {
     try { localStorage.setItem('usar_sobra', v ? '1' : '0') } catch { /* segue sem lembrar */ }
   }
 
-  const ajusteAtual = saldoAjustes.find((a) => a.mes === mes)?.ajuste || 0
-  const [ajusteInput, setAjusteInput] = useState(String(ajusteAtual))
-  useEffect(() => {
-    setAjusteInput(String(saldoAjustes.find((a) => a.mes === mes)?.ajuste || 0))
-  }, [mes, saldoAjustes])
+  const ajusteAtual = Number(saldoAjustes.find((a) => a.mes === mes)?.ajuste) || 0
+  const [saldoReal, setSaldoReal] = useState('')
 
   const dados = { fixos, fixosPagamentos, cartoes, compras, faturas, rendas, saldoAjustes }
   const {
@@ -35,10 +32,19 @@ export default function Pagamentos({ store }) {
   }
 
   const rendaMes = totalRenda(rendas.find((r) => r.mes === mes))
-  const sobra = usarSobra ? sobraAnterior(dados, mes) : 0
+  const sobraPossivel = sobraAnterior(dados, mes)
+  const temRendaAnterior = totalRenda(rendas.find((r) => r.mes === addMonths(mes, -1))) > 0
+  const sobra = usarSobra ? sobraPossivel : 0
   const baseCalculada = rendaMes + sobra - pago
   const dinheiroDisponivel = baseCalculada + ajusteAtual
   const saldo = dinheiroDisponivel - totalDividas
+
+  function acertar() {
+    const real = Number(saldoReal)
+    if (saldoReal === '' || Number.isNaN(real)) return
+    definirAjusteSaldo(mes, Math.round((real - baseCalculada) * 100) / 100)
+    setSaldoReal('')
+  }
 
   async function toggleFixo(fixo) {
     const atual = fixoPagamento(fixo.id)?.pago || false
@@ -97,37 +103,70 @@ export default function Pagamentos({ store }) {
         </div>
       </div>
 
-      <div className="card" style={{ padding: 14 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-          <div style={{ fontSize: 12, color: 'var(--text3)', lineHeight: 1.6 }}>
-            Dinheiro disponível = renda do mês ({fmt(rendaMes)})
-            {usarSobra && ` ${sobra < 0 ? '−' : '+'} sobra do mês anterior (${fmt(Math.abs(sobra))})`} − já pago ({fmt(pago)})
-            {ajusteAtual !== 0 && ` ${ajusteAtual > 0 ? '+' : '−'} ajuste (${fmt(Math.abs(ajusteAtual))})`}.
-            {' '}{usarSobra && sobra === 0 && 'Sem sobra do mês anterior: ele não tem renda cadastrada (ou fechou no zero). '}
-            O ajuste serve para dinheiro fora da renda cadastrada (ex.: reserva que você já tinha).
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, color: 'var(--text2)', cursor: 'pointer' }}>
+      <div className="section-label">de onde vem o dinheiro disponível · {mesLabel(mes)}</div>
+      <div className="card extrato">
+        <div className="extrato-linha">
+          <div>Renda de {mesLabel(mes)}</div>
+          <div className="mono" style={{ color: rendaMes > 0 ? 'var(--green)' : 'var(--text3)' }}>{rendaMes > 0 ? '+ ' + fmt(rendaMes) : 'não cadastrada'}</div>
+        </div>
+        <div className="extrato-linha" style={{ opacity: usarSobra ? 1 : 0.55 }}>
+          <div>
+            Sobra de {mesLabel(addMonths(mes, -1))}
+            <div className="extrato-sub">
+              {sobraPossivel === 0 && !temRendaAnterior
+                ? `${mesLabel(addMonths(mes, -1))} não tem renda cadastrada, então não há sobra para trazer.`
+                : 'O que sobraria do mês anterior depois de pagar tudo dele.'}
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span className="mono" style={{ color: sobra < 0 ? 'var(--red)' : 'var(--green)' }}>
+              {sobraPossivel !== 0 ? (sobraPossivel < 0 ? '− ' : '+ ') + fmt(Math.abs(sobraPossivel)) : fmt(0)}
+            </span>
+            <label className="switch" title={usarSobra ? 'Clique para ignorar a sobra' : 'Clique para incluir a sobra'}>
               <input type="checkbox" checked={usarSobra} onChange={(e) => alternarSobra(e.target.checked)} />
-              Somar a sobra do mês anterior (o que sobraria depois de pagar tudo dele)
+              <span>{usarSobra ? 'Incluída' : 'Ignorada'}</span>
             </label>
           </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <label style={{ fontSize: 12, color: 'var(--text2)' }}>Ajuste manual (R$)</label>
-            <input
-              type="number" step="0.01"
-              value={ajusteInput}
-              onChange={(e) => setAjusteInput(e.target.value)}
-              style={{ width: 110 }}
-            />
-            <button
-              className="btn btn-ghost btn-sm"
-              onClick={() => definirAjusteSaldo(mes, Number(ajusteInput) || 0)}
-              disabled={Number(ajusteInput) === ajusteAtual}
-            >
-              Salvar ajuste
-            </button>
+        </div>
+        <div className="extrato-linha">
+          <div>Já pago neste mês</div>
+          <div className="mono" style={{ color: pago > 0 ? 'var(--amber)' : 'var(--text3)' }}>{pago > 0 ? '− ' + fmt(pago) : fmt(0)}</div>
+        </div>
+        {ajusteAtual !== 0 && (
+          <div className="extrato-linha">
+            <div>
+              Acerto com o saldo real
+              <div className="extrato-sub"><button className="link-btn" onClick={() => definirAjusteSaldo(mes, 0)}>remover acerto</button></div>
+            </div>
+            <div className="mono" style={{ color: ajusteAtual > 0 ? 'var(--green)' : 'var(--red)' }}>
+              {ajusteAtual > 0 ? '+ ' : '− '}{fmt(Math.abs(ajusteAtual))}
+            </div>
           </div>
+        )}
+        <div className="extrato-linha extrato-total">
+          <div>Dinheiro disponível</div>
+          <div className="mono" style={{ color: dinheiroDisponivel >= 0 ? 'var(--blue)' : 'var(--red)' }}>{fmt(dinheiroDisponivel)}</div>
         </div>
       </div>
+
+      <details className="acerto">
+        <summary>O valor não bate com o que você tem na conta? Acerte aqui</summary>
+        <div className="acerto-corpo">
+          <div style={{ fontSize: 12, color: 'var(--text3)', lineHeight: 1.6, marginBottom: 10 }}>
+            Digite quanto você tem de verdade na conta agora. O Sobrou! calcula a diferença e guarda como um acerto neste mês
+            (útil para dinheiro que não está na renda cadastrada, como uma reserva que você já tinha).
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <input
+              type="number" step="0.01" placeholder="Saldo real da conta (R$)"
+              value={saldoReal} onChange={(e) => setSaldoReal(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') acertar() }}
+              style={{ maxWidth: 220 }}
+            />
+            <button className="btn btn-primary btn-sm" onClick={acertar} disabled={saldoReal === ''}>Acertar</button>
+          </div>
+        </div>
+      </details>
 
       <div className="section-label">contas fixas</div>
       {fixosAtivos.length === 0 ? (
