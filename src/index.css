@@ -244,7 +244,7 @@ input[type='checkbox'] { width: auto; accent-color: var(--brand); cursor: pointe
   .sidebar-recolhida .sidebar-item { justify-content: flex-start; padding: 9px 10px; }
   .topbar { padding: 10px 14px; }
   .topbar-sync-texto { display: none; }
-  .page { padding: 16px 14px 40px; }
+  .page { padding: 16px 14px calc(40px + env(safe-area-inset-bottom)); }
   .sim-grid { grid-template-columns: 1fr; gap: 0; }
   .sidebar-item { padding: 12px 10px; font-size: 14.5px; }
 }
