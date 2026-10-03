@@ -1,4 +1,4 @@
--- Gi & Sabi · Sistema Financeiro
+-- Sobrou! · Sistema Financeiro
 -- Schema do banco (Supabase / Postgres).
 --
 -- Este arquivo documenta as tabelas já existentes no projeto (reconstruídas a

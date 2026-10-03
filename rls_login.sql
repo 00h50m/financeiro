@@ -1,4 +1,4 @@
--- Gi & Sabi · Financeiro
+-- Sobrou! · Financeiro
 -- Proteção das tabelas: só usuários LOGADOS (Supabase Auth) leem e gravam.
 --
 -- ATENÇÃO — ordem:

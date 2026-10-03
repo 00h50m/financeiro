@@ -1,4 +1,4 @@
-# Gi & Sabi · Sistema Financeiro
+# Sobrou! · Seu dinheiro, finalmente, sobrando.
 
 Sistema financeiro pessoal com Supabase + React + Vite.
 

@@ -83,7 +83,7 @@ export default function Dashboard({ store }) {
           <div className="metric-val amber">{fmtK(totalMes)}</div>
         </div>
         <div className="metric">
-          <div className="metric-label">Saldo projetado</div>
+          <div className="metric-label">Sobra projetada</div>
           <div className={`metric-val ${renda === 0 ? 'blue' : saldo >= 0 ? 'green' : 'red'}`}>
             {renda > 0 ? fmtK(saldo) : '—'}
           </div>

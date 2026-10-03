@@ -272,8 +272,8 @@ export default function Simulador({ store }) {
               <th style={{ textAlign: 'right' }}>Renda</th>
               <th style={{ textAlign: 'right' }}>Já comprometido</th>
               <th style={{ textAlign: 'right' }}>Nova parcela</th>
-              <th style={{ textAlign: 'right' }}>Saldo antes</th>
-              <th style={{ textAlign: 'right' }}>Saldo depois</th>
+              <th style={{ textAlign: 'right' }}>Sobra antes</th>
+              <th style={{ textAlign: 'right' }}>Sobra depois</th>
               <th style={{ width: 150 }}>% da renda</th>
               <th />
             </tr>

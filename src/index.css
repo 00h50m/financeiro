@@ -1,15 +1,18 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg: #0f0f0f;
-  --bg2: #161616;
-  --bg3: #1e1e1e;
-  --bg4: #262626;
-  --border: #2a2a2a;
-  --border2: #333;
-  --text: #f0f0f0;
-  --text2: #999;
-  --text3: #555;
+  --bg: #0d1210;
+  --bg2: #131a17;
+  --bg3: #1a231f;
+  --bg4: #222d28;
+  --border: #25302b;
+  --border2: #313f38;
+  --text: #eef3ef;
+  --text2: #9aa9a0;
+  --text3: #5d6b63;
+  --brand: #c6f24e;
+  --brand-hover: #b3e338;
+  --brand-ink: #14210a;
   --green: #22c55e;
   --green-bg: #0f2a1a;
   --green-border: #16532d;
@@ -26,6 +29,7 @@
   --purple-bg: #1a0f2a;
   --purple-border: #4c1d95;
   font-family: 'DM Sans', sans-serif;
+  --font-marca: 'Fredoka', 'DM Sans', sans-serif;
 }
 
 html, body, #root { min-height: 100vh; background: var(--bg); color: var(--text); }
@@ -33,7 +37,7 @@ html, body, #root { min-height: 100vh; background: var(--bg); color: var(--text)
 button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 input, select { font-family: inherit; outline: none; }
 
-:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 input:focus-visible, select:focus-visible { outline: none; }
 .icon-btn { background: transparent; color: var(--text2); width: 36px; height: 36px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .icon-btn:hover { background: var(--bg3); color: var(--text); }
@@ -59,7 +63,9 @@ input:focus-visible, select:focus-visible { outline: none; }
   z-index: 40;
 }
 .sidebar-topo { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px 18px; }
-.sidebar-logo { font-size: 15px; font-weight: 500; color: var(--text); white-space: nowrap; letter-spacing: 0.01em; }
+.sidebar-logo { display: flex; align-items: center; gap: 10px; white-space: nowrap; }
+.marca-nome { font-family: var(--font-marca); font-weight: 600; font-size: 21px; letter-spacing: 0.01em; color: var(--text); line-height: 1; }
+.marca-excl { color: var(--brand); }
 .sidebar-fechar { display: none; }
 .sidebar-nav { flex: 1; }
 .sidebar-grupo { margin-bottom: 16px; }
@@ -80,7 +86,7 @@ input:focus-visible, select:focus-visible { outline: none; }
 }
 .sidebar-item svg { flex-shrink: 0; }
 .sidebar-item:hover { background: var(--bg3); color: var(--text); }
-.sidebar-item.ativo { background: var(--bg4); color: var(--text); font-weight: 500; box-shadow: inset 3px 0 0 var(--green); }
+.sidebar-item.ativo { background: var(--bg4); color: var(--text); font-weight: 500; box-shadow: inset 3px 0 0 var(--brand); }
 .sidebar-recolher {
   display: flex; align-items: center; gap: 12px;
   padding: 9px 10px; border-radius: 8px; font-size: 12.5px;
@@ -88,15 +94,14 @@ input:focus-visible, select:focus-visible { outline: none; }
 }
 .sidebar-recolher:hover { background: var(--bg3); color: var(--text2); }
 .sidebar-sair { padding: 9px 10px; }
-.sidebar-sair .sidebar-item-label { display: flex; flex-direction: column; line-height: 1.3; min-width: 0; }
+.sidebar-sair .sidebar-item-label { display: flex; flex-direction: column; align-items: flex-start; text-align: left; line-height: 1.3; min-width: 0; }
 .sidebar-email { font-size: 10.5px; color: var(--text3); overflow: hidden; text-overflow: ellipsis; max-width: 160px; }
 .sidebar-backdrop { display: none; }
 
 .sidebar-recolhida .sidebar { width: 66px; }
-.sidebar-recolhida .sidebar-logo,
+.sidebar-recolhida .marca-nome,
 .sidebar-recolhida .sidebar-item-label { display: none; }
 .sidebar-recolhida .sidebar-topo { justify-content: center; padding-left: 0; padding-right: 0; }
-.sidebar-recolhida .sidebar-topo::before { content: 'G&S'; font-size: 12px; font-weight: 500; color: var(--text2); }
 .sidebar-recolhida .sidebar-grupo-titulo { font-size: 0; padding: 0; border-top: 1px solid var(--border); margin: 8px 6px; }
 .sidebar-recolhida .sidebar-grupo:first-child .sidebar-grupo-titulo { border-top: none; margin: 0; }
 .sidebar-recolhida .sidebar-item, .sidebar-recolhida .sidebar-recolher { justify-content: center; padding-left: 0; padding-right: 0; }
@@ -125,7 +130,7 @@ input:focus-visible, select:focus-visible { outline: none; }
 .metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 24px; }
 .metric { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
 .metric-label { font-size: 11px; color: var(--text3); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.06em; }
-.metric-val { font-size: 22px; font-weight: 500; font-family: 'DM Mono', monospace; }
+.metric-val { font-size: clamp(17px, 1.8vw, 22px); font-weight: 500; font-family: 'DM Mono', monospace; white-space: nowrap; }
 .metric-val.green { color: var(--green); }
 .metric-val.red { color: var(--red); }
 .metric-val.amber { color: var(--amber); }
@@ -149,8 +154,8 @@ tr:hover td { background: rgba(255,255,255,0.02); }
 
 /* BUTTONS */
 .btn { padding: 8px 16px; border-radius: 7px; font-size: 13px; font-weight: 500; transition: all 0.15s; display: inline-flex; align-items: center; gap: 6px; }
-.btn-primary { background: var(--green); color: #0a0a0a; }
-.btn-primary:hover { background: #16a34a; }
+.btn-primary { background: var(--brand); color: var(--brand-ink); font-weight: 600; }
+.btn-primary:hover { background: var(--brand-hover); }
 .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
 .btn-ghost { background: transparent; color: var(--text2); border: 1px solid var(--border2); }
 .btn-ghost:hover { background: var(--bg3); color: var(--text); }
@@ -165,7 +170,7 @@ tr:hover td { background: rgba(255,255,255,0.02); }
 .form-group { display: flex; flex-direction: column; gap: 6px; }
 label { font-size: 12px; color: var(--text2); font-weight: 500; }
 input, select { background: var(--bg3); border: 1px solid var(--border2); border-radius: 7px; padding: 9px 12px; font-size: 13px; color: var(--text); width: 100%; transition: border-color 0.15s; }
-input:focus, select:focus { border-color: var(--green); }
+input:focus, select:focus { border-color: var(--brand); }
 select option { background: var(--bg3); }
 
 /* MODAL */
@@ -190,13 +195,15 @@ select option { background: var(--bg3); }
 .mono { font-family: 'DM Mono', monospace; }
 .login { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
 .login-card { width: 100%; max-width: 380px; background: var(--bg2); border: 1px solid var(--border2); border-radius: 14px; padding: 28px 24px; }
-.login-logo { font-size: 20px; font-weight: 500; }
-.login-sub { font-size: 13px; color: var(--text3); margin: 4px 0 22px; }
+.login-logo { display: flex; align-items: center; gap: 12px; }
+.login-logo .marca-nome { font-size: 32px; }
+.login-slogan { font-size: 14px; color: var(--text2); margin: 10px 0 24px; line-height: 1.5; }
+.login-slogan strong { color: var(--brand); font-weight: 500; }
 .sim-grid { display: grid; grid-template-columns: minmax(300px, 380px) 1fr; gap: 20px; align-items: start; margin-bottom: 8px; }
 .sim-grid .section-label:first-child { margin-top: 0; }
 .sim-tabela td, .sim-tabela th { white-space: nowrap; }
 .loading { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 48px; color: var(--text3); font-size: 13px; gap: 10px; }
-.spinner { width: 18px; height: 18px; border: 2px solid var(--border2); border-top-color: var(--green); border-radius: 50%; animation: spin 0.7s linear infinite; }
+.spinner { width: 18px; height: 18px; border: 2px solid var(--border2); border-top-color: var(--brand); border-radius: 50%; animation: spin 0.7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* TABLET / CELULAR: barra lateral vira gaveta */
@@ -213,8 +220,7 @@ select option { background: var(--bg3); }
   .sidebar-fechar, .topbar-menu { display: inline-flex; }
   .sidebar-recolher:not(.sidebar-sair) { display: none; }
   .sidebar-recolhida .sidebar { width: min(280px, 86vw); }
-  .sidebar-recolhida .sidebar-logo, .sidebar-recolhida .sidebar-item-label { display: inline; }
-  .sidebar-recolhida .sidebar-topo::before { content: none; }
+  .sidebar-recolhida .marca-nome, .sidebar-recolhida .sidebar-item-label { display: inline; }
   .sidebar-recolhida .sidebar-topo { justify-content: space-between; padding: 6px 10px 18px; }
   .sidebar-recolhida .sidebar-grupo-titulo { font-size: 10px; padding: 0 10px 6px; border-top: none; margin: 0; }
   .sidebar-recolhida .sidebar-item { justify-content: flex-start; padding: 9px 10px; }

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { sb } from '../lib/supabase'
+import { Marca, Nome, SLOGAN } from './Marca'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -21,8 +22,8 @@ export default function Login() {
   return (
     <div className="login">
       <form className="login-card" onSubmit={entrar}>
-        <div className="login-logo">Gi & Sabi</div>
-        <div className="login-sub">Financeiro · entre para continuar</div>
+        <div className="login-logo"><Marca size={40} /><Nome /></div>
+        <div className="login-slogan">{SLOGAN}</div>
 
         <div className="form-group" style={{ marginBottom: 14 }}>
           <label htmlFor="login-email">E-mail</label>

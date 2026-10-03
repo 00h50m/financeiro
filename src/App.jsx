@@ -13,6 +13,7 @@ import Cartoes from './components/Cartoes'
 import Categorias from './components/Categorias'
 import Pessoas from './components/Pessoas'
 import Login from './components/Login'
+import { Marca, Nome } from './components/Marca'
 import { sb } from './lib/supabase'
 
 const ICONES = {
@@ -160,7 +161,7 @@ function AppLogado({ email }) {
 
       <aside className={`sidebar ${menuAberto ? 'aberta' : ''}`} aria-label="Navegação principal">
         <div className="sidebar-topo">
-          <span className="sidebar-logo">Gi & Sabi</span>
+          <span className="sidebar-logo"><Marca size={28} /><Nome /></span>
           <button className="icon-btn sidebar-fechar" onClick={() => setMenuAberto(false)} aria-label="Fechar menu">
             <Icone nome="fechar" />
           </button>
