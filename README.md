@@ -23,6 +23,7 @@ Sistema financeiro pessoal (React + Vite + Supabase), com login, instalável no 
 - **Simulador** — impacto de uma compra parcelada mês a mês, parcela máxima que cabe, menor parcelamento possível, melhor mês para começar e aviso de limite do cartão.
 
 **Cadastros**
+- **Automações** — conecta o bot do Telegram (status, ativar, gerar código de pareamento, testar, pausar, desconectar).
 - **Cartões** — titular, fechamento, vencimento e limite (com uso do limite).
 - **Categorias** — categorias e subcategorias editáveis; excluir exige migrar os lançamentos.
 - **Pessoas** — pessoas e cores.
@@ -51,12 +52,31 @@ Rode no SQL Editor do Supabase:
 
 Usuários: crie em **Authentication → Users** e deixe o cadastro aberto desligado.
 
+## Telegram (lançar gastos por mensagem)
+
+Mensagens como `gastei 89,90 no Outback no Nubank`, `mercado 187,40 inter gi` ou `uber 32,50` viram um
+item no Inbox/confirmação no próprio chat. Nada é lançado sem tocar em **Confirmar**; se faltar algo
+(cartão, categoria...), o bot pergunta. Só pessoas **pareadas** são atendidas; qualquer outro usuário é ignorado.
+
+Configuração (uma vez):
+1. No Telegram, converse com **@BotFather** → `/newbot` → guarde o **token**.
+2. Na Vercel (Settings › Environment Variables) cadastre e faça um novo deploy:
+   `TELEGRAM_BOT_TOKEN` (token do passo 1) · `TELEGRAM_WEBHOOK_SECRET` (senha livre, só letras/números, 20+ caracteres) ·
+   `SUPABASE_SERVICE_ROLE_KEY` (Supabase › Project Settings › API › `service_role`).
+   A service role **nunca** vai no navegador (por isso não tem o prefixo `VITE_`).
+3. No app: **Automações › Ativar bot**, depois **Gerar código** para cada pessoa e envie `/start CÓDIGO` ao bot
+   (ou toque no link mostrado). O código vale 10 minutos e uma única vez.
+
+Código do bot: `api/telegram.js` (webhook), `api/telegram-admin.js` (tela Automações) e `api/_lib/` (lógica, testada
+sem rede). Segurança: segredo do webhook conferido em tempo constante, `update_id` processado uma vez, limite de
+mensagens por minuto, só conversa privada.
+
 ## Rodar localmente
 
 ```bash
 npm install
 npm run dev
-npm test      # testes das regras (normalização, categorização, reconciliação)
+npm test      # testes (regras do Inbox, parser do Telegram, lógica do bot)
 ```
 
 Acesse `http://localhost:5173`
@@ -96,5 +116,6 @@ src/
                    # normalizacao / estabelecimento / categorizacao / reconciliacao / evento: regras do Inbox (puras e testadas)
   components/      # uma tela por arquivo (Dashboard, Compras, Pagamentos, Orcamento, Reserva, Simulador, ...)
   App.jsx          # login, menu lateral e roteamento por aba
+api/               # funções de servidor da Vercel (Telegram); `_lib/` não é rota
   index.css
 ```

@@ -1,4 +1,4 @@
-import { chaveEstabelecimento } from './estabelecimento'
+import { chaveEstabelecimento } from './estabelecimento.js'
 
 // Sugestão determinística de categoria, a partir de regras aprendidas com o uso
 // (tabela regras_categorizacao). Sem IA.

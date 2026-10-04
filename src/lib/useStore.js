@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
-import { sb } from './supabase'
-import { hojeSP } from './utils'
+import { sb } from './supabase.js'
+import { hojeSP } from './utils.js'
+import { gerarCodigo, hashCodigo } from './pareamento.js'
 
 export function useStore() {
   const [cartoes, setCartoes] = useState([])
@@ -17,6 +18,7 @@ export function useStore() {
   const [eventos, setEventos] = useState([]) // Inbox Financeiro (eventos_financeiros)
   const [regras, setRegras] = useState([]) // regras_categorizacao
   const [aliases, setAliases] = useState([]) // estabelecimento_aliases
+  const [integracoesTelegram, setIntegracoesTelegram] = useState([])
   const [inboxOk, setInboxOk] = useState(true) // false = migration do Inbox ainda não rodou
   const [configOk, setConfigOk] = useState(true)
   const [orcamentosOk, setOrcamentosOk] = useState(true) // false = tabela ainda não criada no banco
@@ -28,7 +30,7 @@ export function useStore() {
     if (!silent) setLoading(true)
     setError(null)
     try {
-      const [c, co, r, fx, fa, cat, fxp, sa, ps, orc, cfg, ev, rg, al] = await Promise.all([
+      const [c, co, r, fx, fa, cat, fxp, sa, ps, orc, cfg, ev, rg, al, it] = await Promise.all([
         sb.from('cartoes').select('*').order('created_at'),
         sb.from('compras').select('*').order('data_compra', { ascending: false }),
         sb.from('rendas').select('*').order('mes', { ascending: false }),
@@ -43,6 +45,7 @@ export function useStore() {
         sb.from('eventos_financeiros').select('*').order('capturado_em', { ascending: false }).limit(1000),
         sb.from('regras_categorizacao').select('*'),
         sb.from('estabelecimento_aliases').select('*'),
+        sb.from('integracoes_telegram').select('*').order('conectado_em'),
       ])
       if (c.error) throw c.error
       if (co.error) throw co.error
@@ -73,6 +76,7 @@ export function useStore() {
       setEventos(inboxPronto ? ev.data || [] : [])
       setRegras(inboxPronto ? rg.data || [] : [])
       setAliases(inboxPronto ? al.data || [] : [])
+      setIntegracoesTelegram(inboxPronto && !it.error ? it.data || [] : [])
     } catch (e) {
       setError(e.message || 'Erro ao conectar com o banco')
     }
@@ -343,7 +347,25 @@ export function useStore() {
     if (r.error) throw r.error
   })
 
+  // AUTOMAÇÕES — TELEGRAM
+  // O código nasce aqui; no banco vai só o hash. Vale 10 minutos e uma única vez.
+  async function gerarPareamento(tipo, pessoa_id) {
+    const codigo = gerarCodigo()
+    const r = await sb.from('pareamentos').insert({ tipo, pessoa_id, codigo_hash: await hashCodigo(codigo) })
+    if (r.error) throw r.error
+    return { codigo, expira_em: Date.now() + 10 * 60 * 1000 }
+  }
+  const pausarIntegracao = (id, ativo) => op(async () => {
+    const r = await sb.from('integracoes_telegram').update({ ativo }).eq('id', id)
+    if (r.error) throw r.error
+  })
+  const desconectarIntegracao = (id) => op(async () => {
+    const r = await sb.from('integracoes_telegram').delete().eq('id', id)
+    if (r.error) throw r.error
+  })
+
   return {
+    integracoesTelegram, gerarPareamento, pausarIntegracao, desconectarIntegracao,
     eventos, regras, aliases, inboxOk,
     confirmarEvento, vincularEvento, ignorarEvento, adicionarEventos, adicionarRegras,
     cartoes, compras, rendas, fixos, faturas, categorias, fixosPagamentos, saldoAjustes, pessoas, orcamentos, orcamentosOk, config, configOk,

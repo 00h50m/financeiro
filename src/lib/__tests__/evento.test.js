@@ -41,6 +41,12 @@ describe('entrada comum de eventos', () => {
     const ok = prepararEvento({ ...base, forma_pagamento: 'pix', pago: true }, ctx({ compras: hist })).evento
     expect(ok).toMatchObject({ status: 'pendente', forma_pagamento: 'pix', pago: true })
   })
+  it('cartão padrão da regra não sobrescreve "sem cartão" dito pela pessoa', () => {
+    const regras = [{ id: 'r', estabelecimento_chave: 'drogasil', categoria: 'Saúde', subcategoria: 'Farmácia', confianca: 0.9, confirmacoes: 9, cartao_id: 'c-nu' }]
+    const base = entrada({ cartao_id: undefined, descricao_original: 'DROGASIL' })
+    expect(prepararEvento(base, ctx({ regras })).evento.cartao_id).toBe('c-nu')
+    expect(prepararEvento({ ...base, forma_pagamento: 'pix' }, ctx({ regras })).evento.cartao_id).toBeNull()
+  })
   it('categoria informada que não existe é ignorada', () => {
     const { evento } = prepararEvento(entrada({ categoria: 'Inventada', subcategoria: 'X', descricao_original: 'Loja Nova' }), ctx())
     expect(evento.categoria).toBeNull()

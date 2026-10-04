@@ -1,4 +1,4 @@
-import { normHistorico, limparDescricao } from './normalizacao'
+import { normHistorico, limparDescricao } from './normalizacao.js'
 
 // Chave de comparação de um estabelecimento. Nunca substitui o texto original:
 // "IFOOD *IFOOD", "IFOOD.COM" e "PG *IFOOD" viram a mesma chave ("ifood").
