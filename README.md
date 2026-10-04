@@ -8,6 +8,7 @@ Sistema financeiro pessoal (React + Vite + Supabase), com login, instalável no 
 - **Dashboard** — resumo do mês (renda, comprometido, sobra projetada, % da renda), distribuição por pessoa, gastos por categoria (clique para ver o que compõe cada uma), avisos de teto estourado e projeção dos próximos 6 meses.
 
 **Dia a dia**
+- **Inbox** — lançamentos que chegam de outras fontes (por enquanto: adicionados no próprio Inbox; depois Telegram, notificações do Android e fatura) e ainda não viraram compra. Cada item mostra a origem, a categoria sugerida (aprendida com o seu histórico), avisa o que falta e detecta se já existe uma compra parecida ("Vincular" ou "Criar separadamente"). Nada vira compra sem confirmação.
 - **Compras** — lançamento com parcelas, pessoa, categoria/subcategoria, cartão (ou sem cartão), várias compras em uma só (ex.: Mercado Livre), nome como aparece no cartão + identificação opcional.
 - **Parcelamentos** — compras parceladas em andamento, progresso, valor restante e término.
 - **Faturas** — valor real de cada fatura (por cartão/mês) comparado ao que foi lançado.
@@ -46,6 +47,7 @@ Rode no SQL Editor do Supabase:
 | `orcamentos.sql` | Tabela de tetos por categoria |
 | `config.sql` | Configurações (reserva de emergência) |
 | `cartoes_limite.sql` | Coluna de limite do cartão |
+| `inbox/01` a `inbox/10` | Inbox Financeiro (rodar **em ordem**, uma parte por vez; cada uma é repetível). `inbox/desfazer.sql` reverte. |
 
 Usuários: crie em **Authentication → Users** e deixe o cadastro aberto desligado.
 
@@ -54,6 +56,7 @@ Usuários: crie em **Authentication → Users** e deixe o cadastro aberto deslig
 ```bash
 npm install
 npm run dev
+npm test      # testes das regras (normalização, categorização, reconciliação)
 ```
 
 Acesse `http://localhost:5173`
@@ -90,6 +93,7 @@ O service worker (`public/sw.js`) guarda só o "casco" do app (HTML/JS/CSS/ícon
 public/            # ícones, manifest.webmanifest, sw.js
 src/
   lib/             # supabase.js, useStore.js (queries/mutations), utils.js (cálculos compartilhados)
+                   # normalizacao / estabelecimento / categorizacao / reconciliacao / evento: regras do Inbox (puras e testadas)
   components/      # uma tela por arquivo (Dashboard, Compras, Pagamentos, Orcamento, Reserva, Simulador, ...)
   App.jsx          # login, menu lateral e roteamento por aba
   index.css

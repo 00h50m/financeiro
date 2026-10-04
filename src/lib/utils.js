@@ -203,3 +203,8 @@ export const sobraAnterior = (d, mes) => {
   const ajuste = Number(d.saldoAjustes.find((a) => a.mes === ant)?.ajuste) || 0
   return rendaAnt + sobraAnterior(d, ant) + ajuste - detalhePagamentos(d, ant).comprometido
 }
+
+// Data de hoje (YYYY-MM-DD) no fuso de Brasília. `new Date().toISOString()` usa UTC e,
+// depois das 21h, já devolveria o dia seguinte.
+export const hojeSP = (d = new Date()) =>
+  new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(d)

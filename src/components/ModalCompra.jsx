@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { fmt, calcMesInicio, mesLabel } from '../lib/utils'
+import { fmt, calcMesInicio, mesLabel, hojeSP } from '../lib/utils'
 
 export default function ModalCompra({ cartoes, categorias, pessoas, onSave, onClose }) {
   const [f, setF] = useState({
-    data_compra: new Date().toISOString().slice(0, 10),
+    data_compra: hojeSP(),
     descricao: '',
     identificacao: '',
     categoria: categorias[0]?.nome || '',
@@ -35,7 +35,7 @@ export default function ModalCompra({ cartoes, categorias, pessoas, onSave, onCl
       valor_total: Number(f.valor_total),
       parcelas: Number(f.parcelas),
       cartao_id: f.cartao_id || null,
-      data_pagamento: f.pago ? new Date().toISOString().slice(0, 10) : null,
+      data_pagamento: f.pago ? hojeSP() : null,
     })
     setSaving(false)
     setItensLancados((n) => n + 1)

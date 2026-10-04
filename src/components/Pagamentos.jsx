@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { fmt, fmtK, mesLabel, nowYM, addMonths, totalRenda, tituloCompra, subtituloCompra, detalhePagamentos, sobraAnterior } from '../lib/utils'
+import { fmt, fmtK, mesLabel, nowYM, addMonths, totalRenda, tituloCompra, subtituloCompra, detalhePagamentos, sobraAnterior, hojeSP } from '../lib/utils'
 
 export default function Pagamentos({ store }) {
   const {
@@ -27,7 +27,7 @@ export default function Pagamentos({ store }) {
   async function toggleOutraConta(c) {
     await updateCompra(c.id, {
       pago: !c.pago,
-      data_pagamento: !c.pago ? new Date().toISOString().slice(0, 10) : null,
+      data_pagamento: !c.pago ? hojeSP() : null,
     })
   }
 
@@ -57,7 +57,7 @@ export default function Pagamentos({ store }) {
       mes,
       valor_real: linha.valor,
       pago: !linha.pago,
-      data_pagamento: !linha.pago ? new Date().toISOString().slice(0, 10) : null,
+      data_pagamento: !linha.pago ? hojeSP() : null,
     })
   }
 
