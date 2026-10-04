@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { fmt, fmtK, nowYM, totalRenda, detalhePagamentos } from '../lib/utils'
+import { fmt, fmtK, nowYM, totalRenda, detalhePagamentos, hojeSP } from '../lib/utils'
 
 const METAS = [3, 6, 9, 12]
 const BASES = {
@@ -62,7 +62,7 @@ export default function Reserva({ store }) {
     if (valor === '' || Number.isNaN(v) || v < 0) return
     setSalvando(true)
     await definirConfig('reserva_valor', v)
-    await definirConfig('reserva_atualizada', new Date().toISOString().slice(0, 10))
+    await definirConfig('reserva_atualizada', hojeSP())
     setValor('')
     setSalvando(false)
   }

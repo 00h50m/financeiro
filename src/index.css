@@ -85,6 +85,9 @@ input:focus-visible, select:focus-visible { outline: none; }
   transition: background 0.15s, color 0.15s;
 }
 .sidebar-item svg { flex-shrink: 0; }
+.sidebar-item { position: relative; }
+.sidebar-badge { margin-left: auto; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--red); color: #fff; font-size: 11px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; }
+.sidebar-recolhida .sidebar-badge { position: absolute; top: 2px; right: 6px; margin: 0; }
 .sidebar-item:hover { background: var(--bg3); color: var(--text); }
 .sidebar-item.ativo { background: var(--bg4); color: var(--text); font-weight: 500; box-shadow: inset 3px 0 0 var(--brand); }
 .sidebar-recolher {

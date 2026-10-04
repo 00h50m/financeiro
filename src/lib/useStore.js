@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { sb } from './supabase'
+import { hojeSP } from './utils'
 
 export function useStore() {
   const [cartoes, setCartoes] = useState([])
@@ -13,6 +14,10 @@ export function useStore() {
   const [pessoas, setPessoas] = useState([])
   const [orcamentos, setOrcamentos] = useState([])
   const [config, setConfig] = useState({}) // chave -> valor (tabela config)
+  const [eventos, setEventos] = useState([]) // Inbox Financeiro (eventos_financeiros)
+  const [regras, setRegras] = useState([]) // regras_categorizacao
+  const [aliases, setAliases] = useState([]) // estabelecimento_aliases
+  const [inboxOk, setInboxOk] = useState(true) // false = migration do Inbox ainda não rodou
   const [configOk, setConfigOk] = useState(true)
   const [orcamentosOk, setOrcamentosOk] = useState(true) // false = tabela ainda não criada no banco
   const [loading, setLoading] = useState(true)
@@ -23,7 +28,7 @@ export function useStore() {
     if (!silent) setLoading(true)
     setError(null)
     try {
-      const [c, co, r, fx, fa, cat, fxp, sa, ps, orc, cfg] = await Promise.all([
+      const [c, co, r, fx, fa, cat, fxp, sa, ps, orc, cfg, ev, rg, al] = await Promise.all([
         sb.from('cartoes').select('*').order('created_at'),
         sb.from('compras').select('*').order('data_compra', { ascending: false }),
         sb.from('rendas').select('*').order('mes', { ascending: false }),
@@ -35,6 +40,9 @@ export function useStore() {
         sb.from('pessoas').select('*').order('created_at'),
         sb.from('orcamentos').select('*'),
         sb.from('config').select('*'),
+        sb.from('eventos_financeiros').select('*').order('capturado_em', { ascending: false }).limit(1000),
+        sb.from('regras_categorizacao').select('*'),
+        sb.from('estabelecimento_aliases').select('*'),
       ])
       if (c.error) throw c.error
       if (co.error) throw co.error
@@ -59,6 +67,12 @@ export function useStore() {
       setOrcamentos(orc.error ? [] : orc.data || [])
       setConfigOk(!cfg.error)
       setConfig(cfg.error ? {} : Object.fromEntries((cfg.data || []).map((x) => [x.chave, x.valor])))
+      // Inbox é opcional: sem a migration (inbox/*.sql) o resto do app continua funcionando.
+      const inboxPronto = !ev.error && !rg.error && !al.error
+      setInboxOk(inboxPronto)
+      setEventos(inboxPronto ? ev.data || [] : [])
+      setRegras(inboxPronto ? rg.data || [] : [])
+      setAliases(inboxPronto ? al.data || [] : [])
     } catch (e) {
       setError(e.message || 'Erro ao conectar com o banco')
     }
@@ -140,7 +154,7 @@ export function useStore() {
   // PAGAMENTOS DE FIXOS (por mês)
   const marcarFixoPago = (fixo_id, mes, pago) => op(async () => {
     const r = await sb.from('fixos_pagamentos').upsert(
-      { fixo_id, mes, pago, data_pagamento: pago ? new Date().toISOString().slice(0, 10) : null },
+      { fixo_id, mes, pago, data_pagamento: pago ? hojeSP() : null },
       { onConflict: 'fixo_id,mes' }
     )
     if (r.error) throw r.error
@@ -284,7 +298,54 @@ export function useStore() {
     }
   }
 
+  // INBOX FINANCEIRO
+  // Não usam `op`: a tela precisa do erro (ex.: "já foi resolvido") para mostrar no próprio cartão.
+  async function comRecarga(fn) {
+    setSyncState('syncing')
+    try {
+      await fn()
+      await loadAll({ silent: true })
+      setSyncState('ok')
+    } catch (e) {
+      setSyncState('error')
+      throw e
+    }
+  }
+  async function quemConfirma() {
+    const { data } = await sb.auth.getSession()
+    return data.session?.user?.email || null
+  }
+  // A validação e a criação da compra acontecem no banco (função confirmar_evento), de forma atômica.
+  const confirmarEvento = (id, campos = {}) => comRecarga(async () => {
+    const r = await sb.rpc('confirmar_evento', { p_evento: id, p_campos: campos, p_resolvido_por: await quemConfirma() })
+    if (r.error) throw r.error
+  })
+  const vincularEvento = (id, compraId) => comRecarga(async () => {
+    const r = await sb.rpc('vincular_evento', { p_evento: id, p_compra: compraId, p_resolvido_por: await quemConfirma() })
+    if (r.error) throw r.error
+  })
+  const ignorarEvento = (id) => comRecarga(async () => {
+    const r = await sb.from('eventos_financeiros')
+      .update({ status: 'ignorado', resolvido_em: new Date().toISOString(), resolvido_por: await quemConfirma() })
+      .eq('id', id)
+      .in('status', ['pendente', 'aguardando_dados'])
+    if (r.error) throw r.error
+  })
+  // Idempotente: (origem, id_externo) já existente é ignorado, não duplica.
+  const adicionarEventos = (rows) => comRecarga(async () => {
+    const r = await sb.from('eventos_financeiros').upsert(rows, { onConflict: 'origem,id_externo', ignoreDuplicates: true })
+    if (r.error) throw r.error
+  })
+  // Semeia as regras com o histórico de compras, sem sobrescrever contagens que já existam.
+  const adicionarRegras = (lista) => comRecarga(async () => {
+    const r = await sb.from('regras_categorizacao')
+      .upsert(lista, { onConflict: 'estabelecimento_chave,categoria,subcategoria', ignoreDuplicates: true })
+    if (r.error) throw r.error
+  })
+
   return {
+    eventos, regras, aliases, inboxOk,
+    confirmarEvento, vincularEvento, ignorarEvento, adicionarEventos, adicionarRegras,
     cartoes, compras, rendas, fixos, faturas, categorias, fixosPagamentos, saldoAjustes, pessoas, orcamentos, orcamentosOk, config, configOk,
     loading, syncState, error, loadAll,
     addCartao, updateCartao, delCartao,

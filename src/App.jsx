@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useStore } from './lib/useStore'
 import Dashboard from './components/Dashboard'
+import Inbox from './components/Inbox'
 import Compras from './components/Compras'
 import Parcelamentos from './components/Parcelamentos'
 import Faturas from './components/Faturas'
@@ -21,6 +22,7 @@ import { sb } from './lib/supabase'
 
 const ICONES = {
   dashboard: 'M3 3h7v9H3z M14 3h7v5h-7z M14 12h7v9h-7z M3 16h7v5H3z',
+  inbox: 'M22 12h-6l-2 3h-4l-2-3H2 M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z',
   compras: 'M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z M3 6h18 M16 10a4 4 0 0 1-8 0',
   parcelamentos: 'M12 2l10 5-10 5-10-5z M2 17l10 5 10-5 M2 12l10 5 10-5',
   faturas: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M16 13H8 M16 17H8',
@@ -57,6 +59,7 @@ const GRUPOS = [
   {
     titulo: 'Dia a dia',
     abas: [
+      { id: 'inbox', label: 'Inbox', Component: Inbox },
       { id: 'compras', label: 'Compras', Component: Compras },
       { id: 'parcelamentos', label: 'Parcelamentos', Component: Parcelamentos },
       { id: 'faturas', label: 'Faturas', Component: Faturas },
@@ -159,6 +162,7 @@ function AppLogado({ email }) {
     )
   }
 
+  const pendentesInbox = store.eventos.filter((e) => e.status === 'pendente' || e.status === 'aguardando_dados').length
   const atual = ABAS.find((a) => a.id === aba)
   const { Component } = atual
   const sync = store.syncState === 'syncing' ? 'syncing' : store.syncState === 'error' ? 'error' : ''
@@ -190,6 +194,9 @@ function AppLogado({ email }) {
                 >
                   <Icone nome={a.id} />
                   <span className="sidebar-item-label">{a.label}</span>
+                  {a.id === 'inbox' && pendentesInbox > 0 && (
+                    <span className="sidebar-badge" aria-label={`${pendentesInbox} pendentes`}>{pendentesInbox}</span>
+                  )}
                 </button>
               ))}
             </div>
