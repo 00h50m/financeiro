@@ -1,4 +1,4 @@
-import { chaveEstabelecimento, similaridadeEstabelecimento } from './estabelecimento'
+import { chaveEstabelecimento, similaridadeEstabelecimento } from './estabelecimento.js'
 
 // Procura, entre as compras já lançadas, a que provavelmente é o mesmo gasto de um evento
 // (Telegram, notificação, linha de CSV...). Nunca decide sozinho: devolve o nível e quem.

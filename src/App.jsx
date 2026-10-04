@@ -13,6 +13,7 @@ import Simulador from './components/Simulador'
 import Cartoes from './components/Cartoes'
 import Categorias from './components/Categorias'
 import Pessoas from './components/Pessoas'
+import Automacoes from './components/Automacoes'
 import Backup from './components/Backup'
 import Orcamento from './components/Orcamento'
 import Reserva from './components/Reserva'
@@ -33,6 +34,7 @@ const ICONES = {
   simulador: 'M4 2h16v20H4z M8 6h8 M8 10h.01 M12 10h.01 M16 10h.01 M8 14h.01 M12 14h.01 M16 14h.01 M8 18h8',
   cartoes: 'M1 4h22v16H1z M1 10h22',
   categorias: 'M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z M7 7h.01',
+  automacoes: 'M13 2L3 14h9l-1 8 10-12h-9l1-8z',
   pessoas: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2 M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M23 21v-2a4 4 0 0 0-3-3.87 M16 3.13a4 4 0 0 1 0 7.75',
   menu: 'M3 12h18 M3 6h18 M3 18h18',
   fechar: 'M18 6L6 18 M6 6l12 12',
@@ -83,6 +85,7 @@ const GRUPOS = [
       { id: 'cartoes', label: 'Cartões', Component: Cartoes },
       { id: 'categorias', label: 'Categorias', Component: Categorias },
       { id: 'pessoas', label: 'Pessoas', Component: Pessoas },
+      { id: 'automacoes', label: 'Automações', Component: Automacoes },
       { id: 'backup', label: 'Backup', Component: Backup },
     ],
   },

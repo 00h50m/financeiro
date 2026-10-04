@@ -1,6 +1,6 @@
-import { chaveEstabelecimento, indexarAliases } from './estabelecimento'
-import { sugerirCategoria, regrasParaSugestao, categoriaValida } from './categorizacao'
-import { encontrarCorrespondencia } from './reconciliacao'
+import { chaveEstabelecimento, indexarAliases } from './estabelecimento.js'
+import { sugerirCategoria, regrasParaSugestao, categoriaValida } from './categorizacao.js'
+import { encontrarCorrespondencia } from './reconciliacao.js'
 
 // Porta de entrada comum a qualquer fonte (Telegram, notificação Android, CSV, ...):
 //   entrada bruta -> validação -> normalização -> sugestão de categoria -> correspondência
@@ -34,7 +34,9 @@ export function prepararEvento(entrada, ctx) {
   const cartao = cartoes.find((c) => c.id === entrada.cartao_id)
   const pessoaId = pessoas.some((p) => p.id === entrada.pessoa_id) ? entrada.pessoa_id
     : pessoas.find((p) => p.id === sugestao?.pessoa_id)?.id || null
-  const cartaoId = cartao ? cartao.id : cartoes.find((c) => c.id === sugestao?.cartao_id)?.id || null
+  // O cartão padrão da regra só entra se a pessoa não disse que foi sem cartão (pix, dinheiro...).
+  const cartaoId = cartao ? cartao.id
+    : entrada.forma_pagamento ? null : cartoes.find((c) => c.id === sugestao?.cartao_id)?.id || null
   const forma = cartaoId ? 'cartao' : FORMAS_SEM_CARTAO.includes(entrada.forma_pagamento) ? entrada.forma_pagamento : null
   const infoCat = entrada.categoria && categoriaValida(categorias, entrada.categoria, entrada.subcategoria)
     ? { categoria: entrada.categoria, subcategoria: entrada.subcategoria, regra_id: null, confianca: null }
