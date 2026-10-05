@@ -36,7 +36,7 @@ Se faltar algo (como o cartão), eu pergunto.
 /pendentes – lançamentos esperando confirmação
 /resumo – quanto você gastou no mês (ou: /resumo semana, /resumo mes passado)
 Pergunte também: "quanto gastei em mercado este mês?"
-/ultima – mostra a última compra lançada por aqui (e deixa apagar)
+/ultima – mostra a última compra lançada por aqui (editar ou apagar)
 /cancelar – descarta o que está em andamento`
 
 const nomeCurto = (p) => (p?.apelidos?.[0] ? p.apelidos[0][0].toUpperCase() + p.apelidos[0].slice(1) : p?.nome || '—')
@@ -124,7 +124,9 @@ async function tratarMensagem(c, msg) {
   if (/^\/cancelar(@\w+)?$/i.test(texto)) {
     const ev = await db.buscarEmAndamento(de.id)
     if (ev) await db.ignorarEvento(ev.id, 'telegram')
-    await tg.enviar(chat.id, ev ? 'Cancelado.' : 'Nada em andamento.')
+    const editando = ev ? null : await db.buscarEditandoUltima(de.id)
+    if (editando) { const { esperando_ultima, ...ctx } = editando.contexto; await db.atualizarEvento(editando.id, { contexto: ctx }) }
+    await tg.enviar(chat.id, ev || editando ? 'Cancelado.' : 'Nada em andamento.')
     return { acao: 'cancelado' }
   }
   if (texto.startsWith('/')) { await tg.enviar(chat.id, AJUDA); return { acao: 'ajuda' } }
@@ -136,6 +138,8 @@ async function tratarMensagem(c, msg) {
 async function tratarTexto(c, msg, texto, { voz = false } = {}) {
   const esperando = await c.db.buscarEsperandoTexto(c.de.id)
   if (esperando) return await responderTexto(c, esperando, texto)
+  const editando = await c.db.buscarEditandoUltima(c.de.id)
+  if (editando) return await responderEdicaoUltima(c, editando, texto)
   const pergunta = interpretarPergunta(texto)
   if (pergunta) return await responderResumo(c, pergunta.texto)
   return await novoGasto(c, msg, texto, { voz })
@@ -261,12 +265,18 @@ async function mostrarUltima(c) {
   const ev = await db.ultimaConfirmada(de.id)
   const compra = ev ? await db.buscarCompra(ev.compra_id) : null
   if (!compra) { await tg.enviar(chat.id, 'Ainda não há compra lançada por aqui para mostrar.'); return { acao: 'ultima_vazia' } }
-  await tg.enviar(chat.id, `Última compra lançada por aqui:\n${compra.identificacao || compra.descricao}\n${fmt(compra.valor_total)} · ${fmtData(compra.data_compra)}\n\nPara corrigir valor ou categoria, abra o Finapp › Compras.`,
-    botoes([btn('🗑 Apagar', 'ul', ev.id, 'a'), btn('Manter', 'ul', ev.id, 'n')], 2))
+  await enviarUltima(c, ev, compra)
   return { acao: 'ultima' }
 }
 
-// Apagar pede uma segunda confirmação e só mexe em compra criada pelo bot, de quem está pedindo.
+async function enviarUltima({ tg, chat }, ev, compra, titulo = 'Última compra lançada por aqui:') {
+  await tg.enviar(chat.id, `${titulo}\n${compra.identificacao || compra.descricao}\n${fmt(compra.valor_total)} · ${fmtData(compra.data_compra)}\n${compra.categoria} > ${compra.subcategoria}`,
+    botoes([btn('✏️ Editar', 'ul', ev.id, 'e'), btn('🗑 Apagar', 'ul', ev.id, 'a'), btn('Manter', 'ul', ev.id, 'n')], 3))
+}
+
+const CAMPOS_ULTIMA = { v: ['valor', 'o novo valor (ex.: 89,90)'], d: ['descricao', 'a nova descrição (ex.: Outback)'], t: ['data', 'a nova data (ex.: 05/10 ou ontem)'] }
+
+// Editar/apagar a última compra: só compra criada pelo bot, de quem está pedindo, e apagar pede confirmação.
 async function tratarUltima(c, cb, eid, arg) {
   const { db, tg, chat, de } = c
   const ev = await db.buscarEvento(eid)
@@ -285,8 +295,83 @@ async function tratarUltima(c, cb, eid, arg) {
     await limparTeclado(c, cb, apagou ? '🗑 Compra apagada.' : 'Não consegui apagar essa compra (talvez já tenha sido apagada).')
     return { acao: apagou ? 'compra_apagada' : 'apagar_falhou' }
   }
+  if (arg === 'e') {
+    await limparTeclado(c, cb, 'Editar essa compra')
+    await tg.enviar(chat.id, 'O que você quer corrigir?', botoes([
+      btn('Valor', 'ul', ev.id, 'v'), btn('Descrição', 'ul', ev.id, 'd'), btn('Data', 'ul', ev.id, 't'),
+      btn('Categoria', 'ul', ev.id, 'c'), btn('Cartão', 'ul', ev.id, 'k'), btn('Voltar', 'ul', ev.id, 'n')], 3))
+    return { acao: 'ultima_editar' }
+  }
+  if (CAMPOS_ULTIMA[arg]) {
+    await db.atualizarEvento(ev.id, { contexto: { ...ev.contexto, esperando_ultima: CAMPOS_ULTIMA[arg][0] } })
+    await limparTeclado(c, cb, 'O que você quer corrigir?')
+    await tg.enviar(chat.id, `Me diga ${CAMPOS_ULTIMA[arg][1]}. (/cancelar para desistir)`)
+    return { acao: 'ultima_pergunta_texto', campo: CAMPOS_ULTIMA[arg][0] }
+  }
+  const base = await db.carregarContexto()
+  if (arg === 'c') { // categoria -> subcategoria
+    await limparTeclado(c, cb, 'Corrigir a categoria')
+    await tg.enviar(chat.id, 'Qual a categoria?', botoes(base.categorias.map((x, i) => btn(x.nome, 'ul', ev.id, 'c' + i)), 2))
+    return { acao: 'ultima_pergunta_categoria' }
+  }
+  const sub = /^c(\d+)$/.exec(arg)
+  if (sub) {
+    const cat = base.categorias[Number(sub[1])]
+    if (!cat) return { ignorado: 'callback_invalido' }
+    await limparTeclado(c, cb, `Categoria: ${cat.nome}`)
+    await tg.enviar(chat.id, `Subcategoria de ${cat.nome}:`, botoes((cat.subcategorias || []).map((x, j) => btn(x, 'ul', ev.id, `c${sub[1]}.${j}`)), 2))
+    return { acao: 'ultima_pergunta_subcategoria' }
+  }
+  const par = /^c(\d+)\.(\d+)$/.exec(arg)
+  if (par) {
+    const cat = base.categorias[Number(par[1])]
+    const sb = cat?.subcategorias?.[Number(par[2])]
+    if (!sb) return { ignorado: 'callback_invalido' }
+    await limparTeclado(c, cb, `Subcategoria: ${sb}`)
+    return await corrigirUltima(c, ev, { categoria: cat.nome, subcategoria: sb })
+  }
+  if (arg === 'k') {
+    await limparTeclado(c, cb, 'Corrigir o cartão')
+    await tg.enviar(chat.id, 'Qual cartão?', botoes(base.cartoes.map((x, i) => btn(x.nome, 'ul', ev.id, 'k' + i)), 2))
+    return { acao: 'ultima_pergunta_cartao' }
+  }
+  const car = /^k(\d+)$/.exec(arg)
+  if (car) {
+    const cartao = base.cartoes[Number(car[1])]
+    if (!cartao) return { ignorado: 'callback_invalido' }
+    await limparTeclado(c, cb, `Cartão: ${cartao.nome}`)
+    return await corrigirUltima(c, ev, { cartao_id: cartao.id })
+  }
   await limparTeclado(c, cb, 'Mantida. 👍')
   return { acao: 'ultima_mantida' }
+}
+
+// Grava a correção na compra e mostra como ficou.
+async function corrigirUltima(c, ev, patch) {
+  const { db, tg, chat } = c
+  const ok = await db.atualizarCompraDoBot(ev.compra_id, patch)
+  if (!ok) { await tg.enviar(chat.id, 'Não consegui corrigir essa compra (talvez tenha sido apagada).'); return { acao: 'corrigir_falhou' } }
+  const { esperando_ultima, ...ctx } = ev.contexto || {}
+  await db.atualizarEvento(ev.id, { contexto: ctx })
+  const compra = await db.buscarCompra(ev.compra_id)
+  await enviarUltima(c, ev, compra, '✅ Corrigido:')
+  return { acao: 'compra_corrigida' }
+}
+
+// Resposta em texto (ou voz) ao "me diga o novo valor/descrição/data" da edição.
+async function responderEdicaoUltima(c, ev, texto) {
+  const { tg, chat, hoje } = c
+  const campo = ev.contexto.esperando_ultima
+  let patch = null
+  if (campo === 'valor') { const v = parseValor(texto); if (v > 0) patch = { valor_total: v } }
+  else if (campo === 'descricao') { const d = texto.trim(); if (d && d.length <= MAX_DESCRICAO) patch = { descricao: d } }
+  else if (campo === 'data') { const d = parseData(texto, hoje); if (d?.data && d.data <= hoje) patch = { data_compra: d.data } }
+  if (!patch) {
+    const dica = Object.values(CAMPOS_ULTIMA).find(([k]) => k === campo)?.[1] || 'o novo valor'
+    await tg.enviar(chat.id, `Não entendi. Me diga ${dica}, ou /cancelar.`)
+    return { acao: 'resposta_invalida' }
+  }
+  return await corrigirUltima(c, ev, patch)
 }
 
 // ---------- botões ----------
