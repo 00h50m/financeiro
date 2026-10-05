@@ -21,8 +21,8 @@ describe('entrada comum de eventos', () => {
     const { evento } = prepararEvento(entrada({ descricao_original: 'Loja Nova' }), ctx({ compras: hist }))
     expect(evento).toMatchObject({ categoria: null, status: 'aguardando_dados', faltando: ['categoria'] })
   })
-  it('cartão não identificado: pede o cartão', () => {
-    const { evento } = prepararEvento(entrada({ cartao_id: undefined, descricao_original: 'DROGASIL' }), ctx({ compras: hist }))
+  it('cartão não identificado (e sem histórico no mesmo cartão): pede o cartão', () => {
+    const { evento } = prepararEvento(entrada({ cartao_id: undefined, descricao_original: 'DROGASIL' }), ctx({ compras: hist.map((h) => ({ ...h, cartao_id: null })) }))
     expect(evento.faltando).toContain('cartao')
     expect(evento.status).toBe('aguardando_dados')
   })
@@ -107,5 +107,31 @@ describe('categoria pelo nome falado (sem histórico)', () => {
   })
   it('nome sem relação continua perguntando a categoria', () => {
     expect(prepararEvento({ ...base, descricao_original: 'presente' }, ctx).evento.faltando).toContain('categoria')
+  })
+})
+
+describe('cartão sugerido pelo histórico', () => {
+  const compraCom = (id, cartao_id, descricao = 'UBER *TRIP') => compra({ id, cartao_id, descricao })
+  const base = { origem: 'telegram', id_externo: 'x:9', valor: 20, data_evento: '2026-10-04', descricao_original: 'uber', pessoa_id: 'p-gi' }
+  const c2 = (compras) => ctx({ compras })
+  it('2+ compras no mesmo cartão: sugere e marca como sugerido', () => {
+    const r = prepararEvento(base, c2([compraCom('a', 'c-nu'), compraCom('b', 'c-nu'), compraCom('c', 'c-nu')]))
+    expect(r.evento.cartao_id).toBe('c-nu')
+    expect(r.sugeridos.cartao).toBe(true)
+    expect(r.evento.faltando).not.toContain('cartao')
+  })
+  it('histórico dividido ou curto não sugere (continua perguntando)', () => {
+    expect(prepararEvento(base, c2([compraCom('a', 'c-nu'), compraCom('b', 'c-in')])).evento.faltando).toContain('cartao')
+    expect(prepararEvento(base, c2([compraCom('a', 'c-nu')])).evento.faltando).toContain('cartao')
+  })
+  it('cartão dito ou pix na mensagem vence a sugestão', () => {
+    const hist = [compraCom('a', 'c-nu'), compraCom('b', 'c-nu')]
+    expect(prepararEvento({ ...base, cartao_id: 'c-in' }, c2(hist)).evento.cartao_id).toBe('c-in')
+    const pix = prepararEvento({ ...base, forma_pagamento: 'pix' }, c2(hist))
+    expect(pix.evento.cartao_id).toBeNull()
+    expect(pix.sugeridos.cartao).toBe(false)
+  })
+  it('outro estabelecimento não herda o cartão', () => {
+    expect(prepararEvento({ ...base, descricao_original: 'padaria' }, c2([compraCom('a', 'c-nu'), compraCom('b', 'c-nu')])).evento.faltando).toContain('cartao')
   })
 })
