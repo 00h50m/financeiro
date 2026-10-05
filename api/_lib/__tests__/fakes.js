@@ -89,12 +89,14 @@ export function criarFakeTg({ falharEnviar = false } = {}) {
     },
     async editar(chat, message_id, text) { t.editadas.push({ chat, message_id, text }) },
     async responderCallback(id, text) { t.callbacks.push({ id, text }) },
+    async baixarArquivo(file_id) { t.baixados = [...(t.baixados || []), file_id]; return t.imagem === undefined ? { base64: 'AAAA', mediaType: 'image/jpeg' } : t.imagem },
     ultima: () => t.enviadas[t.enviadas.length - 1],
   })
 }
 
 let seq = 0
 export const msg = (from, text, extra = {}) => ({ update_id: ++seq, message: { message_id: 100 + seq, from: { id: from, is_bot: false }, chat: { id: from, type: 'private' }, text, ...extra } })
+export const foto = (from, extra = {}) => msg(from, undefined, { photo: [{ file_id: 'pequena', width: 90, height: 90 }, { file_id: 'grande', width: 900, height: 1200 }], ...extra })
 export const clicar = (from, tg, rotulo) => {
   const ult = tg.ultima()
   const b = ult.markup.inline_keyboard.flat().find((x) => x.text.includes(rotulo))

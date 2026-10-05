@@ -13,6 +13,7 @@ export function lerAmbiente(env = process.env) {
     segredo: env.TELEGRAM_WEBHOOK_SECRET,
     serviceKey: env.SUPABASE_SERVICE_ROLE_KEY,
     appUrl: env.APP_URL || null,
+    anthropicKey: env.ANTHROPIC_API_KEY || null, // opcional: sem ela, o bot só não lê fotos
   }
 }
 
