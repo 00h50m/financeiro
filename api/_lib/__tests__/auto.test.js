@@ -39,7 +39,7 @@ describe('/auto', () => {
   it('ligado: lugar desconhecido ou pouca certeza pede Confirmar', async () => {
     await rodar(msg(GI, '/auto on'))
     expect((await rodar(msg(GI, 'padaria 20 nubank'))).acao).toBe('evento_criado')
-    db = criarFakeDb({ regras: [{ ...SEGURA, confianca: 0.9 }] })
+    db = criarFakeDb({ regras: [{ ...SEGURA, confianca: 0.8 }] })
     await rodar(msg(GI, '/auto on'))
     expect((await rodar(msg(GI, 'mercado 50 nubank'))).acao).toBe('evento_criado')
     expect(db.s.compras).toHaveLength(0)
@@ -56,5 +56,21 @@ describe('/auto', () => {
     await rodar(msg(GI, '/auto on'))
     await rodar(msg(GI, '/auto off'))
     expect((await rodar(msg(GI, 'mercado 50 nubank'))).acao).toBe('evento_criado')
+  })
+  it('quando não lança sozinho, diz o motivo antes do resumo', async () => {
+    await rodar(msg(GI, '/auto on'))
+    await rodar(msg(GI, 'mercado 400 nubank'))
+    const textos = tg.enviadas.map((m) => m.text)
+    expect(textos.some((t) => t.includes('Não lancei sozinho') && t.includes('R$ 300'))).toBe(true)
+  })
+  it('categoria só pelo nome (sem histórico): explica que falta histórico', async () => {
+    db = criarFakeDb({ regras: [] })
+    await rodar(msg(GI, '/auto on'))
+    await rodar(msg(GI, 'mercado 30 nubank'))
+    expect(tg.enviadas.map((m) => m.text).some((t) => t.includes('histórico suficiente'))).toBe(true)
+  })
+  it('sem /auto ligado, nenhum motivo é mostrado', async () => {
+    await rodar(msg(GI, 'mercado 400 nubank'))
+    expect(tg.enviadas.map((m) => m.text).some((t) => t.includes('Não lancei sozinho'))).toBe(false)
   })
 })

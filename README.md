@@ -84,7 +84,7 @@ Cada pessoa liga com `/avisos on` e desliga com `/avisos off`; o envio sai todo 
 
 **Próximas faturas:** `/proximas` (ou "quais as próximas faturas do nubank?") lista mês a mês o que já está comprometido em parcelas.
 
-**Lançamento automático (opcional, desligado por padrão):** rode `inbox/12_auto_lancar.sql` no Supabase e use `/auto on`. Só gastos *digitados* (não foto nem voz) são lançados sem Confirmar, e só quando tudo é certo: lugar com 95%+ de confiança no histórico, cartão dito na mensagem, sem compra parecida e valor até R$ 300. O bot avisa e dá para corrigir em `/ultima`. `/auto off` volta ao normal.
+**Lançamento automático (opcional, desligado por padrão):** rode `inbox/12_auto_lancar.sql` no Supabase e use `/auto on`. Só gastos *digitados* (não foto nem voz) são lançados sem Confirmar, e só quando tudo é certo: lugar com 90%+ de confiança no histórico (cerca de 9 compras confirmadas, sem correções), cartão dito na mensagem, sem compra parecida e valor até R$ 300. O bot avisa e dá para corrigir em `/ultima`; quando não lança sozinho, diz o motivo. `/auto off` volta ao normal.
 
 **Aviso de teto:** se a categoria tem teto na tela Orçamento, ao confirmar uma compra o bot avisa quando ela passa de 80% ou estoura o teto do mês (só quando essa compra mudou a situação).
 
