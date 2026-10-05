@@ -234,6 +234,26 @@ export function useStore(email = null) {
       if (r.error) throw r.error
     }, ['compras']))
   }
+  // Divisão de compra em categorias (ver lib/divisaoCompra.js). Ordem segura: primeiro entra o novo, depois
+  // atualiza, por último remove — se algo falhar no meio, nada some. Respeita o mês fechado como as demais.
+  const salvarDivisao = (plano, grupoId) => {
+    const antes = compras.filter((c) => plano.remover.includes(c.id) || plano.atualizar.some((u) => u.id === c.id))
+    const depois = [...plano.inserir, ...plano.atualizar.map((u) => ({ ...compras.find((c) => c.id === u.id), ...u.dados }))]
+    return comJustificativa([...antes, ...depois], 'dividir_em_mes_fechado', grupoId || antes[0]?.id || 'divisao', antes.length ? antes : null, plano, () => op(async () => {
+      if (plano.inserir.length) {
+        const r = await sb.from('compras').insert(plano.inserir)
+        if (r.error) throw r.error
+      }
+      for (const u of plano.atualizar) {
+        const r = await sb.from('compras').update(u.dados).eq('id', u.id)
+        if (r.error) throw r.error
+      }
+      if (plano.remover.length) {
+        const r = await sb.from('compras').delete().in('id', plano.remover)
+        if (r.error) throw r.error
+      }
+    }, ['compras', 'comprasPagamentos', 'inbox']))
+  }
   const delCompra = (id) => {
     const antes = compras.find((c) => c.id === id)
     return comJustificativa([antes], 'apagar_em_mes_fechado', id, antes || null, null, () => op(async () => {
@@ -637,7 +657,7 @@ export function useStore(email = null) {
     cartoes, compras, rendas, fixos, faturas, categorias, fixosPagamentos, comprasPagamentos, comprasPagamentosOk, fechamentos, fechamentosOk, metas, metasMovimentos, metasOk, divisoes, divisoesRepasses, divisoesOk, saldoAjustes, pessoas, orcamentos, orcamentosOk, config, configOk,
     loading, syncState, error, loadAll,
     addCartao, updateCartao, delCartao,
-    addCompra, updateCompra, updateComprasLote, delCompra,
+    addCompra, updateCompra, salvarDivisao, updateComprasLote, delCompra,
     upsertRenda,
     addFixo, updateFixo, delFixo,
     upsertFatura, delFatura,

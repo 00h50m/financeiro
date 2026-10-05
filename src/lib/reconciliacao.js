@@ -1,4 +1,5 @@
 import { chaveEstabelecimento, similaridadeEstabelecimento } from './estabelecimento.js'
+import { comprasComGruposSomados } from './divisaoCompra.js'
 
 // Procura, entre as compras já lançadas, a que provavelmente é o mesmo gasto de um evento
 // (Telegram, notificação, linha de CSV...). Nunca decide sozinho: devolve o nível e quem.
@@ -53,7 +54,8 @@ function pontuar(ev, c, indiceAliases) {
 }
 
 export function encontrarCorrespondencia(ev, compras, { indiceAliases = new Map(), eventos = [] } = {}) {
-  const candidatos = compras
+  // Compra dividida em categorias é uma cobrança só (soma das partes) para fatura e notificação.
+  const candidatos = comprasComGruposSomados(compras)
     .filter((c) => !mesmaOrigem(c, ev, eventos))
     .map((c) => pontuar(ev, c, indiceAliases))
     .filter((x) => x && x.score >= 0.5)

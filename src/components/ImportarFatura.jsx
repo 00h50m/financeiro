@@ -5,6 +5,7 @@ import { fmt, mesLabel, calcMesInicio, addMonths, nowYM, gerarParcelas } from '.
 import {
   round2, extrairParcela, limparDescricao, normBasico, normHistorico, normNome, construirHistoricoCategorias,
 } from '../lib/normalizacao'
+import { comprasComGruposSomados } from '../lib/divisaoCompra'
 
 const COLUNAS_ESPERADAS = ['data', 'descricao', 'valor', 'categoria', 'parcela_atual', 'parcela_total', 'cartao', 'observacao']
 const TOLERANCIA_VALOR = 0.02
@@ -60,7 +61,9 @@ function marcarDuplicatasNoCsv(linhas) {
 
 // Reavalia os avisos (já lançada / parcelamento encontrado / repetida no arquivo)
 // sem mexer no que a usuária já marcou ou editou.
-function recalcular(linhas, compras, modo) {
+function recalcular(linhas, comprasLancadas, modo) {
+  // Compra dividida em categorias vale como UMA compra (soma das partes): a fatura traz a cobrança inteira.
+  const compras = comprasComGruposSomados(comprasLancadas)
   const comFlags = linhas.map((l) => {
     const emAndamento = Number(l.parcela_atual) > 1
     const compraParcela = emAndamento ? buscarParcelaExistente(l, compras, modo) : null
