@@ -2,11 +2,11 @@ import { useState } from 'react'
 import { fmt, mesLabel, nowYM, addMonths, fixosAtivos, corPessoa, nomeCasa, donoDoFixo } from '../lib/utils'
 
 export default function Fixos({ store }) {
-  const { fixos, categorias, pessoas, addFixo, updateFixo, delFixo } = store
+  const { fixos, categorias, pessoas, cartoes, addFixo, updateFixo, delFixo } = store
   const [modal, setModal] = useState(false)
   const [editId, setEditId] = useState(null)
   const [form, setForm] = useState({
-    nome: '', valor: '', pessoa: '',
+    nome: '', valor: '', pessoa: '', cartao_id: '',
     categoria: categorias[0]?.nome || '',
     subcategoria: categorias[0]?.subcategorias?.[0] || '',
     mes_fim: '', dia_vencimento: '',
@@ -15,6 +15,9 @@ export default function Fixos({ store }) {
   const [saving, setSaving] = useState(false)
   const mesAtual = nowYM()
   const casa = nomeCasa(pessoas)
+  // Sem a coluna no banco (fixos_cartao.sql não rodou) o campo fica desligado, para não quebrar o salvamento.
+  const colunaCartaoOk = fixos.length === 0 || 'cartao_id' in fixos[0]
+  const cartaoEscolhido = cartoes.find((c) => c.id === form.cartao_id)
   const casaCadastrada = pessoas.some((p) => p.nome === casa)
   const s = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
 
@@ -23,7 +26,7 @@ export default function Fixos({ store }) {
   function abrir(fx) {
     if (fx) {
       setForm({
-        nome: fx.nome, valor: fx.valor, pessoa: fx.pessoa || (casaCadastrada ? casa : ''),
+        nome: fx.nome, valor: fx.valor, pessoa: fx.pessoa || (casaCadastrada ? casa : ''), cartao_id: fx.cartao_id || '',
         categoria: fx.categoria || categorias[0]?.nome || '',
         subcategoria: fx.subcategoria || categorias.find((c) => c.nome === fx.categoria)?.subcategorias?.[0] || '',
         mes_fim: fx.mes_fim || '', dia_vencimento: fx.dia_vencimento || '',
@@ -31,7 +34,7 @@ export default function Fixos({ store }) {
       setEditId(fx.id)
     } else {
       setForm({
-        nome: '', valor: '', pessoa: casaCadastrada ? casa : '',
+        nome: '', valor: '', pessoa: casaCadastrada ? casa : '', cartao_id: '',
         categoria: categorias[0]?.nome || '',
         subcategoria: categorias[0]?.subcategorias?.[0] || '',
         mes_fim: '', dia_vencimento: '',
@@ -48,6 +51,7 @@ export default function Fixos({ store }) {
       nome: form.nome,
       valor: Number(form.valor),
       pessoa: form.pessoa || null,
+      ...(colunaCartaoOk ? { cartao_id: form.cartao_id || null } : {}),
       categoria: form.categoria,
       subcategoria: form.subcategoria,
       mes_fim: form.mes_fim || null,
@@ -144,6 +148,24 @@ export default function Fixos({ store }) {
                 <input type="month" value={form.mes_fim} onChange={s('mes_fim')} min={mesAtual} />
               </div>
             </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Paga no cartão de crédito? (opcional)</label>
+                <select value={form.cartao_id} onChange={s('cartao_id')} disabled={!colunaCartaoOk}>
+                  <option value="">Não — boleto, Pix, débito ou outro</option>
+                  {cartoes.filter((c) => c.ativo !== false || c.id === form.cartao_id).map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                </select>
+              </div>
+            </div>
+            {!colunaCartaoOk && (
+              <div className="alert alert-amber">Para usar o cartão aqui, rode o arquivo <code>fixos_cartao.sql</code> no Supabase e recarregue a página.</div>
+            )}
+            {cartaoEscolhido && (
+              <div className="alert alert-blue">
+                Passa a contar <b>dentro da fatura do {cartaoEscolhido.nome}</b> e sai da lista de contas a pagar à parte (você paga quando pagar a fatura).
+                Se essa cobrança já é lançada como compra no cartão ou vem na fatura importada, <b>não marque aqui</b>, para não contar duas vezes.
+              </div>
+            )}
             {form.mes_fim && (
               <div className="alert alert-blue" style={{ marginBottom: 0 }}>
                 Última cobrança em {mesLabel(form.mes_fim)} — a partir do mês seguinte, some sozinho do comprometido e da lista de Pagamentos.
@@ -211,9 +233,11 @@ export default function Fixos({ store }) {
                       ) : (
                         <span style={{ color: 'var(--text3)' }}>sem categoria</span>
                       )}
-                      {f.dia_vencimento && (
+                      {f.cartao_id && cartoes.find((c) => c.id === f.cartao_id) ? (
+                        <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>no cartão {cartoes.find((c) => c.id === f.cartao_id).nome}</div>
+                      ) : f.dia_vencimento ? (
                         <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>vence dia {f.dia_vencimento}</div>
-                      )}
+                      ) : null}
                     </td>
                     <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(f.valor)}</td>
                     <td style={{ textAlign: 'center' }}>
