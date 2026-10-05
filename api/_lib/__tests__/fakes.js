@@ -76,6 +76,14 @@ export function criarFakeDb({ comprasIniciais = [], regras = REGRAS } = {}) {
       s.vinculos.push({ id, compraId, por })
     },
     async comprasPeriodo(de, ate) { return s.compras.filter((c) => c.data_compra >= de && c.data_compra <= ate) },
+    async ultimaConfirmada(uid) {
+      return [...s.eventos].reverse().find((e) => e.status === 'confirmado' && e.compra_id && e.contexto.telegram_user_id === uid) || null
+    },
+    async apagarCompraDoBot(id) {
+      const i = s.compras.findIndex((c) => c.id === id && c.origem === 'telegram')
+      if (i < 0) return false
+      s.compras.splice(i, 1); return true
+    },
     async ignorarEvento(id) { Object.assign(s.eventos.find((x) => x.id === id), { status: 'ignorado' }) },
   }
   return db
