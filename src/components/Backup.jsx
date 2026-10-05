@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { sb } from '../lib/supabase'
+import { hojeSP } from '../lib/utils'
+import { BACKUP_VERSAO, SCHEMA_BANCO, VERSAO_APP } from '../lib/versao'
 
 // [tabela, nome na tela, coluna de ordem estável (paginar sem ordem pode repetir ou pular linhas), opcional]
 // Opcional = a tabela só existe se a pessoa rodou o SQL correspondente; se faltar, é pulada em vez de travar o backup.
@@ -16,8 +18,9 @@ const TABELAS = [
   ['orcamentos', 'Tetos do Orçamento', 'categoria', true],
   ['config', 'Configurações (reserva de emergência)', 'chave', true],
   ['regras_categorizacao', 'Regras de categorização aprendidas', 'id', true],
-  ['estabelecimento_aliases', 'Apelidos de estabelecimentos', 'id', true],
+  ['estabelecimento_aliases', 'Apelidos de estabelecimentos', 'alias', true],
   ['eventos_financeiros', 'Inbox (lançamentos recebidos)', 'id', true],
+  ['compras_pagamentos', 'Pagamentos das parcelas sem cartão', 'id', true],
 ]
 const ORDEM = Object.fromEntries(TABELAS.map(([t, , o]) => [t, o]))
 
@@ -59,10 +62,7 @@ function baixar(nome, conteudo, tipo) {
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
-const hoje = () => {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
+const hoje = () => hojeSP() // data de hoje em Brasília
 
 function lerUltimo() {
   try { return localStorage.getItem('ultimo_backup') } catch { return null }
@@ -78,6 +78,7 @@ export default function Backup({ store }) {
     fixos: store.fixos.length, fixos_pagamentos: store.fixosPagamentos.length, rendas: store.rendas.length,
     categorias: store.categorias.length, pessoas: store.pessoas.length, saldo_ajustes: store.saldoAjustes.length,
     orcamentos: store.orcamentos.length, config: Object.keys(store.config).length,
+    compras_pagamentos: store.comprasPagamentos.length,
     regras_categorizacao: store.regras.length, estabelecimento_aliases: store.aliases.length, eventos_financeiros: store.eventos.length,
   }
 
@@ -100,10 +101,22 @@ export default function Backup({ store }) {
 
   const baixarCompleto = () => executar('json', async () => {
     const dados = {}
+    const ausentes = []
     for (const [t, , , opcional] of TABELAS) {
-      try { dados[t] = await buscarTudo(t) } catch (e) { if (!opcional) throw e } // tabela opcional que ainda não existe: pula
+      try { dados[t] = await buscarTudo(t) } catch (e) { if (!opcional) throw e; ausentes.push(t) } // tabela opcional que ainda não existe: pula e registra
     }
-    const pacote = { app: 'Sobrou!', gerado_em: new Date().toISOString(), tabelas: dados }
+    // Metadados para conferir o arquivo antes de qualquer restauração futura.
+    const contagens = Object.fromEntries(Object.entries(dados).map(([t, linhas]) => [t, linhas.length]))
+    const pacote = {
+      app: 'Sobrou!',
+      backup_versao: BACKUP_VERSAO,
+      schema_banco: SCHEMA_BANCO,
+      versao_app: VERSAO_APP,
+      gerado_em: new Date().toISOString(),
+      contagens,
+      tabelas_ausentes: ausentes,
+      tabelas: dados,
+    }
     baixar(`sobrou-backup-${hoje()}.json`, JSON.stringify(pacote, null, 2), 'application/json')
     registrar()
   })

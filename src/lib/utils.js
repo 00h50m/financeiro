@@ -38,10 +38,8 @@ export const mesLabel = (ym) => {
   return MESES[parseInt(m) - 1] + '/' + y.slice(2)
 }
 
-export const nowYM = () => {
-  const d = new Date()
-  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0')
-}
+// Mês atual no fuso de Brasília (o mesmo que o bot usa), não no fuso do navegador.
+export const nowYM = () => hojeSP().slice(0, 7)
 
 export const addMonths = (ym, n) => {
   let [y, m] = ym.split('-').map(Number)
@@ -52,6 +50,7 @@ export const addMonths = (ym, n) => {
 }
 
 export const calcMesInicio = (dataCompra, cartao) => {
+  dataCompra = String(dataCompra).slice(0, 10) // aceita "2026-10-05" e "2026-10-05T12:00:00"
   if (!cartao?.fechamento) return dataCompra.slice(0, 7)
   const d = new Date(dataCompra + 'T12:00:00')
   const dia = d.getDate()
@@ -61,13 +60,17 @@ export const calcMesInicio = (dataCompra, cartao) => {
   return y + '-' + String(m).padStart(2, '0')
 }
 
+// Valor das parcelas "normais" de uma compra (a última pode diferir em centavos). É o que as telas mostram.
+export const valorParcelaBase = (compra) =>
+  Math.round((Number(compra.valor_total) / (Number(compra.parcelas) || 1)) * 100) / 100
+
 export const gerarParcelas = (compra, cartoes) => {
   const cartao = cartoes.find(c => c.id === compra.cartao_id)
   const mesInicio = calcMesInicio(compra.data_compra, cartao)
   const total = Number(compra.parcelas) || 1
   // Centavos: as primeiras parcelas arredondam e a última fecha a conta (100 em 3x = 33,33 + 33,33 + 33,34).
   const valorTotal = Number(compra.valor_total)
-  const valorParc = Math.round((valorTotal / total) * 100) / 100
+  const valorParc = valorParcelaBase(compra)
   return Array.from({ length: total }, (_, i) => ({
     mes: addMonths(mesInicio, i),
     valor: i === total - 1 ? Math.round((valorTotal - valorParc * (total - 1)) * 100) / 100 : valorParc,
@@ -106,8 +109,7 @@ export const gastosPorCategoria = (compras, cartoes, fixos, mes) => {
     })
   })
   fixosAtivos(fixos, mes).forEach((f) => {
-    if (!f.categoria) return
-    const cat = garantir(f.categoria)
+    const cat = garantir(f.categoria) // fixo sem categoria cai em "Sem categoria" (assim as categorias fecham com o total)
     cat.total += Number(f.valor)
     cat.itens.push({ nome: f.nome, sub: f.subcategoria, valor: Number(f.valor), origem: 'Conta fixa', detalhe: f.dia_vencimento ? `vence dia ${f.dia_vencimento}` : '' })
   })
@@ -123,92 +125,24 @@ export const statusTeto = (gasto, teto) => {
 
 // Quanto do limite de um cartão está ocupado em `mes`: parcelas do mês atual e dos meses seguintes
 // com fatura ainda não paga, mais faturas de meses anteriores registradas e não pagas.
-// Meses passados sem fatura registrada são tratados como já pagos (não há como saber).
+// Meses passados sem fatura registrada NÃO entram na conta (não há como saber se foram pagos) e vêm
+// separados em `semInformacao`, para a tela poder avisar.
 export const limiteUsado = (cartaoId, compras, cartoes, faturas, mes) => {
   const faturaDe = (m) => faturas.find((f) => f.cartao_id === cartaoId && f.mes === m)
   let atual = 0
   let futuro = 0
+  let semInformacao = 0
   compras.forEach((c) => {
     if (c.cartao_id !== cartaoId) return
     gerarParcelas(c, cartoes).forEach((p) => {
       const fat = faturaDe(p.mes)
       if (p.mes > mes) { if (!fat?.pago) futuro += p.valor }
       else if (p.mes === mes) { if (!fat?.pago) atual += p.valor }
-      else if (fat && !fat.pago) atual += p.valor
+      else if (fat) { if (!fat.pago) atual += p.valor }
+      else semInformacao += p.valor
     })
   })
-  return { atual, futuro, usado: atual + futuro }
-}
-
-// ---------- PAGAMENTOS: visão detalhada do mês (fonte única para a aba Pagamentos e para a sobra) ----------
-// `d` = { fixos, fixosPagamentos, cartoes, compras, faturas }.
-export const detalhePagamentos = (d, mes) => {
-  const { fixos, fixosPagamentos, cartoes, compras, faturas } = d
-
-  // Contas fixas ativas (respeitando mes_fim), por dia de vencimento.
-  const fixosLista = fixosAtivos(fixos, mes).sort((a, b) => (a.dia_vencimento || 99) - (b.dia_vencimento || 99))
-  const fixoPagamento = (fixoId) => fixosPagamentos.find((p) => p.fixo_id === fixoId && p.mes === mes)
-
-  // Faturas dos cartões: valor real informado, ou o que foi lançado.
-  const cartaoIdsComMovimento = new Set()
-  compras.forEach((c) => {
-    if (c.cartao_id && gerarParcelas(c, cartoes).some((p) => p.mes === mes)) cartaoIdsComMovimento.add(c.cartao_id)
-  })
-  faturas.forEach((f) => { if (f.mes === mes) cartaoIdsComMovimento.add(f.cartao_id) })
-
-  const linhasCartao = [...cartaoIdsComMovimento]
-    .filter((cartao_id) => cartao_id)
-    .map((cartao_id) => {
-      const cartao = cartoes.find((c) => c.id === cartao_id)
-      const lancado = compras
-        .flatMap((c) => (c.cartao_id === cartao_id ? gerarParcelas(c, cartoes).filter((p) => p.mes === mes) : []))
-        .reduce((s, p) => s + p.valor, 0)
-      const fatura = faturas.find((f) => f.cartao_id === cartao_id && f.mes === mes)
-      return {
-        cartao_id,
-        nome: cartao?.nome || '—',
-        valor: fatura ? Number(fatura.valor_real) : lancado,
-        temFatura: !!fatura,
-        pago: fatura?.pago || false,
-        dataPagamento: fatura?.data_pagamento,
-      }
-    })
-    .sort((a, b) => a.nome.localeCompare(b.nome))
-
-  // Outras contas (sem cartão — dinheiro/Pix/boleto avulso).
-  const outrasContas = compras
-    .filter((c) => !c.cartao_id)
-    .map((c) => ({ c, parcela: gerarParcelas(c, cartoes).find((p) => p.mes === mes) }))
-    .filter(({ parcela }) => !!parcela)
-    .map(({ c, parcela }) => ({ ...c, valorParcela: parcela.valor, parcelaNum: parcela.num, parcelaTotal: parcela.total }))
-    .sort((a, b) => (a.data_compra < b.data_compra ? 1 : -1))
-
-  const totalFixos = fixosLista.reduce((s, f) => s + Number(f.valor), 0)
-  const totalFixosPagos = fixosLista.reduce((s, f) => s + (fixoPagamento(f.id)?.pago ? Number(f.valor) : 0), 0)
-  const totalCartoes = linhasCartao.reduce((s, l) => s + l.valor, 0)
-  const totalCartoesPagos = linhasCartao.reduce((s, l) => s + (l.pago ? l.valor : 0), 0)
-  const totalOutras = outrasContas.reduce((s, c) => s + c.valorParcela, 0)
-  const totalOutrasPagas = outrasContas.reduce((s, c) => s + (c.pago ? c.valorParcela : 0), 0)
-
-  const comprometido = totalFixos + totalCartoes + totalOutras
-  const pago = totalFixosPagos + totalCartoesPagos + totalOutrasPagas
-  return {
-    fixosLista, fixoPagamento, linhasCartao, outrasContas,
-    totalFixos, totalFixosPagos, totalCartoes, totalCartoesPagos, totalOutras, totalOutrasPagas,
-    comprometido, pago, totalDividas: comprometido - pago,
-  }
-}
-
-// Sobra que vem do mês anterior: o que ficaria depois de pagar tudo dele
-// (renda + sobra que ele mesmo recebeu + ajuste − comprometido). Só existe quando o mês
-// anterior tem renda cadastrada — assim meses sem renda não geram "sobra negativa" falsa.
-// `d` também precisa de { rendas, saldoAjustes }.
-export const sobraAnterior = (d, mes) => {
-  const ant = addMonths(mes, -1)
-  const rendaAnt = totalRenda(d.rendas.find((r) => r.mes === ant))
-  if (!(rendaAnt > 0)) return 0
-  const ajuste = Number(d.saldoAjustes.find((a) => a.mes === ant)?.ajuste) || 0
-  return rendaAnt + sobraAnterior(d, ant) + ajuste - detalhePagamentos(d, ant).comprometido
+  return { atual, futuro, usado: atual + futuro, semInformacao }
 }
 
 // Data de hoje (YYYY-MM-DD) no fuso de Brasília. `new Date().toISOString()` usa UTC e,

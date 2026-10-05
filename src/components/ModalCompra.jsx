@@ -154,11 +154,11 @@ export default function ModalCompra({ cartoes, categorias, pessoas, onSave, onCl
           <div className="form-row">
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
               <input type="checkbox" checked={f.pago} onChange={(e) => setF((p) => ({ ...p, pago: e.target.checked }))} />
-              Já paguei essa conta
+              {Number(f.parcelas) > 1 ? 'A primeira parcela já foi paga' : 'Já paguei essa conta'}
             </label>
             {!f.pago && (
               <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
-                Sem cartão vinculado, essa conta vai aparecer como pendência na aba Pagamentos até você marcar como paga.
+                Sem cartão vinculado, cada parcela vai aparecer como pendência na aba Pagamentos até você marcá-la como paga.
               </div>
             )}
           </div>

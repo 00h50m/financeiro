@@ -1,4 +1,4 @@
-import { fmtK, fmt, mesLabel, nowYM, gerarParcelas, tituloCompra, subtituloCompra } from '../lib/utils'
+import { fmtK, fmt, mesLabel, nowYM, gerarParcelas, valorParcelaBase, tituloCompra, subtituloCompra } from '../lib/utils'
 
 export default function Parcelamentos({ store }) {
   const { compras, cartoes, pessoas } = store
@@ -66,7 +66,7 @@ export default function Parcelamentos({ store }) {
                     <td><span className="badge badge-gray">{cartao?.nome || '—'}</span></td>
                     <td style={{ fontSize: 12, color: 'var(--text2)' }}>{c.categoria}</td>
                     <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>
-                      {fmt(c.valor_total / total)}
+                      {fmt(valorParcelaBase(c))}
                     </td>
                     <td style={{ padding: '11px 14px' }}>
                       <div style={{ fontSize: 11, color: 'var(--text3)', textAlign: 'center', marginBottom: 3 }}>

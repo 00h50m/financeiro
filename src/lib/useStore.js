@@ -36,6 +36,8 @@ export function useStore() {
   const [inboxOk, setInboxOk] = useState(true) // false = migration do Inbox ainda não rodou
   const [configOk, setConfigOk] = useState(true)
   const [orcamentosOk, setOrcamentosOk] = useState(true) // false = tabela ainda não criada no banco
+  const [comprasPagamentos, setComprasPagamentos] = useState([])
+  const [comprasPagamentosOk, setComprasPagamentosOk] = useState(false) // false = migration 14 ainda não rodada
   const [loading, setLoading] = useState(true)
   const [syncState, setSyncState] = useState('ok')
   const [error, setError] = useState(null)
@@ -48,7 +50,7 @@ export function useStore() {
     if (!silent) setLoading(true)
     if (!silent) setError(null)
     try {
-      const [c, co, r, fx, fa, cat, fxp, sa, ps, orc, cfg, ev, rg, al, it] = await Promise.all([
+      const [c, co, r, fx, fa, cat, fxp, sa, ps, orc, cfg, ev, rg, al, it, cp] = await Promise.all([
         sb.from('cartoes').select('*').order('created_at'),
         lerTudo('compras', (q) => q.order('data_compra', { ascending: false }).order('id')),
         sb.from('rendas').select('*').order('mes', { ascending: false }),
@@ -64,6 +66,7 @@ export function useStore() {
         sb.from('regras_categorizacao').select('*'),
         sb.from('estabelecimento_aliases').select('*'),
         sb.from('integracoes_telegram').select('*').order('conectado_em'),
+        lerTudo('compras_pagamentos', (q) => q.order('id')),
       ])
       if (minha !== ultimaCarga.current) { if (!silent) setLoading(false); return true } // chegou uma recarga mais nova: esta resposta é velha
       if (c.error) throw c.error
@@ -84,6 +87,9 @@ export function useStore() {
       setFixosPagamentos(fxp.data || [])
       setSaldoAjustes(sa.data || [])
       setPessoas(ps.data || [])
+      // Pagamento por parcela é opcional: sem a migration 14 o app usa o "pago" antigo da compra.
+      setComprasPagamentosOk(!cp.error)
+      setComprasPagamentos(cp.error ? [] : cp.data || [])
       // Orçamentos são opcionais: se a tabela ainda não existe, o resto do app continua funcionando.
       setOrcamentosOk(!orc.error)
       setOrcamentos(orc.error ? [] : orc.data || [])
@@ -177,6 +183,9 @@ export function useStore() {
   // FATURAS
   const upsertFatura = (data) => op(async () => {
     const r = await sb.from('faturas').upsert(data, { onConflict: 'cartao_id,mes' })
+    if (r.error?.code === '23502') {
+      throw new Error('Falta rodar a atualização 13 do banco (arquivo inbox/13_faturas_valor_real_opcional.sql no Supabase).')
+    }
     if (r.error) throw r.error
   })
   const delFatura = (id) => op(async () => {
@@ -189,6 +198,15 @@ export function useStore() {
     const r = await sb.from('fixos_pagamentos').upsert(
       { fixo_id, mes, pago, data_pagamento: pago ? hojeSP() : null },
       { onConflict: 'fixo_id,mes' }
+    )
+    if (r.error) throw r.error
+  })
+
+  // PAGAMENTO POR PARCELA (compras sem cartão): uma linha por compra e mês
+  const marcarParcelaPaga = (compra_id, mes, pago) => op(async () => {
+    const r = await sb.from('compras_pagamentos').upsert(
+      { compra_id, mes, pago, data_pagamento: pago ? hojeSP() : null },
+      { onConflict: 'compra_id,mes' }
     )
     if (r.error) throw r.error
   })
@@ -419,14 +437,14 @@ export function useStore() {
     integracoesTelegram, gerarPareamento, pausarIntegracao, desconectarIntegracao,
     eventos, regras, aliases, inboxOk,
     confirmarEvento, vincularEvento, ignorarEvento, adicionarEventos, adicionarRegras,
-    cartoes, compras, rendas, fixos, faturas, categorias, fixosPagamentos, saldoAjustes, pessoas, orcamentos, orcamentosOk, config, configOk,
+    cartoes, compras, rendas, fixos, faturas, categorias, fixosPagamentos, comprasPagamentos, comprasPagamentosOk, saldoAjustes, pessoas, orcamentos, orcamentosOk, config, configOk,
     loading, syncState, error, loadAll,
     addCartao, updateCartao, delCartao,
     addCompra, updateCompra, updateComprasLote, delCompra,
     upsertRenda,
     addFixo, updateFixo, delFixo,
     upsertFatura, delFatura,
-    marcarFixoPago,
+    marcarFixoPago, marcarParcelaPaga,
     definirAjusteSaldo,
     definirOrcamento, definirOrcamentos, definirConfig,
     addCategoria, delCategoria, renomearCategoria,

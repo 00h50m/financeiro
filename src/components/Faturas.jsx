@@ -1,5 +1,11 @@
 import { useState } from 'react'
-import { fmt, mesLabel, nowYM, gerarParcelas } from '../lib/utils'
+import { fmt, mesLabel, nowYM } from '../lib/utils'
+import { lancadoDoCartao } from '../lib/financeiro'
+
+const CHAVE_REVISADAS = 'faturas_revisadas'
+const lerRevisadas = () => {
+  try { return JSON.parse(localStorage.getItem(CHAVE_REVISADAS) || '[]') } catch { return [] }
+}
 
 export default function Faturas({ store }) {
   const { faturas, cartoes, compras, upsertFatura, delFatura } = store
@@ -8,10 +14,22 @@ export default function Faturas({ store }) {
   const [saving, setSaving] = useState(false)
   const s = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
 
-  function getLancado(cartao_id, mes) {
-    return compras
-      .flatMap((c) => c.cartao_id === cartao_id ? gerarParcelas(c, cartoes).filter((p) => p.mes === mes) : [])
-      .reduce((s, p) => s + p.valor, 0)
+  const [revisadas, setRevisadas] = useState(lerRevisadas)
+  const getLancado = (cartao_id, mes) => lancadoDoCartao(compras, cartoes, cartao_id, mes)
+  const temReal = (f) => f.valor_real != null && f.valor_real !== ''
+
+  // Faturas pagas cujo valor real é igual ao lançado: podem ter sido a estimativa gravada pelo app ao marcar
+  // como paga (comportamento antigo). Só você sabe; nada é alterado sozinho.
+  const suspeitas = faturas.filter((f) => f.pago && temReal(f) && !revisadas.includes(f.id)
+    && Math.abs(Number(f.valor_real) - getLancado(f.cartao_id, f.mes)) < 0.01)
+
+  function confirmarReal(id) {
+    const novas = [...revisadas, id]
+    setRevisadas(novas)
+    try { localStorage.setItem(CHAVE_REVISADAS, JSON.stringify(novas)) } catch { /* segue sem lembrar */ }
+  }
+  async function eraEstimativa(f) {
+    await upsertFatura({ cartao_id: f.cartao_id, mes: f.mes, valor_real: null })
   }
 
   async function salvar() {
@@ -73,6 +91,21 @@ export default function Faturas({ store }) {
         </button>
       </div>
 
+      {suspeitas.length > 0 && (
+        <div className="alert alert-amber" style={{ marginBottom: 16 }}>
+          <strong>{suspeitas.length === 1 ? '1 fatura paga para você conferir' : `${suspeitas.length} faturas pagas para você conferir`}.</strong>{' '}
+          O valor real delas é exatamente igual ao lançado. Se você digitou o valor do banco, toque em "Está certo". Se foi o app que
+          gravou a estimativa ao marcar como paga, toque em "Era estimativa": o valor real é apagado e a fatura continua paga.
+          {suspeitas.map((f) => (
+            <div key={f.id} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 8 }}>
+              <span style={{ flex: '1 1 160px' }}>{cartoes.find((c) => c.id === f.cartao_id)?.nome || '—'} · {mesLabel(f.mes)} · {fmt(f.valor_real)}</span>
+              <button className="btn btn-ghost btn-sm" onClick={() => confirmarReal(f.id)}>Está certo</button>
+              <button className="btn btn-ghost btn-sm" onClick={() => eraEstimativa(f)}>Era estimativa</button>
+            </div>
+          ))}
+        </div>
+      )}
+
       {mesList.length === 0 && (
         <div className="empty">
           Nenhuma fatura lançada ainda.{'\n'}Lance o valor real do banco e o sistema mostra o que está faltando categorizar.
@@ -81,8 +114,9 @@ export default function Faturas({ store }) {
 
       {mesList.map((mes) => {
         const fatsDoMes = faturas.filter((f) => f.mes === mes)
-        const totalReal = fatsDoMes.reduce((s, f) => s + Number(f.valor_real), 0)
-        const totalLanc = fatsDoMes.reduce((s, f) => s + getLancado(f.cartao_id, mes), 0)
+        const comReal = fatsDoMes.filter(temReal)
+        const totalReal = comReal.reduce((s, f) => s + Number(f.valor_real), 0)
+        const totalLanc = comReal.reduce((s, f) => s + getLancado(f.cartao_id, mes), 0)
         const totalDiff = totalReal - totalLanc
 
         return (
@@ -109,6 +143,22 @@ export default function Faturas({ store }) {
                   {fatsDoMes.map((fat) => {
                     const cartao = cartoes.find((c) => c.id === fat.cartao_id)
                     const lanc = getLancado(fat.cartao_id, mes)
+                    if (!temReal(fat)) {
+                      // Linha criada só para marcar como paga: ainda não há valor do banco para comparar.
+                      return (
+                        <tr key={fat.id}>
+                          <td style={{ fontWeight: 500 }}>{cartao?.nome || '—'}</td>
+                          <td style={{ textAlign: 'right', color: 'var(--text3)' }}>—</td>
+                          <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(lanc)}</td>
+                          <td style={{ textAlign: 'right', color: 'var(--text3)' }}>—</td>
+                          <td>
+                            <span className="badge badge-gray">sem valor do banco</span>{' '}
+                            <button className="btn btn-ghost btn-sm" onClick={() => { setForm({ cartao_id: fat.cartao_id, mes, valor_real: '' }); setModal(true) }}>Informar valor</button>
+                          </td>
+                          <td />
+                        </tr>
+                      )
+                    }
                     const diff = fat.valor_real - lanc
                     const pct = fat.valor_real > 0 ? Math.round((lanc / fat.valor_real) * 100) : 0
                     return (

@@ -270,7 +270,7 @@ export default function ImportarFatura({ store }) {
       .map((g) => {
         const cartaoObj = cartoes.find((c) => c.id === g.cartao_id)
         const fatura = faturas.find((f) => f.cartao_id === g.cartao_id && f.mes === g.mes)
-        const valorReal = fatura ? Number(fatura.valor_real) : null
+        const valorReal = fatura && fatura.valor_real != null ? Number(fatura.valor_real) : null // fatura só marcada como paga não tem valor do banco
         const diff = valorReal != null ? valorReal - g.soma : null
         return { ...g, cartaoNome: cartaoObj?.nome || '—', valorReal, diff }
       })

@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { fmt, fmtK, nowYM, totalRenda, detalhePagamentos, hojeSP } from '../lib/utils'
+import { fmt, fmtK, nowYM, hojeSP } from '../lib/utils'
+import { detalhePagamentos, rendaDoMes } from '../lib/financeiro'
 
 const METAS = [3, 6, 9, 12]
 const BASES = {
@@ -8,7 +9,7 @@ const BASES = {
 }
 
 export default function Reserva({ store }) {
-  const { fixos, fixosPagamentos, cartoes, compras, faturas, rendas, config, configOk, definirConfig } = store
+  const { fixos, fixosPagamentos, cartoes, compras, faturas, rendas, comprasPagamentos, comprasPagamentosOk, config, configOk, definirConfig } = store
   const mes = nowYM()
 
   const guardado = Number(config.reserva_valor) || 0
@@ -30,7 +31,7 @@ export default function Reserva({ store }) {
     )
   }
 
-  const det = detalhePagamentos({ fixos, fixosPagamentos, cartoes, compras, faturas }, mes)
+  const det = detalhePagamentos({ fixos, fixosPagamentos, cartoes, compras, faturas, comprasPagamentos, comprasPagamentosOk }, mes)
   const custoFixos = det.totalFixos
   const custoTotal = det.comprometido
   const custoBase = base === 'fixos' ? custoFixos : custoTotal
@@ -44,8 +45,7 @@ export default function Reserva({ store }) {
   const pct = meta > 0 ? Math.min(100, Math.round((guardado / meta) * 100)) : 0
 
   // Ritmo: o que sobra por mês (renda do mês, ou a última cadastrada, menos o comprometido).
-  const rendaRef = totalRenda(rendas.find((r) => r.mes === mes)) ||
-    totalRenda([...rendas].filter((r) => totalRenda(r) > 0).sort((a, b) => b.mes.localeCompare(a.mes))[0])
+  const rendaRef = rendaDoMes(rendas, mes, { estimar: true }).valor
   const sobraMensal = rendaRef - custoTotal
   const mesesParaMeta = falta > 0 && sobraMensal > 0 ? Math.ceil(falta / sobraMensal) : 0
 

@@ -1,15 +1,12 @@
 import { useMemo, useState } from 'react'
-import { fmt, fmtK, mesLabel, nowYM, addMonths, calcMesInicio, fixosAtivos, gerarParcelas, limiteUsado, totalRenda } from '../lib/utils'
+import { fmt, fmtK, mesLabel, nowYM, addMonths, calcMesInicio, limiteUsado, totalRenda, hojeSP } from '../lib/utils'
+import { detalhePagamentos, rendaDoMes } from '../lib/financeiro'
 
 const MAX_PARCELAS = 48
 const CENARIOS = [1, 2, 3, 4, 5, 6, 10, 12, 18, 24]
 const MESES_ADIAR = 12 // quantos meses à frente procurar um início melhor
 
-const pad = (n) => String(n).padStart(2, '0')
-const hojeISO = () => {
-  const d = new Date()
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-}
+const hojeISO = () => hojeSP() // data de hoje em Brasília
 
 // Parcela com juros (Tabela Price). juros em % ao mês; 0 = sem juros.
 const valorParcela = (total, n, juros) => {
@@ -27,7 +24,7 @@ const valorAVista = (parcela, n, juros) => {
 const ordemStatus = { green: 0, amber: 1, red: 2 }
 
 export default function Simulador({ store }) {
-  const { compras, cartoes, rendas, fixos, faturas } = store
+  const { compras, cartoes, rendas, fixos, faturas, fixosPagamentos, comprasPagamentos, comprasPagamentosOk } = store
   const hoje = nowYM()
 
   const [modo, setModo] = useState('total') // 'total' | 'parcela'
@@ -47,12 +44,16 @@ export default function Simulador({ store }) {
   const taxa = modo === 'total' ? Math.max(0, Number(juros) || 0) : 0
   const margemPct = Math.min(100, Math.max(0, Number(margem) || 0))
 
-  // Soma das parcelas já lançadas, por mês (calculado uma vez).
-  const parcelasPorMes = useMemo(() => {
-    const mapa = {}
-    compras.forEach((c) => gerarParcelas(c, cartoes).forEach((p) => { mapa[p.mes] = (mapa[p.mes] || 0) + p.valor }))
-    return mapa
-  }, [compras, cartoes])
+  // O que já está comprometido em cada mês: a mesma conta da aba Pagamentos (motor financeiro único),
+  // com cache por mês para não refazer a conta a cada cenário.
+  const baseDe = useMemo(() => {
+    const cache = new Map()
+    const dados = { fixos, fixosPagamentos, cartoes, compras, faturas, comprasPagamentos, comprasPagamentosOk }
+    return (m) => {
+      if (!cache.has(m)) cache.set(m, detalhePagamentos(dados, m).comprometido)
+      return cache.get(m)
+    }
+  }, [fixos, fixosPagamentos, cartoes, compras, faturas, comprasPagamentos, comprasPagamentosOk])
 
   const rendasComValor = useMemo(
     () => rendas.filter((r) => totalRenda(r) > 0).sort((a, b) => a.mes.localeCompare(b.mes)),
@@ -60,17 +61,7 @@ export default function Simulador({ store }) {
   )
 
   // Mês sem renda cadastrada repete a última renda informada antes dele.
-  const rendaDe = (m) => {
-    const exata = rendas.find((r) => r.mes === m)
-    if (totalRenda(exata) > 0) return { valor: totalRenda(exata), estimada: false }
-    const anterior = [...rendasComValor].reverse().find((r) => r.mes < m)
-    return { valor: anterior ? totalRenda(anterior) : 0, estimada: true }
-  }
-
-  const fixosDoMes = (m) =>
-    fixosAtivos(fixos, m).reduce((s, f) => s + Number(f.valor), 0)
-
-  const baseDe = (m) => fixosDoMes(m) + (parcelasPorMes[m] || 0)
+  const rendaDe = (m) => rendaDoMes(rendas, m, { estimar: true })
   const folgaDe = (m) => {
     const r = rendaDe(m).valor
     // "Com folga" = respeitar a margem E não passar de 70% da renda (mesma regra do veredito).
@@ -94,8 +85,7 @@ export default function Simulador({ store }) {
       if (valorParcela(v, k, taxa) <= Math.max(0, menorFolga(inicio, k))) return k
     }
     return 0
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [modo, v, taxa, inicio, margemPct, parcelasPorMes, rendas, fixos])
+  }, [modo, v, taxa, inicio, margemPct, baseDe, rendas])
 
   // Linha mês a mês
   const ultimoMes = addMonths(inicio, n - 1)

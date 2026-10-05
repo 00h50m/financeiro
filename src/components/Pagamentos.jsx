@@ -1,30 +1,35 @@
 import { useState } from 'react'
-import { fmt, fmtK, mesLabel, nowYM, addMonths, totalRenda, tituloCompra, subtituloCompra, detalhePagamentos, sobraAnterior, hojeSP } from '../lib/utils'
+import { fmt, fmtK, mesLabel, nowYM, addMonths, totalRenda, tituloCompra, subtituloCompra, hojeSP } from '../lib/utils'
+import { resumoDoMes, sobraAnterior, lerUsarSaldoAnterior, gravarUsarSaldoAnterior } from '../lib/financeiro'
 
 export default function Pagamentos({ store }) {
   const {
-    fixos, fixosPagamentos, cartoes, compras, faturas, rendas, saldoAjustes,
-    marcarFixoPago, upsertFatura, updateCompra, definirAjusteSaldo,
+    fixos, fixosPagamentos, cartoes, compras, faturas, rendas, saldoAjustes, comprasPagamentos, comprasPagamentosOk,
+    marcarFixoPago, marcarParcelaPaga, upsertFatura, updateCompra, definirAjusteSaldo,
   } = store
   const [mes, setMes] = useState(nowYM())
-  const [usarSobra, setUsarSobra] = useState(() => {
-    try { return localStorage.getItem('usar_sobra') !== '0' } catch { return true }
-  })
+  const [usarSobra, setUsarSobra] = useState(lerUsarSaldoAnterior)
   function alternarSobra(v) {
     setUsarSobra(v)
-    try { localStorage.setItem('usar_sobra', v ? '1' : '0') } catch { /* segue sem lembrar */ }
+    gravarUsarSaldoAnterior(v)
   }
 
   const ajusteAtual = Number(saldoAjustes.find((a) => a.mes === mes)?.ajuste) || 0
   const [saldoReal, setSaldoReal] = useState('')
 
-  const dados = { fixos, fixosPagamentos, cartoes, compras, faturas, rendas, saldoAjustes }
+  const dados = { fixos, fixosPagamentos, cartoes, compras, faturas, rendas, saldoAjustes, comprasPagamentos, comprasPagamentosOk }
+  const resumo = resumoDoMes(dados, mes, { usarSaldoAnterior: usarSobra })
   const {
     fixosLista: fixosAtivos, fixoPagamento, linhasCartao, outrasContas,
     comprometido, pago, totalDividas,
-  } = detalhePagamentos(dados, mes)
+  } = resumo.detalhe
 
   async function toggleOutraConta(c) {
+    if (comprasPagamentosOk) {
+      await marcarParcelaPaga(c.id, mes, !c.pago) // cada parcela (mês) tem o seu "pago"
+      return
+    }
+    // Sem a atualização 14 do banco, o "pago" ainda vale para a compra inteira.
     if (c.parcelaTotal > 1 && !confirm(`Esta compra tem ${c.parcelaTotal} parcelas e o "pago" vale para a compra inteira, não só para este mês. Continuar?`)) return
     await updateCompra(c.id, {
       pago: !c.pago,
@@ -33,12 +38,12 @@ export default function Pagamentos({ store }) {
   }
 
   const rendaMes = totalRenda(rendas.find((r) => r.mes === mes))
-  const sobraPossivel = sobraAnterior(dados, mes)
+  const sobraPossivel = usarSobra ? resumo.saldoAnterior : sobraAnterior(dados, mes)
   const temRendaAnterior = totalRenda(rendas.find((r) => r.mes === addMonths(mes, -1))) > 0
-  const sobra = usarSobra ? sobraPossivel : 0
-  const baseCalculada = rendaMes + sobra - pago
-  const dinheiroDisponivel = baseCalculada + ajusteAtual
-  const saldo = dinheiroDisponivel - totalDividas
+  const sobra = resumo.saldoAnterior
+  const baseCalculada = resumo.baseCalculada
+  const dinheiroDisponivel = resumo.disponivel
+  const saldo = resumo.sobraProjetada
 
   async function acertar() {
     const real = Number(saldoReal)
@@ -56,7 +61,8 @@ export default function Pagamentos({ store }) {
     await upsertFatura({
       cartao_id: linha.cartao_id,
       mes,
-      valor_real: linha.valor,
+      // Marcar como paga NÃO mexe no valor da fatura: o valor real só existe se você informou
+      // (tela Faturas). Antes, a estimativa era gravada aqui como se fosse o valor real do banco.
       pago: !linha.pago,
       data_pagamento: !linha.pago ? hojeSP() : null,
     })
