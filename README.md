@@ -9,7 +9,7 @@ Sistema financeiro pessoal (React + Vite + Supabase), com login, instalável no 
 
 **Dia a dia**
 - **Inbox** — lançamentos que chegam de outras fontes (por enquanto: adicionados no próprio Inbox; depois Telegram, notificações do Android e fatura) e ainda não viraram compra. Cada item mostra a origem, a categoria sugerida (aprendida com o seu histórico), avisa o que falta e detecta se já existe uma compra parecida ("Vincular" ou "Criar separadamente"). Nada vira compra sem confirmação.
-- **Compras** — lançamento com parcelas, pessoa, categoria/subcategoria, cartão (ou sem cartão), várias compras em uma só (ex.: Mercado Livre), nome como aparece no cartão + identificação opcional.
+- **Compras** — mostra de onde veio cada compra (Telegram, fatura...), permite marcar várias e trocar a categoria de uma vez; lançamento com parcelas, pessoa, categoria/subcategoria, cartão (ou sem cartão), várias compras em uma só (ex.: Mercado Livre), nome como aparece no cartão + identificação opcional.
 - **Parcelamentos** — compras parceladas em andamento, progresso, valor restante e término.
 - **Faturas** — valor real de cada fatura (por cartão/mês) comparado ao que foi lançado.
 - **Pagamentos** — controle do que está pago e a pagar no mês (contas fixas, faturas, contas sem cartão), total de dívidas, dinheiro disponível (renda + sobra do mês anterior − pago) e acerto com o saldo real da conta.
