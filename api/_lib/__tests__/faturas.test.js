@@ -21,4 +21,15 @@ describe('faturas no bot', () => {
     expect(tg.ultima().text).not.toContain('Inter')
     expect(db.s.eventos).toHaveLength(0)
   })
+  it('/proximas mostra mês a mês as parcelas já lançadas', async () => {
+    db.s.compras.push({ id: 'x2', data_compra: '2026-10-10', valor_total: 300, parcelas: 3, cartao_id: 'c-in', descricao: 'tenis' })
+    expect((await rodar(msg(GI, '/proximas'))).acao).toBe('proximas')
+    expect(tg.ultima().text).toContain('R$ 100,00')
+    expect(tg.ultima().text).toContain('Inter')
+  })
+  it('pergunta "próximas faturas do nubank" também funciona e não vira compra', async () => {
+    expect((await rodar(msg(GI, 'quais as próximas faturas do nubank?'))).acao).toBe('proximas')
+    expect(tg.ultima().text).not.toContain('Inter')
+    expect(db.s.eventos).toHaveLength(0)
+  })
 })

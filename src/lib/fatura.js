@@ -1,4 +1,4 @@
-import { fmt, mesLabel, calcMesInicio, gerarParcelas } from './utils.js'
+import { fmt, mesLabel, calcMesInicio, gerarParcelas, addMonths } from './utils.js'
 
 // Fatura aberta de cada cartão para o bot do Telegram: o que já caiu na fatura que ainda não fechou
 // (parcelas de compras antigas incluídas) e quando ela fecha. Usa as mesmas contas do app (gerarParcelas).
@@ -40,5 +40,31 @@ export function formatarFaturas(faturas) {
   })
   if (faturas.length > 1) linhas.push('', `Total: ${fmt(faturas.reduce((s, f) => s + f.total, 0))}`)
   linhas.push('', 'Conta só a parcela de cada compra que cai nessa fatura.')
+  return linhas.join('\n')
+}
+
+// Quanto já está comprometido em cada fatura dos próximos meses (parcelas de compras já lançadas).
+// Começa na fatura aberta; meses sem nada ficam de fora; devolve só cartões com algum valor.
+export function proximasFaturas(cartoes, compras, hoje, meses = 6) {
+  return cartoes.map((c) => {
+    const inicio = calcMesInicio(hoje, c)
+    const doCartao = compras.filter((x) => x.cartao_id === c.id)
+    const lista = Array.from({ length: meses }, (_, i) => {
+      const mes = addMonths(inicio, i)
+      const total = doCartao.reduce((s, x) => s + (gerarParcelas(x, cartoes).find((q) => q.mes === mes)?.valor || 0), 0)
+      return { mes, total: Math.round(total * 100) / 100 }
+    }).filter((m) => m.total > 0)
+    return { cartao: c, meses: lista }
+  }).filter((f) => f.meses.length)
+}
+
+export function formatarProximas(faturas) {
+  if (!faturas.length) return 'Não encontrei parcelas nas próximas faturas.'
+  const linhas = ['Próximas faturas (só o que já está lançado):']
+  faturas.forEach((f) => {
+    linhas.push('', `${f.cartao.nome}:`)
+    f.meses.forEach((m) => linhas.push(`• ${mesLabel(m.mes)}: ${fmt(m.total)}`))
+  })
+  linhas.push('', 'Compras novas e parcelas ainda não lançadas não entram.')
   return linhas.join('\n')
 }
