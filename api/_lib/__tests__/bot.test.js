@@ -224,3 +224,25 @@ describe('cartão sugerido no resumo', () => {
     expect(tg2.ultima().text).not.toContain('sugerido')
   })
 })
+
+describe('aviso de teto ao confirmar', () => {
+  const roda = (u) => processarUpdate(u, { db, tg, agora: () => new Date('2026-10-04T15:00:00Z') })
+  it('categoria estourou: manda aviso depois do lançamento', async () => {
+    db.s.orcamentos = [{ categoria: 'Alimentação', valor: 100 }]
+    await roda(msg(GI, 'mercado 150 nubank'))
+    const res = await roda(clicar(GI, tg, 'Confirmar'))
+    expect(res.acao).toBe('confirmado')
+    expect(tg.ultima().text).toContain('passou do teto')
+  })
+  it('sem teto cadastrado: só o lançamento, sem aviso', async () => {
+    await roda(msg(GI, 'mercado 150 nubank'))
+    await roda(clicar(GI, tg, 'Confirmar'))
+    expect(tg.ultima().text).not.toContain('teto')
+  })
+  it('se o aviso der erro, a compra continua lançada', async () => {
+    db.dadosTeto = async () => { throw new Error('banco fora') }
+    await roda(msg(GI, 'mercado 150 nubank'))
+    expect((await roda(clicar(GI, tg, 'Confirmar'))).acao).toBe('confirmado')
+    expect(db.s.compras).toHaveLength(1)
+  })
+})
