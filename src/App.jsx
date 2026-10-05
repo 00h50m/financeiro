@@ -18,6 +18,7 @@ import Automacoes from './components/Automacoes'
 import Backup from './components/Backup'
 import Orcamento from './components/Orcamento'
 import Reserva from './components/Reserva'
+import Metas from './components/Metas'
 import Fechamento from './components/Fechamento'
 import Login from './components/Login'
 import { Marca, Nome } from './components/Marca'
@@ -43,6 +44,7 @@ const ICONES = {
   recolher: 'M15 18l-6-6 6-6',
   reserva: 'M12 2l8 3v6c0 5-3.4 9.3-8 11-4.6-1.7-8-6-8-11V5z M9 12l2 2 4-4',
   orcamento: 'M12 2a10 10 0 1 0 10 10H12z M14 2.5V10h7.5A10 10 0 0 0 14 2.5z',
+  metas: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z M12 18a6 6 0 1 0 0-12 6 6 0 0 0 0 12z M12 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4z',
   fechamento: 'M19 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z M16 2v4 M8 2v4 M3 10h18 M9 16l2 2 4-4',
   backup: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M12 15V3',
   sair: 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4 M16 17l5-5-5-5 M21 12H9',
@@ -79,6 +81,7 @@ const GRUPOS = [
       { id: 'fixos', label: 'Contas fixas', Component: Fixos },
       { id: 'orcamento', label: 'Orçamento', Component: Orcamento },
       { id: 'fechamento', label: 'Fechamento', Component: Fechamento },
+      { id: 'metas', label: 'Metas', Component: Metas },
       { id: 'reserva', label: 'Reserva', Component: Reserva },
       { id: 'simulador', label: 'Simulador', Component: Simulador },
     ],

@@ -41,6 +41,9 @@ export function useStore(email = null) {
   const [comprasPagamentosOk, setComprasPagamentosOk] = useState(false) // false = migration 14 ainda não rodada
   const [fechamentos, setFechamentos] = useState([])
   const [fechamentosOk, setFechamentosOk] = useState(false) // false = migration 15 ainda não rodada
+  const [metas, setMetas] = useState([])
+  const [metasMovimentos, setMetasMovimentos] = useState([])
+  const [metasOk, setMetasOk] = useState(false) // false = migration 16 ainda não rodada
   const [loading, setLoading] = useState(true)
   const [syncState, setSyncState] = useState('ok')
   const [error, setError] = useState(null)
@@ -53,7 +56,7 @@ export function useStore(email = null) {
     if (!silent) setLoading(true)
     if (!silent) setError(null)
     try {
-      const [c, co, r, fx, fa, cat, fxp, sa, ps, orc, cfg, ev, rg, al, it, cp, fe] = await Promise.all([
+      const [c, co, r, fx, fa, cat, fxp, sa, ps, orc, cfg, ev, rg, al, it, cp, fe, me, mm] = await Promise.all([
         sb.from('cartoes').select('*').order('created_at'),
         lerTudo('compras', (q) => q.order('data_compra', { ascending: false }).order('id')),
         sb.from('rendas').select('*').order('mes', { ascending: false }),
@@ -71,6 +74,8 @@ export function useStore(email = null) {
         sb.from('integracoes_telegram').select('*').order('conectado_em'),
         lerTudo('compras_pagamentos', (q) => q.order('id')),
         sb.from('fechamentos').select('*').order('mes'),
+        sb.from('metas').select('*').order('prioridade').order('criada_em'),
+        lerTudo('metas_movimentos', (q) => q.order('data', { ascending: false }).order('criado_em', { ascending: false })),
       ])
       if (minha !== ultimaCarga.current) { if (!silent) setLoading(false); return true } // chegou uma recarga mais nova: esta resposta é velha
       if (c.error) throw c.error
@@ -97,6 +102,10 @@ export function useStore(email = null) {
       // Fechamento mensal é opcional: sem a migration 15 o app segue funcionando sem ele.
       setFechamentosOk(!fe.error)
       setFechamentos(fe.error ? [] : fe.data || [])
+      // Metas são opcionais: sem a migration 16 a Reserva segue usando a tabela config.
+      setMetasOk(!me.error && !mm.error)
+      setMetas(me.error || mm.error ? [] : me.data || [])
+      setMetasMovimentos(me.error || mm.error ? [] : mm.data || [])
       // Orçamentos são opcionais: se a tabela ainda não existe, o resto do app continua funcionando.
       setOrcamentosOk(!orc.error)
       setOrcamentos(orc.error ? [] : orc.data || [])
@@ -283,6 +292,32 @@ export function useStore(email = null) {
       if (r.error) throw r.error
     })
     if (ok) await registrarAuditoria({ entidade: 'saldo_ajuste', entidade_id: mes, acao: 'ajustar', antes: { ajuste: antes }, depois: { ajuste } })
+    return ok
+  }
+
+  // METAS (reserva e objetivos). O saldo é a soma dos movimentos; tudo que muda dinheiro vai para a auditoria.
+  const addMeta = (m) => op(async () => {
+    const r = await sb.from('metas').insert(m)
+    if (r.error) throw r.error
+  })
+  const updateMeta = (id, patch) => op(async () => {
+    const r = await sb.from('metas').update(patch).eq('id', id)
+    if (r.error) throw r.error
+  })
+  const registrarMovimentoMeta = async (mov) => {
+    const ok = await op(async () => {
+      const r = await sb.from('metas_movimentos').insert({ usuario: email, ...mov })
+      if (r.error) throw r.error
+    })
+    if (ok) await registrarAuditoria({ entidade: 'meta_movimento', entidade_id: mov.meta_id, acao: mov.tipo, depois: mov, motivo: mov.observacao || null })
+    return ok
+  }
+  const delMovimentoMeta = async (mov) => {
+    const ok = await op(async () => {
+      const r = await sb.from('metas_movimentos').delete().eq('id', mov.id)
+      if (r.error) throw r.error
+    })
+    if (ok) await registrarAuditoria({ entidade: 'meta_movimento', entidade_id: mov.meta_id, acao: 'apagar_movimento', antes: mov })
     return ok
   }
 
@@ -503,7 +538,7 @@ export function useStore(email = null) {
     integracoesTelegram, gerarPareamento, pausarIntegracao, desconectarIntegracao,
     eventos, regras, aliases, inboxOk,
     confirmarEvento, vincularEvento, ignorarEvento, adicionarEventos, adicionarRegras,
-    cartoes, compras, rendas, fixos, faturas, categorias, fixosPagamentos, comprasPagamentos, comprasPagamentosOk, fechamentos, fechamentosOk, saldoAjustes, pessoas, orcamentos, orcamentosOk, config, configOk,
+    cartoes, compras, rendas, fixos, faturas, categorias, fixosPagamentos, comprasPagamentos, comprasPagamentosOk, fechamentos, fechamentosOk, metas, metasMovimentos, metasOk, saldoAjustes, pessoas, orcamentos, orcamentosOk, config, configOk,
     loading, syncState, error, loadAll,
     addCartao, updateCartao, delCartao,
     addCompra, updateCompra, updateComprasLote, delCompra,
@@ -513,6 +548,7 @@ export function useStore(email = null) {
     marcarFixoPago, marcarParcelaPaga,
     fecharMes, reabrirMes, listarAuditoria, registrarAuditoria,
     definirAjusteSaldo,
+    addMeta, updateMeta, registrarMovimentoMeta, delMovimentoMeta,
     definirOrcamento, definirOrcamentos, definirConfig,
     addCategoria, delCategoria, renomearCategoria,
     addSubcategoria, delSubcategoria, renomearSubcategoria,
