@@ -99,6 +99,18 @@ export function criarDb({ url, serviceKey }) {
       return todas('compras', 'data_compra,valor_total,categoria,subcategoria,descricao,identificacao,pessoa',
         (q) => q.gte('data_compra', de).lte('data_compra', ate).order('id'))
     },
+    // Tetos do Orçamento, contas fixas e compras de uma categoria (4 anos), para o aviso de teto.
+    // A tabela orcamentos é criada à mão; se não existir, devolve vazio e o aviso simplesmente não sai.
+    async dadosTeto(categoria, desdeISO) {
+      const o = await sb.from('orcamentos').select('categoria,valor')
+      if (o.error || !(o.data || []).some((x) => x.categoria === categoria)) return { orcamentos: [], fixos: [], compras: [] }
+      const [fixos, compras] = await Promise.all([
+        todas('fixos', '*'),
+        todas('compras', 'data_compra,valor_total,parcelas,cartao_id,categoria,subcategoria,descricao,identificacao',
+          (q) => q.eq('categoria', categoria).gte('data_compra', desdeISO).order('id')),
+      ])
+      return { orcamentos: o.data, fixos, compras }
+    },
     // ---- resumo semanal (precisa do inbox/11) ----
     async definirResumoSemanal(uid, valor) {
       dados(await sb.from('integracoes_telegram').update({ resumo_semanal: !!valor }).eq('telegram_user_id', uid))

@@ -77,6 +77,9 @@ export function criarFakeDb({ comprasIniciais = [], regras = REGRAS } = {}) {
     },
     async definirResumoSemanal(uid, valor) { s.integracoes.get(uid).resumo_semanal = !!valor },
     async destinatariosResumo() { return [...s.integracoes.values()].filter((i) => i.ativo && i.resumo_semanal) },
+    async dadosTeto(categoria) {
+      return { orcamentos: s.orcamentos || [], fixos: s.fixos || [], compras: s.compras.filter((c) => c.categoria === categoria) }
+    },
     async comprasDeCartao() { return s.compras.filter((c) => c.cartao_id) },
     async comprasPeriodo(de, ate) { return s.compras.filter((c) => c.data_compra >= de && c.data_compra <= ate) },
     async ultimaConfirmada(uid) {

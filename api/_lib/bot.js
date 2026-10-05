@@ -6,6 +6,7 @@
 import { interpretarMensagem, parseValor, parseData } from '../../src/lib/parserTelegram.js'
 import { periodoDe, interpretarPergunta, filtroDe, calcularResumo, formatarResumo } from '../../src/lib/resumo.js'
 import { faturasAbertas, filtrarCartoes, formatarFaturas } from '../../src/lib/fatura.js'
+import { avisoTeto } from '../../src/lib/alertaTeto.js'
 import { prepararEvento } from '../../src/lib/evento.js'
 import { hashCodigo, normalizarCodigo } from '../../src/lib/pareamento.js'
 import { fmt, hojeSP } from '../../src/lib/utils.js'
@@ -190,6 +191,22 @@ async function responderResumo(c, texto) {
   const compras = await db.comprasPeriodo(periodo.de, periodo.ate)
   await tg.enviar(chat.id, formatarResumo(calcularResumo(compras, { ...periodo, filtro }), { ...periodo, filtro }))
   return { acao: 'resumo' }
+}
+
+// Aviso extra depois de lançar: nunca atrapalha a confirmação (qualquer erro aqui é ignorado).
+async function avisarTeto(c, base, ev) {
+  try {
+    if (!ev.categoria) return
+    const [a] = c.hoje.split('-')
+    const dados = await c.db.dadosTeto(ev.categoria, `${Number(a) - 4}-01-01`)
+    const aviso = avisoTeto({
+      compra: { data_compra: ev.data_evento, valor_total: ev.valor, parcelas: ev.parcelas, cartao_id: ev.cartao_id, categoria: ev.categoria },
+      compras: dados.compras, cartoes: base.cartoes, fixos: dados.fixos, orcamentos: dados.orcamentos,
+    })
+    if (aviso) await c.tg.enviar(c.chat.id, aviso)
+  } catch (e) {
+    console.error('bot: aviso de teto falhou', e?.message)
+  }
 }
 
 // Recado de voz: a Groq transcreve, o bot mostra o que entendeu e segue como se tivesse sido digitado.
@@ -466,6 +483,7 @@ async function tratarCallback(c, cb) {
       try {
         const compraId = await db.confirmarEvento(ev.id, {}, `telegram:${nomeCurto(base.pessoas.find((p) => p.id === ev.pessoa_id))}`)
         await limparTeclado(c, cb, `✅ Lançado: ${ev.descricao_original} — ${fmt(ev.valor)}`)
+        await avisarTeto(c, base, ev)
         return { acao: 'confirmado', compra_id: compraId }
       } catch (e) {
         await tg.enviar(c.chat.id, /já foi resolvido/.test(e.message) ? 'Esse lançamento já estava resolvido.' : `Não consegui lançar: ${e.message}`)
