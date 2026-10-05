@@ -65,10 +65,12 @@ export const gerarParcelas = (compra, cartoes) => {
   const cartao = cartoes.find(c => c.id === compra.cartao_id)
   const mesInicio = calcMesInicio(compra.data_compra, cartao)
   const total = Number(compra.parcelas) || 1
-  const valorParc = Number(compra.valor_total) / total
+  // Centavos: as primeiras parcelas arredondam e a última fecha a conta (100 em 3x = 33,33 + 33,33 + 33,34).
+  const valorTotal = Number(compra.valor_total)
+  const valorParc = Math.round((valorTotal / total) * 100) / 100
   return Array.from({ length: total }, (_, i) => ({
     mes: addMonths(mesInicio, i),
-    valor: valorParc,
+    valor: i === total - 1 ? Math.round((valorTotal - valorParc * (total - 1)) * 100) / 100 : valorParc,
     num: i + 1,
     total,
   }))

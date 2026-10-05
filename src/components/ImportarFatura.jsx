@@ -1,3 +1,4 @@
+import { normalizarData, normalizarValor } from '../lib/csvFormato'
 import { useState } from 'react'
 import Papa from 'papaparse'
 import { fmt, mesLabel, calcMesInicio, addMonths, nowYM, gerarParcelas } from '../lib/utils'
@@ -75,7 +76,10 @@ function recalcular(linhas, compras, modo) {
 }
 
 function linhaValida(l, categorias, mesFatura) {
-  return !!l.data
+  const atual = Number(l.parcela_atual) || 1
+  const total = Number(l.parcela_total) || 1
+  return !!normalizarData(l.data) && normalizarData(l.data) === l.data
+    && atual >= 1 && atual <= total
     && !!l.descricao
     && l.valor !== '' && !isNaN(Number(l.valor))
     && !!l.categoria && categorias.some((c) => c.nome === l.categoria)
@@ -168,10 +172,10 @@ export default function ImportarFatura({ store }) {
 
             return {
               _id: i,
-              data: (r.data || '').trim(),
+              data: normalizarData(r.data) || (r.data || '').trim(),
               descricao,
               identificacao: identificacoes[normNome(descricao)] || '',
-              valor: (r.valor || '').trim(),
+              valor: normalizarValor(r.valor),
               categoria,
               subcategoria,
               sugerida,

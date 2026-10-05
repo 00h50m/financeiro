@@ -46,6 +46,7 @@ export default function Dashboard({ store, irPara }) {
     .sort((a, b) => b.total - a.total)
 
   const estouradas = porCategoria.filter((c) => statusTeto(c.total, c.teto) === 'estourou')
+  const pertoDoTeto = porCategoria.filter((c) => statusTeto(c.total, c.teto) === 'perto')
 
   return (
     <div className="page">
@@ -122,6 +123,13 @@ export default function Dashboard({ store, irPara }) {
           <strong>{estouradas.length === 1 ? '1 categoria passou' : `${estouradas.length} categorias passaram`} do teto este mês:</strong>{' '}
           {estouradas.map((c) => `${c.categoria} (${fmtK(c.total)} de ${fmtK(c.teto)})`).join(' · ')}.{' '}
           <a href="#orcamento" onClick={(e) => { e.preventDefault(); irPara?.('orcamento') }} style={{ color: 'inherit', textDecoration: 'underline' }}>Ver orçamento</a>
+        </div>
+      )}
+
+      {pertoDoTeto.length > 0 && (
+        <div className="alert alert-amber" style={{ marginTop: 20 }}>
+          <strong>{pertoDoTeto.length === 1 ? '1 categoria está' : `${pertoDoTeto.length} categorias estão`} perto do teto (80% ou mais):</strong>{' '}
+          {pertoDoTeto.map((c) => `${c.categoria} (${fmtK(c.total)} de ${fmtK(c.teto)})`).join(' · ')}.
         </div>
       )}
 
