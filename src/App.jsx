@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useStore } from './lib/useStore'
+import { ativarAcessibilidadeModais } from './lib/acessibilidadeModais'
 import Dashboard from './components/Dashboard'
 import Inbox from './components/Inbox'
 import Compras from './components/Compras'
@@ -103,6 +104,8 @@ function gravarLocal(chave, valor) {
 // Controla a sessão: o useStore (e portanto qualquer leitura no banco) só roda depois do login.
 export default function App() {
   const [sessao, setSessao] = useState(undefined) // undefined = verificando
+
+  useEffect(() => ativarAcessibilidadeModais(), [])
 
   useEffect(() => {
     sb.auth.getSession().then(({ data }) => setSessao(data.session)).catch(() => setSessao(null)) // erro ao ler a sessão: cai no login em vez de girar para sempre

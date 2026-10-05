@@ -35,3 +35,12 @@ describe('fixosAtivos com histórico', () => {
     expect(fixosAtivos(fixos, '2026-10').map((f) => f.id)).toEqual([2])
   })
 })
+
+describe('gerarParcelas com centavos', () => {
+  it('a soma das parcelas é igual ao total', async () => {
+    const { gerarParcelas } = await import('../utils')
+    const ps = gerarParcelas({ valor_total: 100, parcelas: 3, data_compra: '2026-10-05' }, [])
+    expect(ps.map((p) => p.valor)).toEqual([33.33, 33.33, 33.34])
+    expect(Math.round(ps.reduce((s, p) => s + p.valor, 0) * 100)).toBe(10000)
+  })
+})
