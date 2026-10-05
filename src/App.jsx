@@ -240,6 +240,7 @@ function AppLogado({ email }) {
           ))}
         </nav>
 
+        <div className="sidebar-rodape">
         <button className="sidebar-recolher sidebar-sair" onClick={() => sb.auth.signOut()} title={`Sair (${email})`}>
           <Icone nome="sair" />
           <span className="sidebar-item-label">Sair <span className="sidebar-email">{email}</span></span>
@@ -254,6 +255,7 @@ function AppLogado({ email }) {
           </span>
           <span className="sidebar-item-label">Recolher menu</span>
         </button>
+        </div>
       </aside>
 
       <div className="main">
