@@ -1,6 +1,7 @@
 import { useState, Fragment } from 'react'
 import { fmt, fmtK, mesLabel, nowYM, addMonths, gerarParcelas, corPessoa, corPessoaCss, fixosAtivos, gastosPorCategoria, statusTeto } from '../lib/utils'
 import { resumoDoMes, lerUsarSaldoAnterior } from '../lib/financeiro'
+import { comprasLiquidas, fixosLiquidos } from '../lib/divisoes'
 import { riscosDoMes, mesFechado } from '../lib/fechamento'
 
 export default function Dashboard({ store, irPara }) {
@@ -37,7 +38,7 @@ export default function Dashboard({ store, irPara }) {
       .reduce((s, p) => s + p.valor, 0),
   }))
 
-  const porCategoriaMap = gastosPorCategoria(compras, cartoes, fixos, mes)
+  const porCategoriaMap = gastosPorCategoria(comprasLiquidas(store), cartoes, fixosLiquidos(store), mes)
   const porCategoria = Object.entries(porCategoriaMap)
     .map(([categoria, { total, itens }]) => ({
       categoria,

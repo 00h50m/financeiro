@@ -17,6 +17,7 @@ import Pessoas from './components/Pessoas'
 import Automacoes from './components/Automacoes'
 import Backup from './components/Backup'
 import Orcamento from './components/Orcamento'
+import Divididos from './components/Divididos'
 import Reserva from './components/Reserva'
 import Regras from './components/Regras'
 import Calendario from './components/Calendario'
@@ -54,6 +55,7 @@ const ICONES = {
   evolucao: 'M3 3v18h18 M7 14l4-4 4 4 5-6',
   metas: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z M12 18a6 6 0 1 0 0-12 6 6 0 0 0 0 12z M12 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4z',
   fechamento: 'M19 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z M16 2v4 M8 2v4 M3 10h18 M9 16l2 2 4-4',
+  divididos: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2 M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M20 8v6 M23 11h-6',
   backup: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M12 15V3',
   sair: 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4 M16 17l5-5-5-5 M21 12H9',
 }
@@ -83,6 +85,7 @@ const GRUPOS = [
       { id: 'parcelamentos', label: 'Parcelamentos', Component: Parcelamentos },
       { id: 'faturas', label: 'Faturas', Component: Faturas },
       { id: 'pagamentos', label: 'Pagamentos', Component: Pagamentos },
+      { id: 'divididos', label: 'Divididos', Component: Divididos },
       { id: 'importar', label: 'Importar fatura', Component: ImportarFatura },
     ],
   },

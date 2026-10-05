@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { comprasLiquidas, fixosLiquidos } from '../lib/divisoes'
 import { fmt, fmtK, mesLabel, nowYM, addMonths, totalRenda, gastosPorCategoria, statusTeto } from '../lib/utils'
 
 const STATUS = {
@@ -11,7 +12,7 @@ const STATUS = {
 const arredondar10 = (v) => Math.ceil(v / 10) * 10
 
 export default function Orcamento({ store }) {
-  const { compras, cartoes, fixos, categorias, rendas, orcamentos, orcamentosOk, definirOrcamento, definirOrcamentos } = store
+  const { compras, cartoes, fixos, divisoes, categorias, rendas, orcamentos, orcamentosOk, definirOrcamento, definirOrcamentos } = store
   const [mes, setMes] = useState(nowYM())
   const [rascunho, setRascunho] = useState({}) // categoria -> texto digitado, enquanto não salvou
 
@@ -27,7 +28,7 @@ export default function Orcamento({ store }) {
   }
 
   const tetoDe = (cat) => Number(orcamentos.find((o) => o.categoria === cat)?.valor) || 0
-  const gastos = gastosPorCategoria(compras, cartoes, fixos, mes)
+  const gastos = gastosPorCategoria(comprasLiquidas({ compras, divisoes }), cartoes, fixosLiquidos({ fixos, divisoes }), mes)
 
   // Categorias cadastradas + qualquer categoria que apareça nos gastos (mesmo sem cadastro)
   const nomes = [...new Set([...categorias.map((c) => c.nome), ...Object.keys(gastos)])]
@@ -56,7 +57,7 @@ export default function Orcamento({ store }) {
 
   // Média dos 3 meses anteriores (só o que já aconteceu), arredondada para cima de 10 em 10.
   function sugerirTetos() {
-    const anteriores = [1, 2, 3].map((n) => gastosPorCategoria(compras, cartoes, fixos, addMonths(mes, -n)))
+    const anteriores = [1, 2, 3].map((n) => gastosPorCategoria(comprasLiquidas({ compras, divisoes }), cartoes, fixosLiquidos({ fixos, divisoes }), addMonths(mes, -n)))
     const sugestoes = nomes
       .filter((c) => !tetoDe(c))
       .map((categoria) => {

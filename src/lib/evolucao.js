@@ -2,6 +2,7 @@
 // Mês fechado usa a foto gravada (nunca muda); mês aberto usa o cálculo ao vivo.
 import { addMonths, gastosPorCategoria, gerarParcelas, mesLabel } from './utils'
 import { resumoDoMes } from './financeiro'
+import { comprasLiquidas, fixosLiquidos } from './divisoes'
 import { fechamentoDe } from './fechamento'
 
 const arred = (v) => Math.round((Number(v) || 0) * 100) / 100 + 0
@@ -19,7 +20,7 @@ export function resumoParaSerie(d, mes, cacheDetalhes) {
     return { mes, renda: Number(fech.renda), despesas: Number(fech.despesas), sobra: Number(fech.sobra), fonte: 'fechado', porCategoria: fech.por_categoria || {} }
   }
   const r = resumoDoMes(d, mes, { usarSaldoAnterior: false, cacheDetalhes })
-  const mapa = gastosPorCategoria(d.compras, d.cartoes, d.fixos, mes)
+  const mapa = gastosPorCategoria(comprasLiquidas(d), d.cartoes, fixosLiquidos(d), mes)
   return {
     mes, renda: arred(r.renda), despesas: arred(r.comprometido), sobra: arred(r.sobraDoMes), fonte: 'ao vivo',
     porCategoria: Object.fromEntries(Object.entries(mapa).map(([k, v]) => [k, arred(v.total)])),

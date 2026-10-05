@@ -44,6 +44,9 @@ export function useStore(email = null) {
   const [metas, setMetas] = useState([])
   const [metasMovimentos, setMetasMovimentos] = useState([])
   const [metasOk, setMetasOk] = useState(false) // false = migration 16 ainda não rodada
+  const [divisoes, setDivisoes] = useState([])
+  const [divisoesRepasses, setDivisoesRepasses] = useState([])
+  const [divisoesOk, setDivisoesOk] = useState(false) // false = migration 18 ainda não rodada
   const [loading, setLoading] = useState(true)
   const [syncState, setSyncState] = useState('ok')
   const [error, setError] = useState(null)
@@ -52,7 +55,8 @@ export function useStore(email = null) {
 
   // Recarga seletiva: cada ação diz quais grupos de dados mudaram (`quais`); sem `quais`, recarrega tudo.
   // Grupos: cartoes, compras, rendas, fixos, faturas, categorias, fixosPagamentos, saldoAjustes, pessoas, orcamentos,
-  // config, inbox (eventos + regras + aliases + integrações), comprasPagamentos, fechamentos, metas (metas + movimentos).
+  // config, inbox (eventos + regras + aliases + integrações), comprasPagamentos, fechamentos, metas (metas + movimentos),
+  // divisoes (divisões + repasses).
   // Cargas que se atropelam somam os grupos: a mais nova sempre cobre o que as anteriores pediram.
   const pendentes = useRef(new Set())
   const pendenteTudo = useRef(false)
@@ -68,7 +72,7 @@ export function useStore(email = null) {
     if (!silent) setLoading(true)
     if (!silent) setError(null)
     try {
-      const [c, co, r, fx, fa, cat, fxp, sa, ps, orc, cfg, ev, rg, al, it, cp, fe, me, mm] = await Promise.all([
+      const [c, co, r, fx, fa, cat, fxp, sa, ps, orc, cfg, ev, rg, al, it, cp, fe, me, mm, dv, dr] = await Promise.all([
         quer('cartoes') ? sb.from('cartoes').select('*').order('created_at') : nada,
         quer('compras') ? lerTudo('compras', (q) => q.order('data_compra', { ascending: false }).order('id')) : nada,
         quer('rendas') ? sb.from('rendas').select('*').order('mes', { ascending: false }) : nada,
@@ -88,6 +92,8 @@ export function useStore(email = null) {
         quer('fechamentos') ? sb.from('fechamentos').select('*').order('mes') : nada,
         quer('metas') ? sb.from('metas').select('*').order('prioridade').order('criada_em') : nada,
         quer('metas') ? lerTudo('metas_movimentos', (q) => q.order('data', { ascending: false }).order('criado_em', { ascending: false })) : nada,
+        quer('divisoes') ? sb.from('divisoes').select('*').order('criada_em') : nada,
+        quer('divisoes') ? lerTudo('divisoes_repasses', (q) => q.order('mes', { ascending: false }).order('id')) : nada,
       ])
       if (minha !== ultimaCarga.current) { if (!silent) setLoading(false); return true } // chegou uma recarga mais nova: ela cobre os grupos desta
       pendentes.current = new Set()
@@ -111,6 +117,12 @@ export function useStore(email = null) {
         setMetasOk(!me.error && !mm.error)
         setMetas(me.error || mm.error ? [] : me.data || [])
         setMetasMovimentos(me.error || mm.error ? [] : mm.data || [])
+      }
+      // Divididos são opcionais: sem a migration 18 o app segue funcionando sem a aba.
+      if (dv && dr) {
+        setDivisoesOk(!dv.error && !dr.error)
+        setDivisoes(dv.error || dr.error ? [] : dv.data || [])
+        setDivisoesRepasses(dv.error || dr.error ? [] : dr.data || [])
       }
       // Orçamentos são opcionais: se a tabela ainda não existe, o resto do app continua funcionando.
       if (orc) { setOrcamentosOk(!orc.error); setOrcamentos(orc.error ? [] : orc.data || []) }
@@ -328,6 +340,58 @@ export function useStore(email = null) {
       if (r.error) throw r.error
     }, ['metas'])
     if (ok) await registrarAuditoria({ entidade: 'meta_movimento', entidade_id: mov.meta_id, acao: 'apagar_movimento', antes: mov })
+    return ok
+  }
+
+  // DIVIDIDOS (parte de compra ou conta fixa que é de outra pessoa). Receber muda a receita da competência:
+  // se o mês já está fechado, pede justificativa e registra na auditoria.
+  const addDivisao = (data) => op(async () => {
+    const r = await sb.from('divisoes').insert(data)
+    if (r.error) throw r.error
+  }, ['divisoes'])
+  const delDivisao = async (divisao) => {
+    const recebidos = divisoesRepasses.filter((x) => x.divisao_id === divisao.id)
+    const fechados = recebidos.map((x) => x.mes).filter((m) => fechamentos.some((f) => f.mes === m && f.status === 'fechado'))
+    let motivo = null
+    if (fechados.length) {
+      motivo = window.prompt(`Esta divisão tem valores recebidos em ${fechados.map(mesLabel).join(', ')} (mês fechado). Apagar muda os números dele.\n\nPara continuar, escreva o motivo:`)
+      if (!motivo || motivo.trim().length < 3) return false
+    }
+    const ok = await op(async () => {
+      const r = await sb.from('divisoes').delete().eq('id', divisao.id)
+      if (r.error) throw r.error
+    }, ['divisoes'])
+    if (ok && motivo) await registrarAuditoria({ entidade: 'divisao', entidade_id: divisao.id, acao: 'apagar_em_mes_fechado', antes: { divisao, repasses: recebidos }, motivo: motivo.trim() })
+    return ok
+  }
+  const marcarRepasse = async (divisaoId, mes, valor, recebidoEm) => {
+    let motivo = null
+    if (fechamentos.some((f) => f.mes === mes && f.status === 'fechado')) {
+      motivo = window.prompt(`${mesLabel(mes)} já está fechado e receber muda a receita dele.\n\nPara continuar, escreva o motivo:`)
+      if (!motivo || motivo.trim().length < 3) return false
+    }
+    const ok = await op(async () => {
+      const r = await sb.from('divisoes_repasses').upsert(
+        { divisao_id: divisaoId, mes, valor_recebido: valor, recebido_em: recebidoEm || hojeSP(), usuario: email },
+        { onConflict: 'divisao_id,mes' }
+      )
+      if (r.error) throw r.error
+    }, ['divisoes'])
+    if (ok && motivo) await registrarAuditoria({ entidade: 'divisao_repasse', entidade_id: `${divisaoId}|${mes}`, acao: 'receber_em_mes_fechado', depois: { valor }, motivo: motivo.trim() })
+    return ok
+  }
+  const desmarcarRepasse = async (divisaoId, mes) => {
+    let motivo = null
+    if (fechamentos.some((f) => f.mes === mes && f.status === 'fechado')) {
+      motivo = window.prompt(`${mesLabel(mes)} já está fechado e desfazer o recebimento muda a receita dele.\n\nPara continuar, escreva o motivo:`)
+      if (!motivo || motivo.trim().length < 3) return false
+    }
+    const antes = divisoesRepasses.find((x) => x.divisao_id === divisaoId && x.mes === mes) || null
+    const ok = await op(async () => {
+      const r = await sb.from('divisoes_repasses').delete().eq('divisao_id', divisaoId).eq('mes', mes)
+      if (r.error) throw r.error
+    }, ['divisoes'])
+    if (ok && motivo) await registrarAuditoria({ entidade: 'divisao_repasse', entidade_id: `${divisaoId}|${mes}`, acao: 'desfazer_recebimento_em_mes_fechado', antes, motivo: motivo.trim() })
     return ok
   }
 
@@ -570,7 +634,7 @@ export function useStore(email = null) {
     integracoesTelegram, gerarPareamento, pausarIntegracao, desconectarIntegracao,
     eventos, regras, aliases, inboxOk,
     confirmarEvento, vincularEvento, ignorarEvento, adicionarEventos, adicionarRegras,
-    cartoes, compras, rendas, fixos, faturas, categorias, fixosPagamentos, comprasPagamentos, comprasPagamentosOk, fechamentos, fechamentosOk, metas, metasMovimentos, metasOk, saldoAjustes, pessoas, orcamentos, orcamentosOk, config, configOk,
+    cartoes, compras, rendas, fixos, faturas, categorias, fixosPagamentos, comprasPagamentos, comprasPagamentosOk, fechamentos, fechamentosOk, metas, metasMovimentos, metasOk, divisoes, divisoesRepasses, divisoesOk, saldoAjustes, pessoas, orcamentos, orcamentosOk, config, configOk,
     loading, syncState, error, loadAll,
     addCartao, updateCartao, delCartao,
     addCompra, updateCompra, updateComprasLote, delCompra,
@@ -581,6 +645,7 @@ export function useStore(email = null) {
     fecharMes, reabrirMes, listarAuditoria, registrarAuditoria,
     definirAjusteSaldo,
     atualizarRegra, esquecerRegra,
+    addDivisao, delDivisao, marcarRepasse, desmarcarRepasse,
     addMeta, updateMeta, registrarMovimentoMeta, delMovimentoMeta,
     definirOrcamento, definirOrcamentos, definirConfig,
     addCategoria, delCategoria, renomearCategoria,

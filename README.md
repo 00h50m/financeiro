@@ -27,6 +27,7 @@ Sistema financeiro pessoal (React + Vite + Supabase), com login, instalável no 
 - **Cartões** — titular, fechamento, vencimento e limite (com uso do limite).
 - **Categorias** — categorias e subcategorias editáveis; excluir exige migrar os lançamentos.
 - **Pessoas** — pessoas e cores.
+- **Divididos** — parte de uma compra ou conta fixa que é de outra pessoa (ex.: Mãe paga parte do convênio). A fatura/conta fica com o valor cheio, teto e categorias contam só a sua parte, e o que a pessoa devolve entra na receita só quando você marca "Recebi".
 - **Backup** — backup completo (.json) e CSV por tabela.
 
 **Geral**: login (Supabase Auth), tela cheia no computador, menu em gaveta no celular, instalável como app (PWA).
@@ -49,7 +50,7 @@ Rode no SQL Editor do Supabase:
 | `config.sql` | Configurações (reserva de emergência) |
 | `cartoes_limite.sql` | Coluna de limite do cartão |
 | `fixos_mes_inicio.sql` | Histórico das contas fixas (mudar o valor só daqui para frente) |
-| `inbox/01` a `inbox/17` | Inbox Financeiro (rodar **em ordem**, uma parte por vez; cada uma é repetível). `inbox/desfazer.sql` reverte. |
+| `inbox/01` a `inbox/18` | Inbox Financeiro (rodar **em ordem**, uma parte por vez; cada uma é repetível). `inbox/desfazer.sql` reverte. |
 
 Usuários: crie em **Authentication → Users** e deixe o cadastro aberto desligado.
 
