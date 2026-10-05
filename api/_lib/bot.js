@@ -5,7 +5,7 @@
 //  - cada update é processado uma única vez (o Telegram reenvia quando a resposta falha).
 import { interpretarMensagem, parseValor, parseData } from '../../src/lib/parserTelegram.js'
 import { periodoDe, interpretarPergunta, filtroDe, calcularResumo, formatarResumo } from '../../src/lib/resumo.js'
-import { faturasAbertas, filtrarCartoes, formatarFaturas } from '../../src/lib/fatura.js'
+import { faturasAbertas, filtrarCartoes, formatarFaturas, proximasFaturas, formatarProximas } from '../../src/lib/fatura.js'
 import { avisoTeto } from '../../src/lib/alertaTeto.js'
 import { seguroLancarSozinho } from '../../src/lib/categorizacao.js'
 import { prepararEvento } from '../../src/lib/evento.js'
@@ -41,6 +41,7 @@ Se faltar algo (como o cartão), eu pergunto.
 Pergunte também: "quanto gastei em mercado este mês?"
 /ultima – mostra a última compra lançada por aqui (editar ou apagar)
 /faturas – quanto já está nas faturas abertas dos cartões
+/proximas – o que já está comprometido nas faturas dos próximos meses
 /auto on|off – lançar sozinho o que eu reconhecer com certeza (padrão: desligado)
 /avisos on – resumo automático todo domingo à noite (/avisos off para parar)
 /cancelar – descarta o que está em andamento`
@@ -128,6 +129,8 @@ async function tratarMensagem(c, msg) {
   if (au) return await tratarAuto(c, au[1])
   const av = texto.match(/^\/avisos(?:@\w+)?(?:\s+(on|off|ligar|desligar))?$/i)
   if (av) return await tratarAvisos(c, av[1])
+  const px = texto.match(/^\/proximas(?:@\w+)?(?:\s+(.*))?$/i)
+  if (px) return await responderProximas(c, px[1] || '')
   const fa = texto.match(/^\/faturas?(?:@\w+)?(?:\s+(.*))?$/i)
   if (fa) return await responderFaturas(c, fa[1] || '')
   const rs = texto.match(/^\/resumo(?:@\w+)?(?:\s+(.*))?$/i)
@@ -152,6 +155,7 @@ async function tratarTexto(c, msg, texto, { voz = false } = {}) {
   if (esperando) return await responderTexto(c, esperando, texto)
   const editando = await c.db.buscarEditandoUltima(c.de.id)
   if (editando) return await responderEdicaoUltima(c, editando, texto)
+  if (/\b(?:proximas?|futuras?|seguintes)\s+faturas?\b|\bfaturas?\s+(?:futuras?|dos?\s+proximos)\b/i.test(texto.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase())) return await responderProximas(c, texto)
   if (/^(?:quanto|qual|como|ver|mostra|me\s+mostra)\b.*\bfaturas?\b/i.test(texto.normalize('NFD').replace(/[̀-ͯ]/g, ''))) return await responderFaturas(c, texto)
   const pergunta = interpretarPergunta(texto)
   if (pergunta) return await responderResumo(c, pergunta.texto)
@@ -193,6 +197,16 @@ async function tratarAvisos(c, arg) {
   }
   await tg.enviar(chat.id, ligar ? 'Pronto! Todo domingo à noite eu mando o resumo da semana. Para parar: /avisos off.' : 'Certo, desliguei o resumo automático.')
   return { acao: ligar ? 'avisos_ligado' : 'avisos_desligado' }
+}
+
+async function responderProximas(c, texto) {
+  const { db, tg, chat, hoje } = c
+  const base = await db.carregarContexto()
+  const [a] = hoje.split('-')
+  const compras = await db.comprasDeCartao(`${Number(a) - 4}-01-01`)
+  const cartoes = filtrarCartoes(base.cartoes, texto)
+  await tg.enviar(chat.id, formatarProximas(proximasFaturas(cartoes, compras, hoje)))
+  return { acao: 'proximas' }
 }
 
 async function responderFaturas(c, texto) {
