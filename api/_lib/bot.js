@@ -33,6 +33,7 @@ Eu mostro o que entendi e só lanço depois do seu Confirmar.
 Se faltar algo (como o cartão), eu pergunto.
 
 /pendentes – lançamentos esperando confirmação
+/ultima – mostra a última compra lançada por aqui (e deixa apagar)
 /cancelar – descarta o que está em andamento`
 
 const nomeCurto = (p) => (p?.apelidos?.[0] ? p.apelidos[0][0].toUpperCase() + p.apelidos[0].slice(1) : p?.nome || '—')
@@ -114,6 +115,7 @@ async function tratarMensagem(c, msg) {
     await tg.enviar(chat.id, n ? `Você tem ${n} lançamento${n > 1 ? 's' : ''} esperando confirmação. Abra o Finapp › Inbox.` : 'Nada pendente. 👍')
     return { acao: 'pendentes' }
   }
+  if (/^\/ultima(@\w+)?$/i.test(texto)) return await mostrarUltima(c)
   if (/^\/cancelar(@\w+)?$/i.test(texto)) {
     const ev = await db.buscarEmAndamento(de.id)
     if (ev) await db.ignorarEvento(ev.id, 'telegram')
@@ -235,10 +237,45 @@ async function responderTexto(c, ev, texto) {
   return { acao: 'campo_atualizado', campo }
 }
 
+// ---------- desfazer a última compra ----------
+async function mostrarUltima(c) {
+  const { db, tg, chat, de } = c
+  const ev = await db.ultimaConfirmada(de.id)
+  const compra = ev ? await db.buscarCompra(ev.compra_id) : null
+  if (!compra) { await tg.enviar(chat.id, 'Ainda não há compra lançada por aqui para mostrar.'); return { acao: 'ultima_vazia' } }
+  await tg.enviar(chat.id, `Última compra lançada por aqui:\n${compra.identificacao || compra.descricao}\n${fmt(compra.valor_total)} · ${fmtData(compra.data_compra)}\n\nPara corrigir valor ou categoria, abra o Finapp › Compras.`,
+    botoes([btn('🗑 Apagar', 'ul', ev.id, 'a'), btn('Manter', 'ul', ev.id, 'n')], 2))
+  return { acao: 'ultima' }
+}
+
+// Apagar pede uma segunda confirmação e só mexe em compra criada pelo bot, de quem está pedindo.
+async function tratarUltima(c, cb, eid, arg) {
+  const { db, tg, chat, de } = c
+  const ev = await db.buscarEvento(eid)
+  if (!ev || ev.contexto?.telegram_user_id !== de.id || ev.status !== 'confirmado' || !ev.compra_id) {
+    await tg.responderCallback(cb.id, 'Não encontrei mais essa compra.')
+    return { ignorado: 'ultima_indisponivel' }
+  }
+  await tg.responderCallback(cb.id)
+  if (arg === 'a') {
+    await limparTeclado(c, cb, 'Apagar essa compra?')
+    await tg.enviar(chat.id, 'Apagar mesmo? Isso remove a compra do Finapp.', botoes([btn('Sim, apagar', 'ul', ev.id, 's'), btn('Não', 'ul', ev.id, 'n')], 2))
+    return { acao: 'ultima_confirmar_apagar' }
+  }
+  if (arg === 's') {
+    const apagou = await db.apagarCompraDoBot(ev.compra_id)
+    await limparTeclado(c, cb, apagou ? '🗑 Compra apagada.' : 'Não consegui apagar essa compra (talvez já tenha sido apagada).')
+    return { acao: apagou ? 'compra_apagada' : 'apagar_falhou' }
+  }
+  await limparTeclado(c, cb, 'Mantida. 👍')
+  return { acao: 'ultima_mantida' }
+}
+
 // ---------- botões ----------
 async function tratarCallback(c, cb) {
   const { db, tg, de } = c
   const [acao, eid, arg] = String(cb.data).split('|')
+  if (acao === 'ul') return await tratarUltima(c, cb, eid, arg)
   const ev = await db.buscarEvento(eid)
   if (!ev || ev.contexto?.telegram_user_id !== de.id || !ABERTOS.includes(ev.status)) {
     await tg.responderCallback(cb.id, 'Esse lançamento já foi resolvido.')

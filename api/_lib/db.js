@@ -90,6 +90,17 @@ export function criarDb({ url, serviceKey }) {
     async vincularEvento(id, compraId, por) {
       dados(await sb.rpc('vincular_evento', { p_evento: id, p_compra: compraId, p_resolvido_por: por }))
     },
+    // ---- desfazer ----
+    async ultimaConfirmada(uid) {
+      const r = dados(await sb.from('eventos_financeiros').select('*').eq('origem', 'telegram').eq('status', 'confirmado')
+        .eq('contexto->>telegram_user_id', String(uid)).not('compra_id', 'is', null)
+        .order('resolvido_em', { ascending: false }).limit(1))
+      return r[0] || null
+    },
+    // Só apaga compra que o próprio bot criou (origem telegram); devolve se apagou.
+    async apagarCompraDoBot(id) {
+      return dados(await sb.from('compras').delete().eq('id', id).eq('origem', 'telegram').select('id')).length > 0
+    },
     async ignorarEvento(id, por) {
       dados(await sb.from('eventos_financeiros').update({ status: 'ignorado', resolvido_em: new Date().toISOString(), resolvido_por: por }).eq('id', id).in('status', ABERTOS))
     },
