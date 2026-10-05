@@ -126,10 +126,10 @@ async function tratarMensagem(c, msg) {
 }
 
 // Texto digitado ou transcrito de áudio: responde à pergunta em aberto ou cria um novo gasto.
-async function tratarTexto(c, msg, texto) {
+async function tratarTexto(c, msg, texto, { voz = false } = {}) {
   const esperando = await c.db.buscarEsperandoTexto(c.de.id)
   if (esperando) return await responderTexto(c, esperando, texto)
-  return await novoGasto(c, msg, texto)
+  return await novoGasto(c, msg, texto, { voz })
 }
 
 // Recado de voz: a Groq transcreve, o bot mostra o que entendeu e segue como se tivesse sido digitado.
@@ -150,14 +150,14 @@ async function lerAudio(c, msg) {
   }
   if (!texto) { await naoEntendi('Não consegui entender esse áudio.'); return { acao: 'audio_ilegivel' } }
   await tg.enviar(chat.id, `🎤 Entendi: "${texto.slice(0, MAX_MENSAGEM)}"`)
-  return await tratarTexto(c, msg, texto)
+  return await tratarTexto(c, msg, texto, { voz: true })
 }
 
-async function novoGasto(c, msg, texto) {
+async function novoGasto(c, msg, texto, { voz = false } = {}) {
   const { db, tg, chat, integ, hoje } = c
   if (texto.length > MAX_MENSAGEM) { await tg.enviar(chat.id, `Mensagem longa demais (máximo ${MAX_MENSAGEM} caracteres). Resuma: valor, onde e cartão.`); return { acao: 'nao_entendi' } }
   const base = await db.carregarContexto()
-  const lido = interpretarMensagem(texto, { cartoes: base.cartoes, pessoas: base.pessoas, hoje, remetente_pessoa_id: integ.pessoa_id })
+  const lido = interpretarMensagem(texto, { cartoes: base.cartoes, pessoas: base.pessoas, hoje, remetente_pessoa_id: integ.pessoa_id, nomeCompleto: voz })
   return await registrarLeitura(c, msg, texto, lido, base)
 }
 

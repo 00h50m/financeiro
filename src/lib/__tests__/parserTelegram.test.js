@@ -90,4 +90,20 @@ describe('pessoa e cartão ambíguos', () => {
     expect(ler('mercado 50 nubank sa', { cartoes: dois }).cartao_id).toBe('nu-sa')
     expect(ler('mercado 50 nubank gi', { cartoes: dois }).cartao_id).toBe('nu-gi')
   })
+
+  describe('nomeCompleto (voz)', () => {
+    const cartoes = [{ id: 'c-mp', nome: 'Mercado Pago', titular: 'Giovanna' }, { id: 'c-nu', nome: 'Nubank Gi', titular: 'Giovanna' }]
+    const ctx = { cartoes, pessoas: [], hoje: '2026-10-04' }
+    it('texto digitado: "mercado" ainda acha o cartão pela primeira palavra', () => {
+      expect(interpretarMensagem('mercado 20', ctx).cartao_id).toBe('c-mp')
+    })
+    it('voz: "mercado" não vira cartão e fica na descrição', () => {
+      const r = interpretarMensagem('gastei 20 no mercado', { ...ctx, nomeCompleto: true })
+      expect(r.cartao_id).toBeNull()
+      expect(r.descricao).toBe('mercado')
+    })
+    it('voz: nome completo vale', () => {
+      expect(interpretarMensagem('gastei 20 no mercado no mercado pago', { ...ctx, nomeCompleto: true }).cartao_id).toBe('c-mp')
+    })
+  })
 })
