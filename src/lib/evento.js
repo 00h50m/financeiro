@@ -1,5 +1,5 @@
 import { chaveEstabelecimento, indexarAliases } from './estabelecimento.js'
-import { sugerirCategoria, regrasParaSugestao, categoriaValida } from './categorizacao.js'
+import { sugerirCategoria, sugerirPorNome, regrasParaSugestao, categoriaValida } from './categorizacao.js'
 import { encontrarCorrespondencia } from './reconciliacao.js'
 
 // Porta de entrada comum a qualquer fonte (Telegram, notificação Android, CSV, ...):
@@ -29,6 +29,7 @@ export function prepararEvento(entrada, ctx) {
   const indice = indexarAliases(aliases)
   const { chave, nome } = chaveEstabelecimento(descricao, indice)
   const sugestao = sugerirCategoria({ chave, regras: regrasParaSugestao(regras, compras, indice), categorias })
+  const porNome = sugestao ? null : sugerirPorNome({ chave, categorias })
 
   // Só aceita o que existe no cadastro; o resto vira "falta informar", nunca um chute.
   const cartao = cartoes.find((c) => c.id === entrada.cartao_id)
@@ -40,7 +41,7 @@ export function prepararEvento(entrada, ctx) {
   const forma = cartaoId ? 'cartao' : FORMAS_SEM_CARTAO.includes(entrada.forma_pagamento) ? entrada.forma_pagamento : null
   const infoCat = entrada.categoria && categoriaValida(categorias, entrada.categoria, entrada.subcategoria)
     ? { categoria: entrada.categoria, subcategoria: entrada.subcategoria, regra_id: null, confianca: null }
-    : sugestao
+    : sugestao || porNome
   const pago = cartaoId ? null : typeof entrada.pago === 'boolean' ? entrada.pago : null
 
   const faltando = []
