@@ -17,4 +17,9 @@ describe('contrato do banco', () => {
     const linha = fonte.split('\n').find((l) => l.includes('async buscarCompra'))
     for (const col of ['descricao', 'identificacao', 'valor_total', 'data_compra', 'categoria', 'subcategoria', 'cartao_id']) expect(linha).toContain(col)
   })
+  it('carregarContexto traz categoria e subcategoria das compras (o aprendizado pelo histórico depende delas)', () => {
+    const fonte = readFileSync(new URL('../db.js', import.meta.url), 'utf8')
+    const linha = fonte.split('\n').find((l) => l.includes("todas('compras', 'id,data_compra"))
+    for (const col of ['categoria', 'subcategoria', 'cartao_id', 'descricao']) expect(linha).toContain(col)
+  })
 })
