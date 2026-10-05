@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { sb } from './supabase.js'
-import { hojeSP } from './utils.js'
+import { hojeSP, mesLabel } from './utils.js'
+import { mesesFechadosTocados } from './fechamento.js'
 import { gerarCodigo, hashCodigo } from './pareamento.js'
 
 const POR_PAGINA = 1000 // o Supabase devolve no máximo 1000 linhas por consulta
@@ -17,7 +18,7 @@ async function lerTudo(tabela, ordenar) {
   }
 }
 
-export function useStore() {
+export function useStore(email = null) {
   const [cartoes, setCartoes] = useState([])
   const [compras, setCompras] = useState([])
   const [rendas, setRendas] = useState([])
@@ -38,6 +39,8 @@ export function useStore() {
   const [orcamentosOk, setOrcamentosOk] = useState(true) // false = tabela ainda não criada no banco
   const [comprasPagamentos, setComprasPagamentos] = useState([])
   const [comprasPagamentosOk, setComprasPagamentosOk] = useState(false) // false = migration 14 ainda não rodada
+  const [fechamentos, setFechamentos] = useState([])
+  const [fechamentosOk, setFechamentosOk] = useState(false) // false = migration 15 ainda não rodada
   const [loading, setLoading] = useState(true)
   const [syncState, setSyncState] = useState('ok')
   const [error, setError] = useState(null)
@@ -50,7 +53,7 @@ export function useStore() {
     if (!silent) setLoading(true)
     if (!silent) setError(null)
     try {
-      const [c, co, r, fx, fa, cat, fxp, sa, ps, orc, cfg, ev, rg, al, it, cp] = await Promise.all([
+      const [c, co, r, fx, fa, cat, fxp, sa, ps, orc, cfg, ev, rg, al, it, cp, fe] = await Promise.all([
         sb.from('cartoes').select('*').order('created_at'),
         lerTudo('compras', (q) => q.order('data_compra', { ascending: false }).order('id')),
         sb.from('rendas').select('*').order('mes', { ascending: false }),
@@ -67,6 +70,7 @@ export function useStore() {
         sb.from('estabelecimento_aliases').select('*'),
         sb.from('integracoes_telegram').select('*').order('conectado_em'),
         lerTudo('compras_pagamentos', (q) => q.order('id')),
+        sb.from('fechamentos').select('*').order('mes'),
       ])
       if (minha !== ultimaCarga.current) { if (!silent) setLoading(false); return true } // chegou uma recarga mais nova: esta resposta é velha
       if (c.error) throw c.error
@@ -90,6 +94,9 @@ export function useStore() {
       // Pagamento por parcela é opcional: sem a migration 14 o app usa o "pago" antigo da compra.
       setComprasPagamentosOk(!cp.error)
       setComprasPagamentos(cp.error ? [] : cp.data || [])
+      // Fechamento mensal é opcional: sem a migration 15 o app segue funcionando sem ele.
+      setFechamentosOk(!fe.error)
+      setFechamentos(fe.error ? [] : fe.data || [])
       // Orçamentos são opcionais: se a tabela ainda não existe, o resto do app continua funcionando.
       setOrcamentosOk(!orc.error)
       setOrcamentos(orc.error ? [] : orc.data || [])
@@ -142,21 +149,75 @@ export function useStore() {
     if (r.error) throw r.error
   })
 
+  // AUDITORIA (só eventos financeiros relevantes; falha em gravar não derruba a ação principal)
+  async function registrarAuditoria(reg) {
+    try {
+      const r = await sb.from('auditoria_financeira').insert({ usuario: email, ...reg })
+      if (r.error) console.warn('auditoria: não gravou', r.error.message)
+    } catch (e) {
+      console.warn('auditoria: não gravou', e?.message)
+    }
+  }
+  const listarAuditoria = async (entidade, entidadeId) => {
+    let q = sb.from('auditoria_financeira').select('*').eq('entidade', entidade).order('quando', { ascending: false }).limit(50)
+    if (entidadeId) q = q.eq('entidade_id', entidadeId)
+    const r = await q
+    return r.error ? [] : r.data || []
+  }
+
+  // Alterar compra que tem parcela em mês FECHADO é permitido, mas exige justificativa (vai para a auditoria).
+  function exigirJustificativa(comprasAfetadas) {
+    const fechados = mesesFechadosTocados(comprasAfetadas, cartoes, fechamentos)
+    if (!fechados.length) return { ok: true, meses: [], motivo: null }
+    const lista = fechados.map(mesLabel).join(', ')
+    const motivo = window.prompt(`${lista} já está fechado e esta alteração muda os números dele.\n\nPara continuar, escreva o motivo:`)
+    if (!motivo || motivo.trim().length < 3) return { ok: false, meses: fechados, motivo: null }
+    return { ok: true, meses: fechados, motivo: motivo.trim() }
+  }
+  async function comJustificativa(afetadas, acao, entidadeId, antes, depois, fn) {
+    const j = exigirJustificativa(afetadas)
+    if (!j.ok) return false
+    const ok = await fn()
+    if (ok && j.meses.length) {
+      await registrarAuditoria({ entidade: 'compra', entidade_id: entidadeId, acao, antes, depois, motivo: `${j.motivo} (meses fechados: ${j.meses.join(', ')})` })
+    }
+    return ok
+  }
+
   // COMPRAS
-  const addCompra = (data) => op(async () => {
+  const addCompra = (data) => comJustificativa([data], 'adicionar_em_mes_fechado', data.descricao || '', null, data, () => op(async () => {
     const r = await sb.from('compras').insert(data)
     if (r.error) throw r.error
-  })
-  const updateCompra = (id, data) => op(async () => {
-    const r = await sb.from('compras').update(data).eq('id', id)
+  }))
+  const updateCompra = (id, data) => {
+    const antes = compras.find((c) => c.id === id)
+    return comJustificativa([antes, antes && { ...antes, ...data }], 'editar_em_mes_fechado', id, antes || null, data, () => op(async () => {
+      const r = await sb.from('compras').update(data).eq('id', id)
+      if (r.error) throw r.error
+    }))
+  }
+  const updateComprasLote = (ids, data) => {
+    const antes = compras.filter((c) => ids.includes(c.id))
+    return comJustificativa([...antes, ...antes.map((c) => ({ ...c, ...data }))], 'editar_lote_em_mes_fechado', `${ids.length} compras`, null, { ids, ...data }, () => op(async () => {
+      const r = await sb.from('compras').update(data).in('id', ids)
+      if (r.error) throw r.error
+    }))
+  }
+  const delCompra = (id) => {
+    const antes = compras.find((c) => c.id === id)
+    return comJustificativa([antes], 'apagar_em_mes_fechado', id, antes || null, null, () => op(async () => {
+      const r = await sb.from('compras').delete().eq('id', id)
+      if (r.error) throw r.error
+    }))
+  }
+
+  // FECHAMENTO MENSAL (fechar e reabrir são funções do banco: transação única + auditoria)
+  const fecharMes = (mes, foto) => op(async () => {
+    const r = await sb.rpc('fechar_mes', { p_mes: mes, p_foto: foto, p_usuario: email })
     if (r.error) throw r.error
   })
-  const updateComprasLote = (ids, data) => op(async () => {
-    const r = await sb.from('compras').update(data).in('id', ids)
-    if (r.error) throw r.error
-  })
-  const delCompra = (id) => op(async () => {
-    const r = await sb.from('compras').delete().eq('id', id)
+  const reabrirMes = (mes, motivo) => op(async () => {
+    const r = await sb.rpc('reabrir_mes', { p_mes: mes, p_motivo: motivo, p_usuario: email })
     if (r.error) throw r.error
   })
 
@@ -212,13 +273,18 @@ export function useStore() {
   })
 
   // SALDO (dinheiro disponível — ajuste manual por mês)
-  const definirAjusteSaldo = (mes, ajuste) => op(async () => {
-    const r = await sb.from('saldo_ajustes').upsert(
-      { mes, ajuste, atualizado_em: new Date().toISOString() },
-      { onConflict: 'mes' }
-    )
-    if (r.error) throw r.error
-  })
+  const definirAjusteSaldo = async (mes, ajuste) => {
+    const antes = Number(saldoAjustes.find((a) => a.mes === mes)?.ajuste) || 0
+    const ok = await op(async () => {
+      const r = await sb.from('saldo_ajustes').upsert(
+        { mes, ajuste, atualizado_em: new Date().toISOString() },
+        { onConflict: 'mes' }
+      )
+      if (r.error) throw r.error
+    })
+    if (ok) await registrarAuditoria({ entidade: 'saldo_ajuste', entidade_id: mes, acao: 'ajustar', antes: { ajuste: antes }, depois: { ajuste } })
+    return ok
+  }
 
   // CONFIG (chave/valor genérico)
   const definirConfig = (chave, valor) => op(async () => {
@@ -437,7 +503,7 @@ export function useStore() {
     integracoesTelegram, gerarPareamento, pausarIntegracao, desconectarIntegracao,
     eventos, regras, aliases, inboxOk,
     confirmarEvento, vincularEvento, ignorarEvento, adicionarEventos, adicionarRegras,
-    cartoes, compras, rendas, fixos, faturas, categorias, fixosPagamentos, comprasPagamentos, comprasPagamentosOk, saldoAjustes, pessoas, orcamentos, orcamentosOk, config, configOk,
+    cartoes, compras, rendas, fixos, faturas, categorias, fixosPagamentos, comprasPagamentos, comprasPagamentosOk, fechamentos, fechamentosOk, saldoAjustes, pessoas, orcamentos, orcamentosOk, config, configOk,
     loading, syncState, error, loadAll,
     addCartao, updateCartao, delCartao,
     addCompra, updateCompra, updateComprasLote, delCompra,
@@ -445,6 +511,7 @@ export function useStore() {
     addFixo, updateFixo, delFixo,
     upsertFatura, delFatura,
     marcarFixoPago, marcarParcelaPaga,
+    fecharMes, reabrirMes, listarAuditoria, registrarAuditoria,
     definirAjusteSaldo,
     definirOrcamento, definirOrcamentos, definirConfig,
     addCategoria, delCategoria, renomearCategoria,
