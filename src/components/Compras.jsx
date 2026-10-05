@@ -1,18 +1,35 @@
 import { useState, useMemo } from 'react'
 import { fmt, corPessoa, tituloCompra, subtituloCompra } from '../lib/utils'
 import ModalCompra from './ModalCompra'
+import { rotuloOrigem } from '../lib/origem'
 
 export default function Compras({ store }) {
-  const { compras, cartoes, categorias, pessoas, addCompra, updateCompra, delCompra } = store
+  const { compras, cartoes, categorias, pessoas, addCompra, updateCompra, updateComprasLote, delCompra } = store
   const [modal, setModal] = useState(false)
   const [filtro, setFiltro] = useState('')
   const [filtroPessoa, setFiltroPessoa] = useState('')
+  const [marcadas, setMarcadas] = useState([])
+  const [novaCat, setNovaCat] = useState('')
+  const [novaSub, setNovaSub] = useState('')
 
   const lista = useMemo(() =>
     compras.filter((c) =>
       (!filtro || (c.descricao + c.categoria + c.subcategoria + (c.obs || '') + (c.identificacao || '')).toLowerCase().includes(filtro.toLowerCase())) &&
       (!filtroPessoa || c.pessoa === filtroPessoa)
     ), [compras, filtro, filtroPessoa])
+
+  const idsVisiveis = lista.map((c) => c.id)
+  const todasMarcadas = idsVisiveis.length > 0 && idsVisiveis.every((id) => marcadas.includes(id))
+  const alternar = (id) => setMarcadas((m) => (m.includes(id) ? m.filter((x) => x !== id) : [...m, id]))
+  const subsNova = categorias.find((c) => c.nome === novaCat)?.subcategorias || []
+
+  async function aplicarCategoria() {
+    if (!novaCat || !marcadas.length) return
+    const sub = novaSub || subsNova[0] || 'Outros'
+    if (!confirm(`Mudar ${marcadas.length} compra${marcadas.length > 1 ? 's' : ''} para ${novaCat} › ${sub}?`)) return
+    await updateComprasLote(marcadas, { categoria: novaCat, subcategoria: sub })
+    setMarcadas([]); setNovaCat(''); setNovaSub('')
+  }
 
   function editarIdentificacao(c) {
     const novo = window.prompt(`Identificação de "${c.descricao}" (o que é essa compra). Deixe vazio para remover:`, c.identificacao || '')
@@ -47,6 +64,23 @@ export default function Compras({ store }) {
         </button>
       </div>
 
+      {marcadas.length > 0 && (
+        <div className="toolbar" style={{ background: 'var(--bg2, transparent)' }}>
+          <span style={{ fontSize: 13 }}>{marcadas.length} selecionada{marcadas.length > 1 ? 's' : ''}</span>
+          <select value={novaCat} onChange={(e) => { setNovaCat(e.target.value); setNovaSub('') }} style={{ width: 170 }}>
+            <option value="">Nova categoria…</option>
+            {categorias.map((c) => <option key={c.id} value={c.nome}>{c.nome}</option>)}
+          </select>
+          {novaCat && (
+            <select value={novaSub || subsNova[0] || ''} onChange={(e) => setNovaSub(e.target.value)} style={{ width: 170 }}>
+              {subsNova.length ? subsNova.map((x) => <option key={x}>{x}</option>) : <option>Outros</option>}
+            </select>
+          )}
+          <button className="btn btn-primary" disabled={!novaCat} onClick={aplicarCategoria}>Aplicar</button>
+          <button className="btn" onClick={() => setMarcadas([])}>Limpar</button>
+        </div>
+      )}
+
       <div className="card">
         {lista.length === 0 ? (
           <div className="empty">Nenhuma compra encontrada.{'\n'}Clique em "+ Nova compra" para começar.</div>
@@ -54,6 +88,10 @@ export default function Compras({ store }) {
           <table>
             <thead>
               <tr>
+                <th style={{ width: 28 }}>
+                  <input type="checkbox" checked={todasMarcadas} title="Marcar todas as que aparecem"
+                    onChange={() => setMarcadas(todasMarcadas ? [] : idsVisiveis)} />
+                </th>
                 <th>Data</th>
                 <th>Descrição</th>
                 <th>Pessoa</th>
@@ -70,6 +108,7 @@ export default function Compras({ store }) {
                 const dd = c.data_compra.slice(0, 10).split('-')
                 return (
                   <tr key={c.id}>
+                    <td><input type="checkbox" checked={marcadas.includes(c.id)} onChange={() => alternar(c.id)} /></td>
                     <td style={{ fontFamily: 'DM Mono', fontSize: 12, color: 'var(--text3)', whiteSpace: 'nowrap' }}>
                       {dd[2]}/{dd[1]}/{dd[0].slice(2)}
                     </td>
@@ -84,6 +123,7 @@ export default function Compras({ store }) {
                       </div>
                       {subtituloCompra(c) && <div style={{ fontSize: 11, color: 'var(--text3)' }}>no cartão: {subtituloCompra(c)}</div>}
                       {c.obs && <div style={{ fontSize: 11, color: 'var(--text3)' }}>{c.obs}</div>}
+                      {rotuloOrigem(c.origem) && <div style={{ fontSize: 11, color: 'var(--text3)' }}>{rotuloOrigem(c.origem)}</div>}
                     </td>
                     <td>
                       <span className={`badge badge-${corPessoa(pessoas, c.pessoa)}`}>
