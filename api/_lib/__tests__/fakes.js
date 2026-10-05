@@ -76,6 +76,7 @@ export function criarFakeDb({ comprasIniciais = [], regras = REGRAS } = {}) {
       s.vinculos.push({ id, compraId, por })
     },
     async definirResumoSemanal(uid, valor) { s.integracoes.get(uid).resumo_semanal = !!valor },
+    async definirAutoLancar(uid, valor) { s.integracoes.get(uid).auto_lancar = !!valor },
     async destinatariosResumo() { return [...s.integracoes.values()].filter((i) => i.ativo && i.resumo_semanal) },
     async dadosTeto(categoria) {
       return { orcamentos: s.orcamentos || [], fixos: s.fixos || [], compras: s.compras.filter((c) => c.categoria === categoria) }
