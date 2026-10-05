@@ -75,6 +75,8 @@ export function criarFakeDb({ comprasIniciais = [], regras = REGRAS } = {}) {
       Object.assign(e, { status: 'vinculado', compra_id: compraId })
       s.vinculos.push({ id, compraId, por })
     },
+    async definirResumoSemanal(uid, valor) { s.integracoes.get(uid).resumo_semanal = !!valor },
+    async destinatariosResumo() { return [...s.integracoes.values()].filter((i) => i.ativo && i.resumo_semanal) },
     async comprasDeCartao() { return s.compras.filter((c) => c.cartao_id) },
     async comprasPeriodo(de, ate) { return s.compras.filter((c) => c.data_compra >= de && c.data_compra <= ate) },
     async ultimaConfirmada(uid) {

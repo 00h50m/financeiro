@@ -99,6 +99,13 @@ export function criarDb({ url, serviceKey }) {
       return todas('compras', 'data_compra,valor_total,categoria,subcategoria,descricao,identificacao,pessoa',
         (q) => q.gte('data_compra', de).lte('data_compra', ate).order('id'))
     },
+    // ---- resumo semanal (precisa do inbox/11) ----
+    async definirResumoSemanal(uid, valor) {
+      dados(await sb.from('integracoes_telegram').update({ resumo_semanal: !!valor }).eq('telegram_user_id', uid))
+    },
+    async destinatariosResumo() {
+      return dados(await sb.from('integracoes_telegram').select('telegram_user_id,chat_id,pessoa_id').eq('ativo', true).eq('resumo_semanal', true))
+    },
     // ---- desfazer ----
     async ultimaConfirmada(uid) {
       const r = dados(await sb.from('eventos_financeiros').select('*').eq('origem', 'telegram').eq('status', 'confirmado')

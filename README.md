@@ -76,6 +76,10 @@ que não lê fotos. Só quem está pareado gasta a IA. Datas futuras ("amanhã")
 transcreve recados de voz de até 1 minuto (Whisper Large v3 Turbo, em português) e segue como se o texto tivesse sido
 digitado: mostra o que entendeu (`🎤 Entendi: ...`) e o resumo com **Confirmar**. Sem a chave, o bot avisa que não entende áudio.
 
+**Resumo automático de domingo (opcional):** rode `inbox/11_resumo_semanal.sql` no Supabase e cadastre `CRON_SECRET` na Vercel
+(qualquer texto longo e secreto, em todos os ambientes; a Vercel o manda sozinha no cabeçalho do agendamento de `vercel.json`).
+Cada pessoa liga com `/avisos on` e desliga com `/avisos off`; o envio sai todo domingo às 19h (horário de Brasília) por `api/cron-resumo.js`.
+
 Código do bot: `api/telegram.js` (webhook), `api/telegram-admin.js` (tela Automações) e `api/_lib/` (lógica e `leitorNota.js`, testada
 sem rede). Segurança: segredo do webhook conferido em tempo constante, `update_id` processado uma vez, limite de
 mensagens por minuto, só conversa privada.
