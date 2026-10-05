@@ -97,6 +97,16 @@ export function criarDb({ url, serviceKey }) {
         .order('resolvido_em', { ascending: false }).limit(1))
       return r[0] || null
     },
+    async buscarEditandoUltima(uid) {
+      const r = dados(await sb.from('eventos_financeiros').select('*').eq('origem', 'telegram').eq('status', 'confirmado')
+        .eq('contexto->>telegram_user_id', String(uid)).not('contexto->>esperando_ultima', 'is', null)
+        .order('resolvido_em', { ascending: false }).limit(1))
+      return r[0] || null
+    },
+    // Só corrige compra que o próprio bot criou (origem telegram); devolve se alterou.
+    async atualizarCompraDoBot(id, patch) {
+      return dados(await sb.from('compras').update(patch).eq('id', id).eq('origem', 'telegram').select('id')).length > 0
+    },
     // Só apaga compra que o próprio bot criou (origem telegram); devolve se apagou.
     async apagarCompraDoBot(id) {
       return dados(await sb.from('compras').delete().eq('id', id).eq('origem', 'telegram').select('id')).length > 0
