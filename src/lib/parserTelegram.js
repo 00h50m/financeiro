@@ -50,7 +50,7 @@ export function parseData(texto, hoje) {
 
 // ctx: { cartoes, pessoas, hoje, remetente_pessoa_id }
 export function interpretarMensagem(entrada, ctx) {
-  const { cartoes = [], pessoas = [], hoje, remetente_pessoa_id = null } = ctx
+  const { cartoes = [], pessoas = [], hoje, remetente_pessoa_id = null, nomeCompleto = false } = ctx
   const texto = String(entrada || '').normalize('NFC')
   const n = dobrar(texto)
   const usado = new Array(texto.length).fill(false) // posições já "consumidas" por algum campo
@@ -131,7 +131,7 @@ export function interpretarMensagem(entrada, ctx) {
 
   // Cartão: nome completo (2) ou só a primeira palavra do nome (1). Se vários cartões batem
   // ("Nubank Gi" e "Nubank Sabi" para "nubank"), tenta desempatar pelo titular.
-  const encontrados = cartoes.map((c) => {
+  const todos = cartoes.map((c) => {
     const toks = dobrar(c.nome).split(/[^a-z0-9]+/).filter(Boolean)
     if (!toks.length) return null
     const tentativa = (frase) => {
@@ -145,6 +145,8 @@ export function interpretarMensagem(entrada, ctx) {
     const m = cheio || base
     return m ? { c, peso: cheio ? 2 : 1, ini: m.index, fim: m.index + m[0].length } : null
   }).filter(Boolean)
+  // Por voz só vale o nome completo do cartão: "mercado" não pode virar o cartão "Mercado Pago".
+  const encontrados = nomeCompleto ? todos.filter((e) => e.peso === 2) : todos
   if (encontrados.length) {
     const topo = Math.max(...encontrados.map((e) => e.peso))
     let cand = encontrados.filter((e) => e.peso === topo)
