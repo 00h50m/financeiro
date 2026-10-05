@@ -10,11 +10,20 @@ export const podeAutoConfirmar = (regra) => !!regra && !!regra.auto_confirmar &&
 
 
 // Lançar sozinho (só para quem ligou /auto): tudo conhecido pelo histórico, nada adivinhado, valor pequeno e sem compra parecida.
-export const CONFIANCA_LANCAR_SOZINHO = 0.95
+export const CONFIANCA_LANCAR_SOZINHO = 0.9
 export const VALOR_MAX_LANCAR_SOZINHO = 300
-export const seguroLancarSozinho = (ev, { cartaoSugerido = false, ambiguo = false } = {}) =>
-  ev.status === 'pendente' && (ev.faltando || []).length === 0 && ev.match_nivel === 'nenhum' && !cartaoSugerido && !ambiguo &&
-  Number(ev.confianca_categoria) >= CONFIANCA_LANCAR_SOZINHO && Number(ev.valor) <= VALOR_MAX_LANCAR_SOZINHO
+// Devolve o motivo (texto simples) de ainda precisar do Confirmar, ou null quando pode lançar sozinho.
+export const motivoNaoLancarSozinho = (ev, { cartaoSugerido = false, ambiguo = false } = {}) => {
+  if (ev.status !== 'pendente' || (ev.faltando || []).length) return 'ainda falta uma informação'
+  if (ambiguo) return 'não tenho certeza do cartão ou da pessoa'
+  if (cartaoSugerido) return 'o cartão foi sugerido pelo histórico (diga o cartão na mensagem)'
+  if (ev.match_nivel !== 'nenhum') return 'já existe uma compra parecida no Finapp'
+  if (ev.confianca_categoria == null) return 'não tenho histórico suficiente desse lugar (a categoria veio só pelo nome)'
+  if (Number(ev.confianca_categoria) < CONFIANCA_LANCAR_SOZINHO) return `ainda não tenho certeza da categoria desse lugar (${Math.round(Number(ev.confianca_categoria) * 100)}%, preciso de ${Math.round(CONFIANCA_LANCAR_SOZINHO * 100)}%)`
+  if (Number(ev.valor) > VALOR_MAX_LANCAR_SOZINHO) return `o valor passa de R$ ${VALOR_MAX_LANCAR_SOZINHO}`
+  return null
+}
+export const seguroLancarSozinho = (ev, o) => motivoNaoLancarSozinho(ev, o) === null
 
 export const categoriaValida = (categorias, categoria, subcategoria) =>
   categorias.some((c) => c.nome === categoria && (c.subcategorias || []).includes(subcategoria))

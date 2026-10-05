@@ -7,7 +7,7 @@ import { interpretarMensagem, parseValor, parseData } from '../../src/lib/parser
 import { periodoDe, interpretarPergunta, filtroDe, calcularResumo, formatarResumo } from '../../src/lib/resumo.js'
 import { faturasAbertas, filtrarCartoes, formatarFaturas, proximasFaturas, formatarProximas } from '../../src/lib/fatura.js'
 import { avisoTeto } from '../../src/lib/alertaTeto.js'
-import { seguroLancarSozinho } from '../../src/lib/categorizacao.js'
+import { motivoNaoLancarSozinho } from '../../src/lib/categorizacao.js'
 import { prepararEvento } from '../../src/lib/evento.js'
 import { hashCodigo, normalizarCodigo } from '../../src/lib/pareamento.js'
 import { fmt, hojeSP } from '../../src/lib/utils.js'
@@ -334,7 +334,8 @@ async function registrarLeitura(c, msg, texto, lido, base, { confianca = 0.9, av
   })
   if (!ABERTOS.includes(ev.status)) { await tg.enviar(chat.id, 'Esse lançamento já foi resolvido.'); return { acao: 'repetido' } }
   if (aviso) await tg.enviar(chat.id, aviso)
-  if (permitirAuto && integ.auto_lancar && seguroLancarSozinho(ev, { cartaoSugerido: sugeridos.cartao, ambiguo: lido.cartaoAmbiguo || lido.pessoaAmbigua })) {
+  const motivoAuto = permitirAuto && integ.auto_lancar ? motivoNaoLancarSozinho(ev, { cartaoSugerido: sugeridos.cartao, ambiguo: lido.cartaoAmbiguo || lido.pessoaAmbigua }) : null
+  if (permitirAuto && integ.auto_lancar && motivoAuto === null) {
     try {
       const compraId = await db.confirmarEvento(ev.id, {}, `telegram:auto:${nomeCurto(base.pessoas.find((p) => p.id === ev.pessoa_id))}`)
       await tg.enviar(chat.id, `⚡ Lançado sozinho: ${ev.descricao_original} — ${fmt(ev.valor)} (${ev.categoria} › ${ev.subcategoria}). Errou? Use /ultima para editar ou apagar.`)
@@ -344,6 +345,9 @@ async function registrarLeitura(c, msg, texto, lido, base, { confianca = 0.9, av
       console.error('bot: lançamento automático falhou', e?.message) // cai no Confirmar normal abaixo
     }
   }
+  // Com /auto ligado, quando o resumo vai pedir Confirmar, diz por que não lançou sozinho (só se não estiver perguntando outra coisa).
+  const vaiMostrarResumo = !(ev.faltando || []).length && !(ev.match_nivel !== 'nenhum' && ev.match_compra_id)
+  if (motivoAuto && vaiMostrarResumo) await tg.enviar(chat.id, `⚡ Não lancei sozinho: ${motivoAuto}.`)
   await avancar(c, ev, base)
   return { acao: 'evento_criado', evento_id: ev.id }
 }
