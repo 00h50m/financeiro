@@ -18,6 +18,9 @@ import Automacoes from './components/Automacoes'
 import Backup from './components/Backup'
 import Orcamento from './components/Orcamento'
 import Reserva from './components/Reserva'
+import Regras from './components/Regras'
+import Calendario from './components/Calendario'
+import Busca from './components/Busca'
 import Evolucao from './components/Evolucao'
 import Metas from './components/Metas'
 import Fechamento from './components/Fechamento'
@@ -45,6 +48,9 @@ const ICONES = {
   recolher: 'M15 18l-6-6 6-6',
   reserva: 'M12 2l8 3v6c0 5-3.4 9.3-8 11-4.6-1.7-8-6-8-11V5z M9 12l2 2 4-4',
   orcamento: 'M12 2a10 10 0 1 0 10 10H12z M14 2.5V10h7.5A10 10 0 0 0 14 2.5z',
+  busca: 'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z M21 21l-4.35-4.35',
+  calendario: 'M19 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z M16 2v4 M8 2v4 M3 10h18 M8 14h.01 M12 14h.01 M16 14h.01 M8 18h.01 M12 18h.01',
+  regras: 'M12 20h9 M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z',
   evolucao: 'M3 3v18h18 M7 14l4-4 4 4 5-6',
   metas: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z M12 18a6 6 0 1 0 0-12 6 6 0 0 0 0 12z M12 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4z',
   fechamento: 'M19 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z M16 2v4 M8 2v4 M3 10h18 M9 16l2 2 4-4',
@@ -63,7 +69,11 @@ function Icone({ nome, size = 18 }) {
 const GRUPOS = [
   {
     titulo: 'Visão geral',
-    abas: [{ id: 'dashboard', label: 'Dashboard', Component: Dashboard }],
+    abas: [
+      { id: 'dashboard', label: 'Dashboard', Component: Dashboard },
+      { id: 'busca', label: 'Buscar', Component: Busca },
+      { id: 'calendario', label: 'Calendário', Component: Calendario },
+    ],
   },
   {
     titulo: 'Dia a dia',
@@ -95,6 +105,7 @@ const GRUPOS = [
       { id: 'cartoes', label: 'Cartões', Component: Cartoes },
       { id: 'categorias', label: 'Categorias', Component: Categorias },
       { id: 'pessoas', label: 'Pessoas', Component: Pessoas },
+      { id: 'regras', label: 'Regras aprendidas', Component: Regras },
       { id: 'automacoes', label: 'Automações', Component: Automacoes },
       { id: 'backup', label: 'Backup', Component: Backup },
     ],

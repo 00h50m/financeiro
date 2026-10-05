@@ -517,6 +517,24 @@ export function useStore(email = null) {
     if (r.error) throw r.error
   })
 
+  // REGRAS APRENDIDAS: editar ou esquecer vale daqui para frente; compras e eventos antigos não mudam.
+  const atualizarRegra = async (regra, patch) => {
+    const ok = await op(async () => {
+      const r = await sb.from('regras_categorizacao').update(patch).eq('id', regra.id)
+      if (r.error) throw r.error
+    })
+    if (ok) await registrarAuditoria({ entidade: 'regra', entidade_id: regra.id, acao: 'editar', antes: { categoria: regra.categoria, subcategoria: regra.subcategoria }, depois: patch })
+    return ok
+  }
+  const esquecerRegra = async (regra) => {
+    const ok = await op(async () => {
+      const r = await sb.from('regras_categorizacao').delete().eq('id', regra.id)
+      if (r.error) throw r.error
+    })
+    if (ok) await registrarAuditoria({ entidade: 'regra', entidade_id: regra.id, acao: 'esquecer', antes: regra })
+    return ok
+  }
+
   // AUTOMAÇÕES — TELEGRAM
   // O código nasce aqui; no banco vai só o hash. Vale 10 minutos e uma única vez.
   async function gerarPareamento(tipo, pessoa_id) {
@@ -548,6 +566,7 @@ export function useStore(email = null) {
     marcarFixoPago, marcarParcelaPaga,
     fecharMes, reabrirMes, listarAuditoria, registrarAuditoria,
     definirAjusteSaldo,
+    atualizarRegra, esquecerRegra,
     addMeta, updateMeta, registrarMovimentoMeta, delMovimentoMeta,
     definirOrcamento, definirOrcamentos, definirConfig,
     addCategoria, delCategoria, renomearCategoria,
