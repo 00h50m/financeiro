@@ -83,4 +83,11 @@ describe('/ultima: editar', () => {
     expect((await rodar(clicar(GI, tg, 'Inter'))).acao).toBe('compra_corrigida')
     expect(db.s.compras[0].cartao_id).toBe('c-in')
   })
+  it('mostra categoria e subcategoria de verdade (nunca "undefined")', async () => {
+    await rodar(msg(GI, 'mercado 20 nubank'))
+    await rodar(clicar(GI, tg, 'Confirmar'))
+    await rodar(msg(GI, '/ultima'))
+    expect(tg.ultima().text).toContain('Alimentação > Mercado')
+    expect(tg.ultima().text).not.toContain('undefined')
+  })
 })

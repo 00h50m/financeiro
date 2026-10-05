@@ -45,7 +45,13 @@ export function criarFakeDb({ comprasIniciais = [], regras = REGRAS } = {}) {
     async carregarContexto() {
       return { categorias, cartoes, pessoas, regras, aliases: [], compras: s.compras, eventos: s.eventos.filter((e) => e.compra_id) }
     },
-    async buscarCompra(id) { return s.compras.find((c) => c.id === id) || null },
+    // Devolve só as colunas que o banco de verdade seleciona (se o bot usar outra, o teste enxerga undefined como em produção).
+    async buscarCompra(id) {
+      const c = s.compras.find((x) => x.id === id)
+      if (!c) return null
+      const { id: i, descricao, identificacao, valor_total, data_compra, categoria, subcategoria, cartao_id } = c
+      return { id: i, descricao, identificacao, valor_total, data_compra, categoria, subcategoria, cartao_id }
+    },
     async contarPendentes() { return s.eventos.filter(abertos).length },
     async inserirEvento(row) {
       const ja = s.eventos.find((e) => e.origem === row.origem && e.id_externo === row.id_externo)
