@@ -90,6 +90,10 @@ export function criarDb({ url, serviceKey }) {
     async vincularEvento(id, compraId, por) {
       dados(await sb.rpc('vincular_evento', { p_evento: id, p_compra: compraId, p_resolvido_por: por }))
     },
+    async comprasPeriodo(de, ate) {
+      return todas('compras', 'data_compra,valor_total,categoria,subcategoria,descricao,identificacao,pessoa',
+        (q) => q.gte('data_compra', de).lte('data_compra', ate).order('id'))
+    },
     // ---- desfazer ----
     async ultimaConfirmada(uid) {
       const r = dados(await sb.from('eventos_financeiros').select('*').eq('origem', 'telegram').eq('status', 'confirmado')
