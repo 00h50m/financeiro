@@ -64,7 +64,7 @@ export function criarDb({ url, serviceKey }) {
       ])
       return { categorias, cartoes, pessoas, regras, aliases, compras, eventos }
     },
-    async buscarCompra(id) { return dados(await sb.from('compras').select('id,descricao,identificacao,valor_total,data_compra').eq('id', id).maybeSingle()) },
+    async buscarCompra(id) { return dados(await sb.from('compras').select('id,descricao,identificacao,valor_total,data_compra,categoria,subcategoria,cartao_id').eq('id', id).maybeSingle()) },
     // Compras no cartão dos últimos 4 anos (parcelas vão até 48x), para somar a fatura aberta.
     async comprasDeCartao(desdeISO) {
       return todas('compras', 'data_compra,valor_total,parcelas,cartao_id',

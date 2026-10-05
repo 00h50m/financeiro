@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'node:fs'
 import { criarDb } from '../db.js'
 import { criarFakeDb } from './fakes.js'
 
@@ -10,5 +11,10 @@ describe('contrato do banco', () => {
     const falso = criarFakeDb()
     const faltando = Object.keys(falso).filter((k) => typeof falso[k] === 'function' && typeof real[k] !== 'function')
     expect(faltando).toEqual([])
+  })
+  it('buscarCompra do banco de verdade traz as colunas que o bot mostra (categoria, subcategoria, cartão)', () => {
+    const fonte = readFileSync(new URL('../db.js', import.meta.url), 'utf8')
+    const linha = fonte.split('\n').find((l) => l.includes('async buscarCompra'))
+    for (const col of ['descricao', 'identificacao', 'valor_total', 'data_compra', 'categoria', 'subcategoria', 'cartao_id']) expect(linha).toContain(col)
   })
 })
