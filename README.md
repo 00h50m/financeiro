@@ -80,6 +80,8 @@ digitado: mostra o que entendeu (`🎤 Entendi: ...`) e o resumo com **Confirmar
 (qualquer texto longo e secreto, em todos os ambientes; a Vercel o manda sozinha no cabeçalho do agendamento de `vercel.json`).
 Cada pessoa liga com `/avisos on` e desliga com `/avisos off`; o envio sai todo domingo às 19h (horário de Brasília) por `api/cron-resumo.js`.
 
+**Próximas faturas:** `/proximas` (ou "quais as próximas faturas do nubank?") lista mês a mês o que já está comprometido em parcelas.
+
 **Aviso de teto:** se a categoria tem teto na tela Orçamento, ao confirmar uma compra o bot avisa quando ela passa de 80% ou estoura o teto do mês (só quando essa compra mudou a situação).
 
 Código do bot: `api/telegram.js` (webhook), `api/telegram-admin.js` (tela Automações) e `api/_lib/` (lógica e `leitorNota.js`, testada
