@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { fmt, fmtK, mesLabel, nowYM, addMonths, totalRenda, tituloCompra, subtituloCompra, hojeSP } from '../lib/utils'
+import { mesFechado } from '../lib/fechamento'
 import { resumoDoMes, sobraAnterior, lerUsarSaldoAnterior, gravarUsarSaldoAnterior } from '../lib/financeiro'
 
 export default function Pagamentos({ store }) {
@@ -86,6 +87,13 @@ export default function Pagamentos({ store }) {
           </button>
         )}
       </div>
+
+      {mesFechado(store.fechamentos, mes) && (
+        <div className="alert alert-amber" style={{ marginBottom: 12 }}>
+          <strong>{mesLabel(mes)} está fechado.</strong> Marcar contas como pagas aqui não muda a foto do fechamento (os números dele ficam congelados),
+          mas as telas ao vivo passam a divergir dela. Para corrigir o fechamento de verdade, reabra o mês na tela Fechamento (com motivo).
+        </div>
+      )}
 
       <div className="metric-grid">
         <div className="metric">

@@ -50,74 +50,83 @@ export function useStore(email = null) {
 
   const ultimaCarga = useRef(0)
 
+  // Recarga seletiva: cada ação diz quais grupos de dados mudaram (`quais`); sem `quais`, recarrega tudo.
+  // Grupos: cartoes, compras, rendas, fixos, faturas, categorias, fixosPagamentos, saldoAjustes, pessoas, orcamentos,
+  // config, inbox (eventos + regras + aliases + integrações), comprasPagamentos, fechamentos, metas (metas + movimentos).
+  // Cargas que se atropelam somam os grupos: a mais nova sempre cobre o que as anteriores pediram.
+  const pendentes = useRef(new Set())
+  const pendenteTudo = useRef(false)
+
   // Devolve true se carregou. Recarga silenciosa que falha mantém os dados antigos na tela (não derruba o app).
-  async function loadAll({ silent = false } = {}) {
+  async function loadAll({ silent = false, quais = null } = {}) {
     const minha = ++ultimaCarga.current
+    if (!quais) pendenteTudo.current = true
+    else quais.forEach((g) => pendentes.current.add(g))
+    const efetivo = pendenteTudo.current ? null : [...pendentes.current]
+    const quer = (g) => !efetivo || efetivo.includes(g)
+    const nada = Promise.resolve(null)
     if (!silent) setLoading(true)
     if (!silent) setError(null)
     try {
       const [c, co, r, fx, fa, cat, fxp, sa, ps, orc, cfg, ev, rg, al, it, cp, fe, me, mm] = await Promise.all([
-        sb.from('cartoes').select('*').order('created_at'),
-        lerTudo('compras', (q) => q.order('data_compra', { ascending: false }).order('id')),
-        sb.from('rendas').select('*').order('mes', { ascending: false }),
-        sb.from('fixos').select('*').order('created_at'),
-        lerTudo('faturas', (q) => q.order('mes', { ascending: false }).order('id')),
-        sb.from('categorias').select('*').order('nome'),
-        lerTudo('fixos_pagamentos', (q) => q.order('id')),
-        sb.from('saldo_ajustes').select('*'),
-        sb.from('pessoas').select('*').order('created_at'),
-        sb.from('orcamentos').select('*'),
-        sb.from('config').select('*'),
-        lerTudo('eventos_financeiros', (q) => q.order('capturado_em', { ascending: false }).order('id')),
-        sb.from('regras_categorizacao').select('*'),
-        sb.from('estabelecimento_aliases').select('*'),
-        sb.from('integracoes_telegram').select('*').order('conectado_em'),
-        lerTudo('compras_pagamentos', (q) => q.order('id')),
-        sb.from('fechamentos').select('*').order('mes'),
-        sb.from('metas').select('*').order('prioridade').order('criada_em'),
-        lerTudo('metas_movimentos', (q) => q.order('data', { ascending: false }).order('criado_em', { ascending: false })),
+        quer('cartoes') ? sb.from('cartoes').select('*').order('created_at') : nada,
+        quer('compras') ? lerTudo('compras', (q) => q.order('data_compra', { ascending: false }).order('id')) : nada,
+        quer('rendas') ? sb.from('rendas').select('*').order('mes', { ascending: false }) : nada,
+        quer('fixos') ? sb.from('fixos').select('*').order('created_at') : nada,
+        quer('faturas') ? lerTudo('faturas', (q) => q.order('mes', { ascending: false }).order('id')) : nada,
+        quer('categorias') ? sb.from('categorias').select('*').order('nome') : nada,
+        quer('fixosPagamentos') ? lerTudo('fixos_pagamentos', (q) => q.order('id')) : nada,
+        quer('saldoAjustes') ? sb.from('saldo_ajustes').select('*') : nada,
+        quer('pessoas') ? sb.from('pessoas').select('*').order('created_at') : nada,
+        quer('orcamentos') ? sb.from('orcamentos').select('*') : nada,
+        quer('config') ? sb.from('config').select('*') : nada,
+        quer('inbox') ? lerTudo('eventos_financeiros', (q) => q.order('capturado_em', { ascending: false }).order('id')) : nada,
+        quer('inbox') ? sb.from('regras_categorizacao').select('*') : nada,
+        quer('inbox') ? sb.from('estabelecimento_aliases').select('*') : nada,
+        quer('inbox') ? sb.from('integracoes_telegram').select('*').order('conectado_em') : nada,
+        quer('comprasPagamentos') ? lerTudo('compras_pagamentos', (q) => q.order('id')) : nada,
+        quer('fechamentos') ? sb.from('fechamentos').select('*').order('mes') : nada,
+        quer('metas') ? sb.from('metas').select('*').order('prioridade').order('criada_em') : nada,
+        quer('metas') ? lerTudo('metas_movimentos', (q) => q.order('data', { ascending: false }).order('criado_em', { ascending: false })) : nada,
       ])
-      if (minha !== ultimaCarga.current) { if (!silent) setLoading(false); return true } // chegou uma recarga mais nova: esta resposta é velha
-      if (c.error) throw c.error
-      if (co.error) throw co.error
-      if (r.error) throw r.error
-      if (fx.error) throw fx.error
-      if (fa.error) throw fa.error
-      if (cat.error) throw cat.error
-      if (fxp.error) throw fxp.error
-      if (sa.error) throw sa.error
-      if (ps.error) throw ps.error
-      setCartoes(c.data || [])
-      setCompras(co.data || [])
-      setRendas(r.data || [])
-      setFixos(fx.data || [])
-      setFaturas(fa.data || [])
-      setCategorias(cat.data || [])
-      setFixosPagamentos(fxp.data || [])
-      setSaldoAjustes(sa.data || [])
-      setPessoas(ps.data || [])
+      if (minha !== ultimaCarga.current) { if (!silent) setLoading(false); return true } // chegou uma recarga mais nova: ela cobre os grupos desta
+      pendentes.current = new Set()
+      pendenteTudo.current = false
+      for (const x of [c, co, r, fx, fa, cat, fxp, sa, ps]) if (x?.error) throw x.error
+      if (c) setCartoes(c.data || [])
+      if (co) setCompras(co.data || [])
+      if (r) setRendas(r.data || [])
+      if (fx) setFixos(fx.data || [])
+      if (fa) setFaturas(fa.data || [])
+      if (cat) setCategorias(cat.data || [])
+      if (fxp) setFixosPagamentos(fxp.data || [])
+      if (sa) setSaldoAjustes(sa.data || [])
+      if (ps) setPessoas(ps.data || [])
       // Pagamento por parcela é opcional: sem a migration 14 o app usa o "pago" antigo da compra.
-      setComprasPagamentosOk(!cp.error)
-      setComprasPagamentos(cp.error ? [] : cp.data || [])
+      if (cp) { setComprasPagamentosOk(!cp.error); setComprasPagamentos(cp.error ? [] : cp.data || []) }
       // Fechamento mensal é opcional: sem a migration 15 o app segue funcionando sem ele.
-      setFechamentosOk(!fe.error)
-      setFechamentos(fe.error ? [] : fe.data || [])
+      if (fe) { setFechamentosOk(!fe.error); setFechamentos(fe.error ? [] : fe.data || []) }
       // Metas são opcionais: sem a migration 16 a Reserva segue usando a tabela config.
-      setMetasOk(!me.error && !mm.error)
-      setMetas(me.error || mm.error ? [] : me.data || [])
-      setMetasMovimentos(me.error || mm.error ? [] : mm.data || [])
+      if (me && mm) {
+        setMetasOk(!me.error && !mm.error)
+        setMetas(me.error || mm.error ? [] : me.data || [])
+        setMetasMovimentos(me.error || mm.error ? [] : mm.data || [])
+      }
       // Orçamentos são opcionais: se a tabela ainda não existe, o resto do app continua funcionando.
-      setOrcamentosOk(!orc.error)
-      setOrcamentos(orc.error ? [] : orc.data || [])
-      setConfigOk(!cfg.error)
-      setConfig(cfg.error ? {} : Object.fromEntries((cfg.data || []).map((x) => [x.chave, x.valor])))
+      if (orc) { setOrcamentosOk(!orc.error); setOrcamentos(orc.error ? [] : orc.data || []) }
+      if (cfg) {
+        setConfigOk(!cfg.error)
+        setConfig(cfg.error ? {} : Object.fromEntries((cfg.data || []).map((x) => [x.chave, x.valor])))
+      }
       // Inbox é opcional: sem a migration (inbox/*.sql) o resto do app continua funcionando.
-      const inboxPronto = !ev.error && !rg.error && !al.error
-      setInboxOk(inboxPronto)
-      setEventos(inboxPronto ? ev.data || [] : [])
-      setRegras(inboxPronto ? rg.data || [] : [])
-      setAliases(inboxPronto ? al.data || [] : [])
-      setIntegracoesTelegram(inboxPronto && !it.error ? it.data || [] : [])
+      if (ev && rg && al) {
+        const inboxPronto = !ev.error && !rg.error && !al.error
+        setInboxOk(inboxPronto)
+        setEventos(inboxPronto ? ev.data || [] : [])
+        setRegras(inboxPronto ? rg.data || [] : [])
+        setAliases(inboxPronto ? al.data || [] : [])
+        setIntegracoesTelegram(inboxPronto && it && !it.error ? it.data || [] : [])
+      }
     } catch (e) {
       if (!silent) setError(e.message || 'Erro ao conectar com o banco')
       if (!silent) setLoading(false)
@@ -131,7 +140,8 @@ export function useStore(email = null) {
 
   // Devolve true se gravou; false se deu erro (já avisado na tela). Quem chama só fecha o formulário ou
   // segue para o próximo passo quando for true, para nunca perder o que a pessoa digitou.
-  async function op(fn) {
+  // `quais`: grupos que a ação alterou (recarga seletiva); sem ele, recarrega tudo (mais seguro quando há cascata).
+  async function op(fn, quais = null) {
     setSyncState('syncing')
     try {
       await fn()
@@ -140,7 +150,7 @@ export function useStore(email = null) {
       alert('Erro: ' + (e.message || e))
       return false
     }
-    setSyncState((await loadAll({ silent: true })) ? 'ok' : 'error')
+    setSyncState((await loadAll({ silent: true, quais })) ? 'ok' : 'error')
     return true
   }
 
@@ -197,58 +207,58 @@ export function useStore(email = null) {
   const addCompra = (data) => comJustificativa([data], 'adicionar_em_mes_fechado', data.descricao || '', null, data, () => op(async () => {
     const r = await sb.from('compras').insert(data)
     if (r.error) throw r.error
-  }))
+  }, ['compras']))
   const updateCompra = (id, data) => {
     const antes = compras.find((c) => c.id === id)
     return comJustificativa([antes, antes && { ...antes, ...data }], 'editar_em_mes_fechado', id, antes || null, data, () => op(async () => {
       const r = await sb.from('compras').update(data).eq('id', id)
       if (r.error) throw r.error
-    }))
+    }, ['compras']))
   }
   const updateComprasLote = (ids, data) => {
     const antes = compras.filter((c) => ids.includes(c.id))
     return comJustificativa([...antes, ...antes.map((c) => ({ ...c, ...data }))], 'editar_lote_em_mes_fechado', `${ids.length} compras`, null, { ids, ...data }, () => op(async () => {
       const r = await sb.from('compras').update(data).in('id', ids)
       if (r.error) throw r.error
-    }))
+    }, ['compras']))
   }
   const delCompra = (id) => {
     const antes = compras.find((c) => c.id === id)
     return comJustificativa([antes], 'apagar_em_mes_fechado', id, antes || null, null, () => op(async () => {
       const r = await sb.from('compras').delete().eq('id', id)
       if (r.error) throw r.error
-    }))
+    }, ['compras', 'comprasPagamentos', 'inbox']))
   }
 
   // FECHAMENTO MENSAL (fechar e reabrir são funções do banco: transação única + auditoria)
   const fecharMes = (mes, foto) => op(async () => {
     const r = await sb.rpc('fechar_mes', { p_mes: mes, p_foto: foto, p_usuario: email })
     if (r.error) throw r.error
-  })
+  }, ['fechamentos'])
   const reabrirMes = (mes, motivo) => op(async () => {
     const r = await sb.rpc('reabrir_mes', { p_mes: mes, p_motivo: motivo, p_usuario: email })
     if (r.error) throw r.error
-  })
+  }, ['fechamentos'])
 
   // RENDA
   const upsertRenda = (data) => op(async () => {
     const r = await sb.from('rendas').upsert(data, { onConflict: 'mes' })
     if (r.error) throw r.error
-  })
+  }, ['rendas'])
 
   // FIXOS
   const addFixo = (data) => op(async () => {
     const r = await sb.from('fixos').insert(data)
     if (r.error) throw r.error
-  })
+  }, ['fixos'])
   const updateFixo = (id, data) => op(async () => {
     const r = await sb.from('fixos').update(data).eq('id', id)
     if (r.error) throw r.error
-  })
+  }, ['fixos'])
   const delFixo = (id) => op(async () => {
     const r = await sb.from('fixos').delete().eq('id', id)
     if (r.error) throw r.error
-  })
+  }, ['fixos', 'fixosPagamentos'])
 
   // FATURAS
   const upsertFatura = (data) => op(async () => {
@@ -257,11 +267,11 @@ export function useStore(email = null) {
       throw new Error('Falta rodar a atualização 13 do banco (arquivo inbox/13_faturas_valor_real_opcional.sql no Supabase).')
     }
     if (r.error) throw r.error
-  })
+  }, ['faturas'])
   const delFatura = (id) => op(async () => {
     const r = await sb.from('faturas').delete().eq('id', id)
     if (r.error) throw r.error
-  })
+  }, ['faturas'])
 
   // PAGAMENTOS DE FIXOS (por mês)
   const marcarFixoPago = (fixo_id, mes, pago) => op(async () => {
@@ -270,7 +280,7 @@ export function useStore(email = null) {
       { onConflict: 'fixo_id,mes' }
     )
     if (r.error) throw r.error
-  })
+  }, ['fixosPagamentos'])
 
   // PAGAMENTO POR PARCELA (compras sem cartão): uma linha por compra e mês
   const marcarParcelaPaga = (compra_id, mes, pago) => op(async () => {
@@ -279,7 +289,7 @@ export function useStore(email = null) {
       { onConflict: 'compra_id,mes' }
     )
     if (r.error) throw r.error
-  })
+  }, ['comprasPagamentos'])
 
   // SALDO (dinheiro disponível — ajuste manual por mês)
   const definirAjusteSaldo = async (mes, ajuste) => {
@@ -290,7 +300,7 @@ export function useStore(email = null) {
         { onConflict: 'mes' }
       )
       if (r.error) throw r.error
-    })
+    }, ['saldoAjustes'])
     if (ok) await registrarAuditoria({ entidade: 'saldo_ajuste', entidade_id: mes, acao: 'ajustar', antes: { ajuste: antes }, depois: { ajuste } })
     return ok
   }
@@ -299,16 +309,16 @@ export function useStore(email = null) {
   const addMeta = (m) => op(async () => {
     const r = await sb.from('metas').insert(m)
     if (r.error) throw r.error
-  })
+  }, ['metas'])
   const updateMeta = (id, patch) => op(async () => {
     const r = await sb.from('metas').update(patch).eq('id', id)
     if (r.error) throw r.error
-  })
+  }, ['metas'])
   const registrarMovimentoMeta = async (mov) => {
     const ok = await op(async () => {
       const r = await sb.from('metas_movimentos').insert({ usuario: email, ...mov })
       if (r.error) throw r.error
-    })
+    }, ['metas'])
     if (ok) await registrarAuditoria({ entidade: 'meta_movimento', entidade_id: mov.meta_id, acao: mov.tipo, depois: mov, motivo: mov.observacao || null })
     return ok
   }
@@ -316,7 +326,7 @@ export function useStore(email = null) {
     const ok = await op(async () => {
       const r = await sb.from('metas_movimentos').delete().eq('id', mov.id)
       if (r.error) throw r.error
-    })
+    }, ['metas'])
     if (ok) await registrarAuditoria({ entidade: 'meta_movimento', entidade_id: mov.meta_id, acao: 'apagar_movimento', antes: mov })
     return ok
   }
@@ -325,7 +335,7 @@ export function useStore(email = null) {
   const definirConfig = (chave, valor) => op(async () => {
     const r = await sb.from('config').upsert({ chave, valor, atualizado_em: new Date().toISOString() }, { onConflict: 'chave' })
     if (r.error) throw r.error
-  })
+  }, ['config'])
 
   // ORÇAMENTOS (teto mensal por categoria; valor vazio/0 remove o teto)
   const definirOrcamento = (categoria, valor) => op(async () => {
@@ -333,7 +343,7 @@ export function useStore(email = null) {
       ? await sb.from('orcamentos').upsert({ categoria, valor, atualizado_em: new Date().toISOString() }, { onConflict: 'categoria' })
       : await sb.from('orcamentos').delete().eq('categoria', categoria)
     if (r.error) throw r.error
-  })
+  }, ['orcamentos'])
   const definirOrcamentos = (lista) => op(async () => {
     const agora = new Date().toISOString()
     const r = await sb.from('orcamentos').upsert(
@@ -341,7 +351,7 @@ export function useStore(email = null) {
       { onConflict: 'categoria' }
     )
     if (r.error) throw r.error
-  })
+  }, ['orcamentos'])
 
   // As regras aprendidas e os eventos em aberto do Inbox/Telegram também guardam o nome da categoria.
   // Sem acompanhar a mudança, a sugestão continuaria com o nome velho e o Confirmar falharia ("categoria inválida").
@@ -462,6 +472,8 @@ export function useStore(email = null) {
   // IMPORTAÇÃO DE FATURA (CSV)
   // Não usa `op`: o chamador precisa do erro para dar feedback próprio na tela de importação.
   async function importarTransacoes(rows) {
+    const j = exigirJustificativa(rows) // importar para mês fechado também pede justificativa
+    if (!j.ok) throw new Error('Importação cancelada: o mês já está fechado e faltou o motivo.')
     setSyncState('syncing')
     try {
       const r = await sb.from('compras').insert(rows)
@@ -470,12 +482,13 @@ export function useStore(email = null) {
       setSyncState('error')
       throw e
     }
-    setSyncState((await loadAll({ silent: true })) ? 'ok' : 'error')
+    if (j.meses.length) await registrarAuditoria({ entidade: 'compra', entidade_id: `${rows.length} compras`, acao: 'importar_em_mes_fechado', depois: { quantidade: rows.length }, motivo: `${j.motivo} (meses fechados: ${j.meses.join(', ')})` })
+    setSyncState((await loadAll({ silent: true, quais: ['compras'] })) ? 'ok' : 'error')
   }
 
   // INBOX FINANCEIRO
   // Não usam `op`: a tela precisa do erro (ex.: "já foi resolvido") para mostrar no próprio cartão.
-  async function comRecarga(fn) {
+  async function comRecarga(fn, quais = ['inbox', 'compras']) {
     setSyncState('syncing')
     try {
       await fn()
@@ -483,7 +496,7 @@ export function useStore(email = null) {
       setSyncState('error')
       throw e
     }
-    setSyncState((await loadAll({ silent: true })) ? 'ok' : 'error')
+    setSyncState((await loadAll({ silent: true, quais })) ? 'ok' : 'error')
   }
   async function quemConfirma() {
     const { data } = await sb.auth.getSession()
@@ -522,7 +535,7 @@ export function useStore(email = null) {
     const ok = await op(async () => {
       const r = await sb.from('regras_categorizacao').update(patch).eq('id', regra.id)
       if (r.error) throw r.error
-    })
+    }, ['inbox'])
     if (ok) await registrarAuditoria({ entidade: 'regra', entidade_id: regra.id, acao: 'editar', antes: { categoria: regra.categoria, subcategoria: regra.subcategoria }, depois: patch })
     return ok
   }
@@ -530,7 +543,7 @@ export function useStore(email = null) {
     const ok = await op(async () => {
       const r = await sb.from('regras_categorizacao').delete().eq('id', regra.id)
       if (r.error) throw r.error
-    })
+    }, ['inbox'])
     if (ok) await registrarAuditoria({ entidade: 'regra', entidade_id: regra.id, acao: 'esquecer', antes: regra })
     return ok
   }
