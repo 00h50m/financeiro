@@ -77,3 +77,10 @@ Mudar o valor "só daqui para frente" encerra a conta antiga no mês anterior (`
 - Comparativos: mês anterior, média dos 3 e dos 6 meses anteriores e mesmo mês do ano passado. Meses sem dados não entram nas médias; referência sem dados mostra "sem dados".
 - Percentual só existe quando a referência é maior que zero (e, em categorias, ao menos R$ 50). Antes disso mostra só a diferença em reais.
 - Observações são regras fixas e explicáveis, cada uma com a conta: categoria ≥ 30% e ≥ R$ 50 acima da média dos 3 meses anteriores; despesas ≥ 15% acima/abaixo da média; mês no vermelho; poupança 10 pontos acima da média; parcelamentos que terminam; maior categoria. Não há IA nem previsão opaca.
+
+## Regras aprendidas, calendário e busca (Fase 5)
+
+- **Regras aprendidas** (`regras_categorizacao`): tela para corrigir categoria/subcategoria ou esquecer a regra de um estabelecimento. Vale só daqui para frente: compras e lançamentos antigos nunca são alterados. Cada mudança vai para a auditoria.
+- **Calendário**: usa o mesmo detalhe do motor (contas fixas ativas, faturas do mês, parcelas sem cartão). Fixo no dia do vencimento, fatura no vencimento do cartão (uma por cartão), parcela sem cartão no dia da compra. Dia maior que o mês vira o último dia. Cada item tem chave única, então nada aparece duas vezes.
+- **Busca global**: compras, contas fixas, cartões, metas e Inbox; sem diferença de acento ou maiúscula; também acha pelo valor.
+- Preparação (sem funcionalidade): patrimônio e captura por notificação do Android não foram construídos, só mantidos como possibilidade no desenho (tabelas `eventos_financeiros` com `origem` genérica já comportam novas fontes).
