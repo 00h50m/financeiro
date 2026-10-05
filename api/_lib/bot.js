@@ -27,7 +27,7 @@ const AJUDA = `Mande seus gastos em linguagem natural:
 • comprei ração por 189,90 no nubank em 3x
 • farmácia 49,90 pix ontem
 
-Também aceito a foto de uma notinha ou comprovante (escreva o cartão na legenda, ex.: nubank).
+Também aceito a foto de uma notinha ou comprovante (escreva o cartão na legenda, ex.: nubank) e recado de voz de até 1 minuto.
 
 Eu mostro o que entendi e só lanço depois do seu Confirmar.
 Se faltar algo (como o cartão), eu pergunto.
@@ -48,14 +48,21 @@ const btn = (text, ...partes) => ({ text, callback_data: partes.join('|') })
 const arquivoDeImagem = (msg) => msg?.photo?.length ? msg.photo[msg.photo.length - 1].file_id
   : /^image\/(jpeg|png|webp)$/.test(msg?.document?.mime_type || '') ? msg.document.file_id : null
 
+// Recado de voz (ogg) ou arquivo de áudio. Devolve { id, duracao } ou null.
+const MAX_AUDIO_SEGUNDOS = 60
+const audioDe = (msg) => {
+  const a = msg?.voice || (/^audio\//.test(msg?.audio?.mime_type || '') ? msg.audio : null)
+  return a ? { id: a.file_id, duracao: a.duration || 0 } : null
+}
+
 export async function processarUpdate(update, deps) {
-  const { db, tg, leitor = null, agora = () => new Date() } = deps
+  const { db, tg, leitor = null, transcritor = null, agora = () => new Date() } = deps
   const msg = update.message
   const cb = update.callback_query
   const de = (msg || cb)?.from
   const chat = msg ? msg.chat : cb?.message?.chat
   if (!de || de.is_bot || !chat || chat.type !== 'private') return { ignorado: 'fora_do_escopo' }
-  if (!(typeof msg?.text === 'string' || cb?.data || arquivoDeImagem(msg))) return { ignorado: 'sem_texto' }
+  if (!(typeof msg?.text === 'string' || cb?.data || arquivoDeImagem(msg) || audioDe(msg))) return { ignorado: 'sem_texto' }
 
   if (!(await db.registrarUpdate(update.update_id, de.id))) return { ignorado: 'repetido' }
   try {
@@ -64,7 +71,7 @@ export async function processarUpdate(update, deps) {
     const desde = new Date(agora().getTime() - 60000).toISOString()
     if ((await db.contarUpdates(de.id, desde)) > limite) return { ignorado: 'limite' }
 
-    const c = { db, tg, leitor, agora, hoje: hojeSP(agora()), de, chat, integ, update }
+    const c = { db, tg, leitor, transcritor, agora, hoje: hojeSP(agora()), de, chat, integ, update }
     if (!integ || !integ.ativo) return await tratarDesconhecido(c, msg)
     db.tocarIntegracao?.(de.id)?.catch?.(() => {})
     return cb ? await tratarCallback(c, cb) : await tratarMensagem(c, msg)
@@ -99,7 +106,7 @@ async function tratarDesconhecido({ db, tg, de, chat }, msg) {
 // ---------- mensagens de quem está pareado ----------
 async function tratarMensagem(c, msg) {
   const { db, tg, chat, de } = c
-  if (typeof msg.text !== 'string') return await lerFoto(c, msg) // sem texto, só pode ser foto (ver o portão acima)
+  if (typeof msg.text !== 'string') return audioDe(msg) ? await lerAudio(c, msg) : await lerFoto(c, msg) // sem texto: áudio ou foto (ver o portão acima)
   const texto = msg.text.trim()
   if (/^\/(start|ajuda|help)(@\w+)?$/i.test(texto)) { await tg.enviar(chat.id, AJUDA); return { acao: 'ajuda' } }
   if (/^\/pendentes(@\w+)?$/i.test(texto)) {
@@ -115,9 +122,35 @@ async function tratarMensagem(c, msg) {
   }
   if (texto.startsWith('/')) { await tg.enviar(chat.id, AJUDA); return { acao: 'ajuda' } }
 
-  const esperando = await db.buscarEsperandoTexto(de.id)
+  return await tratarTexto(c, msg, texto)
+}
+
+// Texto digitado ou transcrito de áudio: responde à pergunta em aberto ou cria um novo gasto.
+async function tratarTexto(c, msg, texto) {
+  const esperando = await c.db.buscarEsperandoTexto(c.de.id)
   if (esperando) return await responderTexto(c, esperando, texto)
   return await novoGasto(c, msg, texto)
+}
+
+// Recado de voz: a Groq transcreve, o bot mostra o que entendeu e segue como se tivesse sido digitado.
+async function lerAudio(c, msg) {
+  const { tg, chat, transcritor } = c
+  const naoEntendi = (motivo) => tg.enviar(chat.id, `${motivo} Mande o gasto em texto, por exemplo: gastei 89,90 no mercado no nubank.`)
+  if (!transcritor) { await naoEntendi('Ainda não entendo áudio.'); return { acao: 'audio_desligado' } }
+  const audio = audioDe(msg)
+  if (audio.duracao > MAX_AUDIO_SEGUNDOS) { await naoEntendi(`Áudio longo demais (máximo ${MAX_AUDIO_SEGUNDOS} segundos).`); return { acao: 'audio_longo' } }
+  let texto = null
+  try {
+    const arquivo = await tg.baixarAudio(audio.id)
+    if (!arquivo) { await naoEntendi('Esse áudio é grande demais ou está num formato que não aceito.'); return { acao: 'audio_invalido' } }
+    texto = await transcritor.transcrever(arquivo)
+  } catch (e) {
+    if (ehTransitorio(e)) throw e // o Telegram reenvia o áudio
+    console.error('bot: erro ao transcrever o áudio', e?.message)
+  }
+  if (!texto) { await naoEntendi('Não consegui entender esse áudio.'); return { acao: 'audio_ilegivel' } }
+  await tg.enviar(chat.id, `🎤 Entendi: "${texto.slice(0, MAX_MENSAGEM)}"`)
+  return await tratarTexto(c, msg, texto)
 }
 
 async function novoGasto(c, msg, texto) {

@@ -72,6 +72,10 @@ também lê a foto de uma notinha ou comprovante (valor, local e data) e mostra 
 completa o resto (ex.: `nubank gi`, `3x`). Usa o modelo Claude Sonnet 5.5 (centavos por foto); sem a chave, o bot avisa
 que não lê fotos. Só quem está pareado gasta a IA. Datas futuras ("amanhã") são recusadas.
 
+**Recado de voz (opcional):** com a variável `GROQ_API_KEY` na Vercel (chave de [console.groq.com](https://console.groq.com)), o bot
+transcreve recados de voz de até 1 minuto (Whisper Large v3 Turbo, em português) e segue como se o texto tivesse sido
+digitado: mostra o que entendeu (`🎤 Entendi: ...`) e o resumo com **Confirmar**. Sem a chave, o bot avisa que não entende áudio.
+
 Código do bot: `api/telegram.js` (webhook), `api/telegram-admin.js` (tela Automações) e `api/_lib/` (lógica e `leitorNota.js`, testada
 sem rede). Segurança: segredo do webhook conferido em tempo constante, `update_id` processado uma vez, limite de
 mensagens por minuto, só conversa privada.
