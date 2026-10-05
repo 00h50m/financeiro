@@ -1,4 +1,5 @@
 import { chaveEstabelecimento } from './estabelecimento.js'
+import { normBasico } from './normalizacao.js'
 
 // Sugestão determinística de categoria, a partir de regras aprendidas com o uso
 // (tabela regras_categorizacao). Sem IA.
@@ -30,6 +31,21 @@ export function sugerirCategoria({ chave, regras = [], categorias = [] }) {
     cartao_id: r.cartao_id || null,
     pessoa_id: r.pessoa_id || null,
   }
+}
+
+// Sem histórico, usa o nome que a pessoa falou: "mercado" bate com a subcategoria Mercado,
+// "uber" com Uber/99/Táxi. Só vale se achar exatamente uma subcategoria (nunca um chute entre várias).
+export function sugerirPorNome({ chave, categorias = [] }) {
+  if (!chave) return null
+  const tokens = ` ${chave} `
+  const achadas = []
+  categorias.forEach((c) => {
+    ;(c.subcategorias || []).forEach((sub) => {
+      const nomes = [normBasico(sub), ...String(sub).split('/').map(normBasico)].filter(Boolean)
+      if (nomes.some((n) => tokens.includes(` ${n} `))) achadas.push({ categoria: c.nome, subcategoria: sub })
+    })
+  })
+  return achadas.length === 1 ? { ...achadas[0], regra_id: null, confianca: null, cartao_id: null, pessoa_id: null } : null
 }
 
 // Regras a partir das compras já lançadas. Quando um estabelecimento aparece em

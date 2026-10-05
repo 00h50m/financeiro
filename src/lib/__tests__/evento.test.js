@@ -94,3 +94,18 @@ describe('regras de categorização', () => {
     expect(podeAutoConfirmar({ auto_confirmar: true, confianca: 0.95 })).toBe(true)
   })
 })
+
+describe('categoria pelo nome falado (sem histórico)', () => {
+  const base = { origem: 'telegram', id_externo: 'x:1', valor: 20, data_evento: '2026-10-04', cartao_id: 'c-nu', pessoa_id: 'p-gi' }
+  const ctx = { categorias, cartoes, pessoas }
+  it('"mercado" vira Alimentação > Mercado', () => {
+    const { evento } = prepararEvento({ ...base, descricao_original: 'mercado' }, ctx)
+    expect(evento).toMatchObject({ categoria: 'Alimentação', subcategoria: 'Mercado', status: 'pendente', confianca_categoria: null })
+  })
+  it('"uber" vira Transporte > Uber/99/Táxi', () => {
+    expect(prepararEvento({ ...base, descricao_original: 'uber' }, ctx).evento.subcategoria).toBe('Uber/99/Táxi')
+  })
+  it('nome sem relação continua perguntando a categoria', () => {
+    expect(prepararEvento({ ...base, descricao_original: 'presente' }, ctx).evento.faltando).toContain('categoria')
+  })
+})
