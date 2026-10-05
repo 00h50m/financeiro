@@ -29,10 +29,19 @@ export default function Cartoes({ store }) {
     const anterior = cartoes.find((c) => c.id === editId)
     if (form.limite !== '' && Number(form.limite) >= 0) dados.limite = Number(form.limite)
     else if (anterior?.limite != null) dados.limite = null
-    if (editId) await updateCartao(editId, dados)
-    else await addCartao({ ...dados, ativo: true })
+    const ok = editId ? await updateCartao(editId, dados) : await addCartao({ ...dados, ativo: true })
     setSaving(false)
-    setModal(false)
+    if (ok) setModal(false) // se deu erro, o formulário continua preenchido
+  }
+
+  // O banco apaga as faturas do cartão junto com ele e deixa as compras sem cartão: avisa os números reais.
+  function remover(c) {
+    const nCompras = compras.filter((x) => x.cartao_id === c.id).length
+    const nFaturas = faturas.filter((x) => x.cartao_id === c.id).length
+    const aviso = nCompras || nFaturas
+      ? `\n\n${nCompras} compra${nCompras === 1 ? '' : 's'} ficará${nCompras === 1 ? '' : 'ão'} sem cartão (e passam a contar como "a pagar" uma a uma) e ${nFaturas} fatura${nFaturas === 1 ? '' : 's'} lançada${nFaturas === 1 ? '' : 's'} (valor real e se estava paga) ${nFaturas === 1 ? 'será apagada' : 'serão apagadas'}. Isso não dá para desfazer.`
+      : ''
+    if (confirm(`Remover "${c.nome}"?${aviso}`)) delCartao(c.id)
   }
 
   function renderLimite(c) {
@@ -141,7 +150,7 @@ export default function Cartoes({ store }) {
                     <button className="btn btn-ghost btn-sm" onClick={() => abrir(c)}>Editar</button>
                     <button
                       className="btn btn-danger"
-                      onClick={() => { if (confirm(`Remover "${c.nome}"? As compras vinculadas perdem o cartão.`)) delCartao(c.id) }}
+                      onClick={() => remover(c)}
                     >×</button>
                   </td>
                 </tr>

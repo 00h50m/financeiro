@@ -39,11 +39,11 @@ export default function Pagamentos({ store }) {
   const dinheiroDisponivel = baseCalculada + ajusteAtual
   const saldo = dinheiroDisponivel - totalDividas
 
-  function acertar() {
+  async function acertar() {
     const real = Number(saldoReal)
     if (saldoReal === '' || Number.isNaN(real)) return
-    definirAjusteSaldo(mes, Math.round((real - baseCalculada) * 100) / 100)
-    setSaldoReal('')
+    const ok = await definirAjusteSaldo(mes, Math.round((real - baseCalculada) * 100) / 100)
+    if (ok) setSaldoReal('')
   }
 
   async function toggleFixo(fixo) {

@@ -105,7 +105,7 @@ export default function App() {
   const [sessao, setSessao] = useState(undefined) // undefined = verificando
 
   useEffect(() => {
-    sb.auth.getSession().then(({ data }) => setSessao(data.session))
+    sb.auth.getSession().then(({ data }) => setSessao(data.session)).catch(() => setSessao(null)) // erro ao ler a sessão: cai no login em vez de girar para sempre
     const { data } = sb.auth.onAuthStateChange((_evento, s) => setSessao(s))
     return () => data.subscription.unsubscribe()
   }, [])
@@ -158,8 +158,12 @@ function AppLogado({ email }) {
       <div style={{ padding: 32, color: 'var(--red)', fontSize: 14 }}>
         <div style={{ fontWeight: 500, marginBottom: 8 }}>Erro de conexão com o Supabase</div>
         <div style={{ color: 'var(--text2)', fontSize: 13 }}>{store.error}</div>
-        <button className="btn btn-ghost" style={{ marginTop: 16 }} onClick={store.loadAll}>
+        <button className="btn btn-ghost" style={{ marginTop: 16 }} onClick={() => store.loadAll()}>
           Tentar novamente
+        </button>
+        {/* Sessão expirada ou usuário removido: sem isto só dava para repetir o mesmo erro. */}
+        <button className="btn btn-ghost" style={{ marginTop: 16, marginLeft: 8 }} onClick={() => sb.auth.signOut()}>
+          Sair
         </button>
       </div>
     )

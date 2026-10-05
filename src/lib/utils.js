@@ -21,8 +21,11 @@ export const RENDA_CAMPOS = [
 
 const MESES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
 
-export const fmt = (v) =>
-  'R$ ' + Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+export const fmt = (v) => {
+  const n = Number(v || 0)
+  const valor = Math.abs(n) < 0.005 ? 0 : n // evita "R$ -0,00" (sobra de arredondamento)
+  return 'R$ ' + valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
 
 export const fmtK = (v) => {
   const n = Number(v || 0)
@@ -81,7 +84,8 @@ export const fixosAtivos = (fixos, mes) => fixos.filter((f) => f.ativo && (!f.me
 // Retorna { [categoria]: { total, itens: [{ nome, sub, valor, origem, detalhe }] } }.
 export const gastosPorCategoria = (compras, cartoes, fixos, mes) => {
   const mapa = {}
-  const garantir = (categoria) => {
+  const garantir = (categoriaBruta) => {
+    const categoria = categoriaBruta || 'Sem categoria'
     if (!mapa[categoria]) mapa[categoria] = { total: 0, itens: [] }
     return mapa[categoria]
   }

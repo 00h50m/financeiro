@@ -1,7 +1,21 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { sb } from './supabase.js'
 import { hojeSP } from './utils.js'
 import { gerarCodigo, hashCodigo } from './pareamento.js'
+
+const POR_PAGINA = 1000 // o Supabase devolve no máximo 1000 linhas por consulta
+
+// Lê a tabela inteira, de 1000 em 1000 (sem isso, passando de 1000 linhas as mais antigas somem sem aviso).
+// `ordem` precisa ser estável (inclui id) para as páginas não repetirem nem pularem linhas.
+async function lerTudo(tabela, ordenar) {
+  const linhas = []
+  for (let de = 0; ; de += POR_PAGINA) {
+    const r = await ordenar(sb.from(tabela).select('*')).range(de, de + POR_PAGINA - 1)
+    if (r.error) return { error: r.error, data: null }
+    linhas.push(...r.data)
+    if (r.data.length < POR_PAGINA) return { error: null, data: linhas }
+  }
+}
 
 export function useStore() {
   const [cartoes, setCartoes] = useState([])
@@ -26,27 +40,32 @@ export function useStore() {
   const [syncState, setSyncState] = useState('ok')
   const [error, setError] = useState(null)
 
+  const ultimaCarga = useRef(0)
+
+  // Devolve true se carregou. Recarga silenciosa que falha mantém os dados antigos na tela (não derruba o app).
   async function loadAll({ silent = false } = {}) {
+    const minha = ++ultimaCarga.current
     if (!silent) setLoading(true)
-    setError(null)
+    if (!silent) setError(null)
     try {
       const [c, co, r, fx, fa, cat, fxp, sa, ps, orc, cfg, ev, rg, al, it] = await Promise.all([
         sb.from('cartoes').select('*').order('created_at'),
-        sb.from('compras').select('*').order('data_compra', { ascending: false }),
+        lerTudo('compras', (q) => q.order('data_compra', { ascending: false }).order('id')),
         sb.from('rendas').select('*').order('mes', { ascending: false }),
         sb.from('fixos').select('*').order('created_at'),
-        sb.from('faturas').select('*').order('mes', { ascending: false }),
+        lerTudo('faturas', (q) => q.order('mes', { ascending: false }).order('id')),
         sb.from('categorias').select('*').order('nome'),
-        sb.from('fixos_pagamentos').select('*'),
+        lerTudo('fixos_pagamentos', (q) => q.order('id')),
         sb.from('saldo_ajustes').select('*'),
         sb.from('pessoas').select('*').order('created_at'),
         sb.from('orcamentos').select('*'),
         sb.from('config').select('*'),
-        sb.from('eventos_financeiros').select('*').order('capturado_em', { ascending: false }).limit(1000),
+        lerTudo('eventos_financeiros', (q) => q.order('capturado_em', { ascending: false }).order('id')),
         sb.from('regras_categorizacao').select('*'),
         sb.from('estabelecimento_aliases').select('*'),
         sb.from('integracoes_telegram').select('*').order('conectado_em'),
       ])
+      if (minha !== ultimaCarga.current) { if (!silent) setLoading(false); return true } // chegou uma recarga mais nova: esta resposta é velha
       if (c.error) throw c.error
       if (co.error) throw co.error
       if (r.error) throw r.error
@@ -78,23 +97,29 @@ export function useStore() {
       setAliases(inboxPronto ? al.data || [] : [])
       setIntegracoesTelegram(inboxPronto && !it.error ? it.data || [] : [])
     } catch (e) {
-      setError(e.message || 'Erro ao conectar com o banco')
+      if (!silent) setError(e.message || 'Erro ao conectar com o banco')
+      if (!silent) setLoading(false)
+      return false
     }
     if (!silent) setLoading(false)
+    return true
   }
 
   useEffect(() => { loadAll() }, [])
 
+  // Devolve true se gravou; false se deu erro (já avisado na tela). Quem chama só fecha o formulário ou
+  // segue para o próximo passo quando for true, para nunca perder o que a pessoa digitou.
   async function op(fn) {
     setSyncState('syncing')
     try {
       await fn()
-      await loadAll({ silent: true })
-      setSyncState('ok')
     } catch (e) {
       setSyncState('error')
-      alert('Erro: ' + e.message)
+      alert('Erro: ' + (e.message || e))
+      return false
     }
+    setSyncState((await loadAll({ silent: true })) ? 'ok' : 'error')
+    return true
   }
 
   // CARTÕES
@@ -199,6 +224,26 @@ export function useStore() {
     if (r.error) throw r.error
   })
 
+  // As regras aprendidas e os eventos em aberto do Inbox/Telegram também guardam o nome da categoria.
+  // Sem acompanhar a mudança, a sugestão continuaria com o nome velho e o Confirmar falharia ("categoria inválida").
+  // Só mexe nelas se a migration do Inbox já rodou (inboxOk).
+  const ABERTOS = ['pendente', 'aguardando_dados']
+  async function acompanharNoInbox({ categoria, subcategoria, novo, excluirRegras = false }) {
+    if (!inboxOk) return
+    const filtro = (q) => {
+      let r = q.eq('categoria', categoria)
+      if (subcategoria !== undefined) r = r.eq('subcategoria', subcategoria)
+      return r
+    }
+    // Ao migrar para uma categoria que já existe, renomear regras bateria na chave única: apaga as velhas (o bot reaprende).
+    const rr = excluirRegras
+      ? await filtro(sb.from('regras_categorizacao').delete())
+      : await filtro(sb.from('regras_categorizacao').update(novo))
+    if (rr.error) throw rr.error
+    const re = await filtro(sb.from('eventos_financeiros').update(novo)).in('status', ABERTOS)
+    if (re.error) throw re.error
+  }
+
   // CATEGORIAS
   const addCategoria = (nome) => op(async () => {
     const r = await sb.from('categorias').insert({ nome, subcategorias: [] })
@@ -222,6 +267,7 @@ export function useStore() {
       const ro = await sb.from('orcamentos').update({ categoria: nomeNovo }).eq('categoria', nomeAntigo)
       if (ro.error) throw ro.error
     }
+    await acompanharNoInbox({ categoria: nomeAntigo, novo: { categoria: nomeNovo } })
   })
   const addSubcategoria = (id, subcategorias) => op(async () => {
     const r = await sb.from('categorias').update({ subcategorias }).eq('id', id)
@@ -244,6 +290,7 @@ export function useStore() {
       .eq('categoria', categoriaNome)
       .eq('subcategoria', subAntiga)
     if (rf.error) throw rf.error
+    await acompanharNoInbox({ categoria: categoriaNome, subcategoria: subAntiga, novo: { subcategoria: subNova } })
   })
   // Usadas ao excluir uma categoria/subcategoria com movimentações: migra o
   // texto gravado em compras/fixos para o destino escolhido ANTES de remover
@@ -253,6 +300,7 @@ export function useStore() {
     if (rc.error) throw rc.error
     const rf = await sb.from('fixos').update({ categoria: categoriaNova }).eq('categoria', categoriaAntiga)
     if (rf.error) throw rf.error
+    await acompanharNoInbox({ categoria: categoriaAntiga, novo: { categoria: categoriaNova }, excluirRegras: true })
   })
   const migrarSubcategoria = (categoriaNome, subAntiga, subNova) => op(async () => {
     const rc = await sb.from('compras')
@@ -265,6 +313,7 @@ export function useStore() {
       .eq('categoria', categoriaNome)
       .eq('subcategoria', subAntiga)
     if (rf.error) throw rf.error
+    await acompanharNoInbox({ categoria: categoriaNome, subcategoria: subAntiga, novo: { subcategoria: subNova }, excluirRegras: true })
   })
 
   // PESSOAS
@@ -298,12 +347,11 @@ export function useStore() {
     try {
       const r = await sb.from('compras').insert(rows)
       if (r.error) throw r.error
-      await loadAll({ silent: true })
-      setSyncState('ok')
     } catch (e) {
       setSyncState('error')
       throw e
     }
+    setSyncState((await loadAll({ silent: true })) ? 'ok' : 'error')
   }
 
   // INBOX FINANCEIRO
@@ -312,12 +360,11 @@ export function useStore() {
     setSyncState('syncing')
     try {
       await fn()
-      await loadAll({ silent: true })
-      setSyncState('ok')
     } catch (e) {
       setSyncState('error')
       throw e
     }
+    setSyncState((await loadAll({ silent: true })) ? 'ok' : 'error')
   }
   async function quemConfirma() {
     const { data } = await sb.auth.getSession()

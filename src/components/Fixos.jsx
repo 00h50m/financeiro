@@ -48,10 +48,9 @@ export default function Fixos({ store }) {
       mes_fim: form.mes_fim || null,
       dia_vencimento: form.dia_vencimento ? Number(form.dia_vencimento) : null,
     }
-    if (editId) await updateFixo(editId, dados)
-    else await addFixo({ ...dados, ativo: true })
+    const ok = editId ? await updateFixo(editId, dados) : await addFixo({ ...dados, ativo: true })
     setSaving(false)
-    setModal(false)
+    if (ok) setModal(false) // se deu erro, mantém o formulário
   }
 
   const mesAtual = nowYM()

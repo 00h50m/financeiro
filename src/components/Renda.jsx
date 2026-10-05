@@ -24,7 +24,7 @@ export default function Renda({ store }) {
 
   async function salvar() {
     setSaving(true)
-    await upsertRenda({
+    const ok = await upsertRenda({
       ...form,
       giovanna: Number(form.giovanna || 0),
       sabrina: Number(form.sabrina || 0),
@@ -33,7 +33,7 @@ export default function Renda({ store }) {
       outros: Number(form.outros || 0),
     })
     setSaving(false)
-    setEditMes(null)
+    if (ok) setEditMes(null) // se deu erro, mantém o formulário
   }
 
   const meses = Array.from({ length: 8 }, (_, i) => addMonths(mes, -3 + i))
