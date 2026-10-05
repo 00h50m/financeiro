@@ -80,6 +80,8 @@ digitado: mostra o que entendeu (`🎤 Entendi: ...`) e o resumo com **Confirmar
 (qualquer texto longo e secreto, em todos os ambientes; a Vercel o manda sozinha no cabeçalho do agendamento de `vercel.json`).
 Cada pessoa liga com `/avisos on` e desliga com `/avisos off`; o envio sai todo domingo às 19h (horário de Brasília) por `api/cron-resumo.js`.
 
+**Menu:** mandar "oi", "menu" ou `/menu` mostra botões para as consultas (resumo, faturas, próximas faturas, última compra, pendentes, avisos). Os botões só consultam; nada é lançado ou apagado por eles.
+
 **Próximas faturas:** `/proximas` (ou "quais as próximas faturas do nubank?") lista mês a mês o que já está comprometido em parcelas.
 
 **Lançamento automático (opcional, desligado por padrão):** rode `inbox/12_auto_lancar.sql` no Supabase e use `/auto on`. Só gastos *digitados* (não foto nem voz) são lançados sem Confirmar, e só quando tudo é certo: lugar com 95%+ de confiança no histórico, cartão dito na mensagem, sem compra parecida e valor até R$ 300. O bot avisa e dá para corrigir em `/ultima`. `/auto off` volta ao normal.

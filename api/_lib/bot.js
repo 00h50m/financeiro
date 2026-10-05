@@ -44,7 +44,17 @@ Pergunte também: "quanto gastei em mercado este mês?"
 /proximas – o que já está comprometido nas faturas dos próximos meses
 /auto on|off – lançar sozinho o que eu reconhecer com certeza (padrão: desligado)
 /avisos on – resumo automático todo domingo à noite (/avisos off para parar)
+/menu – mostra as opções em botões (ou mande "oi")
 /cancelar – descarta o que está em andamento`
+
+const MENU = `O que você quer fazer? Toque numa opção ou mande o gasto direto, por exemplo: mercado 50 nubank.`
+const GATILHO_MENU = /^(?:\/menu(?:@\w+)?|menu|oi+|ola+|opa|e\s*ai|eai|hey|hello|bom\s*dia|boa\s*tarde|boa\s*noite|tudo\s*bem\??|sla|ajuda|help|\?)[\s!.?]*$/i
+const botoesMenu = () => botoes([
+  btn('📊 Resumo do mês', 'mn', 'x', 'resumo'), btn('💳 Faturas abertas', 'mn', 'x', 'faturas'),
+  btn('📅 Próximas faturas', 'mn', 'x', 'proximas'), btn('🧾 Última compra', 'mn', 'x', 'ultima'),
+  btn('⏳ Pendentes', 'mn', 'x', 'pendentes'), btn('🔔 Aviso de domingo', 'mn', 'x', 'avisos'),
+  btn('⚡ Lançar sozinho', 'mn', 'x', 'auto'), btn('📖 Como lançar', 'mn', 'x', 'ajuda'),
+], 2)
 
 const nomeCurto = (p) => (p?.apelidos?.[0] ? p.apelidos[0][0].toUpperCase() + p.apelidos[0].slice(1) : p?.nome || '—')
 const fmtData = (iso) => String(iso || '').slice(0, 10).split('-').reverse().join('/')
@@ -120,11 +130,8 @@ async function tratarMensagem(c, msg) {
   if (typeof msg.text !== 'string') return audioDe(msg) ? await lerAudio(c, msg) : await lerFoto(c, msg) // sem texto: áudio ou foto (ver o portão acima)
   const texto = msg.text.trim()
   if (/^\/(start|ajuda|help)(@\w+)?$/i.test(texto)) { await tg.enviar(chat.id, AJUDA); return { acao: 'ajuda' } }
-  if (/^\/pendentes(@\w+)?$/i.test(texto)) {
-    const n = await db.contarPendentes()
-    await tg.enviar(chat.id, n ? `Você tem ${n} lançamento${n > 1 ? 's' : ''} esperando confirmação. Abra o Finapp › Inbox.` : 'Nada pendente. 👍')
-    return { acao: 'pendentes' }
-  }
+  if (/^\/menu(@\w+)?$/i.test(texto)) return await mostrarMenu(c)
+  if (/^\/pendentes(@\w+)?$/i.test(texto)) return await responderPendentes(c)
   const au = texto.match(/^\/auto(?:@\w+)?(?:\s+(on|off|ligar|desligar))?$/i)
   if (au) return await tratarAuto(c, au[1])
   const av = texto.match(/^\/avisos(?:@\w+)?(?:\s+(on|off|ligar|desligar))?$/i)
@@ -155,6 +162,7 @@ async function tratarTexto(c, msg, texto, { voz = false } = {}) {
   if (esperando) return await responderTexto(c, esperando, texto)
   const editando = await c.db.buscarEditandoUltima(c.de.id)
   if (editando) return await responderEdicaoUltima(c, editando, texto)
+  if (!voz && GATILHO_MENU.test(texto.normalize('NFD').replace(/[̀-ͯ]/g, '').trim())) return await mostrarMenu(c)
   if (/\b(?:proximas?|futuras?|seguintes)\s+faturas?\b|\bfaturas?\s+(?:futuras?|dos?\s+proximos)\b/i.test(texto.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase())) return await responderProximas(c, texto)
   if (/^(?:quanto|qual|como|ver|mostra|me\s+mostra)\b.*\bfaturas?\b/i.test(texto.normalize('NFD').replace(/[̀-ͯ]/g, ''))) return await responderFaturas(c, texto)
   const pergunta = interpretarPergunta(texto)
@@ -197,6 +205,33 @@ async function tratarAvisos(c, arg) {
   }
   await tg.enviar(chat.id, ligar ? 'Pronto! Todo domingo à noite eu mando o resumo da semana. Para parar: /avisos off.' : 'Certo, desliguei o resumo automático.')
   return { acao: ligar ? 'avisos_ligado' : 'avisos_desligado' }
+}
+
+async function mostrarMenu(c) {
+  await c.tg.enviar(c.chat.id, MENU, botoesMenu())
+  return { acao: 'menu' }
+}
+
+async function responderPendentes(c) {
+  const n = await c.db.contarPendentes()
+  await c.tg.enviar(c.chat.id, n ? `Você tem ${n} lançamento${n > 1 ? 's' : ''} esperando confirmação. Abra o Finapp › Inbox.` : 'Nada pendente. 👍')
+  return { acao: 'pendentes' }
+}
+
+// Botões do menu: só abrem as mesmas consultas dos comandos (nada é lançado ou apagado por aqui).
+async function tratarMenu(c, cb, opcao) {
+  await c.tg.responderCallback(cb.id)
+  switch (opcao) {
+    case 'resumo': return await responderResumo(c, '')
+    case 'faturas': return await responderFaturas(c, '')
+    case 'proximas': return await responderProximas(c, '')
+    case 'ultima': return await mostrarUltima(c)
+    case 'pendentes': return await responderPendentes(c)
+    case 'avisos': return await tratarAvisos(c, undefined)
+    case 'auto': return await tratarAuto(c, undefined)
+    case 'ajuda': await c.tg.enviar(c.chat.id, AJUDA); return { acao: 'ajuda' }
+    default: return { ignorado: 'menu_opcao_invalida' }
+  }
 }
 
 async function responderProximas(c, texto) {
@@ -478,6 +513,7 @@ async function tratarCallback(c, cb) {
   const { db, tg, de } = c
   const [acao, eid, arg] = String(cb.data).split('|')
   if (acao === 'ul') return await tratarUltima(c, cb, eid, arg)
+  if (acao === 'mn') return await tratarMenu(c, cb, arg)
   const ev = await db.buscarEvento(eid)
   if (!ev || ev.contexto?.telegram_user_id !== de.id || !ABERTOS.includes(ev.status)) {
     await tg.responderCallback(cb.id, 'Esse lançamento já foi resolvido.')
