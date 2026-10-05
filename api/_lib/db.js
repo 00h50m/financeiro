@@ -59,7 +59,7 @@ export function criarDb({ url, serviceKey }) {
         todas('pessoas', '*', (q) => q.order('created_at')),
         todas('regras_categorizacao', '*'),
         todas('estabelecimento_aliases', '*'),
-        todas('compras', 'id,data_compra,descricao,identificacao,cartao_id,valor_total,parcelas,origem', (q) => q.order('id')),
+        todas('compras', 'id,data_compra,descricao,identificacao,cartao_id,valor_total,parcelas,origem,categoria,subcategoria', (q) => q.order('id')),
         todas('eventos_financeiros', 'id,compra_id,origem,status', (q) => q.not('compra_id', 'is', null).order('id')),
       ])
       return { categorias, cartoes, pessoas, regras, aliases, compras, eventos }
