@@ -25,6 +25,7 @@ export default function Pagamentos({ store }) {
   } = detalhePagamentos(dados, mes)
 
   async function toggleOutraConta(c) {
+    if (c.parcelaTotal > 1 && !confirm(`Esta compra tem ${c.parcelaTotal} parcelas e o "pago" vale para a compra inteira, não só para este mês. Continuar?`)) return
     await updateCompra(c.id, {
       pago: !c.pago,
       data_pagamento: !c.pago ? hojeSP() : null,

@@ -48,6 +48,7 @@ Rode no SQL Editor do Supabase:
 | `orcamentos.sql` | Tabela de tetos por categoria |
 | `config.sql` | Configurações (reserva de emergência) |
 | `cartoes_limite.sql` | Coluna de limite do cartão |
+| `fixos_mes_inicio.sql` | Histórico das contas fixas (mudar o valor só daqui para frente) |
 | `inbox/01` a `inbox/12` | Inbox Financeiro (rodar **em ordem**, uma parte por vez; cada uma é repetível). `inbox/desfazer.sql` reverte. |
 
 Usuários: crie em **Authentication → Users** e deixe o cadastro aberto desligado.

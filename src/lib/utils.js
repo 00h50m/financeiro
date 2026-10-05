@@ -77,8 +77,9 @@ export const gerarParcelas = (compra, cartoes) => {
 export const totalRenda = (r) =>
   RENDA_CAMPOS.reduce((s, [k]) => s + Number(r?.[k] || 0), 0)
 
-// Contas fixas que contam como ativas em um mês (respeita o mês de término).
-export const fixosAtivos = (fixos, mes) => fixos.filter((f) => f.ativo && (!f.mes_fim || f.mes_fim >= mes))
+// Contas fixas que contam como ativas em um mês (respeita o mês de início e o de término).
+export const fixosAtivos = (fixos, mes) =>
+  fixos.filter((f) => f.ativo && (!f.mes_inicio || f.mes_inicio <= mes) && (!f.mes_fim || f.mes_fim >= mes))
 
 // Gastos do mês agrupados por categoria: parcela do mês de cada compra + contas fixas categorizadas.
 // Retorna { [categoria]: { total, itens: [{ nome, sub, valor, origem, detalhe }] } }.

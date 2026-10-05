@@ -74,6 +74,8 @@ create table if not exists rendas (
 -- FIXOS (gastos fixos mensais)
 -- `mes_fim` (YYYY-MM, opcional): último mês em que essa conta ainda conta
 -- como ativa — para fixos com prazo (ex: financiamento). Null = sem fim.
+-- `mes_inicio` (YYYY-MM, opcional): primeiro mês em que conta. Usado quando o valor muda
+-- "só daqui para frente": a conta antiga termina e a nova começa, guardando o histórico.
 -- `dia_vencimento` (opcional): dia do mês em que a conta vence, só para
 -- ajudar a priorizar pagamento — não afeta nenhum cálculo.
 -- `categoria`/`subcategoria`: mesma lista usada em compras (tabela
@@ -90,11 +92,13 @@ create table if not exists fixos (
   categoria text,
   subcategoria text,
   ativo boolean not null default true,
+  mes_inicio text,
   mes_fim text,
   dia_vencimento int,
   created_at timestamptz not null default now()
 );
 
+alter table fixos add column if not exists mes_inicio text;
 alter table fixos add column if not exists mes_fim text;
 alter table fixos add column if not exists dia_vencimento int;
 alter table fixos add column if not exists categoria text;

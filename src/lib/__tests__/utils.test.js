@@ -23,3 +23,15 @@ describe('gastos por categoria', () => {
     expect(r.undefined).toBeUndefined()
   })
 })
+
+describe('fixosAtivos com histórico', () => {
+  it('respeita mes_inicio e mes_fim', async () => {
+    const { fixosAtivos } = await import('../utils')
+    const fixos = [
+      { id: 1, ativo: true, mes_fim: '2026-09' },
+      { id: 2, ativo: true, mes_inicio: '2026-10' },
+    ]
+    expect(fixosAtivos(fixos, '2026-09').map((f) => f.id)).toEqual([1])
+    expect(fixosAtivos(fixos, '2026-10').map((f) => f.id)).toEqual([2])
+  })
+})
