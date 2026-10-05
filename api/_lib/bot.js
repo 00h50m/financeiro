@@ -4,6 +4,7 @@
 //  - nada vira compra sem o toque em "Confirmar"; o que falta é perguntado, nunca inventado;
 //  - cada update é processado uma única vez (o Telegram reenvia quando a resposta falha).
 import { interpretarMensagem, parseValor, parseData } from '../../src/lib/parserTelegram.js'
+import { periodoDe, interpretarPergunta, filtroDe, calcularResumo, formatarResumo } from '../../src/lib/resumo.js'
 import { prepararEvento } from '../../src/lib/evento.js'
 import { hashCodigo, normalizarCodigo } from '../../src/lib/pareamento.js'
 import { fmt, hojeSP } from '../../src/lib/utils.js'
@@ -33,6 +34,8 @@ Eu mostro o que entendi e só lanço depois do seu Confirmar.
 Se faltar algo (como o cartão), eu pergunto.
 
 /pendentes – lançamentos esperando confirmação
+/resumo – quanto você gastou no mês (ou: /resumo semana, /resumo mes passado)
+Pergunte também: "quanto gastei em mercado este mês?"
 /cancelar – descarta o que está em andamento`
 
 const nomeCurto = (p) => (p?.apelidos?.[0] ? p.apelidos[0][0].toUpperCase() + p.apelidos[0].slice(1) : p?.nome || '—')
@@ -114,6 +117,8 @@ async function tratarMensagem(c, msg) {
     await tg.enviar(chat.id, n ? `Você tem ${n} lançamento${n > 1 ? 's' : ''} esperando confirmação. Abra o Finapp › Inbox.` : 'Nada pendente. 👍')
     return { acao: 'pendentes' }
   }
+  const rs = texto.match(/^\/resumo(?:@\w+)?(?:\s+(.*))?$/i)
+  if (rs) return await responderResumo(c, rs[1] || '')
   if (/^\/cancelar(@\w+)?$/i.test(texto)) {
     const ev = await db.buscarEmAndamento(de.id)
     if (ev) await db.ignorarEvento(ev.id, 'telegram')
@@ -129,7 +134,20 @@ async function tratarMensagem(c, msg) {
 async function tratarTexto(c, msg, texto, { voz = false } = {}) {
   const esperando = await c.db.buscarEsperandoTexto(c.de.id)
   if (esperando) return await responderTexto(c, esperando, texto)
+  const pergunta = interpretarPergunta(texto)
+  if (pergunta) return await responderResumo(c, pergunta.texto)
   return await novoGasto(c, msg, texto, { voz })
+}
+
+// "/resumo semana", "quanto gastei em mercado este mês?": soma as compras do período, só leitura.
+async function responderResumo(c, texto) {
+  const { db, tg, chat, hoje } = c
+  const { resto, ...periodo } = periodoDe(texto, hoje)
+  const base = await db.carregarContexto()
+  const filtro = filtroDe(resto, base.pessoas)
+  const compras = await db.comprasPeriodo(periodo.de, periodo.ate)
+  await tg.enviar(chat.id, formatarResumo(calcularResumo(compras, { ...periodo, filtro }), { ...periodo, filtro }))
+  return { acao: 'resumo' }
 }
 
 // Recado de voz: a Groq transcreve, o bot mostra o que entendeu e segue como se tivesse sido digitado.

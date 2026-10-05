@@ -75,6 +75,7 @@ export function criarFakeDb({ comprasIniciais = [], regras = REGRAS } = {}) {
       Object.assign(e, { status: 'vinculado', compra_id: compraId })
       s.vinculos.push({ id, compraId, por })
     },
+    async comprasPeriodo(de, ate) { return s.compras.filter((c) => c.data_compra >= de && c.data_compra <= ate) },
     async ignorarEvento(id) { Object.assign(s.eventos.find((x) => x.id === id), { status: 'ignorado' }) },
   }
   return db
