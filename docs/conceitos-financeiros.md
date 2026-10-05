@@ -91,3 +91,13 @@ Mudar o valor "só daqui para frente" encerra a conta antiga no mês anterior (`
 - Backup versionado: `backup_versao` (formato), `schema_banco` (última migration) e `versao_app` no arquivo.
 - **Desempenho**: migration 17 cria índices (compras por data e cartão, faturas por cartão e mês, pagamentos por mês, Inbox por status e data). Leituras já paginam de 1000 em 1000. Recarga seletiva: ações simples (marcar pago, fatura, renda, compra, metas, fechamento, Inbox) recarregam só os grupos de dados que mudaram; ações com cascata ou renomeação (categorias, pessoas, cartões, restauração) ainda recarregam tudo, de propósito. Recargas que se atropelam somam os grupos, então a mais nova sempre cobre as anteriores.
 - **Celular**: barra inferior com atalhos (Início, Inbox, Compras, Pagar, Menu), alvos de toque de 44px, áreas seguras do iPhone (topo e rodapé), carregamento com esqueleto em vez de só um círculo e respeito a "reduzir movimento".
+
+## Divididos (parte de outras pessoas)
+
+- Cadastro: `divisoes` (compra ou conta fixa, quem paga, valor em R$ ou %) e `divisoes_repasses` (um registro por mês recebido). Migration `inbox/18_divisoes.sql`.
+- **Dinheiro que sai**: continua o valor cheio. A fatura do cartão, `comprometido`, `pago` e a comparação fatura real × lançado não mudam.
+- **Teto e categorias**: contam só a parte de quem usa o app (`comprasLiquidas` / `fixosLiquidos`). No fechamento, a parte dos outros aparece como linha própria ("Parte de outras pessoas") para a soma das categorias continuar igual às despesas.
+- **Receita**: só o que foi marcado como recebido entra, na competência da compra/parcela/mês da conta (`repassesRecebidos`, somado em `renda` do `resumoDoMes`; `rendaSalario` é só a renda cadastrada). O que ainda falta receber aparece na aba Divididos e como alerta no fechamento, e nunca entra na sobra.
+- Compra parcelada: a parte é dividida proporcionalmente entre as parcelas (a última fecha os centavos). Conta fixa: a parte vale por mês, enquanto a conta estiver ativa.
+- Receber, desfazer ou apagar divisão em mês já fechado pede justificativa e vai para a auditoria.
+- Limites conhecidos: o bot do Telegram e o aviso de teto do bot ainda enxergam o valor cheio; a divisão não é refletida no resumo do bot.

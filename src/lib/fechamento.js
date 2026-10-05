@@ -3,6 +3,7 @@
 // fixosPagamentos, comprasPagamentos(+Ok), fechamentos, eventos, orcamentos.
 import { addMonths, gastosPorCategoria, gerarParcelas, hojeSP, mesLabel, nowYM, statusTeto } from './utils'
 import { resumoDoMes } from './financeiro'
+import { comprasLiquidas, fixosLiquidos, parteDosOutrosNoMes, resumoRepasses } from './divisoes'
 
 export const VERSAO_MOTOR = 1 // sobe quando a definição de algum número do fechamento mudar
 
@@ -29,8 +30,10 @@ export function montarFoto(d, mes, { reservaDestinada = 0, alertasAceitos = [] }
 
   // Por categoria: valor lançado das compras + fixos; a diferença entre fatura real e lançado vira linha própria,
   // para a soma fechar com as despesas.
-  const mapa = gastosPorCategoria(d.compras, d.cartoes, d.fixos, mes)
+  const mapa = gastosPorCategoria(comprasLiquidas(d), d.cartoes, fixosLiquidos(d), mes)
   const porCategoria = Object.fromEntries(Object.entries(mapa).map(([k, v]) => [k, arred(v.total)]))
+  const parteOutros = arred(parteDosOutrosNoMes(d, mes)) // categorias contam só a sua parte; a dos outros fecha a conta
+  if (parteOutros > 0) porCategoria['Parte de outras pessoas'] = parteOutros
   const somaCat = Object.values(porCategoria).reduce((s, v) => s + v, 0)
   const difFaturas = arred(r.comprometido - somaCat)
   if (Math.abs(difFaturas) >= 0.01) porCategoria['Diferença entre fatura e lançado'] = difFaturas
@@ -87,7 +90,7 @@ export function validarFechamento(d, mes, { hoje = nowYM() } = {}) {
   if (mesFechado(fechamentos, mes)) bloqueantes.push(`${rotulo} já está fechado. Reabra antes de fechar de novo.`)
   if (mes > hoje) bloqueantes.push(`${rotulo} ainda não começou. Só dá para fechar meses que já começaram.`)
   if (mes === hoje) alertas.push(`${rotulo} ainda não terminou. Se fechar agora, lançamentos futuros do mês ficarão fora da foto.`)
-  if (!(r.renda > 0)) bloqueantes.push(`${rotulo} não tem renda cadastrada (tela Renda). Sem renda a sobra não tem significado.`)
+  if (!(r.rendaSalario > 0)) bloqueantes.push(`${rotulo} não tem renda cadastrada (tela Renda). Sem renda a sobra não tem significado.`)
 
   det.linhasCartao.filter((l) => !l.temFatura).forEach((l) => {
     bloqueantes.push(`Fatura ${l.nome} de ${rotulo} ainda sem valor real. Informe o valor do banco na tela Faturas.`)
@@ -122,7 +125,10 @@ export function validarFechamento(d, mes, { hoje = nowYM() } = {}) {
     alertas.push(`Fatura ${l.nome}: o banco cobrou R$ ${Math.abs(dif).toFixed(2).replace('.', ',')} ${dif > 0 ? 'a mais' : 'a menos'} do que foi lançado.`)
   })
 
-  const mapa = gastosPorCategoria(d.compras, d.cartoes, d.fixos, mes)
+  const rep = resumoRepasses(d, mes)
+  if (rep.aReceber > 0.005) alertas.push(`Ainda falta receber R$ ${rep.aReceber.toFixed(2).replace('.', ',')} de outras pessoas (aba Divididos). Isso não entra na sobra enquanto não for recebido.`)
+
+  const mapa = gastosPorCategoria(comprasLiquidas(d), d.cartoes, fixosLiquidos(d), mes)
   Object.entries(mapa).forEach(([cat, v]) => {
     const teto = Number((d.orcamentos || []).find((o) => o.categoria === cat)?.valor) || 0
     if (statusTeto(v.total, teto) === 'estourou') alertas.push(`${cat} passou do teto do Orçamento em ${rotulo}.`)
@@ -137,7 +143,7 @@ export function riscosDoMes(d, mes, { hoje = nowYM(), diaHoje = Number(hojeSP().
   const riscos = []
   const r = resumoDoMes(d, mes, { usarSaldoAnterior: true })
   const det = r.detalhe
-  if (!(r.renda > 0)) riscos.push({ nivel: 'medio', texto: 'A renda deste mês não está cadastrada.', aba: 'renda' })
+  if (!(r.rendaSalario > 0)) riscos.push({ nivel: 'medio', texto: 'A renda deste mês não está cadastrada.', aba: 'renda' })
   if (r.renda > 0 && r.sobraProjetada < 0) {
     riscos.push({ nivel: 'alto', texto: `O mês deve terminar no vermelho (${Math.round(r.sobraProjetada).toLocaleString('pt-BR')}).`, aba: 'pagamentos' })
   }

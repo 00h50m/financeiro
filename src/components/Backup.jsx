@@ -25,6 +25,8 @@ const TABELAS = [
   ['fechamentos', 'Fechamentos mensais', 'mes', true],
   ['metas', 'Metas', 'id', true],
   ['metas_movimentos', 'Movimentos das metas', 'id', true],
+  ['divisoes', 'Divididos (parte de outras pessoas)', 'id', true],
+  ['divisoes_repasses', 'Recebimentos dos Divididos', 'id', true],
   ['auditoria_financeira', 'Histórico de auditoria', 'id', true],
 ]
 const ORDEM = Object.fromEntries(TABELAS.map(([t, , o]) => [t, o]))

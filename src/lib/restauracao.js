@@ -9,13 +9,14 @@ export const ORDEM_RESTAURACAO = [
   ['compras', 'id', 'Compras'], ['faturas', 'id', 'Faturas'], ['fixos_pagamentos', 'id', 'Pagamentos das contas fixas'],
   ['compras_pagamentos', 'id', 'Pagamentos das parcelas'], ['eventos_financeiros', 'id', 'Inbox'], ['fechamentos', 'mes', 'Fechamentos'],
   ['metas', 'id', 'Metas'], ['metas_movimentos', 'id', 'Movimentos das metas'],
+  ['divisoes', 'id', 'Divididos'], ['divisoes_repasses', 'id', 'Recebimentos dos Divididos'],
 ]
 export const OBRIGATORIAS = ['compras', 'cartoes', 'faturas', 'fixos', 'fixos_pagamentos', 'rendas', 'categorias', 'pessoas', 'saldo_ajustes']
 
 // Relações que precisam fechar: [tabela filha, coluna, tabela pai].
 const RELACOES = [
   ['compras', 'cartao_id', 'cartoes'], ['faturas', 'cartao_id', 'cartoes'], ['fixos_pagamentos', 'fixo_id', 'fixos'],
-  ['compras_pagamentos', 'compra_id', 'compras'], ['metas_movimentos', 'meta_id', 'metas'],
+  ['compras_pagamentos', 'compra_id', 'compras'], ['metas_movimentos', 'meta_id', 'metas'], ['divisoes_repasses', 'divisao_id', 'divisoes'],
 ]
 
 const chaveDe = (tabela) => ORDEM_RESTAURACAO.find((o) => o[0] === tabela)?.[1] || 'id'

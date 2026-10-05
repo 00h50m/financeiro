@@ -145,6 +145,13 @@ export function detalhePagamentos(d, mes) {
   }
 }
 
+// ---------- Partes de outras pessoas (Divididos) ----------
+
+// Dinheiro de "Divididos" que já foi RECEBIDO na competência. Só o recebido entra como receita:
+// o que ainda está a receber não conta na sobra (ver src/lib/divisoes.js).
+export const repassesRecebidos = (d, mes) =>
+  (d.divisoesRepasses || []).filter((r) => r.mes === mes).reduce((s, r) => s + (Number(r.valor_recebido) || 0), 0)
+
 // ---------- Saldo anterior ----------
 
 const MAX_MESES_SALDO = 240
@@ -177,7 +184,7 @@ export function sobraAnterior(d, mes, cacheDetalhes) {
   let sobra = base
   for (let i = cadeia.length - 1; i >= 0; i--) {
     const mesCad = cadeia[i]
-    const renda = totalRenda((d.rendas || []).find((r) => r.mes === mesCad))
+    const renda = totalRenda((d.rendas || []).find((r) => r.mes === mesCad)) + repassesRecebidos(d, mesCad)
     const ajuste = Number((d.saldoAjustes || []).find((a) => a.mes === mesCad)?.ajuste) || 0
     sobra = renda + sobra + ajuste - comprometidoDe(mesCad)
   }
@@ -199,7 +206,8 @@ export function gravarUsarSaldoAnterior(v) {
 // ---------- Resumo oficial de um mês ----------
 
 // Devolve os números que as telas mostram. Definições:
-//  renda            renda cadastrada do mês (0 se não informada)
+//  renda            renda cadastrada do mês (0 se não informada) + partes de outras pessoas já recebidas (Divididos)
+//  rendaSalario     só a renda cadastrada; repasses = só o que veio de Divididos
 //  comprometido     fixos + faturas (valor real, ou lançado se não informado) + parcelas sem cartão do mês
 //  pago             parte do comprometido já marcada como paga
 //  aPagar           comprometido − pago
@@ -210,14 +218,16 @@ export function gravarUsarSaldoAnterior(v) {
 //  sobraDoMes       renda − comprometido (só o mês, sem saldo anterior)
 export function resumoDoMes(d, mes, { usarSaldoAnterior = true, cacheDetalhes } = {}) {
   const det = detalhePagamentos(d, mes)
-  const renda = rendaDoMes(d.rendas, mes).valor
+  const rendaSalario = rendaDoMes(d.rendas, mes).valor
+  const repasses = repassesRecebidos(d, mes)
+  const renda = rendaSalario + repasses // receita realizada: renda cadastrada + partes de outras pessoas já recebidas
   const saldoAnterior = usarSaldoAnterior ? sobraAnterior(d, mes, cacheDetalhes) : 0
   const ajuste = Number((d.saldoAjustes || []).find((a) => a.mes === mes)?.ajuste) || 0
   const aPagar = det.comprometido - det.pago
   const base = renda + saldoAnterior - det.pago
   const disponivel = base + ajuste
   return {
-    mes, renda, comprometido: det.comprometido, pago: det.pago, aPagar,
+    mes, renda, rendaSalario, repasses, comprometido: det.comprometido, pago: det.pago, aPagar,
     saldoAnterior, ajuste, baseCalculada: base,
     disponivel, sobraProjetada: disponivel - aPagar, sobraDoMes: renda - det.comprometido,
     detalhe: det,
