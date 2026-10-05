@@ -5,6 +5,8 @@ import { lerAmbiente, iguais } from './_lib/ambiente.js'
 import { criarDb } from './_lib/db.js'
 import { criarTelegram } from './_lib/telegramApi.js'
 import { processarUpdate } from './_lib/bot.js'
+import { criarLeitorNota } from './_lib/leitorNota.js'
+import { criarTranscritor } from './_lib/transcritor.js'
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
@@ -15,7 +17,11 @@ export default async function handler(req, res) {
   const update = req.body
   if (!update || typeof update !== 'object' || !Number.isInteger(update.update_id)) return res.status(400).end()
   try {
-    await processarUpdate(update, { db: criarDb({ url: amb.url, serviceKey: amb.serviceKey }), tg: criarTelegram(amb.token) })
+    await processarUpdate(update, {
+      db: criarDb({ url: amb.url, serviceKey: amb.serviceKey }), tg: criarTelegram(amb.token),
+      leitor: amb.anthropicKey ? criarLeitorNota(amb.anthropicKey) : null,
+      transcritor: amb.groqKey ? criarTranscritor(amb.groqKey) : null,
+    })
     return res.status(200).json({ ok: true })
   } catch (e) {
     console.error('telegram: erro ao processar update', e.message) // nunca o conteúdo da mensagem

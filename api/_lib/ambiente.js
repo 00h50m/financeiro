@@ -13,6 +13,8 @@ export function lerAmbiente(env = process.env) {
     segredo: env.TELEGRAM_WEBHOOK_SECRET,
     serviceKey: env.SUPABASE_SERVICE_ROLE_KEY,
     appUrl: env.APP_URL || null,
+    groqKey: env.GROQ_API_KEY || null, // opcional: sem ela, o bot só não entende áudio
+    anthropicKey: env.ANTHROPIC_API_KEY || null, // opcional: sem ela, o bot só não lê fotos
   }
 }
 

@@ -12,6 +12,8 @@ const LIMITE_AUTORIZADO = 30 // mensagens por minuto
 const LIMITE_DESCONHECIDO = 5
 const ABERTOS = ['pendente', 'aguardando_dados']
 const TRANSITORIO = /falha de rede|fetch failed|timeout|timed out|ECONN|ETIMEDOUT|EAI_AGAIN|\b(429|500|502|503|504)\b/i
+// Falha de rede ou sobrecarga (429, 5xx e 529 da Anthropic): vale reenviar. Erro de lógica não: reenviar não resolveria.
+const ehTransitorio = (e) => TRANSITORIO.test(String(e?.message)) || e?.status === 429 || e?.status >= 500 || /connection|timeout/i.test(String(e?.name))
 const MAX_MENSAGEM = 500
 const MAX_DESCRICAO = 80
 const FORMAS = [['pix', 'Pix'], ['dinheiro', 'Dinheiro'], ['boleto', 'Boleto'], ['outro', 'Outro']]
@@ -24,6 +26,8 @@ const AJUDA = `Mande seus gastos em linguagem natural:
 • uber 32,50
 • comprei ração por 189,90 no nubank em 3x
 • farmácia 49,90 pix ontem
+
+Também aceito a foto de uma notinha ou comprovante (escreva o cartão na legenda, ex.: nubank) e recado de voz de até 1 minuto.
 
 Eu mostro o que entendi e só lanço depois do seu Confirmar.
 Se faltar algo (como o cartão), eu pergunto.
@@ -40,14 +44,25 @@ const botoes = (itens, porLinha = 2) => {
 }
 const btn = (text, ...partes) => ({ text, callback_data: partes.join('|') })
 
+// Foto enviada normalmente ou imagem enviada como arquivo (jpg/png/webp). Devolve o file_id ou null.
+const arquivoDeImagem = (msg) => msg?.photo?.length ? msg.photo[msg.photo.length - 1].file_id
+  : /^image\/(jpeg|png|webp)$/.test(msg?.document?.mime_type || '') ? msg.document.file_id : null
+
+// Recado de voz (ogg) ou arquivo de áudio. Devolve { id, duracao } ou null.
+const MAX_AUDIO_SEGUNDOS = 60
+const audioDe = (msg) => {
+  const a = msg?.voice || (/^audio\//.test(msg?.audio?.mime_type || '') ? msg.audio : null)
+  return a ? { id: a.file_id, duracao: a.duration || 0 } : null
+}
+
 export async function processarUpdate(update, deps) {
-  const { db, tg, agora = () => new Date() } = deps
+  const { db, tg, leitor = null, transcritor = null, agora = () => new Date() } = deps
   const msg = update.message
   const cb = update.callback_query
   const de = (msg || cb)?.from
   const chat = msg ? msg.chat : cb?.message?.chat
   if (!de || de.is_bot || !chat || chat.type !== 'private') return { ignorado: 'fora_do_escopo' }
-  if (!(typeof msg?.text === 'string' || cb?.data)) return { ignorado: 'sem_texto' }
+  if (!(typeof msg?.text === 'string' || cb?.data || arquivoDeImagem(msg) || audioDe(msg))) return { ignorado: 'sem_texto' }
 
   if (!(await db.registrarUpdate(update.update_id, de.id))) return { ignorado: 'repetido' }
   try {
@@ -56,12 +71,12 @@ export async function processarUpdate(update, deps) {
     const desde = new Date(agora().getTime() - 60000).toISOString()
     if ((await db.contarUpdates(de.id, desde)) > limite) return { ignorado: 'limite' }
 
-    const c = { db, tg, agora, hoje: hojeSP(agora()), de, chat, integ, update }
+    const c = { db, tg, leitor, transcritor, agora, hoje: hojeSP(agora()), de, chat, integ, update }
     if (!integ || !integ.ativo) return await tratarDesconhecido(c, msg)
     db.tocarIntegracao?.(de.id)?.catch?.(() => {})
     return cb ? await tratarCallback(c, cb) : await tratarMensagem(c, msg)
   } catch (e) {
-    if (TRANSITORIO.test(String(e?.message))) {
+    if (ehTransitorio(e)) {
       await db.esquecerUpdate(update.update_id).catch(() => {}) // para o Telegram poder reenviar
       throw e
     }
@@ -91,6 +106,7 @@ async function tratarDesconhecido({ db, tg, de, chat }, msg) {
 // ---------- mensagens de quem está pareado ----------
 async function tratarMensagem(c, msg) {
   const { db, tg, chat, de } = c
+  if (typeof msg.text !== 'string') return audioDe(msg) ? await lerAudio(c, msg) : await lerFoto(c, msg) // sem texto: áudio ou foto (ver o portão acima)
   const texto = msg.text.trim()
   if (/^\/(start|ajuda|help)(@\w+)?$/i.test(texto)) { await tg.enviar(chat.id, AJUDA); return { acao: 'ajuda' } }
   if (/^\/pendentes(@\w+)?$/i.test(texto)) {
@@ -106,9 +122,35 @@ async function tratarMensagem(c, msg) {
   }
   if (texto.startsWith('/')) { await tg.enviar(chat.id, AJUDA); return { acao: 'ajuda' } }
 
-  const esperando = await db.buscarEsperandoTexto(de.id)
+  return await tratarTexto(c, msg, texto)
+}
+
+// Texto digitado ou transcrito de áudio: responde à pergunta em aberto ou cria um novo gasto.
+async function tratarTexto(c, msg, texto) {
+  const esperando = await c.db.buscarEsperandoTexto(c.de.id)
   if (esperando) return await responderTexto(c, esperando, texto)
   return await novoGasto(c, msg, texto)
+}
+
+// Recado de voz: a Groq transcreve, o bot mostra o que entendeu e segue como se tivesse sido digitado.
+async function lerAudio(c, msg) {
+  const { tg, chat, transcritor } = c
+  const naoEntendi = (motivo) => tg.enviar(chat.id, `${motivo} Mande o gasto em texto, por exemplo: gastei 89,90 no mercado no nubank.`)
+  if (!transcritor) { await naoEntendi('Ainda não entendo áudio.'); return { acao: 'audio_desligado' } }
+  const audio = audioDe(msg)
+  if (audio.duracao > MAX_AUDIO_SEGUNDOS) { await naoEntendi(`Áudio longo demais (máximo ${MAX_AUDIO_SEGUNDOS} segundos).`); return { acao: 'audio_longo' } }
+  let texto = null
+  try {
+    const arquivo = await tg.baixarAudio(audio.id)
+    if (!arquivo) { await naoEntendi('Esse áudio é grande demais ou está num formato que não aceito.'); return { acao: 'audio_invalido' } }
+    texto = await transcritor.transcrever(arquivo)
+  } catch (e) {
+    if (ehTransitorio(e)) throw e // o Telegram reenvia o áudio
+    console.error('bot: erro ao transcrever o áudio', e?.message)
+  }
+  if (!texto) { await naoEntendi('Não consegui entender esse áudio.'); return { acao: 'audio_ilegivel' } }
+  await tg.enviar(chat.id, `🎤 Entendi: "${texto.slice(0, MAX_MENSAGEM)}"`)
+  return await tratarTexto(c, msg, texto)
 }
 
 async function novoGasto(c, msg, texto) {
@@ -116,6 +158,12 @@ async function novoGasto(c, msg, texto) {
   if (texto.length > MAX_MENSAGEM) { await tg.enviar(chat.id, `Mensagem longa demais (máximo ${MAX_MENSAGEM} caracteres). Resuma: valor, onde e cartão.`); return { acao: 'nao_entendi' } }
   const base = await db.carregarContexto()
   const lido = interpretarMensagem(texto, { cartoes: base.cartoes, pessoas: base.pessoas, hoje, remetente_pessoa_id: integ.pessoa_id })
+  return await registrarLeitura(c, msg, texto, lido, base)
+}
+
+// Parte comum do texto e da foto: confere o que foi lido, cria o evento e faz a próxima pergunta ou mostra o resumo.
+async function registrarLeitura(c, msg, texto, lido, base, { confianca = 0.9, aviso = null } = {}) {
+  const { db, tg, chat, integ, hoje } = c
   const problema = lido.valorAmbiguo ? 'Encontrei mais de um valor. Escreva o valor com R$ (ex.: 2 pizzas R$ 80).'
     : lido.valor == null ? 'Não encontrei o valor. Exemplo: gastei 89,90 no mercado no nubank.'
     : lido.dataInvalida ? 'Data inválida (não pode ser futura). Exemplo: 05/10 ou ontem.'
@@ -128,7 +176,7 @@ async function novoGasto(c, msg, texto) {
     origem: 'telegram', id_externo: `${chat.id}:${msg.message_id}`, valor: lido.valor,
     data_evento: lido.data_evento || hoje, descricao_original: lido.descricao, parcelas: lido.parcelas ?? 1,
     forma_pagamento: lido.forma_pagamento || undefined, cartao_id: lido.cartao_id || undefined,
-    pessoa_id: lido.pessoa_id || integ.pessoa_id, obs: lido.obs || undefined, confianca_origem: 0.9,
+    pessoa_id: lido.pessoa_id || integ.pessoa_id, obs: lido.obs || undefined, confianca_origem: confianca,
   }, base)
   if (erros.length) { await tg.enviar(chat.id, `Não consegui registrar: ${erros.join(', ')}.`); return { acao: 'invalido' } }
 
@@ -137,8 +185,39 @@ async function novoGasto(c, msg, texto) {
     contexto: { telegram_user_id: c.de.id, chat_id: chat.id, texto, cartao_ambiguo: lido.cartaoAmbiguo, pessoa_ambigua: lido.pessoaAmbigua },
   })
   if (!ABERTOS.includes(ev.status)) { await tg.enviar(chat.id, 'Esse lançamento já foi resolvido.'); return { acao: 'repetido' } }
+  if (aviso) await tg.enviar(chat.id, aviso)
   await avancar(c, ev, base)
   return { acao: 'evento_criado', evento_id: ev.id }
+}
+
+// Foto de notinha/comprovante: a IA lê valor, local e data; a legenda (ex.: "nubank gi") completa cartão/pessoa/parcelas.
+// Sai no mesmo resumo com Confirmar do texto: a leitura nunca vira compra sem o toque.
+async function lerFoto(c, msg) {
+  const { db, tg, chat, integ, hoje, leitor } = c
+  const naoLi = (motivo) => tg.enviar(chat.id, `${motivo} Mande o gasto em texto, por exemplo: gastei 89,90 no mercado no nubank.`)
+  if (!leitor) { await naoLi('Ainda não estou lendo fotos.'); return { acao: 'foto_desligada' } }
+  const legenda = String(msg.caption || '').trim()
+  if (legenda.length > MAX_MENSAGEM) { await naoLi(`Legenda longa demais (máximo ${MAX_MENSAGEM} caracteres).`); return { acao: 'nao_entendi' } }
+  const fileId = arquivoDeImagem(msg)
+  let nota = null
+  try {
+    const imagem = await tg.baixarArquivo(fileId)
+    if (!imagem) { await naoLi('Essa imagem é grande demais ou não é jpg/png/webp.'); return { acao: 'foto_invalida' } }
+    nota = await leitor.ler(imagem, hoje)
+  } catch (e) {
+    if (ehTransitorio(e)) throw e // o Telegram reenvia a foto
+    console.error('bot: erro ao ler a foto', e?.message)
+  }
+  if (!nota) { await naoLi('Não consegui ler essa foto.'); return { acao: 'foto_ilegivel' } }
+
+  const base = await db.carregarContexto()
+  const lido = interpretarMensagem(legenda, { cartoes: base.cartoes, pessoas: base.pessoas, hoje, remetente_pessoa_id: integ.pessoa_id })
+  if (lido.valor == null && !lido.valorAmbiguo) lido.valor = nota.valor // valor digitado na legenda vale mais que o da foto
+  if (!lido.descricao) lido.descricao = nota.estabelecimento || 'Compra da notinha'
+  if (!lido.data_evento && !lido.dataInvalida) lido.data_evento = nota.data
+  if (lido.parcelas == null) lido.parcelas = nota.parcelas
+  const aviso = `📷 Li a notinha: ${lido.descricao} — ${fmt(nota.valor)}${nota.data ? ` em ${fmtData(nota.data)}` : ''}. Confira abaixo antes de confirmar.`
+  return await registrarLeitura(c, msg, legenda || '[foto]', lido, base, { confianca: 0.7, aviso })
 }
 
 async function responderTexto(c, ev, texto) {

@@ -67,7 +67,16 @@ Configuração (uma vez):
 3. No app: **Automações › Ativar bot**, depois **Gerar código** para cada pessoa e envie `/start CÓDIGO` ao bot
    (ou toque no link mostrado). O código vale 10 minutos e uma única vez.
 
-Código do bot: `api/telegram.js` (webhook), `api/telegram-admin.js` (tela Automações) e `api/_lib/` (lógica, testada
+**Foto de notinha (opcional):** com a variável `ANTHROPIC_API_KEY` na Vercel (chave de [console.anthropic.com](https://console.anthropic.com)), o bot
+também lê a foto de uma notinha ou comprovante (valor, local e data) e mostra o mesmo resumo com **Confirmar**. A legenda
+completa o resto (ex.: `nubank gi`, `3x`). Usa o modelo Claude Sonnet 5.5 (centavos por foto); sem a chave, o bot avisa
+que não lê fotos. Só quem está pareado gasta a IA. Datas futuras ("amanhã") são recusadas.
+
+**Recado de voz (opcional):** com a variável `GROQ_API_KEY` na Vercel (chave de [console.groq.com](https://console.groq.com)), o bot
+transcreve recados de voz de até 1 minuto (Whisper Large v3 Turbo, em português) e segue como se o texto tivesse sido
+digitado: mostra o que entendeu (`🎤 Entendi: ...`) e o resumo com **Confirmar**. Sem a chave, o bot avisa que não entende áudio.
+
+Código do bot: `api/telegram.js` (webhook), `api/telegram-admin.js` (tela Automações) e `api/_lib/` (lógica e `leitorNota.js`, testada
 sem rede). Segurança: segredo do webhook conferido em tempo constante, `update_id` processado uma vez, limite de
 mensagens por minuto, só conversa privada.
 

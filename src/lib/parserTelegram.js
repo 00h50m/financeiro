@@ -36,13 +36,15 @@ export function parseData(texto, hoje) {
   if (t === 'hoje') return { data: hoje }
   if (t === 'ontem') return { data: somarDias(hoje, -1) }
   if (t === 'anteontem') return { data: somarDias(hoje, -2) }
+  if (t === 'amanha' || t === 'depois de amanha') return { invalida: true } // gasto não pode ser futuro
   const m = t.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2}|\d{4}))?$/)
   if (!m) return null
   const [dia, mes] = [Number(m[1]), Number(m[2])]
   const anoHoje = Number(hoje.slice(0, 4))
   let ano = m[3] ? (m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3])) : anoHoje
   let data = dataReal(ano, mes, dia)
-  if (data && !m[3] && data > hoje) data = dataReal(ano - 1, mes, dia) // "28/12" digitado em janeiro
+  // Sem ano e no futuro: "28/12" digitado em janeiro é do ano passado; "05/10" digitado em 04/10 é só data futura (inválida).
+  if (data && !m[3] && data > hoje && data > somarDias(hoje, 60)) data = dataReal(ano - 1, mes, dia)
   return data && data <= hoje ? { data } : { invalida: true }
 }
 
@@ -74,9 +76,9 @@ export function interpretarMensagem(entrada, ctx) {
   }
 
   // Data: hoje / ontem / anteontem / dd/mm[/aaaa].
-  const md = [...n.matchAll(/\b(hoje|ontem|anteontem)\b|\b(\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)\b/g)].find((m) => livre(m.index, m.index + m[0].length))
+  const md = [...n.matchAll(/\b(hoje|ontem|anteontem|depois\s+de\s+amanha|amanha)\b|\b(\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)\b/g)].find((m) => livre(m.index, m.index + m[0].length))
   if (md) {
-    const d = parseData(md[0], hoje)
+    const d = parseData(md[0].replace(/\s+/g, ' '), hoje)
     if (d?.data) r.data_evento = d.data
     else r.dataInvalida = true
     marcar(md.index, md.index + md[0].length)

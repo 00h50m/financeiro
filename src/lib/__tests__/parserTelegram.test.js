@@ -58,7 +58,10 @@ describe('campos', () => {
     expect(ler('uber 20 em 02/10').data_evento).toBe('2026-10-02')
     expect(ler('uber 20 31/02').dataInvalida).toBe(true)
     expect(ler('uber 20 15/12').data_evento).toBe('2025-12-15') // dezembro ainda não chegou: ano anterior
-    expect(parseData('amanhã', '2026-10-04')).toBeNull()
+    expect(parseData('amanhã', '2026-10-04')).toEqual({ invalida: true }) // gasto não pode ser futuro
+    expect(ler('mercado 20 amanhã')).toMatchObject({ dataInvalida: true, data_evento: null, descricao: 'mercado' })
+    expect(ler('mercado 20 inter 05/10')).toMatchObject({ dataInvalida: true, data_evento: null }) // amanhã, sem ano: não vira ano passado
+    expect(ler('mercado 20 inter 04/10').data_evento).toBe('2026-10-04')
   })
   it('forma de pagamento sem cartão', () => {
     expect(ler('padaria 12,50 pix')).toMatchObject({ forma_pagamento: 'pix', descricao: 'padaria', cartao_id: null })
