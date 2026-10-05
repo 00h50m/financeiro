@@ -208,3 +208,19 @@ describe('duplicidade e falhas', () => {
     expect(tg.ultima().text).toContain('gastei 89,90')
   })
 })
+
+describe('cartão sugerido no resumo', () => {
+  it('com histórico no mesmo cartão, não pergunta e avisa que foi sugerido; trocar tira o aviso', async () => {
+    const hist = ['a', 'b'].map((id) => ({ id, data_compra: '2026-09-10', descricao: 'uber', cartao_id: 'c-nu', categoria: 'Transporte', subcategoria: 'Uber/99/Táxi', valor_total: 20, parcelas: 1, origem: 'manual' }))
+    const db2 = criarFakeDb({ comprasIniciais: hist })
+    const tg2 = criarFakeTg()
+    const r = await processarUpdate(msg(GI, 'uber 32,50'), { db: db2, tg: tg2, agora: () => new Date('2026-10-04T15:00:00Z') })
+    expect(r.acao).toBe('evento_criado')
+    expect(tg2.ultima().text).toContain('Cartão: Nubank — sugerido pelo seu histórico')
+    await processarUpdate(clicar(GI, tg2, 'Editar'), { db: db2, tg: tg2, agora: () => new Date('2026-10-04T15:00:00Z') })
+    await processarUpdate(clicar(GI, tg2, 'Cartão'), { db: db2, tg: tg2, agora: () => new Date('2026-10-04T15:00:00Z') })
+    await processarUpdate(clicar(GI, tg2, 'Inter'), { db: db2, tg: tg2, agora: () => new Date('2026-10-04T15:00:00Z') })
+    expect(tg2.ultima().text).toContain('Cartão: Inter')
+    expect(tg2.ultima().text).not.toContain('sugerido')
+  })
+})

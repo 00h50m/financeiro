@@ -1,4 +1,4 @@
-import { chaveEstabelecimento } from './estabelecimento.js'
+import { chaveEstabelecimento, similaridadeEstabelecimento } from './estabelecimento.js'
 import { normBasico } from './normalizacao.js'
 
 // Sugestão determinística de categoria, a partir de regras aprendidas com o uso
@@ -31,6 +31,21 @@ export function sugerirCategoria({ chave, regras = [], categorias = [] }) {
     cartao_id: r.cartao_id || null,
     pessoa_id: r.pessoa_id || null,
   }
+}
+
+// Cartão que a pessoa costuma usar nesse estabelecimento, visto nas compras já lançadas.
+// Só sugere com pelo menos 2 compras e 70% delas no mesmo cartão (nunca um chute com pouco histórico).
+export function sugerirCartao({ chave, compras = [], indiceAliases = new Map(), cartoes = [] }) {
+  if (!chave) return null
+  const cont = {}
+  let total = 0
+  compras.forEach((c) => {
+    if (!c.cartao_id || similaridadeEstabelecimento(chaveEstabelecimento(c.descricao, indiceAliases).chave, chave) < 0.8) return
+    cont[c.cartao_id] = (cont[c.cartao_id] || 0) + 1
+    total++
+  })
+  const [id, n] = Object.entries(cont).sort((a, b) => b[1] - a[1])[0] || []
+  return id && total >= 2 && n / total >= 0.7 && cartoes.some((c) => c.id === id) ? id : null
 }
 
 // Sem histórico, usa o nome que a pessoa falou: "mercado" bate com a subcategoria Mercado,

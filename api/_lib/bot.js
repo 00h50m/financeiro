@@ -192,7 +192,7 @@ async function registrarLeitura(c, msg, texto, lido, base, { confianca = 0.9, av
     : lido.parcelas != null && lido.parcelas < 1 ? 'Número de parcelas inválido.' : null
   if (problema) { await tg.enviar(chat.id, problema); return { acao: 'nao_entendi' } }
 
-  const { evento, erros } = prepararEvento({
+  const { evento, erros, sugeridos } = prepararEvento({
     origem: 'telegram', id_externo: `${chat.id}:${msg.message_id}`, valor: lido.valor,
     data_evento: lido.data_evento || hoje, descricao_original: lido.descricao, parcelas: lido.parcelas ?? 1,
     forma_pagamento: lido.forma_pagamento || undefined, cartao_id: lido.cartao_id || undefined,
@@ -202,7 +202,7 @@ async function registrarLeitura(c, msg, texto, lido, base, { confianca = 0.9, av
 
   const ev = await db.inserirEvento({
     ...evento,
-    contexto: { telegram_user_id: c.de.id, chat_id: chat.id, texto, cartao_ambiguo: lido.cartaoAmbiguo, pessoa_ambigua: lido.pessoaAmbigua },
+    contexto: { telegram_user_id: c.de.id, chat_id: chat.id, texto, cartao_ambiguo: lido.cartaoAmbiguo, pessoa_ambigua: lido.pessoaAmbigua, cartao_sugerido: sugeridos.cartao },
   })
   if (!ABERTOS.includes(ev.status)) { await tg.enviar(chat.id, 'Esse lançamento já foi resolvido.'); return { acao: 'repetido' } }
   if (aviso) await tg.enviar(chat.id, aviso)
@@ -410,7 +410,10 @@ async function recalcular(c, ev, mud, base, ctxMud = {}) {
   const { evento, erros } = prepararEvento(entrada, base)
   if (erros.length) throw new Error(erros.join(', '))
   const { origem, id_externo, app_origem, dispositivo_id, ...campos } = evento
-  return await c.db.atualizarEvento(ev.id, { ...campos, contexto: { ...ev.contexto, ...ctxMud } })
+  // O "sugerido pelo histórico" só vale enquanto a pessoa não mexeu no cartão/pagamento.
+  const mexeuNoCartao = 'cartao_id' in mud || 'forma_pagamento' in mud
+  const cartao_sugerido = !!ev.contexto?.cartao_sugerido && !mexeuNoCartao
+  return await c.db.atualizarEvento(ev.id, { ...campos, contexto: { ...ev.contexto, cartao_sugerido, ...ctxMud } })
 }
 
 // ---------- próxima pergunta / resumo ----------
@@ -466,7 +469,7 @@ async function mostrarCorrespondencia(c, ev, base) {
 function resumo(ev, base) {
   const cartao = base.cartoes.find((x) => x.id === ev.cartao_id)
   const pessoa = base.pessoas.find((p) => p.id === ev.pessoa_id)
-  const pagamento = cartao ? `Cartão: ${cartao.nome}`
+  const pagamento = cartao ? `Cartão: ${cartao.nome}${ev.contexto?.cartao_sugerido ? ' — sugerido pelo seu histórico' : ''}`
     : `Pagamento: ${FORMAS.find(([k]) => k === ev.forma_pagamento)?.[1] || ev.forma_pagamento}${ev.pago === true ? ' (já pago)' : ev.pago === false ? ' (a pagar)' : ''}`
   const sugerida = ev.confianca_categoria != null ? ' — sugerida pelo seu histórico' : ''
   return [
