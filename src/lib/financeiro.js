@@ -3,7 +3,7 @@
 // pergunta nunca ter respostas diferentes. As definições estão em docs/conceitos-financeiros.md.
 //
 // Todas as funções são puras (sem React, sem rede). `d` = os dados do app:
-// { fixos, fixosPagamentos, cartoes, compras, faturas, rendas, saldoAjustes, comprasPagamentos, comprasPagamentosOk }.
+// { fixos, fixosPagamentos, cartoes, compras, faturas, rendas, saldoAjustes, comprasPagamentos, comprasPagamentosOk, fechamentos }.
 import { addMonths, fixosAtivos, gerarParcelas, totalRenda } from './utils'
 
 const POR_DIA = (a, b) => (a.dia_vencimento || 99) - (b.dia_vencimento || 99)
@@ -152,22 +152,29 @@ const MAX_MESES_SALDO = 240
 // Sobra que vem do mês anterior: o que ficaria depois de pagar tudo dele
 // (renda + sobra que ele mesmo recebeu + ajuste − comprometido). Só existe quando o mês anterior tem
 // renda cadastrada, para meses sem renda não gerarem "sobra negativa" falsa.
-// Iterativo (do mês mais antigo para o atual) e com cache por chamada, em vez de recursão refeita a
-// cada mês. `d` também precisa de { rendas, saldoAjustes }.
+// Se o mês anterior (ou um mês mais antigo da cadeia) foi FECHADO, vale o `saldo_transportado` gravado no
+// fechamento, e não a conta ao vivo: é o carry-over formal entre competências.
+// Iterativo (do mais antigo para o atual) e com cache por chamada. `d` também precisa de
+// { rendas, saldoAjustes } e, opcionalmente, { fechamentos }.
 export function sobraAnterior(d, mes, cacheDetalhes) {
   const cache = cacheDetalhes || new Map()
   const comprometidoDe = (m) => {
     if (!cache.has(m)) cache.set(m, detalhePagamentos(d, m).comprometido)
     return cache.get(m)
   }
-  // meses encadeados para trás enquanto houver renda no mês anterior
+  const fechados = new Map((d.fechamentos || []).filter((f) => f.status === 'fechado').map((f) => [f.mes, f]))
+  // meses encadeados para trás até achar um mês fechado ou um mês sem renda
   const cadeia = []
+  let base = 0
   let m = addMonths(mes, -1)
-  while (cadeia.length < MAX_MESES_SALDO && totalRenda((d.rendas || []).find((r) => r.mes === m)) > 0) {
+  while (cadeia.length < MAX_MESES_SALDO) {
+    const fechado = fechados.get(m)
+    if (fechado) { base = Number(fechado.saldo_transportado) || 0; break }
+    if (!(totalRenda((d.rendas || []).find((r) => r.mes === m)) > 0)) break
     cadeia.push(m)
     m = addMonths(m, -1)
   }
-  let sobra = 0
+  let sobra = base
   for (let i = cadeia.length - 1; i >= 0; i--) {
     const mesCad = cadeia[i]
     const renda = totalRenda((d.rendas || []).find((r) => r.mes === mesCad))

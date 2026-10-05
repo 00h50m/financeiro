@@ -54,3 +54,12 @@ Mudar o valor "só daqui para frente" encerra a conta antiga no mês anterior (`
 
 - `inbox/13_faturas_valor_real_opcional.sql`: `faturas.valor_real` aceita vazio.
 - `inbox/14_compras_pagamentos.sql`: tabela de pagamento por parcela e migração do que já estava marcado.
+
+## Fechamento mensal (Fase 2)
+
+- Fechar um mês grava uma **foto** (`fechamentos`): receita, despesas, pago, pendente, sobra, saldo anterior, ajuste, saldo final, reserva destinada e `saldo_transportado`, mais detalhes por categoria, pessoa, contas fixas, faturas e parcelas sem cartão. A foto nunca é recalculada; `versao_motor` diz com qual regra foi feita.
+- **Saldo transportado** = saldo final − reserva destinada. É a única regra de carry-over: o mês seguinte começa com ele. Se o mês anterior não está fechado, vale a conta ao vivo (renda + sobra anterior + ajuste − comprometido).
+- **Bloqueios** (impedem fechar): mês já fechado, mês futuro, sem renda, fatura sem valor real, mês anterior aberto quando já há fechamentos mais antigos. **Alertas** (pedem confirmação): mês não terminou, Inbox pendente, contas ou parcelas sem marca de paga, fatura não paga, diferença fatura × lançado ≥ R$ 1, teto estourado, saldo negativo.
+- **Reabrir** exige motivo, guarda o fechamento anterior na auditoria e devolve o mês ao cálculo ao vivo.
+- Editar ou apagar compra com parcela em mês fechado: avisa, exige justificativa e grava em `auditoria_financeira`.
+- Migration: `inbox/15_fechamentos_auditoria.sql` (tabelas + funções `fechar_mes` e `reabrir_mes`).

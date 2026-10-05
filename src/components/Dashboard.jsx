@@ -1,6 +1,7 @@
 import { useState, Fragment } from 'react'
 import { fmt, fmtK, mesLabel, nowYM, addMonths, gerarParcelas, corPessoa, corPessoaCss, fixosAtivos, gastosPorCategoria, statusTeto } from '../lib/utils'
 import { resumoDoMes, lerUsarSaldoAnterior } from '../lib/financeiro'
+import { riscosDoMes, mesFechado } from '../lib/fechamento'
 
 export default function Dashboard({ store, irPara }) {
   const { compras, cartoes, fixos, pessoas, orcamentos } = store
@@ -46,12 +47,15 @@ export default function Dashboard({ store, irPara }) {
     }))
     .sort((a, b) => b.total - a.total)
 
+  const riscos = riscosDoMes(store, mes)
+  const fechadoAtual = mesFechado(store.fechamentos, mes)
+
   const estouradas = porCategoria.filter((c) => statusTeto(c.total, c.teto) === 'estourou')
   const pertoDoTeto = porCategoria.filter((c) => statusTeto(c.total, c.teto) === 'perto')
 
   return (
     <div className="page">
-      <div className="section-label">{mesLabel(mes)} · resumo do mês</div>
+      <div className="section-label">{mesLabel(mes)} · central do mês{fechadoAtual ? ' · fechado' : ''}</div>
 
       <div className="metric-grid">
         <div className="metric">
@@ -76,12 +80,40 @@ export default function Dashboard({ store, irPara }) {
           )}
         </div>
         <div className="metric">
+          <div className="metric-label">Já pago</div>
+          <div className="metric-val green">{fmtK(resumoMes.pago)}</div>
+        </div>
+        <div className="metric">
+          <div className="metric-label">Falta pagar</div>
+          <div className="metric-val amber">{fmtK(resumoMes.aPagar)}</div>
+        </div>
+        <div className="metric">
+          <div className="metric-label">Disponível hoje</div>
+          <div className={`metric-val ${resumoMes.disponivel >= 0 ? 'blue' : 'red'}`}>{renda > 0 ? fmtK(resumoMes.disponivel) : '—'}</div>
+          <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>dinheiro que existe agora</div>
+        </div>
+        <div className="metric">
           <div className="metric-label">% da renda</div>
           <div className={`metric-val ${pct > 90 ? 'red' : pct > 70 ? 'amber' : 'green'}`}>
             {renda > 0 ? pct + '%' : '—'}
           </div>
         </div>
       </div>
+
+      {riscos.length > 0 && (
+        <>
+          <div className="section-label">atenção neste mês</div>
+          <div className="card" style={{ padding: '4px 14px' }}>
+            {riscos.map((r) => (
+              <div key={r.texto} style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+                <span className={`badge ${r.nivel === 'alto' ? 'badge-red' : 'badge-amber'}`}>{r.nivel === 'alto' ? 'Alto' : 'Médio'}</span>
+                <span style={{ flex: 1, fontSize: 13 }}>{r.texto}</span>
+                {irPara && <button className="btn btn-ghost btn-sm" onClick={() => irPara(r.aba)}>Abrir</button>}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
 
       <div className="section-label">distribuição por pessoa · {mesLabel(mes)}</div>
       <div className="card">
