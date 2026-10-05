@@ -4,7 +4,8 @@ export default function Parcelamentos({ store }) {
   const { compras, cartoes, pessoas } = store
   const mes = nowYM()
 
-  const ativas = compras.filter((c) => gerarParcelas(c, cartoes).some((p) => p.mes >= mes))
+  // Só compras parceladas (2x ou mais): uma compra à vista deste mês não é um parcelamento em andamento.
+  const ativas = compras.filter((c) => Number(c.parcelas) > 1 && gerarParcelas(c, cartoes).some((p) => p.mes >= mes))
   const totalRestante = ativas.reduce((s, c) =>
     s + gerarParcelas(c, cartoes).filter((p) => p.mes >= mes).reduce((ss, p) => ss + p.valor, 0), 0)
   const totalMes = ativas.reduce((s, c) =>
@@ -152,6 +153,10 @@ export default function Parcelamentos({ store }) {
       )}
 
       {pessoas.map((p) => renderGrupo(p.nome))}
+      {/* Compras de quem não está (mais) na lista de pessoas: aparecem aqui para os totais do topo fecharem. */}
+      {[...new Set(ativas.map((c) => c.pessoa))]
+        .filter((nome) => !pessoas.some((p) => p.nome === nome))
+        .map((nome) => renderGrupo(nome))}
     </div>
   )
 }

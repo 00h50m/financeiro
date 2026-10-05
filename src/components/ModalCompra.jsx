@@ -23,13 +23,14 @@ export default function ModalCompra({ cartoes, categorias, pessoas, onSave, onCl
   const cartao = cartoes.find((c) => c.id === f.cartao_id)
   const mesInicio = f.data_compra && cartao ? calcMesInicio(f.data_compra, cartao) : ''
   const valorParc = f.valor_total && f.parcelas ? Number(f.valor_total) / Number(f.parcelas) : 0
-  const ok = f.descricao && f.valor_total && f.categoria && !saving
+  const parcelasOk = Number.isInteger(Number(f.parcelas)) && Number(f.parcelas) >= 1 && Number(f.parcelas) <= 60
+  const ok = f.descricao && Number(f.valor_total) > 0 && parcelasOk && f.data_compra && f.categoria && !saving
 
   async function save(fechar) {
     if (!ok) return
     setSaving(true)
     const { identificacao, ...resto } = f
-    await onSave({
+    const salvou = await onSave({
       ...resto,
       ...(identificacao.trim() ? { identificacao: identificacao.trim() } : {}),
       valor_total: Number(f.valor_total),
@@ -38,6 +39,7 @@ export default function ModalCompra({ cartoes, categorias, pessoas, onSave, onCl
       data_pagamento: f.pago ? hojeSP() : null,
     })
     setSaving(false)
+    if (!salvou) return // deu erro: mantém o que foi digitado para tentar de novo
     setItensLancados((n) => n + 1)
     if (fechar) {
       onClose()

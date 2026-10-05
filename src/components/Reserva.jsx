@@ -61,9 +61,9 @@ export default function Reserva({ store }) {
     const v = Number(valor)
     if (valor === '' || Number.isNaN(v) || v < 0) return
     setSalvando(true)
-    await definirConfig('reserva_valor', v)
-    await definirConfig('reserva_atualizada', hojeSP())
-    setValor('')
+    // A data só é gravada se o valor foi: senão a tela diria "atualizada hoje" com o valor antigo.
+    const ok = (await definirConfig('reserva_valor', v)) && (await definirConfig('reserva_atualizada', hojeSP()))
+    if (ok) setValor('')
     setSalvando(false)
   }
 

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { fmt, mesLabel, nowYM } from '../lib/utils'
+import { fmt, mesLabel, nowYM, addMonths, fixosAtivos } from '../lib/utils'
 
 export default function Fixos({ store }) {
   const { fixos, categorias, addFixo, updateFixo, delFixo } = store
@@ -12,6 +12,7 @@ export default function Fixos({ store }) {
     mes_fim: '', dia_vencimento: '',
   })
   const [saving, setSaving] = useState(false)
+  const mesAtual = nowYM()
   const s = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
 
   const subcats = categorias.find((c) => c.nome === form.categoria)?.subcategorias || []
@@ -48,14 +49,34 @@ export default function Fixos({ store }) {
       mes_fim: form.mes_fim || null,
       dia_vencimento: form.dia_vencimento ? Number(form.dia_vencimento) : null,
     }
-    if (editId) await updateFixo(editId, dados)
-    else await addFixo({ ...dados, ativo: true })
+    let ok
+    const antigo = editId && fixos.find((f) => f.id === editId)
+    const mudouValor = antigo && Number(antigo.valor) !== dados.valor
+    const jaComecou = antigo && (!antigo.mes_inicio || antigo.mes_inicio < mesAtual)
+    if (mudouValor && jaComecou && confirm(
+      `Mudar o valor só a partir de ${mesLabel(mesAtual)}?\n\nOK = os meses anteriores continuam com o valor antigo (${fmt(antigo.valor)}).\nCancelar = o valor novo vale para todos os meses, inclusive os passados.`
+    )) {
+      // novo registro começa neste mês; o antigo termina no mês anterior (guarda o histórico)
+      ok = await addFixo({ ...dados, ativo: true, mes_inicio: mesAtual })
+      if (ok) ok = await updateFixo(editId, { mes_fim: addMonths(mesAtual, -1) })
+    } else {
+      ok = editId ? await updateFixo(editId, dados) : await addFixo({ ...dados, ativo: true })
+    }
     setSaving(false)
-    setModal(false)
+    if (ok) setModal(false) // se deu erro, mantém o formulário
   }
 
-  const mesAtual = nowYM()
-  const ativosAgora = fixos.filter((f) => f.ativo && (!f.mes_fim || f.mes_fim >= mesAtual))
+  const ativosAgora = fixosAtivos(fixos, mesAtual)
+  async function alternarAtivo(f, encerrado) {
+    if (f.ativo && !encerrado) {
+      if (!confirm(`Pausar "${f.nome}" a partir de ${mesLabel(mesAtual)}? Os meses anteriores continuam contando.`)) return
+      await updateFixo(f.id, { mes_fim: addMonths(mesAtual, -1) })
+    } else {
+      if (!confirm(`Reativar "${f.nome}"? Ela volta a contar em todos os meses desde o início, inclusive nos que já passaram.`)) return
+      await updateFixo(f.id, { ativo: true, mes_fim: null })
+    }
+  }
+
   const total = ativosAgora.reduce((s, f) => s + Number(f.valor), 0)
   const ok = form.nome && form.valor && form.categoria && !saving
 
@@ -174,7 +195,7 @@ export default function Fixos({ store }) {
                       <button
                         className={`badge ${f.ativo && !encerrado ? 'badge-green' : 'badge-gray'}`}
                         style={{ cursor: 'pointer' }}
-                        onClick={() => updateFixo(f.id, { ativo: !f.ativo })}
+                        onClick={() => alternarAtivo(f, encerrado)}
                       >
                         {!f.ativo ? 'Pausado' : encerrado ? 'Encerrado' : 'Ativo'}
                       </button>

@@ -1,7 +1,7 @@
 // Service worker do Sobrou! — só guarda o "casco" do app (HTML/JS/CSS/ícones) para abrir rápido
 // e permitir instalação. Dados financeiros (Supabase) NUNCA passam por aqui: são outra origem e
 // nada é interceptado, então não ficam em cache no aparelho.
-const CACHE = 'sobrou-v1'
+const CACHE = 'sobrou-v2' // v2: limpa caches que possam ter guardado respostas de erro
 const CASCO = ['/', '/favicon.svg', '/icon-192.png', '/icon-512.png', '/manifest.webmanifest']
 
 self.addEventListener('install', (e) => {
@@ -25,7 +25,7 @@ self.addEventListener('fetch', (e) => {
   if (req.mode === 'navigate') {
     e.respondWith(
       fetch(req)
-        .then((res) => { caches.open(CACHE).then((c) => c.put('/', res.clone())); return res })
+        .then((res) => { if (res.ok) caches.open(CACHE).then((c) => c.put('/', res.clone())); return res })
         .catch(() => caches.match('/'))
     )
     return
@@ -35,8 +35,7 @@ self.addEventListener('fetch', (e) => {
   if (url.pathname.startsWith('/assets/')) {
     e.respondWith(
       caches.match(req).then((hit) => hit || fetch(req).then((res) => {
-        const copia = res.clone()
-        caches.open(CACHE).then((c) => c.put(req, copia))
+        if (res.ok) { const copia = res.clone(); caches.open(CACHE).then((c) => c.put(req, copia)) } // erro (404/5xx) nunca vai para o cache
         return res
       }))
     )
@@ -47,8 +46,7 @@ self.addEventListener('fetch', (e) => {
   e.respondWith(
     caches.match(req).then((hit) => {
       const rede = fetch(req).then((res) => {
-        const copia = res.clone()
-        caches.open(CACHE).then((c) => c.put(req, copia))
+        if (res.ok) { const copia = res.clone(); caches.open(CACHE).then((c) => c.put(req, copia)) }
         return res
       }).catch(() => hit)
       return hit || rede

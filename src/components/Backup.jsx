@@ -1,17 +1,25 @@
 import { useState } from 'react'
 import { sb } from '../lib/supabase'
 
+// [tabela, nome na tela, coluna de ordem estável (paginar sem ordem pode repetir ou pular linhas), opcional]
+// Opcional = a tabela só existe se a pessoa rodou o SQL correspondente; se faltar, é pulada em vez de travar o backup.
 const TABELAS = [
-  ['compras', 'Compras'],
-  ['cartoes', 'Cartões'],
-  ['faturas', 'Faturas (valor real e pagamento)'],
-  ['fixos', 'Contas fixas'],
-  ['fixos_pagamentos', 'Pagamentos das contas fixas'],
-  ['rendas', 'Rendas'],
-  ['categorias', 'Categorias'],
-  ['pessoas', 'Pessoas'],
-  ['saldo_ajustes', 'Ajustes de saldo'],
+  ['compras', 'Compras', 'id'],
+  ['cartoes', 'Cartões', 'id'],
+  ['faturas', 'Faturas (valor real e pagamento)', 'id'],
+  ['fixos', 'Contas fixas', 'id'],
+  ['fixos_pagamentos', 'Pagamentos das contas fixas', 'id'],
+  ['rendas', 'Rendas', 'id'],
+  ['categorias', 'Categorias', 'id'],
+  ['pessoas', 'Pessoas', 'id'],
+  ['saldo_ajustes', 'Ajustes de saldo', 'mes'],
+  ['orcamentos', 'Tetos do Orçamento', 'categoria', true],
+  ['config', 'Configurações (reserva de emergência)', 'chave', true],
+  ['regras_categorizacao', 'Regras de categorização aprendidas', 'id', true],
+  ['estabelecimento_aliases', 'Apelidos de estabelecimentos', 'id', true],
+  ['eventos_financeiros', 'Inbox (lançamentos recebidos)', 'id', true],
 ]
+const ORDEM = Object.fromEntries(TABELAS.map(([t, , o]) => [t, o]))
 
 const PAGINA = 1000
 
@@ -19,7 +27,7 @@ const PAGINA = 1000
 async function buscarTudo(tabela) {
   const linhas = []
   for (let de = 0; ; de += PAGINA) {
-    const { data, error } = await sb.from(tabela).select('*').range(de, de + PAGINA - 1)
+    const { data, error } = await sb.from(tabela).select('*').order(ORDEM[tabela] || 'id').range(de, de + PAGINA - 1)
     if (error) throw new Error(`${tabela}: ${error.message}`)
     linhas.push(...data)
     if (data.length < PAGINA) break
@@ -69,6 +77,8 @@ export default function Backup({ store }) {
     compras: store.compras.length, cartoes: store.cartoes.length, faturas: store.faturas.length,
     fixos: store.fixos.length, fixos_pagamentos: store.fixosPagamentos.length, rendas: store.rendas.length,
     categorias: store.categorias.length, pessoas: store.pessoas.length, saldo_ajustes: store.saldoAjustes.length,
+    orcamentos: store.orcamentos.length, config: Object.keys(store.config).length,
+    regras_categorizacao: store.regras.length, estabelecimento_aliases: store.aliases.length, eventos_financeiros: store.eventos.length,
   }
 
   function registrar() {
@@ -90,7 +100,9 @@ export default function Backup({ store }) {
 
   const baixarCompleto = () => executar('json', async () => {
     const dados = {}
-    for (const [t] of TABELAS) dados[t] = await buscarTudo(t)
+    for (const [t, , , opcional] of TABELAS) {
+      try { dados[t] = await buscarTudo(t) } catch (e) { if (!opcional) throw e } // tabela opcional que ainda não existe: pula
+    }
     const pacote = { app: 'Sobrou!', gerado_em: new Date().toISOString(), tabelas: dados }
     baixar(`sobrou-backup-${hoje()}.json`, JSON.stringify(pacote, null, 2), 'application/json')
     registrar()
@@ -111,7 +123,7 @@ export default function Backup({ store }) {
         <div style={{ fontWeight: 500, marginBottom: 6 }}>Backup completo</div>
         <div style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.6, marginBottom: 14 }}>
           Um único arquivo (.json) com todas as tabelas, tal como estão no banco. Guarde em um lugar seguro
-          (Drive, e-mail para você mesma). É o arquivo que permite recuperar tudo se algo der errado.
+          (Drive, e-mail para você mesma). É a cópia de segurança dos seus dados (a restauração a partir dele ainda não é feita pelo app).
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <button className="btn btn-primary" onClick={baixarCompleto} disabled={!!ocupado}>

@@ -28,9 +28,9 @@ export default function Categorias({ store }) {
       return
     }
     setSaving(true)
-    await addCategoria(nome)
+    const ok = await addCategoria(nome)
     setSaving(false)
-    setNovoNome('')
+    if (ok) setNovoNome('')
   }
 
   function renomear(cat) {
@@ -100,12 +100,13 @@ export default function Categorias({ store }) {
   async function confirmarMigracao() {
     if (!migracao) return
     if (migracao.tipo === 'categoria') {
-      await migrarCategoria(migracao.cat.nome, migracao.destino)
-      await delCategoria(migracao.cat.id)
+      // Só exclui se a migração deu certo: senão as compras ficariam com uma categoria que não existe mais.
+      if (!(await migrarCategoria(migracao.cat.nome, migracao.destino))) return
+      if (!(await delCategoria(migracao.cat.id))) return
     } else {
       const subcategorias = migracao.cat.subcategorias.filter((s) => s !== migracao.sub)
-      await migrarSubcategoria(migracao.cat.nome, migracao.sub, migracao.destino)
-      await delSubcategoria(migracao.cat.id, subcategorias)
+      if (!(await migrarSubcategoria(migracao.cat.nome, migracao.sub, migracao.destino))) return
+      if (!(await delSubcategoria(migracao.cat.id, subcategorias))) return
     }
     setMigracao(null)
   }

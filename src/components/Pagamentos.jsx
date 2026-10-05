@@ -25,6 +25,7 @@ export default function Pagamentos({ store }) {
   } = detalhePagamentos(dados, mes)
 
   async function toggleOutraConta(c) {
+    if (c.parcelaTotal > 1 && !confirm(`Esta compra tem ${c.parcelaTotal} parcelas e o "pago" vale para a compra inteira, não só para este mês. Continuar?`)) return
     await updateCompra(c.id, {
       pago: !c.pago,
       data_pagamento: !c.pago ? hojeSP() : null,
@@ -39,11 +40,11 @@ export default function Pagamentos({ store }) {
   const dinheiroDisponivel = baseCalculada + ajusteAtual
   const saldo = dinheiroDisponivel - totalDividas
 
-  function acertar() {
+  async function acertar() {
     const real = Number(saldoReal)
     if (saldoReal === '' || Number.isNaN(real)) return
-    definirAjusteSaldo(mes, Math.round((real - baseCalculada) * 100) / 100)
-    setSaldoReal('')
+    const ok = await definirAjusteSaldo(mes, Math.round((real - baseCalculada) * 100) / 100)
+    if (ok) setSaldoReal('')
   }
 
   async function toggleFixo(fixo) {

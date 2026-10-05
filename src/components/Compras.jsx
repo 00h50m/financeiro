@@ -19,16 +19,18 @@ export default function Compras({ store }) {
     ), [compras, filtro, filtroPessoa])
 
   const idsVisiveis = lista.map((c) => c.id)
+  // Só vale o que está aparecendo: marcar, mudar a busca e aplicar nunca altera compras que a pessoa não vê.
+  const selecionadas = marcadas.filter((id) => idsVisiveis.includes(id))
   const todasMarcadas = idsVisiveis.length > 0 && idsVisiveis.every((id) => marcadas.includes(id))
   const alternar = (id) => setMarcadas((m) => (m.includes(id) ? m.filter((x) => x !== id) : [...m, id]))
   const subsNova = categorias.find((c) => c.nome === novaCat)?.subcategorias || []
 
   async function aplicarCategoria() {
-    if (!novaCat || !marcadas.length) return
+    if (!novaCat || !selecionadas.length) return
     const sub = novaSub || subsNova[0] || 'Outros'
-    if (!confirm(`Mudar ${marcadas.length} compra${marcadas.length > 1 ? 's' : ''} para ${novaCat} › ${sub}?`)) return
-    await updateComprasLote(marcadas, { categoria: novaCat, subcategoria: sub })
-    setMarcadas([]); setNovaCat(''); setNovaSub('')
+    if (!confirm(`Mudar ${selecionadas.length} compra${selecionadas.length > 1 ? 's' : ''} para ${novaCat} › ${sub}?`)) return
+    const ok = await updateComprasLote(selecionadas, { categoria: novaCat, subcategoria: sub })
+    if (ok) { setMarcadas([]); setNovaCat(''); setNovaSub('') }
   }
 
   function editarIdentificacao(c) {
@@ -64,9 +66,9 @@ export default function Compras({ store }) {
         </button>
       </div>
 
-      {marcadas.length > 0 && (
+      {selecionadas.length > 0 && (
         <div className="toolbar" style={{ background: 'var(--bg2, transparent)' }}>
-          <span style={{ fontSize: 13 }}>{marcadas.length} selecionada{marcadas.length > 1 ? 's' : ''}</span>
+          <span style={{ fontSize: 13 }}>{selecionadas.length} selecionada{selecionadas.length > 1 ? 's' : ''}</span>
           <select value={novaCat} onChange={(e) => { setNovaCat(e.target.value); setNovaSub('') }} style={{ width: 170 }}>
             <option value="">Nova categoria…</option>
             {categorias.map((c) => <option key={c.id} value={c.nome}>{c.nome}</option>)}

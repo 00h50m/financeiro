@@ -1,5 +1,5 @@
 import { useState, Fragment } from 'react'
-import { fmt, fmtK, mesLabel, nowYM, addMonths, gerarParcelas, totalRenda, corPessoa, corPessoaCss, fixosAtivos, gastosPorCategoria, statusTeto } from '../lib/utils'
+import { fmt, fmtK, mesLabel, nowYM, addMonths, gerarParcelas, totalRenda, corPessoa, corPessoaCss, fixosAtivos, gastosPorCategoria, statusTeto, detalhePagamentos } from '../lib/utils'
 
 export default function Dashboard({ store, irPara }) {
   const { compras, cartoes, rendas, fixos, pessoas, orcamentos } = store
@@ -7,12 +7,14 @@ export default function Dashboard({ store, irPara }) {
   const [abertas, setAbertas] = useState({})
   const alternar = (categoria) => setAbertas((a) => ({ ...a, [categoria]: !a[categoria] }))
 
-  const totalFixosNoMes = (m) => fixosAtivos(fixos, m).reduce((s, f) => s + Number(f.valor), 0)
+  // Mesma conta da aba Pagamentos (fatura com valor real conta pelo valor real), para os números baterem.
+  const comprometidoDe = (m) => detalhePagamentos(store, m).comprometido
+  const totalMes = comprometidoDe(mes)
 
-  const totalFixos = totalFixosNoMes(mes)
-  const parcelasMes = compras.flatMap((c) => gerarParcelas(c, cartoes).filter((p) => p.mes === mes))
-  const totalParc = parcelasMes.reduce((s, p) => s + p.valor, 0)
-  const totalMes = totalFixos + totalParc
+  const totalFixos = fixosAtivos(fixos, mes).reduce((s, f) => s + Number(f.valor), 0)
+  const totalParc = compras
+    .flatMap((c) => gerarParcelas(c, cartoes).filter((p) => p.mes === mes))
+    .reduce((s, p) => s + p.valor, 0)
 
   const rendaMes = rendas.find((r) => r.mes === mes)
   const renda = totalRenda(rendaMes)
@@ -20,8 +22,7 @@ export default function Dashboard({ store, irPara }) {
   const pct = renda > 0 ? Math.min(999, Math.round((totalMes / renda) * 100)) : 0
 
   const meses6 = Array.from({ length: 6 }, (_, i) => addMonths(mes, i)).map((m) => {
-    const ps = compras.flatMap((c) => gerarParcelas(c, cartoes).filter((p) => p.mes === m))
-    const tot = totalFixosNoMes(m) + ps.reduce((s, p) => s + p.valor, 0)
+    const tot = comprometidoDe(m)
     const r = rendas.find((x) => x.mes === m)
     const rTot = totalRenda(r)
     return { mes: m, compromisso: tot, renda: rTot, saldo: rTot - tot }

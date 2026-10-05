@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { CORES_PESSOA, proximaCorPessoa } from '../lib/utils'
 
 export default function Pessoas({ store }) {
-  const { pessoas, addPessoa, delPessoa, mudarCorPessoa, renomearPessoa } = store
+  const { pessoas, compras, fixos, integracoesTelegram, addPessoa, delPessoa, mudarCorPessoa, renomearPessoa } = store
   const [novoNome, setNovoNome] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -14,9 +14,9 @@ export default function Pessoas({ store }) {
       return
     }
     setSaving(true)
-    await addPessoa(nome, proximaCorPessoa(pessoas))
+    const ok = await addPessoa(nome, proximaCorPessoa(pessoas))
     setSaving(false)
-    setNovoNome('')
+    if (ok) setNovoNome('')
   }
 
   function renomear(pessoa) {
@@ -32,7 +32,10 @@ export default function Pessoas({ store }) {
   }
 
   function remover(pessoa) {
-    if (confirm(`Remover "${pessoa.nome}"?\n\nCompras, fixos e cartões já lançados com essa pessoa não são alterados — ela só deixa de aparecer como opção.`)) {
+    const nCompras = compras.filter((c) => c.pessoa === pessoa.nome).length
+    const nFixos = fixos.filter((f) => f.pessoa === pessoa.nome).length
+    const telegram = (integracoesTelegram || []).some((i) => i.pessoa_id === pessoa.id)
+    if (confirm(`Remover "${pessoa.nome}"?\n\n${nCompras} compra${nCompras === 1 ? '' : 's'} e ${nFixos} conta${nFixos === 1 ? '' : 's'} fixa${nFixos === 1 ? '' : 's'} continuam com esse nome (ela só deixa de aparecer como opção).${telegram ? '\n\nA conexão dela com o bot do Telegram será apagada e o bot para de responder a ela.' : ''}`)) {
       delPessoa(pessoa.id)
     }
   }

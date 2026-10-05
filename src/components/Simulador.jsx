@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { fmt, fmtK, mesLabel, nowYM, addMonths, calcMesInicio, gerarParcelas, limiteUsado, totalRenda } from '../lib/utils'
+import { fmt, fmtK, mesLabel, nowYM, addMonths, calcMesInicio, fixosAtivos, gerarParcelas, limiteUsado, totalRenda } from '../lib/utils'
 
 const MAX_PARCELAS = 48
 const CENARIOS = [1, 2, 3, 4, 5, 6, 10, 12, 18, 24]
@@ -68,12 +68,13 @@ export default function Simulador({ store }) {
   }
 
   const fixosDoMes = (m) =>
-    fixos.filter((f) => f.ativo && (!f.mes_fim || f.mes_fim >= m)).reduce((s, f) => s + Number(f.valor), 0)
+    fixosAtivos(fixos, m).reduce((s, f) => s + Number(f.valor), 0)
 
   const baseDe = (m) => fixosDoMes(m) + (parcelasPorMes[m] || 0)
   const folgaDe = (m) => {
     const r = rendaDe(m).valor
-    return r - baseDe(m) - (r * margemPct) / 100
+    // "Com folga" = respeitar a margem E não passar de 70% da renda (mesma regra do veredito).
+    return Math.min(r - baseDe(m) - (r * margemPct) / 100, r * 0.7 - baseDe(m))
   }
   const menorFolga = (start, qtd) =>
     Math.min(...Array.from({ length: qtd }, (_, k) => folgaDe(addMonths(start, k))))

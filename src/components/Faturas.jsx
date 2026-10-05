@@ -15,11 +15,11 @@ export default function Faturas({ store }) {
   }
 
   async function salvar() {
-    if (!form.cartao_id || !form.valor_real) return
+    if (!form.cartao_id || !form.mes || !form.valor_real) return
     setSaving(true)
-    await upsertFatura({ cartao_id: form.cartao_id, mes: form.mes, valor_real: Number(form.valor_real) })
+    const ok = await upsertFatura({ cartao_id: form.cartao_id, mes: form.mes, valor_real: Number(form.valor_real) })
     setSaving(false)
-    setModal(false)
+    if (ok) setModal(false) // se deu erro, mantém o formulário
   }
 
   const mesList = [...new Set(faturas.map((f) => f.mes))].sort().reverse()
@@ -127,7 +127,7 @@ export default function Faturas({ store }) {
                               : <span className="badge badge-amber">excede</span>}
                         </td>
                         <td>
-                          <button className="btn btn-danger" onClick={() => delFatura(fat.id)}>×</button>
+                          <button className="btn btn-danger" onClick={() => { if (confirm('Remover o valor real desta fatura? Se ela estava marcada como paga, isso também some.')) delFatura(fat.id) }}>×</button>
                         </td>
                       </tr>
                     )
