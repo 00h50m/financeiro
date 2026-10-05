@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { fmt, mesLabel, nowYM, addMonths, fixosAtivos, corPessoa } from '../lib/utils'
+import { fmt, mesLabel, nowYM, addMonths, fixosAtivos, corPessoa, nomeCasa, donoDoFixo } from '../lib/utils'
 
 export default function Fixos({ store }) {
   const { fixos, categorias, pessoas, addFixo, updateFixo, delFixo } = store
@@ -11,9 +11,11 @@ export default function Fixos({ store }) {
     subcategoria: categorias[0]?.subcategorias?.[0] || '',
     mes_fim: '', dia_vencimento: '',
   })
-  const [filtroPessoa, setFiltroPessoa] = useState('') // '' = todas · '__sem' = sem pessoa definida
+  const [filtroPessoa, setFiltroPessoa] = useState('') // '' = todas
   const [saving, setSaving] = useState(false)
   const mesAtual = nowYM()
+  const casa = nomeCasa(pessoas)
+  const casaCadastrada = pessoas.some((p) => p.nome === casa)
   const s = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
 
   const subcats = categorias.find((c) => c.nome === form.categoria)?.subcategorias || []
@@ -21,7 +23,7 @@ export default function Fixos({ store }) {
   function abrir(fx) {
     if (fx) {
       setForm({
-        nome: fx.nome, valor: fx.valor, pessoa: fx.pessoa || '',
+        nome: fx.nome, valor: fx.valor, pessoa: fx.pessoa || (casaCadastrada ? casa : ''),
         categoria: fx.categoria || categorias[0]?.nome || '',
         subcategoria: fx.subcategoria || categorias.find((c) => c.nome === fx.categoria)?.subcategorias?.[0] || '',
         mes_fim: fx.mes_fim || '', dia_vencimento: fx.dia_vencimento || '',
@@ -29,7 +31,7 @@ export default function Fixos({ store }) {
       setEditId(fx.id)
     } else {
       setForm({
-        nome: '', valor: '', pessoa: '',
+        nome: '', valor: '', pessoa: casaCadastrada ? casa : '',
         categoria: categorias[0]?.nome || '',
         subcategoria: categorias[0]?.subcategorias?.[0] || '',
         mes_fim: '', dia_vencimento: '',
@@ -68,7 +70,7 @@ export default function Fixos({ store }) {
     if (ok) setModal(false) // se deu erro, mantém o formulário
   }
 
-  const doFiltro = (f) => !filtroPessoa || (filtroPessoa === '__sem' ? !f.pessoa : f.pessoa === filtroPessoa)
+  const doFiltro = (f) => !filtroPessoa || donoDoFixo(f, pessoas) === filtroPessoa
   const fixosVisiveis = fixos.filter(doFiltro)
   const ativosAgora = fixosAtivos(fixosVisiveis, mesAtual)
   async function alternarAtivo(f, encerrado) {
@@ -100,7 +102,7 @@ export default function Fixos({ store }) {
               <div className="form-group">
                 <label>De quem é</label>
                 <select value={form.pessoa} onChange={s('pessoa')}>
-                  <option value="">Sem pessoa definida</option>
+                  {!casaCadastrada && <option value="">{casa} (de todos)</option>}
                   {form.pessoa && !pessoas.some((p) => p.nome === form.pessoa) && <option value={form.pessoa}>{form.pessoa}</option>}
                   {pessoas.map((p) => <option key={p.id} value={p.nome}>{p.nome}</option>)}
                 </select>
@@ -162,10 +164,10 @@ export default function Fixos({ store }) {
         <select value={filtroPessoa} onChange={(e) => setFiltroPessoa(e.target.value)} aria-label="Filtrar por pessoa">
           <option value="">Todas as pessoas</option>
           {pessoas.map((p) => <option key={p.id} value={p.nome}>{p.nome}</option>)}
-          <option value="__sem">Sem pessoa definida</option>
+          {!casaCadastrada && <option value={casa}>{casa}</option>}
         </select>
         <span style={{ marginLeft: 'auto', fontSize: 13, color: 'var(--text2)' }}>
-          Total{filtroPessoa && filtroPessoa !== '__sem' ? ` · ${filtroPessoa}` : ''}: <span style={{ fontFamily: 'DM Mono', color: 'var(--amber)' }}>{fmt(total)}/mês</span>
+          Total{filtroPessoa ? ` · ${filtroPessoa}` : ''}: <span style={{ fontFamily: 'DM Mono', color: 'var(--amber)' }}>{fmt(total)}/mês</span>
         </span>
       </div>
 
@@ -198,9 +200,7 @@ export default function Fixos({ store }) {
                       )}
                     </td>
                     <td>
-                      {f.pessoa
-                        ? <span className={`badge badge-${corPessoa(pessoas, f.pessoa)}`}>{f.pessoa}</span>
-                        : <span style={{ color: 'var(--text3)', fontSize: 12 }}>—</span>}
+                      <span className={`badge badge-${corPessoa(pessoas, donoDoFixo(f, pessoas))}`}>{donoDoFixo(f, pessoas)}</span>
                     </td>
                     <td style={{ fontSize: 12, color: 'var(--text2)' }}>
                       {f.categoria ? (

@@ -1,5 +1,5 @@
 import { useState, Fragment } from 'react'
-import { fmt, fmtK, mesLabel, nowYM, addMonths, gerarParcelas, corPessoa, corPessoaCss, fixosAtivos, gastosPorCategoria, statusTeto } from '../lib/utils'
+import { fmt, fmtK, mesLabel, nowYM, addMonths, gerarParcelas, corPessoa, corPessoaCss, fixosAtivos, gastosPorCategoria, statusTeto, nomeCasa, donoDoFixo } from '../lib/utils'
 import { resumoDoMes, lerUsarSaldoAnterior } from '../lib/financeiro'
 import { comprasLiquidas, fixosLiquidos } from '../lib/divisoes'
 import { riscosDoMes, mesFechado } from '../lib/fechamento'
@@ -31,12 +31,25 @@ export default function Dashboard({ store, irPara }) {
     return { mes: m, compromisso: r.comprometido, renda: r.renda, saldo: r.sobraDoMes }
   })
 
-  const gastoPessoa = pessoas.map(({ nome: pessoa }) => ({
-    pessoa,
-    valor: compras
-      .flatMap((c) => (c.pessoa === pessoa ? gerarParcelas(c, cartoes).filter((p) => p.mes === mes) : []))
-      .reduce((s, p) => s + p.valor, 0),
-  }))
+  // Parcelamentos e fixos de cada pessoa. Fixo sem pessoa é da Casa. Quem aparece nos dados mas não está
+  // cadastrado (nome antigo, por exemplo) ganha a própria linha, para os totais sempre fecharem.
+  const parcPorPessoa = {}
+  compras.forEach((c) => {
+    const v = gerarParcelas(c, cartoes).filter((p) => p.mes === mes).reduce((t, p) => t + p.valor, 0)
+    if (v) parcPorPessoa[c.pessoa] = (parcPorPessoa[c.pessoa] || 0) + v
+  })
+  const fixPorPessoa = {}
+  fixosAtivos(fixos, mes).forEach((f) => {
+    const dono = donoDoFixo(f, pessoas)
+    fixPorPessoa[dono] = (fixPorPessoa[dono] || 0) + Number(f.valor)
+  })
+  const nomesPessoas = [...new Set([...pessoas.map((p) => p.nome), nomeCasa(pessoas), ...Object.keys(parcPorPessoa), ...Object.keys(fixPorPessoa)])]
+  const gastoPessoa = nomesPessoas.map((pessoa) => {
+    const parc = parcPorPessoa[pessoa] || 0
+    const fix = fixPorPessoa[pessoa] || 0
+    return { pessoa, parc, fix, total: parc + fix }
+  })
+  const totalGeralPessoas = gastoPessoa.reduce((t, g) => t + g.total, 0)
 
   const porCategoriaMap = gastosPorCategoria(comprasLiquidas(store), cartoes, fixosLiquidos(store), mes)
   const porCategoria = Object.entries(porCategoriaMap)
@@ -123,12 +136,14 @@ export default function Dashboard({ store, irPara }) {
             <tr>
               <th>Pessoa</th>
               <th style={{ textAlign: 'right' }}>Parcelamentos</th>
+              <th style={{ textAlign: 'right' }}>Fixos</th>
+              <th style={{ textAlign: 'right' }}>Total</th>
               <th>Participação</th>
             </tr>
           </thead>
           <tbody>
-            {gastoPessoa.map(({ pessoa, valor }) => {
-              const p2 = totalParc > 0 ? Math.round((valor / totalParc) * 100) : 0
+            {gastoPessoa.map(({ pessoa, parc, fix, total }) => {
+              const p2 = totalGeralPessoas > 0 ? Math.round((total / totalGeralPessoas) * 100) : 0
               return (
                 <tr key={pessoa}>
                   <td>
@@ -136,7 +151,9 @@ export default function Dashboard({ store, irPara }) {
                       {pessoa}
                     </span>
                   </td>
-                  <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(valor)}</td>
+                  <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(parc)}</td>
+                  <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(fix)}</td>
+                  <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(total)}</td>
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <div className="prog-bar" style={{ flex: 1 }}>
@@ -149,8 +166,10 @@ export default function Dashboard({ store, irPara }) {
               )
             })}
             <tr style={{ borderTop: '1px solid var(--border2)' }}>
-              <td style={{ color: 'var(--text2)' }}>Fixos da casa</td>
+              <td style={{ color: 'var(--text2)' }}>Total</td>
+              <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13, color: 'var(--text2)' }}>{fmt(totalParc)}</td>
               <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13, color: 'var(--text2)' }}>{fmt(totalFixos)}</td>
+              <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13, color: 'var(--text2)' }}>{fmt(totalParc + totalFixos)}</td>
               <td />
             </tr>
           </tbody>

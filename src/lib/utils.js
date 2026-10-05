@@ -6,6 +6,10 @@ export const CORES_PESSOA = ['purple', 'blue', 'green', 'amber', 'red', 'gray']
 
 export const proximaCorPessoa = (pessoas) => CORES_PESSOA[pessoas.length % CORES_PESSOA.length]
 
+// Conta fixa sem pessoa definida é da Casa (de todos). Usa o nome da pessoa "Casa" cadastrada, se houver.
+export const nomeCasa = (pessoas = []) => pessoas.find((p) => p.nome.trim().toLowerCase() === 'casa')?.nome || 'Casa'
+export const donoDoFixo = (f, pessoas = []) => f.pessoa || nomeCasa(pessoas)
+
 export const corPessoa = (pessoas, nome) => pessoas.find((p) => p.nome === nome)?.cor || 'gray'
 
 const CSS_VAR_COR = { purple: 'var(--purple)', blue: 'var(--blue)', green: 'var(--green)', amber: 'var(--amber)', red: 'var(--red)', gray: 'var(--text3)' }
