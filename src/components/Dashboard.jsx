@@ -1,31 +1,32 @@
 import { useState, Fragment } from 'react'
-import { fmt, fmtK, mesLabel, nowYM, addMonths, gerarParcelas, totalRenda, corPessoa, corPessoaCss, fixosAtivos, gastosPorCategoria, statusTeto, detalhePagamentos } from '../lib/utils'
+import { fmt, fmtK, mesLabel, nowYM, addMonths, gerarParcelas, corPessoa, corPessoaCss, fixosAtivos, gastosPorCategoria, statusTeto } from '../lib/utils'
+import { resumoDoMes, lerUsarSaldoAnterior } from '../lib/financeiro'
 
 export default function Dashboard({ store, irPara }) {
-  const { compras, cartoes, rendas, fixos, pessoas, orcamentos } = store
+  const { compras, cartoes, fixos, pessoas, orcamentos } = store
   const mes = nowYM()
   const [abertas, setAbertas] = useState({})
   const alternar = (categoria) => setAbertas((a) => ({ ...a, [categoria]: !a[categoria] }))
 
-  // Mesma conta da aba Pagamentos (fatura com valor real conta pelo valor real), para os números baterem.
-  const comprometidoDe = (m) => detalhePagamentos(store, m).comprometido
-  const totalMes = comprometidoDe(mes)
+  // Mesma conta da aba Pagamentos (motor financeiro único), para os números baterem.
+  const usarSaldoAnterior = lerUsarSaldoAnterior()
+  const cacheDetalhes = new Map()
+  const resumoDe = (m) => resumoDoMes(store, m, { usarSaldoAnterior, cacheDetalhes })
+  const resumoMes = resumoDe(mes)
+  const totalMes = resumoMes.comprometido
 
   const totalFixos = fixosAtivos(fixos, mes).reduce((s, f) => s + Number(f.valor), 0)
   const totalParc = compras
     .flatMap((c) => gerarParcelas(c, cartoes).filter((p) => p.mes === mes))
     .reduce((s, p) => s + p.valor, 0)
 
-  const rendaMes = rendas.find((r) => r.mes === mes)
-  const renda = totalRenda(rendaMes)
-  const saldo = renda - totalMes
+  const renda = resumoMes.renda
+  const saldo = resumoMes.sobraProjetada
   const pct = renda > 0 ? Math.min(999, Math.round((totalMes / renda) * 100)) : 0
 
   const meses6 = Array.from({ length: 6 }, (_, i) => addMonths(mes, i)).map((m) => {
-    const tot = comprometidoDe(m)
-    const r = rendas.find((x) => x.mes === m)
-    const rTot = totalRenda(r)
-    return { mes: m, compromisso: tot, renda: rTot, saldo: rTot - tot }
+    const r = resumoDe(m)
+    return { mes: m, compromisso: r.comprometido, renda: r.renda, saldo: r.sobraDoMes }
   })
 
   const gastoPessoa = pessoas.map(({ nome: pessoa }) => ({
@@ -68,6 +69,11 @@ export default function Dashboard({ store, irPara }) {
           <div className={`metric-val ${renda === 0 ? 'blue' : saldo >= 0 ? 'green' : 'red'}`}>
             {renda > 0 ? fmtK(saldo) : '—'}
           </div>
+          {renda > 0 && resumoMes.saldoAnterior !== 0 && (
+            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
+              inclui {resumoMes.saldoAnterior > 0 ? '+' : '−'}{fmtK(Math.abs(resumoMes.saldoAnterior))} do mês anterior
+            </div>
+          )}
         </div>
         <div className="metric">
           <div className="metric-label">% da renda</div>
@@ -219,7 +225,7 @@ export default function Dashboard({ store, irPara }) {
               <th>Mês</th>
               <th style={{ textAlign: 'right' }}>Renda</th>
               <th style={{ textAlign: 'right' }}>Compromisso</th>
-              <th style={{ textAlign: 'right' }}>Saldo</th>
+              <th style={{ textAlign: 'right' }}>Sobra do mês</th>
               <th style={{ width: 100 }} />
             </tr>
           </thead>

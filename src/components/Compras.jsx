@@ -1,10 +1,11 @@
 import { useState, useMemo } from 'react'
-import { fmt, corPessoa, tituloCompra, subtituloCompra } from '../lib/utils'
+import { fmt, corPessoa, tituloCompra, subtituloCompra, valorParcelaBase } from '../lib/utils'
+import { parcelasPagas } from '../lib/financeiro'
 import ModalCompra from './ModalCompra'
 import { rotuloOrigem } from '../lib/origem'
 
 export default function Compras({ store }) {
-  const { compras, cartoes, categorias, pessoas, addCompra, updateCompra, updateComprasLote, delCompra } = store
+  const { compras, cartoes, categorias, pessoas, comprasPagamentos, comprasPagamentosOk, addCompra, updateCompra, updateComprasLote, delCompra } = store
   const [modal, setModal] = useState(false)
   const [filtro, setFiltro] = useState('')
   const [filtroPessoa, setFiltroPessoa] = useState('')
@@ -143,11 +144,15 @@ export default function Compras({ store }) {
                         <div>
                           <span className="badge badge-gray">Sem cartão</span>
                           <div style={{ marginTop: 3 }}>
-                            {c.pago ? (
-                              <span className="badge badge-green" style={{ fontSize: 10 }}>pago</span>
-                            ) : (
-                              <span className="badge badge-amber" style={{ fontSize: 10 }}>a pagar</span>
-                            )}
+                            {(() => {
+                              const { pagas, total } = parcelasPagas(c, cartoes, comprasPagamentos, comprasPagamentosOk)
+                              if (total > 1 && pagas > 0 && pagas < total) {
+                                return <span className="badge badge-amber" style={{ fontSize: 10 }}>{pagas}/{total} pagas</span>
+                              }
+                              return pagas === total
+                                ? <span className="badge badge-green" style={{ fontSize: 10 }}>pago</span>
+                                : <span className="badge badge-amber" style={{ fontSize: 10 }}>a pagar</span>
+                            })()}
                           </div>
                         </div>
                       )}
@@ -158,7 +163,7 @@ export default function Compras({ store }) {
                         <div>
                           <span className="badge badge-amber">{c.parcelas}x</span>
                           <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
-                            {fmt(c.valor_total / c.parcelas)}/mês
+                            {fmt(valorParcelaBase(c))}/mês
                           </div>
                         </div>
                       ) : (

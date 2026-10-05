@@ -49,7 +49,7 @@ Rode no SQL Editor do Supabase:
 | `config.sql` | Configurações (reserva de emergência) |
 | `cartoes_limite.sql` | Coluna de limite do cartão |
 | `fixos_mes_inicio.sql` | Histórico das contas fixas (mudar o valor só daqui para frente) |
-| `inbox/01` a `inbox/12` | Inbox Financeiro (rodar **em ordem**, uma parte por vez; cada uma é repetível). `inbox/desfazer.sql` reverte. |
+| `inbox/01` a `inbox/14` | Inbox Financeiro (rodar **em ordem**, uma parte por vez; cada uma é repetível). `inbox/desfazer.sql` reverte. |
 
 Usuários: crie em **Authentication → Users** e deixe o cadastro aberto desligado.
 
@@ -93,12 +93,18 @@ Código do bot: `api/telegram.js` (webhook), `api/telegram-admin.js` (tela Autom
 sem rede). Segurança: segredo do webhook conferido em tempo constante, `update_id` processado uma vez, limite de
 mensagens por minuto, só conversa privada.
 
+## Regras financeiras
+
+A definição oficial de cada número (comprometido, pago, a pagar, disponível, sobra...) está em [`docs/conceitos-financeiros.md`](docs/conceitos-financeiros.md); o cálculo mora em `src/lib/financeiro.js`.
+
 ## Rodar localmente
 
 ```bash
 npm install
 npm run dev
-npm test      # testes (regras do Inbox, parser do Telegram, lógica do bot)
+npm test      # testes (regras do Inbox, parser do Telegram, lógica do bot, motor financeiro)
+npm run lint  # ESLint
+npm run check # lint + testes + build (é o que o GitHub roda em cada PR)
 ```
 
 Acesse `http://localhost:5173`

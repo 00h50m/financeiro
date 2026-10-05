@@ -82,6 +82,6 @@ export function formatarResumo(r, { nome, de, ate, filtro = null, aviso = true }
     detalhe.slice(0, 6).forEach(([n, v]) => linhas.push(`• ${n}: ${fmt(v)}`))
     if (detalhe.length > 6) linhas.push(`• outras: ${fmt(detalhe.slice(6).reduce((s, [, v]) => s + v, 0))}`)
   }
-  if (aviso) linhas.push('', 'Soma o valor total das compras lançadas (parceladas contam inteiras).')
+  if (aviso) linhas.push('', 'Soma o valor total das compras lançadas pela data da compra (parceladas contam inteiras). Para o que vence no mês, veja Pagamentos no app.')
   return linhas.join('\n')
 }

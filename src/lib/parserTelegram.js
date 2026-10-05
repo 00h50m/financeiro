@@ -62,7 +62,7 @@ export function interpretarMensagem(entrada, ctx) {
   }
 
   // Observação: "obs: ..." até o fim.
-  const mo = n.match(/\b(?:obs|observacao)\s*[:\-]\s*(.+)$/)
+  const mo = n.match(/\b(?:obs|observacao)\s*[:-]\s*(.+)$/)
   if (mo) {
     r.obs = texto.slice(mo.index + mo[0].length - mo[1].length).trim() || null
     marcar(mo.index, texto.length)
@@ -85,7 +85,7 @@ export function interpretarMensagem(entrada, ctx) {
   }
 
   // Valor: "R$" > decimal/milhar > inteiro. Empate de valores diferentes = ambíguo.
-  const candidatos = [...n.matchAll(/(?<![\/\d.,:])(r\$\s*)?(\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d+(?:[.,]\d{1,2})?)(?![\d\/:])/g)]
+  const candidatos = [...n.matchAll(/(?<![/\d.,:])(r\$\s*)?(\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d+(?:[.,]\d{1,2})?)(?![\d/:])/g)]
     .filter((m) => livre(m.index, m.index + m[0].length))
     .map((m) => ({ m, v: numero(m[2]), peso: m[1] ? 3 : /[.,]\d{1,2}$/.test(m[2]) || m[2].includes('.') ? 2 : 1 }))
   if (candidatos.length) {

@@ -47,7 +47,7 @@ export default function Cartoes({ store }) {
   function renderLimite(c) {
     const limite = Number(c.limite) || 0
     if (!limite) return <span style={{ fontSize: 12, color: 'var(--text3)' }}>não informado</span>
-    const { atual, futuro, usado } = limiteUsado(c.id, compras, cartoes, faturas, mes)
+    const { atual, futuro, usado, semInformacao } = limiteUsado(c.id, compras, cartoes, faturas, mes)
     const pct = Math.round((usado / limite) * 100)
     const cor = pct > 90 ? 'var(--red)' : pct > 70 ? 'var(--amber)' : 'var(--green)'
     return (
@@ -60,6 +60,11 @@ export default function Cartoes({ store }) {
         <div style={{ fontSize: 11, color: usado > limite ? 'var(--red)' : 'var(--text3)', marginTop: 3 }}>
           {usado > limite ? `acima do limite em ${fmtK(usado - limite)}` : `${fmtK(limite - usado)} disponível`}
         </div>
+        {semInformacao > 0.5 && (
+          <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
+            {fmtK(semInformacao)} de meses passados sem registro de pagamento não entram na conta
+          </div>
+        )}
       </div>
     )
   }
