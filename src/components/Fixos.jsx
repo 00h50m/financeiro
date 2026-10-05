@@ -1,18 +1,21 @@
 import { useState } from 'react'
-import { fmt, mesLabel, nowYM, addMonths, fixosAtivos } from '../lib/utils'
+import { fmt, mesLabel, nowYM, addMonths, fixosAtivos, corPessoa, nomeCasa, donoDoFixo } from '../lib/utils'
 
 export default function Fixos({ store }) {
-  const { fixos, categorias, addFixo, updateFixo, delFixo } = store
+  const { fixos, categorias, pessoas, addFixo, updateFixo, delFixo } = store
   const [modal, setModal] = useState(false)
   const [editId, setEditId] = useState(null)
   const [form, setForm] = useState({
-    nome: '', valor: '',
+    nome: '', valor: '', pessoa: '',
     categoria: categorias[0]?.nome || '',
     subcategoria: categorias[0]?.subcategorias?.[0] || '',
     mes_fim: '', dia_vencimento: '',
   })
+  const [filtroPessoa, setFiltroPessoa] = useState('') // '' = todas
   const [saving, setSaving] = useState(false)
   const mesAtual = nowYM()
+  const casa = nomeCasa(pessoas)
+  const casaCadastrada = pessoas.some((p) => p.nome === casa)
   const s = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
 
   const subcats = categorias.find((c) => c.nome === form.categoria)?.subcategorias || []
@@ -20,7 +23,7 @@ export default function Fixos({ store }) {
   function abrir(fx) {
     if (fx) {
       setForm({
-        nome: fx.nome, valor: fx.valor,
+        nome: fx.nome, valor: fx.valor, pessoa: fx.pessoa || (casaCadastrada ? casa : ''),
         categoria: fx.categoria || categorias[0]?.nome || '',
         subcategoria: fx.subcategoria || categorias.find((c) => c.nome === fx.categoria)?.subcategorias?.[0] || '',
         mes_fim: fx.mes_fim || '', dia_vencimento: fx.dia_vencimento || '',
@@ -28,7 +31,7 @@ export default function Fixos({ store }) {
       setEditId(fx.id)
     } else {
       setForm({
-        nome: '', valor: '',
+        nome: '', valor: '', pessoa: casaCadastrada ? casa : '',
         categoria: categorias[0]?.nome || '',
         subcategoria: categorias[0]?.subcategorias?.[0] || '',
         mes_fim: '', dia_vencimento: '',
@@ -44,6 +47,7 @@ export default function Fixos({ store }) {
     const dados = {
       nome: form.nome,
       valor: Number(form.valor),
+      pessoa: form.pessoa || null,
       categoria: form.categoria,
       subcategoria: form.subcategoria,
       mes_fim: form.mes_fim || null,
@@ -66,7 +70,9 @@ export default function Fixos({ store }) {
     if (ok) setModal(false) // se deu erro, mantém o formulário
   }
 
-  const ativosAgora = fixosAtivos(fixos, mesAtual)
+  const doFiltro = (f) => !filtroPessoa || donoDoFixo(f, pessoas) === filtroPessoa
+  const fixosVisiveis = fixos.filter(doFiltro)
+  const ativosAgora = fixosAtivos(fixosVisiveis, mesAtual)
   async function alternarAtivo(f, encerrado) {
     if (f.ativo && !encerrado) {
       if (!confirm(`Pausar "${f.nome}" a partir de ${mesLabel(mesAtual)}? Os meses anteriores continuam contando.`)) return
@@ -94,6 +100,20 @@ export default function Fixos({ store }) {
             </div>
             <div className="form-row cols2">
               <div className="form-group">
+                <label>De quem é</label>
+                <select value={form.pessoa} onChange={s('pessoa')}>
+                  {!casaCadastrada && <option value="">{casa} (de todos)</option>}
+                  {form.pessoa && !pessoas.some((p) => p.nome === form.pessoa) && <option value={form.pessoa}>{form.pessoa}</option>}
+                  {pessoas.map((p) => <option key={p.id} value={p.nome}>{p.nome}</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Valor mensal (R$)</label>
+                <input type="number" step="0.01" value={form.valor} onChange={s('valor')} placeholder="0,00" />
+              </div>
+            </div>
+            <div className="form-row cols2">
+              <div className="form-group">
                 <label>Categoria</label>
                 <select
                   value={form.categoria}
@@ -114,13 +134,9 @@ export default function Fixos({ store }) {
                 </select>
               </div>
             </div>
-            <div className="form-row cols3">
+            <div className="form-row cols2">
               <div className="form-group">
-                <label>Valor padrão mensal (R$)</label>
-                <input type="number" step="0.01" value={form.valor} onChange={s('valor')} placeholder="0,00" />
-              </div>
-              <div className="form-group">
-                <label>Dia de vencimento (opcional)</label>
+                <label>Dia do vencimento (opcional)</label>
                 <input type="number" min="1" max="31" value={form.dia_vencimento} onChange={s('dia_vencimento')} placeholder="Ex: 10" />
               </div>
               <div className="form-group">
@@ -145,19 +161,25 @@ export default function Fixos({ store }) {
 
       <div className="toolbar">
         <button className="btn btn-primary" onClick={() => abrir(null)}>+ Novo fixo</button>
+        <select value={filtroPessoa} onChange={(e) => setFiltroPessoa(e.target.value)} aria-label="Filtrar por pessoa">
+          <option value="">Todas as pessoas</option>
+          {pessoas.map((p) => <option key={p.id} value={p.nome}>{p.nome}</option>)}
+          {!casaCadastrada && <option value={casa}>{casa}</option>}
+        </select>
         <span style={{ marginLeft: 'auto', fontSize: 13, color: 'var(--text2)' }}>
-          Total: <span style={{ fontFamily: 'DM Mono', color: 'var(--amber)' }}>{fmt(total)}/mês</span>
+          Total{filtroPessoa ? ` · ${filtroPessoa}` : ''}: <span style={{ fontFamily: 'DM Mono', color: 'var(--amber)' }}>{fmt(total)}/mês</span>
         </span>
       </div>
 
       <div className="card">
-        {fixos.length === 0 ? (
-          <div className="empty">Nenhum gasto fixo cadastrado.</div>
+        {fixosVisiveis.length === 0 ? (
+          <div className="empty">{fixos.length === 0 ? 'Nenhum gasto fixo cadastrado.' : 'Nenhuma conta fixa para esse filtro.'}</div>
         ) : (
           <table>
             <thead>
               <tr>
                 <th>Nome</th>
+                <th>De quem</th>
                 <th>Categoria</th>
                 <th style={{ textAlign: 'right' }}>Valor/mês</th>
                 <th style={{ textAlign: 'center' }}>Status</th>
@@ -165,7 +187,7 @@ export default function Fixos({ store }) {
               </tr>
             </thead>
             <tbody>
-              {fixos.map((f) => {
+              {fixosVisiveis.map((f) => {
                 const encerrado = f.mes_fim && f.mes_fim < mesAtual
                 return (
                   <tr key={f.id}>
@@ -176,6 +198,9 @@ export default function Fixos({ store }) {
                           {encerrado ? `encerrado em ${mesLabel(f.mes_fim)}` : `até ${mesLabel(f.mes_fim)}`}
                         </div>
                       )}
+                    </td>
+                    <td>
+                      <span className={`badge badge-${corPessoa(pessoas, donoDoFixo(f, pessoas))}`}>{donoDoFixo(f, pessoas)}</span>
                     </td>
                     <td style={{ fontSize: 12, color: 'var(--text2)' }}>
                       {f.categoria ? (
