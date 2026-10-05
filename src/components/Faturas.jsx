@@ -118,13 +118,15 @@ export default function Faturas({ store }) {
         const totalReal = comReal.reduce((s, f) => s + Number(f.valor_real), 0)
         const totalLanc = comReal.reduce((s, f) => s + getLancado(f.cartao_id, mes), 0)
         const totalDiff = totalReal - totalLanc
+        const semNenhumReal = comReal.length === 0
+        const totalLancTodos = fatsDoMes.reduce((s, f) => s + getLancado(f.cartao_id, mes), 0)
 
         return (
           <div key={mes}>
             <div className="section-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span>{mesLabel(mes)}</span>
-              <span style={{ fontSize: 11, fontFamily: 'DM Mono', color: Math.abs(totalDiff) < 1 ? 'var(--green)' : totalDiff > 0 ? 'var(--red)' : 'var(--amber)' }}>
-                {Math.abs(totalDiff) < 1 ? '✓ tudo identificado' : totalDiff > 0 ? `⚠ ${fmt(totalDiff)} não identificado` : `excede ${fmt(Math.abs(totalDiff))}`}
+              <span style={{ fontSize: 11, fontFamily: 'DM Mono', color: semNenhumReal ? 'var(--text3)' : Math.abs(totalDiff) < 1 ? 'var(--green)' : totalDiff > 0 ? 'var(--red)' : 'var(--amber)' }}>
+                {semNenhumReal ? 'sem valor do banco ainda' : Math.abs(totalDiff) < 1 ? '✓ tudo identificado' : totalDiff > 0 ? `⚠ ${fmt(totalDiff)} não identificado` : `excede ${fmt(Math.abs(totalDiff))}`}
               </span>
             </div>
             <div className="card">
@@ -185,8 +187,8 @@ export default function Faturas({ store }) {
                   {fatsDoMes.length > 1 && (
                     <tr style={{ borderTop: '2px solid var(--border2)' }}>
                       <td style={{ fontWeight: 500, color: 'var(--text2)' }}>Total</td>
-                      <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontWeight: 500 }}>{fmt(totalReal)}</td>
-                      <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontWeight: 500 }}>{fmt(totalLanc)}</td>
+                      <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontWeight: 500 }}>{semNenhumReal ? '—' : fmt(totalReal)}</td>
+                      <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontWeight: 500 }}>{fmt(semNenhumReal ? totalLancTodos : totalLanc)}</td>
                       <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13, color: Math.abs(totalDiff) < 0.02 ? 'var(--text3)' : totalDiff > 0 ? 'var(--red)' : 'var(--green)' }}>
                         {Math.abs(totalDiff) < 0.02 ? '—' : (totalDiff > 0 ? '+' : '') + fmt(totalDiff)}
                       </td>
