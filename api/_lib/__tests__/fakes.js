@@ -75,6 +75,7 @@ export function criarFakeDb({ comprasIniciais = [], regras = REGRAS } = {}) {
       Object.assign(e, { status: 'vinculado', compra_id: compraId })
       s.vinculos.push({ id, compraId, por })
     },
+    async comprasDeCartao() { return s.compras.filter((c) => c.cartao_id) },
     async comprasPeriodo(de, ate) { return s.compras.filter((c) => c.data_compra >= de && c.data_compra <= ate) },
     async ultimaConfirmada(uid) {
       return [...s.eventos].reverse().find((e) => e.status === 'confirmado' && e.compra_id && e.contexto.telegram_user_id === uid) || null

@@ -5,6 +5,7 @@
 //  - cada update é processado uma única vez (o Telegram reenvia quando a resposta falha).
 import { interpretarMensagem, parseValor, parseData } from '../../src/lib/parserTelegram.js'
 import { periodoDe, interpretarPergunta, filtroDe, calcularResumo, formatarResumo } from '../../src/lib/resumo.js'
+import { faturasAbertas, filtrarCartoes, formatarFaturas } from '../../src/lib/fatura.js'
 import { prepararEvento } from '../../src/lib/evento.js'
 import { hashCodigo, normalizarCodigo } from '../../src/lib/pareamento.js'
 import { fmt, hojeSP } from '../../src/lib/utils.js'
@@ -37,6 +38,7 @@ Se faltar algo (como o cartão), eu pergunto.
 /resumo – quanto você gastou no mês (ou: /resumo semana, /resumo mes passado)
 Pergunte também: "quanto gastei em mercado este mês?"
 /ultima – mostra a última compra lançada por aqui (editar ou apagar)
+/faturas – quanto já está nas faturas abertas dos cartões
 /cancelar – descarta o que está em andamento`
 
 const nomeCurto = (p) => (p?.apelidos?.[0] ? p.apelidos[0][0].toUpperCase() + p.apelidos[0].slice(1) : p?.nome || '—')
@@ -118,6 +120,8 @@ async function tratarMensagem(c, msg) {
     await tg.enviar(chat.id, n ? `Você tem ${n} lançamento${n > 1 ? 's' : ''} esperando confirmação. Abra o Finapp › Inbox.` : 'Nada pendente. 👍')
     return { acao: 'pendentes' }
   }
+  const fa = texto.match(/^\/faturas?(?:@\w+)?(?:\s+(.*))?$/i)
+  if (fa) return await responderFaturas(c, fa[1] || '')
   const rs = texto.match(/^\/resumo(?:@\w+)?(?:\s+(.*))?$/i)
   if (rs) return await responderResumo(c, rs[1] || '')
   if (/^\/ultima(@\w+)?$/i.test(texto)) return await mostrarUltima(c)
@@ -140,12 +144,23 @@ async function tratarTexto(c, msg, texto, { voz = false } = {}) {
   if (esperando) return await responderTexto(c, esperando, texto)
   const editando = await c.db.buscarEditandoUltima(c.de.id)
   if (editando) return await responderEdicaoUltima(c, editando, texto)
+  if (/^(?:quanto|qual|como|ver|mostra|me\s+mostra)\b.*\bfaturas?\b/i.test(texto.normalize('NFD').replace(/[̀-ͯ]/g, ''))) return await responderFaturas(c, texto)
   const pergunta = interpretarPergunta(texto)
   if (pergunta) return await responderResumo(c, pergunta.texto)
   return await novoGasto(c, msg, texto, { voz })
 }
 
 // "/resumo semana", "quanto gastei em mercado este mês?": soma as compras do período, só leitura.
+async function responderFaturas(c, texto) {
+  const { db, tg, chat, hoje } = c
+  const base = await db.carregarContexto()
+  const [a] = hoje.split('-')
+  const compras = await db.comprasDeCartao(`${Number(a) - 4}-01-01`)
+  const cartoes = filtrarCartoes(base.cartoes, texto)
+  await tg.enviar(chat.id, formatarFaturas(faturasAbertas(cartoes, compras, hoje)))
+  return { acao: 'faturas' }
+}
+
 async function responderResumo(c, texto) {
   const { db, tg, chat, hoje } = c
   const { resto, ...periodo } = periodoDe(texto, hoje)
