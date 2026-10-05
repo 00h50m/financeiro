@@ -65,6 +65,11 @@ export function criarDb({ url, serviceKey }) {
       return { categorias, cartoes, pessoas, regras, aliases, compras, eventos }
     },
     async buscarCompra(id) { return dados(await sb.from('compras').select('id,descricao,identificacao,valor_total,data_compra').eq('id', id).maybeSingle()) },
+    // Compras no cartão dos últimos 4 anos (parcelas vão até 48x), para somar a fatura aberta.
+    async comprasDeCartao(desdeISO) {
+      return todas('compras', 'data_compra,valor_total,parcelas,cartao_id',
+        (q) => q.not('cartao_id', 'is', null).gte('data_compra', desdeISO).order('id'))
+    },
     async contarPendentes() {
       const r = await sb.from('eventos_financeiros').select('id', { count: 'exact', head: true }).in('status', ABERTOS)
       if (r.error) throw new Error(r.error.message)
