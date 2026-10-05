@@ -267,3 +267,30 @@ input[type='checkbox'] { width: auto; accent-color: var(--brand); cursor: pointe
   .modal { max-width: none; border-radius: 16px 16px 0 0; max-height: 94vh; padding: 20px 16px; }
   .modal-footer .btn { flex: 1 1 auto; justify-content: center; }
 }
+
+/* SKELETON (carregamento) */
+.skeleton-tela { width: min(560px, 92vw); display: flex; flex-direction: column; gap: 14px; align-items: stretch; color: var(--text3); }
+.skeleton-grade { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.skeleton { background: linear-gradient(90deg, var(--border) 25%, var(--border2) 50%, var(--border) 75%); background-size: 200% 100%; border-radius: 10px; animation: brilho 1.3s ease-in-out infinite; }
+@keyframes brilho { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .skeleton, .spinner { animation: none; } }
+
+/* BARRA INFERIOR (só no celular) */
+.bottom-nav { display: none; }
+@media (max-width: 860px) {
+  .bottom-nav {
+    display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+    background: var(--surface, var(--bg)); border-top: 1px solid var(--border);
+    padding: 4px 6px calc(4px + env(safe-area-inset-bottom));
+  }
+  .bottom-nav button {
+    position: relative; flex: 1; min-height: 52px; min-width: 44px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+    background: none; border: none; color: var(--text3); font-size: 11px; cursor: pointer; border-radius: 10px;
+  }
+  .bottom-nav button.ativo { color: var(--brand); }
+  .bottom-nav-badge { position: absolute; top: 4px; left: calc(50% + 6px); min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--red); color: #fff; font-size: 10px; display: flex; align-items: center; justify-content: center; }
+  .page { padding-bottom: calc(84px + env(safe-area-inset-bottom)); }
+  .btn-sm, .icon-btn { min-height: 44px; min-width: 44px; }
+  .sidebar-item { min-height: 44px; }
+  .topbar { padding-top: calc(10px + env(safe-area-inset-top)); }
+}

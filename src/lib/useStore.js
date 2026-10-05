@@ -553,6 +553,7 @@ export function useStore(email = null) {
   })
 
   return {
+    email,
     integracoesTelegram, gerarPareamento, pausarIntegracao, desconectarIntegracao,
     eventos, regras, aliases, inboxOk,
     confirmarEvento, vincularEvento, ignorarEvento, adicionarEventos, adicionarRegras,

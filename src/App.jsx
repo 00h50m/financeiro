@@ -169,9 +169,16 @@ function AppLogado({ email }) {
 
   if (store.loading) {
     return (
-      <div className="loading">
-        <div className="spinner" />
-        <span>Conectando ao banco de dados...</span>
+      <div className="loading" role="status" aria-live="polite">
+        <div className="skeleton-tela">
+          <div className="skeleton" style={{ height: 22, width: '40%' }} />
+          <div className="skeleton-grade">
+            <div className="skeleton" style={{ height: 70 }} /><div className="skeleton" style={{ height: 70 }} />
+            <div className="skeleton" style={{ height: 70 }} /><div className="skeleton" style={{ height: 70 }} />
+          </div>
+          <div className="skeleton" style={{ height: 160 }} />
+          <span style={{ fontSize: 12 }}>Conectando ao banco de dados...</span>
+        </div>
       </div>
     )
   }
@@ -262,6 +269,20 @@ function AppLogado({ email }) {
         </header>
         <Component store={store} irPara={irPara} />
       </div>
+
+      <nav className="bottom-nav" aria-label="Atalhos">
+        {[['dashboard', 'Início'], ['inbox', 'Inbox'], ['compras', 'Compras'], ['pagamentos', 'Pagar']].map(([id, rotulo]) => (
+          <button key={id} className={aba === id ? 'ativo' : ''} onClick={() => irPara(id)} aria-current={aba === id ? 'page' : undefined}>
+            <Icone nome={id} size={20} />
+            <span>{rotulo}</span>
+            {id === 'inbox' && pendentesInbox > 0 && <span className="bottom-nav-badge" aria-label={`${pendentesInbox} pendentes`}>{pendentesInbox}</span>}
+          </button>
+        ))}
+        <button onClick={() => setMenuAberto(true)} aria-label="Abrir menu completo">
+          <Icone nome="menu" size={20} />
+          <span>Menu</span>
+        </button>
+      </nav>
     </div>
   )
 }

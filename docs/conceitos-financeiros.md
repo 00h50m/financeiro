@@ -84,3 +84,10 @@ Mudar o valor "só daqui para frente" encerra a conta antiga no mês anterior (`
 - **Calendário**: usa o mesmo detalhe do motor (contas fixas ativas, faturas do mês, parcelas sem cartão). Fixo no dia do vencimento, fatura no vencimento do cartão (uma por cartão), parcela sem cartão no dia da compra. Dia maior que o mês vira o último dia. Cada item tem chave única, então nada aparece duas vezes.
 - **Busca global**: compras, contas fixas, cartões, metas e Inbox; sem diferença de acento ou maiúscula; também acha pelo valor.
 - Preparação (sem funcionalidade): patrimônio e captura por notificação do Android não foram construídos, só mantidos como possibilidade no desenho (tabelas `eventos_financeiros` com `origem` genérica já comportam novas fontes).
+
+## Restauração, desempenho e celular (Fase 6)
+
+- **Restaurar backup** (Backup > Restaurar): o app lê o arquivo, valida (app, versão do formato, contagens, identificadores, relações) e compara com os dados de hoje antes de qualquer mudança. Dois modos: **mesclar** (só adiciona o que falta; nunca altera nem apaga; bloqueado se criaria registros órfãos) e **substituir tudo** (digitar SUBSTITUIR; baixa uma cópia dos dados atuais antes; roda a função `restaurar_backup` numa transação, então falha = nada muda; pessoas não são apagadas em bloco para não derrubar o pareamento do Telegram; a auditoria nunca é apagada).
+- Backup versionado: `backup_versao` (formato), `schema_banco` (última migration) e `versao_app` no arquivo.
+- **Desempenho**: migration 17 cria índices (compras por data e cartão, faturas por cartão e mês, pagamentos por mês, Inbox por status e data). Leituras já paginam de 1000 em 1000. Ainda existe uma limitação conhecida: cada ação recarrega todas as tabelas; recarga seletiva fica como próximo passo.
+- **Celular**: barra inferior com atalhos (Início, Inbox, Compras, Pagar, Menu), alvos de toque de 44px, áreas seguras do iPhone (topo e rodapé), carregamento com esqueleto em vez de só um círculo e respeito a "reduzir movimento".
