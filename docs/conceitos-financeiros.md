@@ -70,3 +70,10 @@ Mudar o valor "só daqui para frente" encerra a conta antiga no mês anterior (`
 - Alvo da reserva = meses de cobertura × custo mensal (fixos, ou fixos + parcelas do mês). Alvo de objetivo = valor definido; com prazo, o app mostra quanto guardar por mês.
 - **Sugestão de destino da sobra** (Fechamento): só sobra positiva; metas por prioridade; cada uma recebe no máximo o que falta (ou o ritmo do prazo); o resto fica livre. É só sugestão: o app não movimenta dinheiro.
 - A Reserva antiga (tabela `config`) é migrada para uma meta do tipo reserva pela `inbox/16_metas.sql`; sem a migration a tela Reserva segue como antes.
+
+## Evolução e observações (Fase 4)
+
+- Série mensal e comparações usam a **foto do fechamento** quando o mês está fechado e o cálculo ao vivo (sem saldo anterior) nos demais.
+- Comparativos: mês anterior, média dos 3 e dos 6 meses anteriores e mesmo mês do ano passado. Meses sem dados não entram nas médias; referência sem dados mostra "sem dados".
+- Percentual só existe quando a referência é maior que zero (e, em categorias, ao menos R$ 50). Antes disso mostra só a diferença em reais.
+- Observações são regras fixas e explicáveis, cada uma com a conta: categoria ≥ 30% e ≥ R$ 50 acima da média dos 3 meses anteriores; despesas ≥ 15% acima/abaixo da média; mês no vermelho; poupança 10 pontos acima da média; parcelamentos que terminam; maior categoria. Não há IA nem previsão opaca.
