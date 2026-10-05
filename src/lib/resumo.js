@@ -71,7 +71,7 @@ export function calcularResumo(compras, { de, ate, filtro = null }) {
   return { total: soma(lista), n: lista.length, porCategoria: agrupar((c) => c.categoria), porSubcategoria: agrupar((c) => c.subcategoria) }
 }
 
-export function formatarResumo(r, { nome, de, ate, filtro = null }) {
+export function formatarResumo(r, { nome, de, ate, filtro = null, aviso = true }) {
   const quando = de === ate ? `${nome}, ${fmtDia(de)}` : `${nome} (${fmtDia(de)} a ${fmtDia(ate)})`
   const quem = filtro ? ` com "${filtro.tipo === 'pessoa' ? filtro.pessoa.nome : filtro.termo}"` : ''
   if (!r.n) return `Não achei compras${quem} em ${quando}.`
@@ -82,6 +82,6 @@ export function formatarResumo(r, { nome, de, ate, filtro = null }) {
     detalhe.slice(0, 6).forEach(([n, v]) => linhas.push(`• ${n}: ${fmt(v)}`))
     if (detalhe.length > 6) linhas.push(`• outras: ${fmt(detalhe.slice(6).reduce((s, [, v]) => s + v, 0))}`)
   }
-  linhas.push('', 'Soma o valor total das compras lançadas (parceladas contam inteiras).')
+  if (aviso) linhas.push('', 'Soma o valor total das compras lançadas (parceladas contam inteiras).')
   return linhas.join('\n')
 }

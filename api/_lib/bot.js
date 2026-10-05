@@ -37,6 +37,8 @@ Se faltar algo (como o cartão), eu pergunto.
 /resumo – quanto você gastou no mês (ou: /resumo semana, /resumo mes passado)
 Pergunte também: "quanto gastei em mercado este mês?"
 /ultima – mostra a última compra lançada por aqui (editar ou apagar)
+/avisos on – resumo automático todo domingo à noite (/avisos off para parar)
+/avisos on – resumo automático todo domingo à noite (/avisos off para parar)
 /cancelar – descarta o que está em andamento`
 
 const nomeCurto = (p) => (p?.apelidos?.[0] ? p.apelidos[0][0].toUpperCase() + p.apelidos[0].slice(1) : p?.nome || '—')
@@ -118,6 +120,8 @@ async function tratarMensagem(c, msg) {
     await tg.enviar(chat.id, n ? `Você tem ${n} lançamento${n > 1 ? 's' : ''} esperando confirmação. Abra o Finapp › Inbox.` : 'Nada pendente. 👍')
     return { acao: 'pendentes' }
   }
+  const av = texto.match(/^\/avisos(?:@\w+)?(?:\s+(on|off|ligar|desligar))?$/i)
+  if (av) return await tratarAvisos(c, av[1])
   const rs = texto.match(/^\/resumo(?:@\w+)?(?:\s+(.*))?$/i)
   if (rs) return await responderResumo(c, rs[1] || '')
   if (/^\/ultima(@\w+)?$/i.test(texto)) return await mostrarUltima(c)
@@ -146,6 +150,24 @@ async function tratarTexto(c, msg, texto, { voz = false } = {}) {
 }
 
 // "/resumo semana", "quanto gastei em mercado este mês?": soma as compras do período, só leitura.
+// Liga/desliga o resumo de domingo. Antes de rodar o inbox/11 no Supabase o banco não tem a coluna: avisa em vez de falhar.
+async function tratarAvisos(c, arg) {
+  const { db, tg, chat, de, integ } = c
+  const ligar = /^(on|ligar)$/i.test(arg || '')
+  const desligar = /^(off|desligar)$/i.test(arg || '')
+  if (!ligar && !desligar) {
+    await tg.enviar(chat.id, `Resumo automático de domingo à noite: ${integ.resumo_semanal ? 'ligado ✅' : 'desligado'}.\nUse /avisos on para ligar ou /avisos off para desligar.`)
+    return { acao: 'avisos_status' }
+  }
+  try { await db.definirResumoSemanal(de.id, ligar) } catch (e) {
+    if (!/resumo_semanal/.test(e?.message || '')) throw e
+    await tg.enviar(chat.id, 'Ainda falta uma configuração no Supabase (SQL inbox/11) para ligar esse aviso. Peça para rodar e tente de novo.')
+    return { acao: 'avisos_indisponivel' }
+  }
+  await tg.enviar(chat.id, ligar ? 'Pronto! Todo domingo à noite eu mando o resumo da semana. Para parar: /avisos off.' : 'Certo, desliguei o resumo automático.')
+  return { acao: ligar ? 'avisos_ligado' : 'avisos_desligado' }
+}
+
 async function responderResumo(c, texto) {
   const { db, tg, chat, hoje } = c
   const { resto, ...periodo } = periodoDe(texto, hoje)
