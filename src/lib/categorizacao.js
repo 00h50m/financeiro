@@ -8,6 +8,14 @@ import { normBasico } from './normalizacao.js'
 export const CONFIANCA_AUTO = 0.9
 export const podeAutoConfirmar = (regra) => !!regra && !!regra.auto_confirmar && Number(regra.confianca) >= CONFIANCA_AUTO
 
+
+// Lançar sozinho (só para quem ligou /auto): tudo conhecido pelo histórico, nada adivinhado, valor pequeno e sem compra parecida.
+export const CONFIANCA_LANCAR_SOZINHO = 0.95
+export const VALOR_MAX_LANCAR_SOZINHO = 300
+export const seguroLancarSozinho = (ev, { cartaoSugerido = false, ambiguo = false } = {}) =>
+  ev.status === 'pendente' && (ev.faltando || []).length === 0 && ev.match_nivel === 'nenhum' && !cartaoSugerido && !ambiguo &&
+  Number(ev.confianca_categoria) >= CONFIANCA_LANCAR_SOZINHO && Number(ev.valor) <= VALOR_MAX_LANCAR_SOZINHO
+
 export const categoriaValida = (categorias, categoria, subcategoria) =>
   categorias.some((c) => c.nome === categoria && (c.subcategorias || []).includes(subcategoria))
 

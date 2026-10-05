@@ -48,7 +48,7 @@ Rode no SQL Editor do Supabase:
 | `orcamentos.sql` | Tabela de tetos por categoria |
 | `config.sql` | Configurações (reserva de emergência) |
 | `cartoes_limite.sql` | Coluna de limite do cartão |
-| `inbox/01` a `inbox/10` | Inbox Financeiro (rodar **em ordem**, uma parte por vez; cada uma é repetível). `inbox/desfazer.sql` reverte. |
+| `inbox/01` a `inbox/12` | Inbox Financeiro (rodar **em ordem**, uma parte por vez; cada uma é repetível). `inbox/desfazer.sql` reverte. |
 
 Usuários: crie em **Authentication → Users** e deixe o cadastro aberto desligado.
 
@@ -81,6 +81,8 @@ digitado: mostra o que entendeu (`🎤 Entendi: ...`) e o resumo com **Confirmar
 Cada pessoa liga com `/avisos on` e desliga com `/avisos off`; o envio sai todo domingo às 19h (horário de Brasília) por `api/cron-resumo.js`.
 
 **Próximas faturas:** `/proximas` (ou "quais as próximas faturas do nubank?") lista mês a mês o que já está comprometido em parcelas.
+
+**Lançamento automático (opcional, desligado por padrão):** rode `inbox/12_auto_lancar.sql` no Supabase e use `/auto on`. Só gastos *digitados* (não foto nem voz) são lançados sem Confirmar, e só quando tudo é certo: lugar com 95%+ de confiança no histórico, cartão dito na mensagem, sem compra parecida e valor até R$ 300. O bot avisa e dá para corrigir em `/ultima`. `/auto off` volta ao normal.
 
 **Aviso de teto:** se a categoria tem teto na tela Orçamento, ao confirmar uma compra o bot avisa quando ela passa de 80% ou estoura o teto do mês (só quando essa compra mudou a situação).
 
