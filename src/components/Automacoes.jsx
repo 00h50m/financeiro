@@ -134,6 +134,9 @@ export default function Automacoes({ store }) {
             <div><button className="link-btn" onClick={ativar}>Registrar o endereço de novo</button></div>
           </div>
         )}
+        {bot?.ok && bot.banco_erro && (
+          <div className="alert alert-red" style={{ marginTop: 12 }}>Falha ao acessar o banco: <span className="mono">{bot.banco_erro}</span></div>
+        )}
         {msg && <div className={`alert alert-${msg.tipo}`} style={{ marginTop: 12 }}>{msg.texto}</div>}
       </div>
 

@@ -22,9 +22,13 @@ export default async function handler(req, res) {
   try {
     if (acao === 'status') {
       const [eu, wh] = await Promise.all([tg.quemSou(), tg.infoWebhook()])
+      // Repete o primeiro acesso ao banco que o webhook faz, para mostrar o motivo quando ele falha (só para quem está logado).
+      let banco_erro = null
+      try { await db.registrarUpdate(-1, 0); await db.esquecerUpdate(-1) } catch (e) { banco_erro = e.message }
       return res.status(200).json({
         ok: true, configurado: true, bot: eu.username, webhook_ativo: !!wh.url, webhook_url: wh.url || null,
         pendentes_telegram: wh.pending_update_count || 0, ultimo_erro: wh.last_error_message || null,
+        banco_erro,
       })
     }
     if (acao === 'configurar') {
