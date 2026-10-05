@@ -13,6 +13,8 @@ create index if not exists eventos_status_data_idx on eventos_financeiros (statu
 -- p_tabelas: { "compras": [ {...}, ... ], "cartoes": [...], ... } (o campo "tabelas" do arquivo de backup).
 -- Tabelas que NÃO vêm no arquivo ficam intactas. Pareamentos, integrações e a auditoria nunca são apagados.
 -- Se qualquer passo falhar, nada muda.
+-- Se já existia uma versão com outro nome de parâmetro, ela precisa sair antes.
+drop function if exists restaurar_backup(jsonb, text);
 create or replace function restaurar_backup(p_tabelas jsonb, p_usuario text)
 returns jsonb language plpgsql as $$
 declare
