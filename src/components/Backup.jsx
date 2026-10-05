@@ -22,6 +22,8 @@ const TABELAS = [
   ['eventos_financeiros', 'Inbox (lançamentos recebidos)', 'id', true],
   ['compras_pagamentos', 'Pagamentos das parcelas sem cartão', 'id', true],
   ['fechamentos', 'Fechamentos mensais', 'mes', true],
+  ['metas', 'Metas', 'id', true],
+  ['metas_movimentos', 'Movimentos das metas', 'id', true],
   ['auditoria_financeira', 'Histórico de auditoria', 'id', true],
 ]
 const ORDEM = Object.fromEntries(TABELAS.map(([t, , o]) => [t, o]))
@@ -81,7 +83,7 @@ export default function Backup({ store }) {
     categorias: store.categorias.length, pessoas: store.pessoas.length, saldo_ajustes: store.saldoAjustes.length,
     orcamentos: store.orcamentos.length, config: Object.keys(store.config).length,
     compras_pagamentos: store.comprasPagamentos.length,
-    fechamentos: store.fechamentos.length,
+    fechamentos: store.fechamentos.length, metas: store.metas.length, metas_movimentos: store.metasMovimentos.length,
     regras_categorizacao: store.regras.length, estabelecimento_aliases: store.aliases.length, eventos_financeiros: store.eventos.length,
   }
 

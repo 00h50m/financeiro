@@ -63,3 +63,10 @@ Mudar o valor "só daqui para frente" encerra a conta antiga no mês anterior (`
 - **Reabrir** exige motivo, guarda o fechamento anterior na auditoria e devolve o mês ao cálculo ao vivo.
 - Editar ou apagar compra com parcela em mês fechado: avisa, exige justificativa e grava em `auditoria_financeira`.
 - Migration: `inbox/15_fechamentos_auditoria.sql` (tabelas + funções `fechar_mes` e `reabrir_mes`).
+
+## Metas (Fase 3)
+
+- Meta = `metas` (reserva ou objetivo) + `metas_movimentos`. **Saldo da meta = soma dos movimentos** (aporte +, retirada −, ajuste = diferença até o saldo informado). Apagar movimento vai para a auditoria.
+- Alvo da reserva = meses de cobertura × custo mensal (fixos, ou fixos + parcelas do mês). Alvo de objetivo = valor definido; com prazo, o app mostra quanto guardar por mês.
+- **Sugestão de destino da sobra** (Fechamento): só sobra positiva; metas por prioridade; cada uma recebe no máximo o que falta (ou o ritmo do prazo); o resto fica livre. É só sugestão: o app não movimenta dinheiro.
+- A Reserva antiga (tabela `config`) é migrada para uma meta do tipo reserva pela `inbox/16_metas.sql`; sem a migration a tela Reserva segue como antes.

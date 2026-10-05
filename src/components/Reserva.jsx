@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { fmt, fmtK, nowYM, hojeSP } from '../lib/utils'
 import { detalhePagamentos, rendaDoMes } from '../lib/financeiro'
+import { saldoMeta, deltaParaSaldo } from '../lib/metas'
 
 const METAS = [3, 6, 9, 12]
 const BASES = {
@@ -9,18 +10,21 @@ const BASES = {
 }
 
 export default function Reserva({ store }) {
-  const { fixos, fixosPagamentos, cartoes, compras, faturas, rendas, comprasPagamentos, comprasPagamentosOk, config, configOk, definirConfig } = store
+  const { fixos, fixosPagamentos, cartoes, compras, faturas, rendas, comprasPagamentos, comprasPagamentosOk, config, configOk, definirConfig, metas, metasMovimentos, metasOk, updateMeta, registrarMovimentoMeta } = store
   const mes = nowYM()
 
-  const guardado = Number(config.reserva_valor) || 0
-  const metaMeses = Number(config.reserva_meta_meses) || 6
-  const base = config.reserva_base === 'fixos' ? 'fixos' : 'total'
-  const atualizadaEm = config.reserva_atualizada || ''
+  // Com a migration 16, a Reserva é uma meta (saldo = soma dos movimentos). Sem ela, segue na tabela config.
+  const metaReserva = metasOk ? metas.find((m) => m.tipo === 'reserva') : null
+  const guardado = metaReserva ? saldoMeta(metasMovimentos, metaReserva.id) : Number(config.reserva_valor) || 0
+  const metaMeses = Number((metaReserva ? metaReserva.meta_meses : config.reserva_meta_meses)) || 6
+  const base = (metaReserva ? metaReserva.base_custo : config.reserva_base) === 'fixos' ? 'fixos' : 'total'
+  const ultimoMov = metaReserva ? metasMovimentos.filter((m) => m.meta_id === metaReserva.id).map((m) => String(m.data).slice(0, 10)).sort().pop() : ''
+  const atualizadaEm = metaReserva ? ultimoMov || '' : config.reserva_atualizada || ''
 
   const [valor, setValor] = useState('')
   const [salvando, setSalvando] = useState(false)
 
-  if (!configOk) {
+  if (!configOk && !metaReserva) {
     return (
       <div className="page">
         <div className="alert alert-amber">
@@ -61,6 +65,13 @@ export default function Reserva({ store }) {
     const v = Number(valor)
     if (valor === '' || Number.isNaN(v) || v < 0) return
     setSalvando(true)
+    if (metaReserva) {
+      const delta = deltaParaSaldo(guardado, v)
+      const ok = delta === 0 || (await registrarMovimentoMeta({ meta_id: metaReserva.id, data: hojeSP(), tipo: 'ajuste', valor: delta, observacao: 'Ajuste pela tela Reserva' }))
+      if (ok) setValor('')
+      setSalvando(false)
+      return
+    }
     // A data só é gravada se o valor foi: senão a tela diria "atualizada hoje" com o valor antigo.
     const ok = (await definirConfig('reserva_valor', v)) && (await definirConfig('reserva_atualizada', hojeSP()))
     if (ok) setValor('')
@@ -134,13 +145,13 @@ export default function Reserva({ store }) {
           </div>
           <div className="form-group">
             <label>Meta de cobertura</label>
-            <select value={metaMeses} onChange={(e) => definirConfig('reserva_meta_meses', Number(e.target.value))}>
+            <select value={metaMeses} onChange={(e) => (metaReserva ? updateMeta(metaReserva.id, { meta_meses: Number(e.target.value) }) : definirConfig('reserva_meta_meses', Number(e.target.value)))}>
               {METAS.map((m) => <option key={m} value={m}>{m} meses</option>)}
             </select>
           </div>
           <div className="form-group">
             <label>Custo mensal considerado na meta</label>
-            <select value={base} onChange={(e) => definirConfig('reserva_base', e.target.value)}>
+            <select value={base} onChange={(e) => (metaReserva ? updateMeta(metaReserva.id, { base_custo: e.target.value }) : definirConfig('reserva_base', e.target.value))}>
               {Object.entries(BASES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </select>
           </div>

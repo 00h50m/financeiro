@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { fmt, fmtK, mesLabel, nowYM, addMonths } from '../lib/utils'
+import { fmt, fmtK, mesLabel, nowYM, addMonths, hojeSP } from '../lib/utils'
 import { fechamentoDe, montarFoto, validarFechamento } from '../lib/fechamento'
+import { sugerirDestinoSobra } from '../lib/metas'
+import { detalhePagamentos } from '../lib/financeiro'
 
 const dataHora = (iso) => {
   if (!iso) return ''
@@ -71,6 +73,12 @@ export default function Fechamento({ store }) {
     () => (fechamentosOk && !fechado ? montarFoto(store, mes, { reservaDestinada: reservaNum }) : null),
     [store, mes, fechamentosOk, fechado, reservaNum]
   )
+
+  const sugestao = useMemo(() => {
+    if (!fechamentosOk || fechado || !store.metasOk || !foto) return null
+    const det = detalhePagamentos(store, nowYM())
+    return sugerirDestinoSobra(foto.saldo_final, store.metas, store.metasMovimentos, { custoFixos: det.totalFixos, custoTotal: det.comprometido }, hojeSP())
+  }, [store, fechamentosOk, fechado, foto])
 
   if (!fechamentosOk) {
     return (
@@ -170,6 +178,18 @@ export default function Fechamento({ store }) {
             </div>
             <Linha rotulo={`Saldo transportado para ${mesLabel(addMonths(mes, 1))}`} valor={Number(f.saldo_transportado)} destaque />
           </div>
+
+          {sugestao && sugestao.linhas.length > 0 && (
+            <div className="alert alert-blue" style={{ marginTop: 12 }}>
+              <strong>Sugestão para a sobra ({fmt(foto.saldo_final)}):</strong>
+              <ul style={{ margin: '6px 0 0 18px' }}>
+                {sugestao.linhas.map((l) => <li key={l.meta_id}>{fmt(l.valor)} para {l.nome} <span style={{ color: 'var(--text3)' }}>({l.motivo})</span></li>)}
+                <li>{fmt(sugestao.livre)} livre</li>
+              </ul>
+              <button className="btn btn-ghost btn-sm" style={{ marginTop: 8 }} onClick={() => setReserva(String(sugestao.destinado))}>Usar {fmt(sugestao.destinado)} como valor destinado</button>
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 6 }}>Regra: metas por prioridade, cada uma até o que falta (ou o ritmo do prazo). É só uma sugestão: depois de fechar, registre o aporte na tela Metas quando guardar de verdade.</div>
+            </div>
+          )}
 
           {!fechado && (
             <div style={{ marginTop: 16 }}>
