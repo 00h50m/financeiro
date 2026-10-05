@@ -115,6 +115,9 @@ export function criarDb({ url, serviceKey }) {
     async definirResumoSemanal(uid, valor) {
       dados(await sb.from('integracoes_telegram').update({ resumo_semanal: !!valor }).eq('telegram_user_id', uid))
     },
+    async definirAutoLancar(uid, valor) {
+      dados(await sb.from('integracoes_telegram').update({ auto_lancar: !!valor }).eq('telegram_user_id', uid))
+    },
     async destinatariosResumo() {
       return dados(await sb.from('integracoes_telegram').select('telegram_user_id,chat_id,pessoa_id').eq('ativo', true).eq('resumo_semanal', true))
     },

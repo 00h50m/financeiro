@@ -7,6 +7,7 @@ import { interpretarMensagem, parseValor, parseData } from '../../src/lib/parser
 import { periodoDe, interpretarPergunta, filtroDe, calcularResumo, formatarResumo } from '../../src/lib/resumo.js'
 import { faturasAbertas, filtrarCartoes, formatarFaturas, proximasFaturas, formatarProximas } from '../../src/lib/fatura.js'
 import { avisoTeto } from '../../src/lib/alertaTeto.js'
+import { seguroLancarSozinho } from '../../src/lib/categorizacao.js'
 import { prepararEvento } from '../../src/lib/evento.js'
 import { hashCodigo, normalizarCodigo } from '../../src/lib/pareamento.js'
 import { fmt, hojeSP } from '../../src/lib/utils.js'
@@ -41,6 +42,7 @@ Pergunte também: "quanto gastei em mercado este mês?"
 /ultima – mostra a última compra lançada por aqui (editar ou apagar)
 /faturas – quanto já está nas faturas abertas dos cartões
 /proximas – o que já está comprometido nas faturas dos próximos meses
+/auto on|off – lançar sozinho o que eu reconhecer com certeza (padrão: desligado)
 /avisos on – resumo automático todo domingo à noite (/avisos off para parar)
 /menu – mostra as opções em botões (ou mande "oi")
 /cancelar – descarta o que está em andamento`
@@ -130,6 +132,8 @@ async function tratarMensagem(c, msg) {
   if (/^\/(start|ajuda|help)(@\w+)?$/i.test(texto)) { await tg.enviar(chat.id, AJUDA); return { acao: 'ajuda' } }
   if (/^\/menu(@\w+)?$/i.test(texto)) return await mostrarMenu(c)
   if (/^\/pendentes(@\w+)?$/i.test(texto)) return await responderPendentes(c)
+  const au = texto.match(/^\/auto(?:@\w+)?(?:\s+(on|off|ligar|desligar))?$/i)
+  if (au) return await tratarAuto(c, au[1])
   const av = texto.match(/^\/avisos(?:@\w+)?(?:\s+(on|off|ligar|desligar))?$/i)
   if (av) return await tratarAvisos(c, av[1])
   const px = texto.match(/^\/proximas(?:@\w+)?(?:\s+(.*))?$/i)
@@ -167,6 +171,24 @@ async function tratarTexto(c, msg, texto, { voz = false } = {}) {
 }
 
 // "/resumo semana", "quanto gastei em mercado este mês?": soma as compras do período, só leitura.
+// Liga/desliga o lançamento automático (inbox/12). Só vale para texto digitado com tudo conhecido do histórico.
+async function tratarAuto(c, arg) {
+  const { db, tg, chat, de, integ } = c
+  const ligar = /^(on|ligar)$/i.test(arg || '')
+  const desligar = /^(off|desligar)$/i.test(arg || '')
+  if (!ligar && !desligar) {
+    await tg.enviar(chat.id, `Lançamento automático: ${integ.auto_lancar ? 'ligado ✅' : 'desligado'}.\nLigado, gastos digitados que o bot reconhece com certeza (lugar conhecido, cartão dito por você, valor até R$ 300) são lançados sem pedir Confirmar, e você pode corrigir em /ultima.\nUse /auto on ou /auto off.`)
+    return { acao: 'auto_status' }
+  }
+  try { await db.definirAutoLancar(de.id, ligar) } catch (e) {
+    if (!/auto_lancar/.test(e?.message || '')) throw e
+    await tg.enviar(chat.id, 'Ainda falta uma configuração no Supabase (SQL inbox/12) para ligar isso. Peça para rodar e tente de novo.')
+    return { acao: 'auto_indisponivel' }
+  }
+  await tg.enviar(chat.id, ligar ? 'Ligado! Quando eu tiver certeza de tudo, lanço sozinho e aviso. Para voltar a pedir Confirmar: /auto off.' : 'Desligado: volto a pedir Confirmar em tudo.')
+  return { acao: ligar ? 'auto_ligado' : 'auto_desligado' }
+}
+
 // Liga/desliga o resumo de domingo. Antes de rodar o inbox/11 no Supabase o banco não tem a coluna: avisa em vez de falhar.
 async function tratarAvisos(c, arg) {
   const { db, tg, chat, de, integ } = c
@@ -284,11 +306,11 @@ async function novoGasto(c, msg, texto, { voz = false } = {}) {
   if (texto.length > MAX_MENSAGEM) { await tg.enviar(chat.id, `Mensagem longa demais (máximo ${MAX_MENSAGEM} caracteres). Resuma: valor, onde e cartão.`); return { acao: 'nao_entendi' } }
   const base = await db.carregarContexto()
   const lido = interpretarMensagem(texto, { cartoes: base.cartoes, pessoas: base.pessoas, hoje, remetente_pessoa_id: integ.pessoa_id, nomeCompleto: voz })
-  return await registrarLeitura(c, msg, texto, lido, base)
+  return await registrarLeitura(c, msg, texto, lido, base, { permitirAuto: !voz })
 }
 
 // Parte comum do texto e da foto: confere o que foi lido, cria o evento e faz a próxima pergunta ou mostra o resumo.
-async function registrarLeitura(c, msg, texto, lido, base, { confianca = 0.9, aviso = null } = {}) {
+async function registrarLeitura(c, msg, texto, lido, base, { confianca = 0.9, aviso = null, permitirAuto = false } = {}) {
   const { db, tg, chat, integ, hoje } = c
   const problema = lido.valorAmbiguo ? 'Encontrei mais de um valor. Escreva o valor com R$ (ex.: 2 pizzas R$ 80).'
     : lido.valor == null ? 'Não encontrei o valor. Exemplo: gastei 89,90 no mercado no nubank.'
@@ -312,6 +334,16 @@ async function registrarLeitura(c, msg, texto, lido, base, { confianca = 0.9, av
   })
   if (!ABERTOS.includes(ev.status)) { await tg.enviar(chat.id, 'Esse lançamento já foi resolvido.'); return { acao: 'repetido' } }
   if (aviso) await tg.enviar(chat.id, aviso)
+  if (permitirAuto && integ.auto_lancar && seguroLancarSozinho(ev, { cartaoSugerido: sugeridos.cartao, ambiguo: lido.cartaoAmbiguo || lido.pessoaAmbigua })) {
+    try {
+      const compraId = await db.confirmarEvento(ev.id, {}, `telegram:auto:${nomeCurto(base.pessoas.find((p) => p.id === ev.pessoa_id))}`)
+      await tg.enviar(chat.id, `⚡ Lançado sozinho: ${ev.descricao_original} — ${fmt(ev.valor)} (${ev.categoria} › ${ev.subcategoria}). Errou? Use /ultima para editar ou apagar.`)
+      await avisarTeto(c, base, ev)
+      return { acao: 'auto_lancado', compra_id: compraId }
+    } catch (e) {
+      console.error('bot: lançamento automático falhou', e?.message) // cai no Confirmar normal abaixo
+    }
+  }
   await avancar(c, ev, base)
   return { acao: 'evento_criado', evento_id: ev.id }
 }
