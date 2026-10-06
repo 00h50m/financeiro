@@ -252,7 +252,14 @@ export default function Pagamentos({ store }) {
                   <td style={{ textAlign: 'center' }}>
                     <input type="checkbox" checked={l.pago} onChange={() => toggleCartao(l)} />
                   </td>
-                  <td style={{ fontWeight: 500, textDecoration: l.pago ? 'line-through' : 'none' }}>{l.nome}</td>
+                  <td style={{ fontWeight: 500, textDecoration: l.pago ? 'line-through' : 'none' }}>
+                    {l.nome}
+                    {l.fixosNoCartao?.length > 0 && (
+                      <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 400, textDecoration: 'none' }}>
+                        inclui contas fixas: {l.fixosNoCartao.map((f) => `${f.nome} ${fmt(f.valor)}`).join(' · ')}
+                      </div>
+                    )}
+                  </td>
                   <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(l.valor)}</td>
                   <td>
                     {l.temFatura ? (

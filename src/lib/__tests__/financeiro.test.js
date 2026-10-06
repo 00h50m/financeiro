@@ -243,3 +243,62 @@ describe('limite do cartão: passado sem registro é "sem informação"', () => 
     expect(r.semInformacao).toBe(100)
   })
 })
+
+describe('conta fixa paga no cartão', () => {
+  const mes = '2026-10'
+  const luz = { id: 'luz', nome: 'Luz', valor: 200, ativo: true }
+  const netflix = { id: 'nf', nome: 'Netflix', valor: 55, ativo: true, cartao_id: 'c1' }
+  const compraNubank = compra({ data_compra: '2026-10-05', descricao: 'Mercado', valor_total: 300, cartao_id: 'c1' })
+
+  it('sem cartão: segue como conta à parte, como sempre', () => {
+    const det = detalhePagamentos(base({ fixos: [luz] }), mes)
+    expect(det.fixosLista.map((f) => f.id)).toEqual(['luz'])
+    expect(det.totalFixosAvulsos).toBe(200)
+    expect(det.comprometido).toBe(200)
+  })
+  it('no cartão: entra na fatura, sai da lista de contas à parte e o total não conta duas vezes', () => {
+    const det = detalhePagamentos(base({ fixos: [luz, netflix], compras: [compraNubank] }), mes)
+    expect(det.fixosLista.map((f) => f.id)).toEqual(['luz'])
+    expect(det.linhasCartao[0].valor).toBe(355) // 300 de compras + 55 da Netflix
+    expect(det.linhasCartao[0].fixosNoCartao).toEqual([{ id: 'nf', nome: 'Netflix', valor: 55 }])
+    expect(det.totalFixos).toBe(255) // custo fixo total
+    expect(det.totalFixosAvulsos).toBe(200)
+    expect(det.comprometido).toBe(200 + 355) // luz + fatura; a Netflix aparece uma vez só
+  })
+  it('mover um fixo para o cartão não muda o comprometido (fatura ainda estimada)', () => {
+    const antes = detalhePagamentos(base({ fixos: [luz, { ...netflix, cartao_id: null }], compras: [compraNubank] }), mes)
+    const depois = detalhePagamentos(base({ fixos: [luz, netflix], compras: [compraNubank] }), mes)
+    expect(depois.comprometido).toBe(antes.comprometido)
+  })
+  it('com o valor real da fatura informado, vale o do banco (ele já inclui a cobrança)', () => {
+    const faturas = [{ cartao_id: 'c1', mes, valor_real: 360, pago: false }]
+    const det = detalhePagamentos(base({ fixos: [netflix], compras: [compraNubank], faturas }), mes)
+    expect(det.linhasCartao[0].valor).toBe(360)
+    expect(det.comprometido).toBe(360)
+  })
+  it('cartão sem compras no mês mas com fixo aparece como fatura', () => {
+    const det = detalhePagamentos(base({ fixos: [netflix] }), mes)
+    expect(det.linhasCartao).toHaveLength(1)
+    expect(det.linhasCartao[0].valor).toBe(55)
+  })
+  it('pagar a fatura paga o fixo junto; o fixo não tem checkbox próprio', () => {
+    const faturas = [{ cartao_id: 'c1', mes, pago: true }]
+    const det = detalhePagamentos(base({ fixos: [netflix], faturas }), mes)
+    expect(det.pago).toBe(55)
+    expect(det.totalDividas).toBe(0)
+  })
+  it('cartão que não existe mais: volta a ser conta à parte', () => {
+    const det = detalhePagamentos(base({ fixos: [{ ...netflix, cartao_id: 'sumiu' }] }), mes)
+    expect(det.fixosLista).toHaveLength(1)
+    expect(det.linhasCartao).toHaveLength(0)
+  })
+  it('fixo encerrado ou ainda não iniciado no mês não entra na fatura', () => {
+    const encerrado = { ...netflix, mes_fim: '2026-09' }
+    const futuro = { ...netflix, id: 'nf2', mes_inicio: '2026-12' }
+    expect(detalhePagamentos(base({ fixos: [encerrado, futuro] }), mes).linhasCartao).toHaveLength(0)
+  })
+  it('lancadoDoCartao (tela Faturas) também soma o fixo do cartão', () => {
+    expect(lancadoDoCartao([compraNubank], [nubank], 'c1', mes, [netflix])).toBe(355)
+    expect(lancadoDoCartao([compraNubank], [nubank], 'c1', mes)).toBe(300) // sem fixos informados: como antes
+  })
+})

@@ -15,7 +15,7 @@ export default function Faturas({ store }) {
   const s = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
 
   const [revisadas, setRevisadas] = useState(lerRevisadas)
-  const getLancado = (cartao_id, mes) => lancadoDoCartao(compras, cartoes, cartao_id, mes)
+  const getLancado = (cartao_id, mes) => lancadoDoCartao(compras, cartoes, cartao_id, mes, store.fixos)
   const temReal = (f) => f.valor_real != null && f.valor_real !== ''
 
   // Faturas pagas cujo valor real é igual ao lançado: podem ter sido a estimativa gravada pelo app ao marcar

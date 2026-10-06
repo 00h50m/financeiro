@@ -28,12 +28,17 @@ export const faturaDe = (faturas, cartaoId, mes) =>
   (faturas || []).find((f) => f.cartao_id === cartaoId && f.mes === mes)
 
 // Soma das parcelas lançadas de um cartão que caem em um mês (o "estimado" da fatura).
-export function lancadoDoCartao(compras, cartoes, cartaoId, mes) {
+// Contas fixas pagas no cartão (fixos.cartao_id) entram na fatura daquele cartão, não como conta à parte.
+export const fixosDoCartao = (fixos, cartoes, cartaoId, mes) =>
+  fixosAtivos(fixos || [], mes).filter((f) => f.cartao_id === cartaoId && cartoes.some((c) => c.id === cartaoId))
+
+export function lancadoDoCartao(compras, cartoes, cartaoId, mes, fixos = []) {
   let total = 0
   for (const c of compras) {
     if (c.cartao_id !== cartaoId) continue
     for (const p of gerarParcelas(c, cartoes)) if (p.mes === mes) total += p.valor
   }
+  for (const f of fixosDoCartao(fixos, cartoes, cartaoId, mes)) total += Number(f.valor)
   return total
 }
 
@@ -73,7 +78,10 @@ export function detalhePagamentos(d, mes) {
   const tabelaPronta = !!d.comprasPagamentosOk
 
   // Contas fixas ativas no mês, por dia de vencimento.
-  const fixosLista = fixosAtivos(fixos, mes).sort(POR_DIA)
+  // Fixos pagos no cartão não são contas à parte: já estão dentro da fatura do cartão (ver abaixo).
+  const fixosMes = fixosAtivos(fixos, mes)
+  const noCartao = (f) => !!f.cartao_id && cartoes.some((c) => c.id === f.cartao_id)
+  const fixosLista = fixosMes.filter((f) => !noCartao(f)).sort(POR_DIA)
   const fixoPagamento = (fixoId) => fixosPagamentos.find((p) => p.fixo_id === fixoId && p.mes === mes)
 
   // Cartões com parcelas no mês ou fatura registrada.
@@ -90,6 +98,9 @@ export function detalhePagamentos(d, mes) {
       if (parcela) parcelasSemCartao.push({ c, parcela, primeiroMes: parcelas[0].mes })
     }
   }
+  for (const f of fixosMes.filter(noCartao)) {
+    lancadoPorCartao.set(f.cartao_id, (lancadoPorCartao.get(f.cartao_id) || 0) + Number(f.valor))
+  }
   const cartaoIds = new Set(lancadoPorCartao.keys())
   faturas.forEach((f) => { if (f.mes === mes && f.cartao_id) cartaoIds.add(f.cartao_id) })
 
@@ -104,6 +115,7 @@ export function detalhePagamentos(d, mes) {
         nome: cartao?.nome || '—',
         valor,
         lancado,
+        fixosNoCartao: fixosMes.filter((f) => f.cartao_id === cartao_id).map((f) => ({ id: f.id, nome: f.nome, valor: Number(f.valor) })),
         temFatura: real, // true só quando o valor real do banco foi informado
         faturaRegistrada: !!fatura,
         pago: fatura?.pago || false,
@@ -129,18 +141,19 @@ export function detalhePagamentos(d, mes) {
     .sort((a, b) => (a.data_compra < b.data_compra ? 1 : -1))
 
   const soma = (lista, f) => lista.reduce((s, x) => s + f(x), 0)
-  const totalFixos = soma(fixosLista, (f) => Number(f.valor))
+  const totalFixos = soma(fixosMes, (f) => Number(f.valor)) // custo fixo total (inclui os pagos no cartão)
+  const totalFixosAvulsos = soma(fixosLista, (f) => Number(f.valor)) // contas a pagar à parte
   const totalFixosPagos = soma(fixosLista, (f) => (fixoPagamento(f.id)?.pago ? Number(f.valor) : 0))
   const totalCartoes = soma(linhasCartao, (l) => l.valor)
   const totalCartoesPagos = soma(linhasCartao, (l) => (l.pago ? l.valor : 0))
   const totalOutras = soma(outrasContas, (c) => c.valorParcela)
   const totalOutrasPagas = soma(outrasContas, (c) => (c.pago ? c.valorParcela : 0))
 
-  const comprometido = totalFixos + totalCartoes + totalOutras
+  const comprometido = totalFixosAvulsos + totalCartoes + totalOutras // fixo no cartão já está em totalCartoes
   const pago = totalFixosPagos + totalCartoesPagos + totalOutrasPagas
   return {
     fixosLista, fixoPagamento, linhasCartao, outrasContas,
-    totalFixos, totalFixosPagos, totalCartoes, totalCartoesPagos, totalOutras, totalOutrasPagas,
+    totalFixos, totalFixosAvulsos, totalFixosPagos, totalCartoes, totalCartoesPagos, totalOutras, totalOutrasPagas,
     comprometido, pago, totalDividas: comprometido - pago,
   }
 }

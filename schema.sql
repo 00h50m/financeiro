@@ -109,6 +109,10 @@ alter table fixos add column if not exists categoria text;
 alter table fixos add column if not exists subcategoria text;
 alter table fixos alter column pessoa drop not null;
 
+-- `cartao_id` (opcional): conta fixa paga no cartão de crédito. Conta dentro da fatura daquele cartão e
+-- não como conta à parte (ver fixos_cartao.sql).
+alter table fixos add column if not exists cartao_id uuid references cartoes(id) on delete set null;
+
 -- ============================================================
 -- FATURAS (valor real informado pelo banco, por cartão/mês)
 -- `pago`/`data_pagamento`: controle de pagamento — a fatura é paga de uma
