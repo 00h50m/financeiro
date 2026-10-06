@@ -5,11 +5,14 @@ import { normBasico, normNome, round2 } from './normalizacao.js'
 import { sugerirIdentificacao } from './nomesAmigaveis.js'
 import { comprasComGruposSomados } from './divisaoCompra.js'
 import { itensDaFatura } from './financeiro.js'
+import { calcMesInicio } from './utils.js'
 
 // Inteligência da importação de fatura (CSV): reconhecer o que já está lançado, sugerir categoria e nome.
 // Tudo puro e testável; a tela só mostra o resultado.
 
 const TOLERANCIA_VALOR = 0.02
+// Rede de segurança: mesmo que cada linha pareça casada, "tudo lançado" só vale se os TOTAIS também fecham.
+const TOLERANCIA_TOTAL = 0.1
 const diasEntre = (a, b) => Math.abs(Date.parse(String(a).slice(0, 10) + 'T12:00:00Z') - Date.parse(String(b).slice(0, 10) + 'T12:00:00Z')) / 86400000
 
 // modo: 'parcela' = a coluna valor do CSV é o valor de UMA parcela (padrão de fatura de cartão);
@@ -194,13 +197,24 @@ export function conferirFatura({ linhas, compras, cartoes, fixos = [], cartaoId,
     valorDiferente.push({ linha: l, item: item || { compra, valor: app, parcela: 1, de: Number(compra.parcelas) || 1 }, csv, app, diferenca: dif(csv, app) })
   }
 
+  // linha reconhecida como já lançada, mas a compra NÃO cai nesta fatura (outro mês, outro cartão ou data
+  // que o fechamento joga para outra fatura): sem isso o painel diria "tudo lançado" com a fatura faltando.
+  const foraDoMes = doCartao
+    .filter((l) => l.correspondencia?.compra && l.correspondencia.tipo !== 'valor_diferente' && !itens.some((i) => i.compra.id === l.correspondencia.compra.id))
+    .map((l) => {
+      const compra = l.correspondencia.compra
+      const cartaoDaCompra = cartoes.find((c) => c.id === compra.cartao_id)
+      return { linha: l, compra, valor: valorParcelaLinha(l, modo), mesDaCompra: calcMesInicio(compra.data_compra, cartaoDaCompra), outroCartao: compra.cartao_id !== cartaoId, cartaoNome: cartaoDaCompra?.nome || null }
+    })
+
   const soma = (xs, f) => dif(xs.reduce((t, x) => t + f(x), 0), 0)
   const totalCsv = soma(doCartao, (l) => valorParcelaLinha(l, modo))
   const sobrandoTotal = soma(sobrando, (i) => i.valor) + soma(fixosLivres, (f) => f.valor)
+  const totalFinapp = soma(itens, (i) => i.valor) + soma(fixosNoCartao, (f) => f.valor)
   return {
     cartaoId, mes,
     totalCsv,
-    totalFinapp: soma(itens, (i) => i.valor) + soma(fixosNoCartao, (f) => f.valor),
+    totalFinapp,
     faltaLancar: faltaLancar.map((l) => ({ linha: l, valor: valorParcelaLinha(l, modo) })),
     sobrandoNoFinapp: [
       ...sobrando.map((i) => ({ compra: i.compra, parcela: i.parcela, de: i.de, valor: i.valor })),
@@ -208,12 +222,15 @@ export function conferirFatura({ linhas, compras, cartoes, fixos = [], cartaoId,
     ],
     valorDiferente,
     contaFixa,
+    foraDoMes,
     totais: {
+      fora: soma(foraDoMes, (f) => f.valor),
       falta: soma(faltaLancar, (l) => valorParcelaLinha(l, modo)),
       sobra: sobrandoTotal,
       valores: soma(valorDiferente, (v) => v.diferenca),
     },
-    bate: faltaLancar.length === 0 && sobrando.length === 0 && fixosLivres.length === 0 && valorDiferente.length === 0,
+    bate: faltaLancar.length === 0 && sobrando.length === 0 && fixosLivres.length === 0 && valorDiferente.length === 0 && foraDoMes.length === 0
+      && Math.abs(totalCsv - totalFinapp) <= TOLERANCIA_TOTAL,
   }
 }
 

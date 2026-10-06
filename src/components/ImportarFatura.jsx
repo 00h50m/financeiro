@@ -55,7 +55,10 @@ const fmtDia = (iso) => String(iso).slice(0, 10).split('-').reverse().slice(0, 2
 // "O que falta lançar?": compara o CSV com o que está lançado neste cartão e mês, nos dois sentidos.
 function PainelConferencia({ conf, cartaoNome, faturaReal, onEditar }) {
   const [aberto, setAberto] = useState(true)
-  const { totais, faltaLancar, sobrandoNoFinapp, valorDiferente, contaFixa } = conf
+  const { totais, faltaLancar, sobrandoNoFinapp, valorDiferente, contaFixa, foraDoMes = [] } = conf
+  const difAppBanco = faturaReal != null ? Math.round((conf.totalFinapp - faturaReal) * 100) / 100 : null
+  const fechaComBanco = difAppBanco == null || Math.abs(difAppBanco) <= 0.1
+  const bate = conf.bate && fechaComBanco
   const difCsvBanco = faturaReal != null ? Math.round((conf.totalCsv - faturaReal) * 100) / 100 : null
   const tabela = { width: '100%' }
   return (
@@ -63,7 +66,7 @@ function PainelConferencia({ conf, cartaoNome, faturaReal, onEditar }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         <div style={{ fontWeight: 500 }}>
           O que falta lançar · {cartaoNome} · {mesLabel(conf.mes)}
-          {conf.bate ? <span className="badge badge-green" style={{ marginLeft: 8 }}>✓ tudo lançado</span> : <span className="badge badge-amber" style={{ marginLeft: 8 }}>há diferenças</span>}
+          {bate ? <span className="badge badge-green" style={{ marginLeft: 8 }}>✓ tudo lançado</span> : <span className="badge badge-amber" style={{ marginLeft: 8 }}>há diferenças</span>}
         </div>
         <button className="btn btn-ghost btn-sm" onClick={() => setAberto((a) => !a)}>{aberto ? 'Recolher' : 'Ver detalhes'}</button>
       </div>
@@ -78,11 +81,18 @@ function PainelConferencia({ conf, cartaoNome, faturaReal, onEditar }) {
           (ex.: IOF, juros de parcelamento, estorno ou compra de outro mês). Confira as linhas abaixo com o extrato do banco.
         </div>
       )}
-      {conf.bate && <div className="alert alert-green" style={{ marginBottom: 0 }}>Tudo o que está no CSV já está lançado neste cartão e mês, e nada sobra no Finapp.</div>}
-      {aberto && !conf.bate && (
+      {conf.bate && !fechaComBanco && (
+        <div className="alert alert-red">
+          Atenção: as linhas parecem todas lançadas, mas o Finapp soma <b>{fmt(conf.totalFinapp)}</b> contra <b>{fmt(faturaReal)}</b> do banco
+          ({difAppBanco > 0 ? 'passa' : 'falta'} <b>{fmt(Math.abs(difAppBanco))}</b>). Algo não está entrando nesta fatura — confira as datas, o cartão e o mês das compras.
+        </div>
+      )}
+      {bate && <div className="alert alert-green" style={{ marginBottom: 0 }}>Tudo o que está no CSV já está lançado neste cartão e mês, e nada sobra no Finapp.</div>}
+      {aberto && !bate && (
         <>
           <div style={{ fontSize: 12, color: 'var(--text2)', lineHeight: 1.6, marginBottom: 8 }}>
             Para o Finapp ficar igual ao CSV: lançar <b>{fmt(totais.falta)}</b>
+            {foraDoMes.length > 0 && <> · trazer para este mês (<b>{fmt(totais.fora)}</b>)</>}
             {valorDiferente.length > 0 && <> · corrigir valores (<b>{totais.valores > 0 ? '+' : ''}{fmt(totais.valores)}</b>)</>}
             {sobrandoNoFinapp.length > 0 && <> · rever o que sobra (<b>{fmt(totais.sobra)}</b>)</>}.
           </div>
@@ -102,6 +112,30 @@ function PainelConferencia({ conf, cartaoNome, faturaReal, onEditar }) {
                 </tbody>
               </table>
               <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>Essas linhas ficam marcadas na lista abaixo; é só confirmar a importação.</div>
+            </>
+          )}
+
+          {foraDoMes.length > 0 && (
+            <>
+              <div className="section-label" style={{ marginTop: 12 }}>já lançada, mas em outra fatura — não conta neste mês ({foraDoMes.length})</div>
+              <table style={tabela}>
+                <tbody>
+                  {foraDoMes.map((f) => (
+                    <tr key={f.linha._id}>
+                      <td className="mono" style={{ fontSize: 12, color: 'var(--text3)', whiteSpace: 'nowrap' }}>{fmtDia(f.linha.data)}</td>
+                      <td>
+                        {f.linha.descricao}
+                        <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--text3)' }}>
+                          · está em {f.outroCartao && f.cartaoNome ? `${f.cartaoNome} · ` : ''}{mesLabel(f.mesDaCompra)} como "{tituloCompra(f.compra)}"
+                        </span>
+                      </td>
+                      <td style={{ textAlign: 'right' }} className="mono">{fmt(f.valor)}</td>
+                      <td><button className="btn btn-ghost btn-sm" onClick={() => onEditar(f.compra)}>Editar compra</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>A compra existe, mas cai em outra fatura (data depois do fechamento, cartão errado ou mês diferente). Abra "Editar compra" e acerte a data ou o cartão para ela entrar neste mês.</div>
             </>
           )}
 
