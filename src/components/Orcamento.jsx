@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react'
-import Sparkbars from './Sparkbars'
 import { historicoPorCategoria, sugerirTetos } from '../lib/orcamentoSugestao'
 import { comprasLiquidas, fixosLiquidos } from '../lib/divisoes'
 import { fmt, fmtK, mesLabel, nowYM, addMonths, totalRenda, gastosPorCategoria, statusTeto } from '../lib/utils'
@@ -165,7 +164,7 @@ export default function Orcamento({ store }) {
               <th>Categoria</th>
               <th style={{ width: 140 }}>Teto mensal (R$)</th>
               <th style={{ textAlign: 'right' }}>Gasto</th>
-              <th title="Gasto nos 6 meses anteriores ao mês escolhido">6 meses ant.</th>
+              <th style={{ textAlign: 'right' }} title="Média de gasto nos 3 meses anteriores ao mês escolhido">Média 3 meses</th>
               <th style={{ textAlign: 'right' }}>Restante</th>
               <th style={{ width: 150 }}>Uso do teto</th>
               <th />
@@ -192,7 +191,9 @@ export default function Orcamento({ store }) {
                   <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13, color: l.gasto ? 'var(--text)' : 'var(--text3)' }}>
                     {l.gasto ? fmt(l.gasto) : '—'}
                   </td>
-                  <td><Sparkbars valores={[...(historico[l.categoria] || [0, 0, 0, 0, 0, 0]), l.gasto]} rotulos={['', '', '', '', '', '', mesLabel(mes)]} /></td>
+                  <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13, color: 'var(--text3)' }}>
+                    {(() => { const h = (historico[l.categoria] || []).slice(-3); const m = h.reduce((t, v) => t + v, 0) / 3; return m >= 1 ? fmt(m) : '—' })()}
+                  </td>
                   <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13, color: l.teto ? st.cor : 'var(--text3)' }}>
                     {l.teto ? fmt(l.restante) : '—'}
                   </td>
