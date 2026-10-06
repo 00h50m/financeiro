@@ -119,6 +119,19 @@ export function criarDb({ url, serviceKey }) {
       ])
       return { orcamentos: o.data, fixos, compras }
     },
+    // Tudo que o resumo mensal precisa (mesmas contas do app). Tabelas opcionais que ainda não existem viram lista vazia.
+    async dadosResumoMensal() {
+      const opcional = async (tabela, colunas = '*') => { try { return await todas(tabela, colunas) } catch { return null } }
+      const [compras, cartoes, fixos, fixosValores, faturas, rendas, fixosPagamentos, comprasPagamentos, saldoAjustes, pessoas, orcamentos, fechamentos, divisoes, divisoesRepasses] = await Promise.all([
+        todas('compras', '*', (q) => q.order('id')), todas('cartoes', '*'), todas('fixos', '*'), opcional('fixos_valores'), todas('faturas', '*', (q) => q.order('id')),
+        todas('rendas', '*'), todas('fixos_pagamentos', '*', (q) => q.order('id')), opcional('compras_pagamentos'), todas('saldo_ajustes', '*'), todas('pessoas', '*'),
+        opcional('orcamentos'), opcional('fechamentos'), opcional('divisoes'), opcional('divisoes_repasses'),
+      ])
+      return {
+        compras, cartoes, fixos, fixosValores: fixosValores || [], faturas, rendas, fixosPagamentos, comprasPagamentos: comprasPagamentos || [], comprasPagamentosOk: comprasPagamentos != null,
+        saldoAjustes, pessoas, orcamentos: orcamentos || [], fechamentos: fechamentos || [], divisoes: divisoes || [], divisoesRepasses: divisoesRepasses || [], metas: [], metasMovimentos: [],
+      }
+    },
     // ---- resumo semanal (precisa do inbox/11) ----
     async definirResumoSemanal(uid, valor) {
       dados(await sb.from('integracoes_telegram').update({ resumo_semanal: !!valor }).eq('telegram_user_id', uid))
