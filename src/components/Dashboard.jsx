@@ -1,5 +1,4 @@
 import { useState, useMemo, Fragment } from 'react'
-import Sparkbars from './Sparkbars'
 import { serieMensal } from '../lib/evolucao'
 import { fmt, fmtK, mesLabel, nowYM, addMonths, gerarParcelas, corPessoa, corPessoaCss, fixosAtivos, gastosPorCategoria, statusTeto, nomeCasa, donoDoFixo, hojeSP } from '../lib/utils'
 import { resumoDoMes, lerUsarSaldoAnterior } from '../lib/financeiro'
@@ -217,7 +216,7 @@ export default function Dashboard({ store, irPara }) {
                 <th>Categoria</th>
                 <th style={{ textAlign: 'right' }}>Valor</th>
                 <th style={{ textAlign: 'right' }}>vs {mesLabel(mesAnterior)}</th>
-                <th title="Gasto da categoria nos últimos 6 meses (o último é o mês atual)">6 meses</th>
+                <th style={{ textAlign: 'right' }} title="Compara com a média dos 5 meses anteriores ao atual">vs média (5 meses)</th>
                 <th>Participação</th>
               </tr>
             </thead>
@@ -255,7 +254,16 @@ export default function Dashboard({ store, irPara }) {
                           return <span style={{ color: dif > 0 ? 'var(--red)' : 'var(--green)' }} title={`Mês anterior: ${fmt(ant)}`}>{dif > 0 ? '↑' : '↓'} {fmt(Math.abs(dif))} <span style={{ color: 'var(--text3)' }}>({Math.round((Math.abs(dif) / ant) * 100)}%)</span></span>
                         })()}
                       </td>
-                      <td><Sparkbars valores={serie6.map((l) => l.porCategoria?.[categoria] || 0)} rotulos={serie6.map((l) => mesLabel(l.mes))} /></td>
+                      <td style={{ textAlign: 'right', fontSize: 12, whiteSpace: 'nowrap' }}>
+                        {(() => {
+                          const antes = serie6.slice(0, -1).map((l) => l.porCategoria?.[categoria] || 0)
+                          const media = antes.reduce((t, v) => t + v, 0) / (antes.length || 1)
+                          if (!(media >= 1)) return <span style={{ color: 'var(--text3)' }}>sem histórico</span>
+                          const p = Math.round(((total - media) / media) * 100)
+                          if (Math.abs(p) < 5) return <span style={{ color: 'var(--text3)' }} title={`Média: ${fmt(media)}`}>na média</span>
+                          return <span style={{ color: p > 0 ? 'var(--red)' : 'var(--green)' }} title={`Média dos 5 meses anteriores: ${fmt(media)}`}>{p > 0 ? '↑' : '↓'} {Math.abs(p)}% <span style={{ color: 'var(--text3)' }}>({fmt(media)})</span></span>
+                        })()}
+                      </td>
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <div className="prog-bar" style={{ flex: 1 }}>
@@ -268,6 +276,14 @@ export default function Dashboard({ store, irPara }) {
                     {aberta && (
                       <tr>
                         <td colSpan={5} style={{ padding: 0, background: 'var(--bg3)' }}>
+                          <div style={{ padding: '10px 14px 4px 38px', fontSize: 11, color: 'var(--text3)', display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+                            <span>Mês a mês:</span>
+                            {serie6.map((l) => (
+                              <span key={l.mes} style={{ color: l.mes === mes ? 'var(--text)' : undefined }}>
+                                {mesLabel(l.mes)} <span className="mono">{fmtK(l.porCategoria?.[categoria] || 0)}</span>
+                              </span>
+                            ))}
+                          </div>
                           <table>
                             <tbody>
                               {itens.map((it, i) => (
