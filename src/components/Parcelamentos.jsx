@@ -9,6 +9,8 @@ export default function Parcelamentos({ store }) {
   const mes = nowYM()
   const [busca, setBusca] = useState('')
   const [filtroCartao, setFiltroCartao] = useState('')
+  const [agrupar, setAgruparEstado] = useState(() => { try { const v = localStorage.getItem('parcelamentos_agrupar'); return ['pessoa', 'categoria', 'cartao'].includes(v) ? v : 'pessoa' } catch { return 'pessoa' } })
+  const setAgrupar = (v) => { setAgruparEstado(v); try { localStorage.setItem('parcelamentos_agrupar', v) } catch { /* sem armazenamento: não lembra */ } }
   const [analise, setAnalise] = useState('') // '' = análises recolhidas | 'calendario' | 'cartao' | 'categoria'
   const [acabamAberto, setAcabamAberto] = useState(false)
   const [recolhidas, setRecolhidas] = useState({}) // pessoas com a lista recolhida
@@ -44,7 +46,7 @@ export default function Parcelamentos({ store }) {
     return { restante: ps.filter((p) => p.mes >= mes).reduce((t, p) => t + p.valor, 0), doMes: ps.filter((p) => p.mes === mes).reduce((t, p) => t + p.valor, 0) }
   }
   const baseFiltrada = filtradas.reduce((t, c) => t + valoresDe(c).restante, 0)
-  function agrupar(chave) {
+  function agruparPor(chave) {
     const mapa = {}
     filtradas.forEach((c) => {
       const k = chave(c)
@@ -56,8 +58,8 @@ export default function Parcelamentos({ store }) {
     })
     return Object.values(mapa).sort((x, y) => y.restante - x.restante)
   }
-  const porCartao = agrupar((c) => cartoes.find((x) => x.id === c.cartao_id)?.nome || 'Sem cartão')
-  const porCategoria = agrupar((c) => c.categoria || 'Sem categoria')
+  const porCartao = agruparPor((c) => cartoes.find((x) => x.id === c.cartao_id)?.nome || 'Sem cartão')
+  const porCategoria = agruparPor((c) => c.categoria || 'Sem categoria')
 
   // Tabela de resumo com total e % do restante (usada por cartão e por categoria).
   function TabelaResumo({ titulo, rotulo, linhas, badge }) {
@@ -109,26 +111,33 @@ export default function Parcelamentos({ store }) {
     )
   }
 
-  function renderGrupo(pessoa) {
-    const lista = filtradas.filter((c) => c.pessoa === pessoa)
+  // Como as compras são agrupadas na lista: por pessoa (padrão), por categoria ou por cartão.
+  const nomeCartao = (c) => cartoes.find((x) => x.id === c.cartao_id)?.nome || 'Sem cartão'
+  const chaveDoGrupo = (c) => (agrupar === 'categoria' ? c.categoria || 'Sem categoria' : agrupar === 'cartao' ? nomeCartao(c) : c.pessoa)
+  const ROTULO_AGRUPAR = { pessoa: 'Pessoa', categoria: 'Categoria', cartao: 'Cartão' }
+
+  function renderGrupo(chave) {
+    const pessoa = chave // (nome do grupo: pessoa, categoria ou cartão, conforme o agrupamento)
+    const lista = filtradas.filter((c) => chaveDoGrupo(c) === chave)
     if (!lista.length) return null
     return (
       <div key={pessoa}>
-        <button className="section-label" onClick={() => setRecolhidas((r) => ({ ...r, [pessoa]: !r[pessoa] }))} aria-expanded={!recolhidas[pessoa]}
+        <button className="section-label" onClick={() => setRecolhidas((r) => ({ ...r, [agrupar + '|' + pessoa]: !r[agrupar + '|' + pessoa] }))} aria-expanded={!recolhidas[agrupar + '|' + pessoa]}
           style={{ display: 'flex', width: '100%', alignItems: 'center', gap: 8, background: 'transparent', textAlign: 'left', cursor: 'pointer' }}>
-          <span style={{ fontSize: 10, width: 10 }}>{recolhidas[pessoa] ? '▶' : '▼'}</span>
+          <span style={{ fontSize: 10, width: 10 }}>{recolhidas[agrupar + '|' + pessoa] ? '▶' : '▼'}</span>
           <span>{pessoa}</span>
           <span style={{ marginLeft: 'auto', textTransform: 'none', letterSpacing: 0 }}>
             {lista.length} compra{lista.length > 1 ? 's' : ''} · {fmt(lista.reduce((t, c) => t + valorParcelaBase(c), 0))}/mês · restam {fmt(lista.reduce((t, c) => t + valoresDe(c).restante, 0))}
           </span>
         </button>
-        {!recolhidas[pessoa] && <div className="card">
+        {!recolhidas[agrupar + '|' + pessoa] && <div className="card">
           <table>
             <thead>
               <tr>
                 <th>Compra</th>
-                <th>Cartão</th>
-                <th>Categoria</th>
+                {agrupar !== 'pessoa' && <th>Pessoa</th>}
+                {agrupar !== 'cartao' && <th>Cartão</th>}
+                {agrupar !== 'categoria' && <th>Categoria</th>}
                 <th style={{ textAlign: 'right' }}>Parcela</th>
                 <th style={{ width: 130, textAlign: 'center' }}>Progresso</th>
                 <th style={{ textAlign: 'right' }}>Restante</th>
@@ -158,8 +167,9 @@ export default function Parcelamentos({ store }) {
                       {subtituloCompra(c) && <div style={{ fontSize: 11, color: 'var(--text3)' }}>no cartão: {subtituloCompra(c)}</div>}
                       {c.obs && <div style={{ fontSize: 11, color: 'var(--text3)' }}>{c.obs}</div>}
                     </td>
-                    <td><span className="badge badge-gray">{cartao?.nome || '—'}</span></td>
-                    <td style={{ fontSize: 12, color: 'var(--text2)' }}>{c.categoria}</td>
+                    {agrupar !== 'pessoa' && <td style={{ fontSize: 12, color: 'var(--text2)' }}>{c.pessoa}</td>}
+                    {agrupar !== 'cartao' && <td><span className="badge badge-gray">{cartao?.nome || '—'}</span></td>}
+                    {agrupar !== 'categoria' && <td style={{ fontSize: 12, color: 'var(--text2)' }}>{c.categoria}</td>}
                     <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>
                       {fmt(valorParcelaBase(c))}
                     </td>
@@ -248,6 +258,12 @@ export default function Parcelamentos({ store }) {
             <option value="">Todos os cartões</option>
             {cartoes.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
           </select>
+          <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text3)' }} title="Sua escolha fica salva neste aparelho e vira o padrão">
+            Agrupar por
+            {Object.entries(ROTULO_AGRUPAR).map(([k, n]) => (
+              <button key={k} className={`btn btn-sm ${agrupar === k ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setAgrupar(k)} aria-pressed={agrupar === k}>{n}</button>
+            ))}
+          </span>
         </div>
       )}
       <ResumoFiltro ativo={filtroAtivo} mostrando={filtradas.length} total={ativas.length} onLimpar={() => { setBusca(''); setFiltroCartao('') }} />
@@ -318,11 +334,18 @@ export default function Parcelamentos({ store }) {
       )}
 
       {filtroAtivo && filtradas.length === 0 && <div className="empty">Nenhum parcelamento com esses filtros.{'\n'}Tente outro termo ou clique em "Limpar filtros".</div>}
-      {pessoas.map((p) => renderGrupo(p.nome))}
-      {/* Compras de quem não está (mais) na lista de pessoas: aparecem aqui para os totais do topo fecharem. */}
-      {[...new Set(filtradas.map((c) => c.pessoa))]
-        .filter((nome) => !pessoas.some((p) => p.nome === nome))
-        .map((nome) => renderGrupo(nome))}
+      {agrupar === 'pessoa' ? (
+        <>
+          {pessoas.map((p) => renderGrupo(p.nome))}
+          {/* Compras de quem não está (mais) na lista de pessoas: aparecem aqui para os totais do topo fecharem. */}
+          {[...new Set(filtradas.map((c) => c.pessoa))]
+            .filter((nome) => !pessoas.some((p) => p.nome === nome))
+            .map((nome) => renderGrupo(nome))}
+        </>
+      ) : (
+        // categoria / cartão: do grupo com mais dívida restante para o menor
+        agrupar === 'categoria' ? porCategoria.map((g) => renderGrupo(g.nome)) : porCartao.map((g) => renderGrupo(g.nome))
+      )}
     </div>
   )
 }
