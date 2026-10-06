@@ -9,6 +9,9 @@ export default function Parcelamentos({ store }) {
   const mes = nowYM()
   const [busca, setBusca] = useState('')
   const [filtroCartao, setFiltroCartao] = useState('')
+  const [analise, setAnalise] = useState('') // '' = análises recolhidas | 'calendario' | 'cartao' | 'categoria'
+  const [acabamAberto, setAcabamAberto] = useState(false)
+  const [recolhidas, setRecolhidas] = useState({}) // pessoas com a lista recolhida
   const [simulando, setSimulando] = useState(null) // id da compra com a simulação de quitação aberta
   const [valorBanco, setValorBanco] = useState('')
 
@@ -63,8 +66,8 @@ export default function Parcelamentos({ store }) {
     const pct = (v) => (baseFiltrada > 0 ? Math.round((v / baseFiltrada) * 1000) / 10 : 0)
     return (
       <>
-        <div className="section-label">{titulo}</div>
-        <div className="card">
+        {titulo && <div className="section-label">{titulo}</div>}
+        <div className={titulo ? 'card' : undefined} style={titulo ? undefined : { overflowX: 'auto' }}>
           <table>
             <thead>
               <tr>
@@ -111,8 +114,15 @@ export default function Parcelamentos({ store }) {
     if (!lista.length) return null
     return (
       <div key={pessoa}>
-        <div className="section-label">{pessoa}</div>
-        <div className="card">
+        <button className="section-label" onClick={() => setRecolhidas((r) => ({ ...r, [pessoa]: !r[pessoa] }))} aria-expanded={!recolhidas[pessoa]}
+          style={{ display: 'flex', width: '100%', alignItems: 'center', gap: 8, background: 'transparent', textAlign: 'left', cursor: 'pointer' }}>
+          <span style={{ fontSize: 10, width: 10 }}>{recolhidas[pessoa] ? '▶' : '▼'}</span>
+          <span>{pessoa}</span>
+          <span style={{ marginLeft: 'auto', textTransform: 'none', letterSpacing: 0 }}>
+            {lista.length} compra{lista.length > 1 ? 's' : ''} · {fmt(lista.reduce((t, c) => t + valorParcelaBase(c), 0))}/mês · restam {fmt(lista.reduce((t, c) => t + valoresDe(c).restante, 0))}
+          </span>
+        </button>
+        {!recolhidas[pessoa] && <div className="card">
           <table>
             <thead>
               <tr>
@@ -209,7 +219,7 @@ export default function Parcelamentos({ store }) {
               </tr>
             </tbody>
           </table>
-        </div>
+        </div>}
       </div>
     )
   }
@@ -231,39 +241,6 @@ export default function Parcelamentos({ store }) {
         </div>
       </div>
 
-      {acabamLogo.length > 0 && (
-        <div className="alert alert-green">
-          <b>{acabamLogo.length === 1 ? '1 parcelamento acaba' : `${acabamLogo.length} parcelamentos acabam`} em até 2 meses</b> — libera <b>{fmt(liberaTotal)}</b> por mês no seu orçamento:
-          {acabamLogo.map((a) => (
-            <div key={a.compra.id} style={{ fontSize: 12, marginTop: 2 }}>
-              · {tituloCompra(a.compra)} — {a.mesesRestantes === 0 ? 'última parcela este mês' : `termina em ${mesLabel(a.termino)}`} ({a.parcelasRestantes} parcela{a.parcelasRestantes > 1 ? 's' : ''}) · libera {fmt(a.libera)}/mês
-            </div>
-          ))}
-        </div>
-      )}
-
-      {ativas.length > 0 && (
-        <>
-          <div className="section-label">calendário de quitação · próximos 12 meses</div>
-          <div className="card" style={{ padding: '6px 14px' }}>
-            {calendario.map((m, i) => {
-              const anterior = i > 0 ? calendario[i - 1].total : null
-              const dif = anterior == null ? null : Math.round((m.total - anterior) * 100) / 100
-              return (
-                <div key={m.mes} style={{ display: 'grid', gridTemplateColumns: '70px 1fr 110px 120px', gap: 10, alignItems: 'center', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
-                  <span className="mono" style={{ color: 'var(--text3)' }}>{mesLabel(m.mes)}</span>
-                  <div className="prog-bar"><div className="prog-fill" style={{ width: (m.total / maxCal) * 100 + '%', background: 'var(--amber)' }} /></div>
-                  <span className="mono" style={{ textAlign: 'right' }}>{fmt(m.total)}</span>
-                  <span style={{ fontSize: 11, color: m.terminam.length ? 'var(--green)' : dif < 0 ? 'var(--green)' : 'var(--text3)' }}>
-                    {m.terminam.length ? `acaba: ${m.terminam.map((c) => tituloCompra(c)).join(', ').slice(0, 40)}` : dif ? `${dif < 0 ? '↓' : '↑'} ${fmt(Math.abs(dif))}` : ''}
-                  </span>
-                </div>
-              )
-            })}
-          </div>
-        </>
-      )}
-
       {ativas.length > 0 && (
         <div className="toolbar">
           <CampoBusca valor={busca} onChange={setBusca} />
@@ -274,16 +251,70 @@ export default function Parcelamentos({ store }) {
         </div>
       )}
       <ResumoFiltro ativo={filtroAtivo} mostrando={filtradas.length} total={ativas.length} onLimpar={() => { setBusca(''); setFiltroCartao('') }} />
-      {ativas.length === 0 ? (
+
+      {acabamLogo.length > 0 && (
+        <div className="alert alert-green" style={{ padding: '9px 14px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span>
+              <b>{acabamLogo.length === 1 ? '1 parcelamento acaba' : `${acabamLogo.length} parcelamentos acabam`}</b> em até 2 meses — libera <b>{fmt(liberaTotal)}</b>/mês
+            </span>
+            <button className="link-btn" onClick={() => setAcabamAberto((v) => !v)} aria-expanded={acabamAberto}>{acabamAberto ? 'ocultar' : 'ver quais'}</button>
+          </div>
+          {acabamAberto && acabamLogo.map((a) => (
+            <div key={a.compra.id} style={{ fontSize: 12, marginTop: 4 }}>
+              · {tituloCompra(a.compra)} — {a.mesesRestantes === 0 ? 'última parcela este mês' : `termina em ${mesLabel(a.termino)}`} ({a.parcelasRestantes} parcela{a.parcelasRestantes > 1 ? 's' : ''}) · libera {fmt(a.libera)}/mês
+            </div>
+          ))}
+        </div>
+      )}
+
+      {ativas.length > 0 && (
+        <div className="card" style={{ padding: 0, overflow: 'visible' }}>
+          <button
+            onClick={() => setAnalise(analise ? '' : 'calendario')} aria-expanded={!!analise}
+            style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', background: 'transparent', color: 'var(--text)', textAlign: 'left', fontSize: 13 }}
+          >
+            <span style={{ fontSize: 10, color: 'var(--text3)', width: 10 }}>{analise ? '▼' : '▶'}</span>
+            <span style={{ fontWeight: 500 }}>Análises</span>
+            <span style={{ color: 'var(--text3)', fontSize: 12 }}>calendário de quitação · por cartão · por categoria</span>
+          </button>
+          {analise && (
+            <div style={{ padding: '0 16px 14px', borderTop: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', gap: 8, margin: '12px 0', flexWrap: 'wrap' }}>
+                {[['calendario', 'Próximos 12 meses'], ['cartao', 'Por cartão'], ['categoria', 'Por categoria']].map(([k, n]) => (
+                  <button key={k} className={`btn btn-sm ${analise === k ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setAnalise(k)}>{n}</button>
+                ))}
+              </div>
+              {analise === 'calendario' && (
+                <div>
+                  {calendario.map((m, i) => {
+                    const anterior = i > 0 ? calendario[i - 1].total : null
+                    const dif = anterior == null ? null : Math.round((m.total - anterior) * 100) / 100
+                    return (
+                      <div key={m.mes} style={{ display: 'grid', gridTemplateColumns: '70px 1fr 110px 130px', gap: 10, alignItems: 'center', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+                        <span className="mono" style={{ color: 'var(--text3)' }}>{mesLabel(m.mes)}</span>
+                        <div className="prog-bar"><div className="prog-fill" style={{ width: (m.total / maxCal) * 100 + '%', background: 'var(--amber)' }} /></div>
+                        <span className="mono" style={{ textAlign: 'right' }}>{fmt(m.total)}</span>
+                        <span style={{ fontSize: 11, color: m.terminam.length || dif < 0 ? 'var(--green)' : 'var(--text3)' }}>
+                          {m.terminam.length ? `acaba: ${m.terminam.map((c) => tituloCompra(c)).join(', ').slice(0, 40)}` : dif ? `${dif < 0 ? '↓' : '↑'} ${fmt(Math.abs(dif))}` : ''}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+              {analise !== 'calendario' && filtroAtivo && <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 6 }}>Considera só o que combina com a busca/filtro.</div>}
+              {analise === 'cartao' && TabelaResumo({ titulo: null, rotulo: 'Cartão', linhas: porCartao, badge: true })}
+              {analise === 'categoria' && TabelaResumo({ titulo: null, rotulo: 'Categoria', linhas: porCategoria })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {ativas.length === 0 && (
         <div className="empty">
           Nenhum parcelamento ativo.{'\n'}As compras parceladas aparecem aqui automaticamente.
         </div>
-      ) : (
-        <>
-          {filtroAtivo && <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 6 }}>Os resumos abaixo consideram só o que combina com a busca/filtro.</div>}
-          {TabelaResumo({ titulo: 'dívida restante por cartão', rotulo: 'Cartão', linhas: porCartao, badge: true })}
-          {TabelaResumo({ titulo: 'dívida restante por categoria', rotulo: 'Categoria', linhas: porCategoria })}
-        </>
       )}
 
       {filtroAtivo && filtradas.length === 0 && <div className="empty">Nenhum parcelamento com esses filtros.{'\n'}Tente outro termo ou clique em "Limpar filtros".</div>}
