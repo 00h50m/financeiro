@@ -281,6 +281,19 @@ function AppLogado({ email }) {
         <Component store={store} irPara={irPara} />
       </div>
 
+      {(store.desfazivel || store.aviso) && (
+        <div className="toast-area" role="status" aria-live="polite">
+          {store.aviso && <div className={`toast toast-${store.aviso.tipo}`}>{store.aviso.texto}</div>}
+          {store.desfazivel && (
+            <div className="toast">
+              <span>{store.desfazivel.rotulo}</span>
+              <button className="btn btn-primary btn-sm" onClick={store.desfazerExclusao}>Desfazer</button>
+              <button className="btn btn-ghost btn-sm" onClick={store.dispensarDesfazer} aria-label="Dispensar">×</button>
+            </div>
+          )}
+        </div>
+      )}
+
       <nav className="bottom-nav" aria-label="Atalhos">
         {[['dashboard', 'Início'], ['inbox', 'Inbox'], ['compras', 'Compras'], ['pagamentos', 'Pagar']].map(([id, rotulo]) => (
           <button key={id} className={aba === id ? 'ativo' : ''} onClick={() => irPara(id)} aria-current={aba === id ? 'page' : undefined}>
