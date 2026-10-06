@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react'
 import { compilar } from '../lib/filtro'
 import { mediaRecente } from '../lib/fixosVariaveis'
+import { agruparVersoes } from '../lib/fixosVersoes'
+import ValorDoMes from './ValorDoMes'
 import { detectarRecorrencias } from '../lib/recorrencias'
 import { indexarAliases } from '../lib/estabelecimento'
 import { paraCsv, baixarCsv } from '../lib/csvExport'
@@ -15,7 +17,7 @@ export default function Fixos({ store }) {
     nome: '', valor: '', pessoa: '', cartao_id: '',
     categoria: categorias[0]?.nome || '',
     subcategoria: categorias[0]?.subcategorias?.[0] || '',
-    mes_fim: '', dia_vencimento: '', variavel: false,
+    mes_fim: '', dia_vencimento: '', variavel: false, aplicarDesde: 'mes',
   })
   const [filtroPessoa, setFiltroPessoa] = useState('') // '' = todas
   const [busca, setBusca] = useState('')
@@ -52,7 +54,7 @@ export default function Fixos({ store }) {
         nome: fx.nome, valor: fx.valor, pessoa: fx.pessoa || (casaCadastrada ? casa : ''), cartao_id: fx.cartao_id || '',
         categoria: fx.categoria || categorias[0]?.nome || '',
         subcategoria: fx.subcategoria || categorias.find((c) => c.nome === fx.categoria)?.subcategorias?.[0] || '',
-        mes_fim: fx.mes_fim || '', dia_vencimento: fx.dia_vencimento || '', variavel: !!fx.variavel,
+        mes_fim: fx.mes_fim || '', dia_vencimento: fx.dia_vencimento || '', variavel: !!fx.variavel, aplicarDesde: 'mes',
       })
       setEditId(fx.id)
     } else {
@@ -60,7 +62,7 @@ export default function Fixos({ store }) {
         nome: '', valor: '', pessoa: casaCadastrada ? casa : '', cartao_id: '',
         categoria: categorias[0]?.nome || '',
         subcategoria: categorias[0]?.subcategorias?.[0] || '',
-        mes_fim: '', dia_vencimento: '', variavel: false,
+        mes_fim: '', dia_vencimento: '', variavel: false, aplicarDesde: 'mes',
       })
       setEditId(null)
     }
@@ -85,10 +87,9 @@ export default function Fixos({ store }) {
     const antigo = editId && fixos.find((f) => f.id === editId)
     const mudouValor = antigo && Number(antigo.valor) !== dados.valor
     const jaComecou = antigo && (!antigo.mes_inicio || antigo.mes_inicio < mesAtual)
-    if (mudouValor && jaComecou && confirm(
-      `Mudar o valor só a partir de ${mesLabel(mesAtual)}?\n\nOK = os meses anteriores continuam com o valor antigo (${fmt(antigo.valor)}).\nCancelar = o valor novo vale para todos os meses, inclusive os passados.`
-    )) {
-      // novo registro começa neste mês; o antigo termina no mês anterior (guarda o histórico)
+    // Conta de valor variável: a estimativa só muda daqui para frente e NUNCA cria outra linha (os valores reais de cada mês ficam como estão).
+    // Conta de valor fixo: se o valor mudou, a pessoa escolhe no formulário se vale "a partir deste mês" (guarda o histórico) ou "para todos os meses".
+    if (mudouValor && jaComecou && !antigo.variavel && !form.variavel && form.aplicarDesde === 'mes') {
       ok = await addFixo({ ...dados, ativo: true, mes_inicio: mesAtual })
       if (ok) ok = await updateFixo(editId, { mes_fim: addMonths(mesAtual, -1) })
     } else {
@@ -116,7 +117,9 @@ export default function Fixos({ store }) {
       valor: [Number(f.valor), atual ? Number(atual.valor) : null],
     })
   }
-  const fixosVisiveis = fixos.filter(doFiltro)
+  // Versões de uma mesma conta (valor que mudou ao longo do tempo) viram uma linha só; as anteriores ficam no histórico.
+  const grupos = agruparVersoes(fixos, mesAtual).filter((g) => doFiltro(g.principal))
+  const fixosVisiveis = grupos.map((g) => g.principal)
   const ativosAgora = fixosAtivos(fixosVisiveis, mesAtual)
   async function alternarAtivo(f, encerrado) {
     if (f.ativo && !encerrado) {
@@ -126,16 +129,6 @@ export default function Fixos({ store }) {
       if (!confirm(`Reativar "${f.nome}"? Ela volta a contar em todos os meses desde o início, inclusive nos que já passaram.`)) return
       await updateFixo(f.id, { ativo: true, mes_fim: null })
     }
-  }
-
-  // Conta variável: valor real do mês atual (as pagas no cartão não aparecem em Pagamentos, então dá para informar aqui também)
-  async function informarValorDoMes(f) {
-    const atual = ativosAgora.find((x) => x.id === f.id) || f
-    const r = window.prompt(`Valor real de "${f.nome}" em ${mesLabel(mesAtual)} (R$):`, String(atual.valor).replace('.', ','))
-    if (r === null) return
-    const v = Number(String(r).trim().replace(/\./g, '').replace(',', '.'))
-    if (!r.trim() || Number.isNaN(v) || v < 0) { window.alert('Valor inválido.\n\nDigite só números, com vírgula nos centavos (ex.: 312,40).'); return }
-    await definirValorFixo(f.id, mesAtual, v)
   }
 
   const total = ativosAgora.reduce((s, f) => s + Number(f.valor), 0)
@@ -167,6 +160,24 @@ export default function Fixos({ store }) {
                 <input type="number" step="0.01" value={form.valor} onChange={s('valor')} placeholder="0,00" />
               </div>
             </div>
+            {editId && !form.variavel && (() => {
+              const antigo = fixos.find((x) => x.id === editId)
+              const muda = antigo && !antigo.variavel && Number(antigo.valor) !== Number(form.valor) && form.valor !== '' && (!antigo.mes_inicio || antigo.mes_inicio < mesAtual)
+              if (!muda) return null
+              return (
+                <div className="alert alert-blue" style={{ lineHeight: 1.8 }}>
+                  <b>O valor mudou de {fmt(antigo.valor)} para {fmt(Number(form.valor))}. Vale para quais meses?</b>
+                  <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', cursor: 'pointer' }}>
+                    <input type="radio" name="desde" checked={form.aplicarDesde === 'mes'} onChange={() => setForm((f) => ({ ...f, aplicarDesde: 'mes' }))} style={{ marginTop: 5, width: 16, height: 16, padding: 0, flex: '0 0 auto' }} />
+                    <span>A partir de <b>{mesLabel(mesAtual)}</b> — os meses anteriores continuam com {fmt(antigo.valor)} (o histórico fica guardado na própria conta).</span>
+                  </label>
+                  <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', cursor: 'pointer' }}>
+                    <input type="radio" name="desde" checked={form.aplicarDesde === 'todos'} onChange={() => setForm((f) => ({ ...f, aplicarDesde: 'todos' }))} style={{ marginTop: 5, width: 16, height: 16, padding: 0, flex: '0 0 auto' }} />
+                    <span>Para <b>todos os meses</b>, inclusive os passados (use só para corrigir um valor que estava errado).</span>
+                  </label>
+                </div>
+              )
+            })()}
             <div className="form-row cols2">
               <div className="form-group">
                 <label>Categoria</label>
@@ -217,7 +228,7 @@ export default function Fixos({ store }) {
             })()}
             {form.variavel && (
               <div className="alert alert-blue">
-                O valor acima vale só como <b>estimativa</b>. Quando a conta chegar, informe o valor real do mês em <b>Pagamentos</b> — só aquele mês muda, os outros não são alterados.
+                O valor acima é só a <b>estimativa</b> (usada nos meses em que você ainda não informou o valor real). Quando a conta chegar, digite o valor real do mês direto na lista ou em <b>Pagamentos</b> — só aquele mês muda. Mudar a estimativa não mexe nos valores reais já informados.
               </div>
             )}
             {!colunaVariavelOk && (
@@ -332,13 +343,23 @@ export default function Fixos({ store }) {
               </tr>
             </thead>
             <tbody>
-              {fixosVisiveis.map((f) => {
+              {grupos.map(({ principal: f, versoes }) => {
                 const encerrado = f.mes_fim && f.mes_fim < mesAtual
                 return (
                   <tr key={f.id}>
                     <td style={{ fontWeight: 500 }}>
                       {f.nome}
                       {f.variavel && <span className="badge badge-amber" style={{ marginLeft: 6, fontSize: 10 }}>valor variável</span>}
+                      {versoes.length > 1 && (
+                        <details style={{ fontWeight: 400, marginTop: 2 }}>
+                          <summary style={{ fontSize: 11, color: 'var(--text3)', cursor: 'pointer' }}>histórico de valores ({versoes.length})</summary>
+                          {[...versoes].reverse().map((v) => (
+                            <div key={v.id} style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }} className="mono">
+                              {v.mes_inicio ? `desde ${mesLabel(v.mes_inicio)}` : 'desde o início'}{v.mes_fim ? ` até ${mesLabel(v.mes_fim)}` : ' · em vigor'}: {fmt(v.valor)}
+                            </div>
+                          ))}
+                        </details>
+                      )}
                       {f.mes_fim && (
                         <div style={{ fontSize: 11, color: encerrado ? 'var(--text3)' : 'var(--amber)', marginTop: 2, fontWeight: 400 }}>
                           {encerrado ? `encerrado em ${mesLabel(f.mes_fim)}` : `até ${mesLabel(f.mes_fim)}`}
@@ -364,13 +385,9 @@ export default function Fixos({ store }) {
                       ) : null}
                     </td>
                     <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>
-                      {fmt(ativosAgora.find((x) => x.id === f.id)?.valor ?? f.valor)}
-                      {f.variavel && !encerrado && f.ativo && (
-                        <div style={{ fontSize: 11, marginTop: 2 }}>
-                          {ativosAgora.find((x) => x.id === f.id)?.estimado ? <span className="badge badge-amber" style={{ fontSize: 10 }}>estimado em {mesLabel(mesAtual)}</span> : <span className="badge badge-green" style={{ fontSize: 10 }}>real em {mesLabel(mesAtual)}</span>}
-                          {' '}<button className="link-btn" onClick={() => informarValorDoMes(f)}>informar valor do mês</button>
-                        </div>
-                      )}
+                      {f.variavel && !encerrado && f.ativo && ativosAgora.find((x) => x.id === f.id) ? (
+                        <ValorDoMes fixo={ativosAgora.find((x) => x.id === f.id)} mes={mesAtual} real={f.valores?.[mesAtual]} definirValorFixo={definirValorFixo} />
+                      ) : fmt(ativosAgora.find((x) => x.id === f.id)?.valor ?? f.valor)}
                     </td>
                     <td style={{ textAlign: 'center' }}>
                       <button
@@ -383,7 +400,7 @@ export default function Fixos({ store }) {
                     </td>
                     <td style={{ display: 'flex', gap: 6 }}>
                       <button className="btn btn-ghost btn-sm" onClick={() => abrir(f)}>Editar</button>
-                      <button className="btn btn-danger" onClick={() => { if (confirm(`Remover "${f.nome}"?`)) delFixo(f.id) }}>×</button>
+                      <button className="btn btn-danger" onClick={async () => { if (confirm(`Remover "${f.nome}"${versoes.length > 1 ? ` e o histórico de valores (${versoes.length} versões)` : ''}?`)) for (const v of versoes) await delFixo(v.id) }}>×</button>
                     </td>
                   </tr>
                 )
