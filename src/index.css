@@ -298,3 +298,16 @@ input[type='checkbox'] { width: auto; min-height: 0; accent-color: var(--brand);
 /* Rodapé do menu (Sair / Recolher) sempre visível, mesmo com muitos itens */
 .sidebar-rodape { position: sticky; bottom: -14px; margin: 0 -10px -14px; padding: 6px 10px 14px; background: var(--bg2); border-top: 1px solid var(--border); }
 .sidebar-rodape .sidebar-recolher { margin-top: 2px; }
+
+/* Gráficos: cores das séries em ordem fixa, validadas (daltonismo e contraste) contra a superfície escura dos cartões. */
+.graficos {
+  --serie-1: #3987e5; /* azul */
+  --serie-2: #d95926; /* laranja */
+  --serie-3: #199e70; /* verde-água */
+  --serie-4: #c98500; /* amarelo */
+  --serie-5: #d55181; /* magenta */
+  --serie-6: #9085e9; /* violeta */
+}
+.grafico-card { padding: 16px; overflow: visible; margin-bottom: 14px; }
+.grafico-card svg text { font-family: 'DM Sans', sans-serif; }
+.grafico-card svg rect:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
