@@ -1,9 +1,9 @@
 // FECHAMENTO MENSAL: validações, foto do mês (snapshot) e regras de mês fechado.
 // Funções puras. `d` = os dados do app (o store): compras, cartoes, fixos, faturas, rendas, saldoAjustes,
 // fixosPagamentos, comprasPagamentos(+Ok), fechamentos, eventos, orcamentos.
-import { addMonths, gastosPorCategoria, gerarParcelas, hojeSP, mesLabel, nowYM, statusTeto } from './utils'
-import { resumoDoMes } from './financeiro'
-import { comprasLiquidas, fixosLiquidos, parteDosOutrosNoMes, resumoRepasses } from './divisoes'
+import { addMonths, gastosPorCategoria, gerarParcelas, hojeSP, mesLabel, nowYM, statusTeto } from './utils.js'
+import { resumoDoMes } from './financeiro.js'
+import { comprasLiquidas, fixosLiquidos, parteDosOutrosNoMes, resumoRepasses } from './divisoes.js'
 
 export const VERSAO_MOTOR = 1 // sobe quando a definição de algum número do fechamento mudar
 

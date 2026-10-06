@@ -1,9 +1,9 @@
 // EVOLUÇÃO E INSIGHTS: séries, comparações e observações explicáveis, só com contas do motor financeiro.
 // Mês fechado usa a foto gravada (nunca muda); mês aberto usa o cálculo ao vivo.
-import { addMonths, gastosPorCategoria, gerarParcelas, mesLabel } from './utils'
-import { resumoDoMes } from './financeiro'
-import { comprasLiquidas, fixosLiquidos } from './divisoes'
-import { fechamentoDe } from './fechamento'
+import { addMonths, gastosPorCategoria, gerarParcelas, mesLabel } from './utils.js'
+import { resumoDoMes } from './financeiro.js'
+import { comprasLiquidas, fixosLiquidos } from './divisoes.js'
+import { fechamentoDe } from './fechamento.js'
 
 const arred = (v) => Math.round((Number(v) || 0) * 100) / 100 + 0
 

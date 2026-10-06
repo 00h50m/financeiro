@@ -1,5 +1,5 @@
 // RESTAURAÇÃO DE BACKUP: validação do arquivo, resumo e plano de mesclagem segura. Funções puras.
-import { BACKUP_VERSAO, SCHEMA_BANCO } from './versao'
+import { BACKUP_VERSAO, SCHEMA_BANCO } from './versao.js'
 
 // Ordem de inserção (pais primeiro), chave de cada tabela e nome na tela.
 export const ORDEM_RESTAURACAO = [

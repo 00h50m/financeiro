@@ -1,7 +1,7 @@
 // BUSCA GLOBAL: procura em compras, contas fixas, faturas, cartões, metas e Inbox.
 // Mesma linguagem das listas (lib/filtro.js): nome sem acento, valor (89,90), faixa (100..200, >50) e data (05/09).
-import { compilar } from './filtro'
-import { normBasico } from './normalizacao'
+import { compilar } from './filtro.js'
+import { normBasico } from './normalizacao.js'
 
 const fmtData = (d) => String(d).slice(0, 10).split('-').reverse().join('/')
 
