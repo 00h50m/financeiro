@@ -5,11 +5,14 @@ import { resumoDoMes, lerUsarSaldoAnterior } from '../lib/financeiro'
 import { comprasLiquidas, fixosLiquidos } from '../lib/divisoes'
 import { riscosDoMes, mesFechado } from '../lib/fechamento'
 import { pendenciasValorVariavel } from '../lib/fixosVariaveis'
+import { textoResumoMensal } from '../lib/resumoMensal'
 
 export default function Dashboard({ store, irPara }) {
   const { compras, cartoes, fixos, pessoas, orcamentos } = store
   const mes = nowYM()
   const [abertas, setAbertas] = useState({})
+  const [resumo, setResumo] = useState(null) // texto do resumo do mês (modal)
+  const [copiado, setCopiado] = useState(false)
   const alternar = (categoria) => setAbertas((a) => ({ ...a, [categoria]: !a[categoria] }))
 
   // Mesma conta da aba Pagamentos (motor financeiro único), para os números baterem.
@@ -75,7 +78,24 @@ export default function Dashboard({ store, irPara }) {
 
   return (
     <div className="page">
-      <div className="section-label">{mesLabel(mes)} · central do mês{fechadoAtual ? ' · fechado' : ''}</div>
+      {resumo != null && (
+        <div className="overlay" onClick={(e) => { if (e.target.className === 'overlay') setResumo(null) }}>
+          <div className="modal">
+            <div className="modal-title">Resumo de {mesLabel(mes)}</div>
+            <textarea readOnly value={resumo} rows={16} style={{ width: '100%', fontFamily: 'DM Mono, monospace', fontSize: 12, lineHeight: 1.6 }} onFocus={(e) => e.target.select()} aria-label="Texto do resumo" />
+            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 6 }}>Texto simples, pronto para colar no WhatsApp ou Telegram. Usa os mesmos números do Dashboard.</div>
+            <div className="modal-footer">
+              <button className="btn btn-ghost" onClick={() => setResumo(null)}>Fechar</button>
+              <button className="btn btn-primary" onClick={async () => { try { await navigator.clipboard.writeText(resumo); setCopiado(true); setTimeout(() => setCopiado(false), 2000) } catch { window.alert('Não consegui copiar automaticamente. Toque no texto, selecione tudo e copie.') } }}>{copiado ? 'Copiado ✓' : 'Copiar'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="section-label" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span>{mesLabel(mes)} · central do mês{fechadoAtual ? ' · fechado' : ''}</span>
+        <button className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto', textTransform: 'none', letterSpacing: 0 }} onClick={() => setResumo(textoResumoMensal(store, mes, hojeSP()))}>Resumo do mês</button>
+      </div>
 
       <div className="metric-grid">
         <div className="metric">

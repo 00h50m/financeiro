@@ -87,3 +87,18 @@ describe('projeção e extras', () => {
     expect(progressoDasMetas(base, '2026-10-05')[0]).toMatchObject({ nome: 'Viagem', saldo: 250, alvo: 1000, pct: 25 })
   })
 })
+
+import { textoResumoMensal } from '../resumoMensal'
+describe('resumo mensal em texto', () => {
+  it('traz renda, despesas, sobra, categorias e comparação com o mês anterior', () => {
+    const t = textoResumoMensal(d, '2026-10', '2026-10-05')
+    expect(t).toMatch(/Resumo de Out\/26/)
+    expect(t).toMatch(/Renda: R\$ 5\.000,00/)
+    expect(t).toMatch(/Despesas:/)
+    expect(t).toMatch(/Onde foi o dinheiro:\n1\./)
+    expect(t).toMatch(/Contra Set\/26/)
+  })
+  it('mês sem dados avisa em vez de inventar', () => {
+    expect(textoResumoMensal({ ...d, compras: [], fixos: [], rendas: [] }, '2026-10', '2026-10-05')).toMatch(/Ainda não há/)
+  })
+})
