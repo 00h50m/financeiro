@@ -1,9 +1,11 @@
 import { useState, useMemo } from 'react'
-import { fmt, corPessoa, tituloCompra, subtituloCompra, valorParcelaBase } from '../lib/utils'
+import { fmt, mesLabel, corPessoa, tituloCompra, subtituloCompra, valorParcelaBase } from '../lib/utils'
 import { parcelasPagas } from '../lib/financeiro'
 import ModalCompra from './ModalCompra'
 import { rotuloOrigem } from '../lib/origem'
 import { partesDoGrupo } from '../lib/divisaoCompra'
+import { compilar } from '../lib/filtro'
+import { CampoBusca, ResumoFiltro } from './FiltroLista'
 
 export default function Compras({ store }) {
   const { compras, cartoes, categorias, pessoas, comprasPagamentos, comprasPagamentosOk, addCompra, updateCompra, salvarDivisao, updateComprasLote, delCompra } = store
@@ -11,6 +13,10 @@ export default function Compras({ store }) {
   const [edicao, setEdicao] = useState(null) // { compra } ou { grupo: [partes] }
   const [filtro, setFiltro] = useState('')
   const [filtroPessoa, setFiltroPessoa] = useState('')
+  const [filtroCartao, setFiltroCartao] = useState('') // id, 'sem' ou ''
+  const [filtroCategoria, setFiltroCategoria] = useState('')
+  const [filtroMes, setFiltroMes] = useState('')
+  const [filtroParcela, setFiltroParcela] = useState('') // 'vista' | 'parcelada'
   const [marcadas, setMarcadas] = useState([])
   const [novaCat, setNovaCat] = useState('')
   const [novaSub, setNovaSub] = useState('')
@@ -27,11 +33,25 @@ export default function Compras({ store }) {
     setEdicao(partes.length >= 2 ? { grupo: partes } : { compra: c })
   }
 
-  const lista = useMemo(() =>
-    compras.filter((c) =>
-      (!filtro || (c.descricao + c.categoria + c.subcategoria + (c.obs || '') + (c.identificacao || '')).toLowerCase().includes(filtro.toLowerCase())) &&
-      (!filtroPessoa || c.pessoa === filtroPessoa)
-    ), [compras, filtro, filtroPessoa])
+  const mesesDasCompras = useMemo(() => [...new Set(compras.map((c) => String(c.data_compra).slice(0, 7)))].sort().reverse(), [compras])
+  const filtroAtivo = !!(filtro.trim() || filtroPessoa || filtroCartao || filtroCategoria || filtroMes || filtroParcela)
+  const limparFiltros = () => { setFiltro(''); setFiltroPessoa(''); setFiltroCartao(''); setFiltroCategoria(''); setFiltroMes(''); setFiltroParcela('') }
+  const lista = useMemo(() => {
+    const { combina } = compilar(filtro)
+    return compras.filter((c) => {
+      if (filtroPessoa && c.pessoa !== filtroPessoa) return false
+      if (filtroCartao === 'sem' ? !!cartoes.find((x) => x.id === c.cartao_id) : filtroCartao && c.cartao_id !== filtroCartao) return false
+      if (filtroCategoria && c.categoria !== filtroCategoria) return false
+      if (filtroMes && !String(c.data_compra).startsWith(filtroMes)) return false
+      if (filtroParcela === 'vista' && Number(c.parcelas) > 1) return false
+      if (filtroParcela === 'parcelada' && !(Number(c.parcelas) > 1)) return false
+      return combina({
+        texto: [c.descricao, c.identificacao, c.categoria, c.subcategoria, c.obs, c.pessoa, cartoes.find((x) => x.id === c.cartao_id)?.nome, rotuloOrigem(c.origem)].filter(Boolean).join(' '),
+        valor: [Number(c.valor_total), valorParcelaBase(c)],
+        data: c.data_compra,
+      })
+    })
+  }, [compras, cartoes, filtro, filtroPessoa, filtroCartao, filtroCategoria, filtroMes, filtroParcela])
 
   const idsVisiveis = lista.map((c) => c.id)
   // Só vale o que está aparecendo: marcar, mudar a busca e aplicar nunca altera compras que a pessoa não vê.
@@ -76,15 +96,35 @@ export default function Compras({ store }) {
       )}
 
       <div className="toolbar">
-        <input placeholder="Buscar..." value={filtro} onChange={(e) => setFiltro(e.target.value)} />
-        <select value={filtroPessoa} onChange={(e) => setFiltroPessoa(e.target.value)} style={{ width: 140 }}>
-          <option value="">Todas</option>
+        <CampoBusca valor={filtro} onChange={setFiltro} />
+        <select value={filtroPessoa} onChange={(e) => setFiltroPessoa(e.target.value)} style={{ width: 160 }} aria-label="Filtrar por pessoa">
+          <option value="">Todas as pessoas</option>
           {pessoas.map((p) => <option key={p.id} value={p.nome}>{p.nome}</option>)}
+        </select>
+        <select value={filtroCartao} onChange={(e) => setFiltroCartao(e.target.value)} style={{ width: 150 }} aria-label="Filtrar por cartão">
+          <option value="">Todos os cartões</option>
+          {cartoes.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+          <option value="sem">Sem cartão</option>
+        </select>
+        <select value={filtroCategoria} onChange={(e) => setFiltroCategoria(e.target.value)} style={{ width: 175 }} aria-label="Filtrar por categoria">
+          <option value="">Todas as categorias</option>
+          {categorias.map((c) => <option key={c.id} value={c.nome}>{c.nome}</option>)}
+        </select>
+        <select value={filtroMes} onChange={(e) => setFiltroMes(e.target.value)} style={{ width: 140 }} aria-label="Filtrar por mês da compra">
+          <option value="">Todos os meses</option>
+          {mesesDasCompras.map((m) => <option key={m} value={m}>{mesLabel(m)}</option>)}
+        </select>
+        <select value={filtroParcela} onChange={(e) => setFiltroParcela(e.target.value)} style={{ width: 175 }} aria-label="À vista ou parcelada">
+          <option value="">À vista e parceladas</option>
+          <option value="vista">Só à vista</option>
+          <option value="parcelada">Só parceladas</option>
         </select>
         <button className="btn btn-primary" onClick={() => setModal(true)} style={{ marginLeft: 'auto' }}>
           + Nova compra
         </button>
       </div>
+
+      <ResumoFiltro ativo={filtroAtivo} mostrando={lista.length} total={compras.length} onLimpar={limparFiltros} soma={lista.reduce((s, c) => s + Number(c.valor_total), 0)} fmt={fmt} />
 
       {selecionadas.length > 0 && (
         <div className="toolbar" style={{ background: 'var(--bg2, transparent)' }}>
@@ -105,7 +145,9 @@ export default function Compras({ store }) {
 
       <div className="card">
         {lista.length === 0 ? (
-          <div className="empty">Nenhuma compra encontrada.{'\n'}Clique em "+ Nova compra" para começar.</div>
+          <div className="empty">
+            {filtroAtivo ? 'Nenhuma compra com esses filtros.\nTente outro termo ou clique em "Limpar filtros".' : 'Nenhuma compra encontrada.\nClique em "+ Nova compra" para começar.'}
+          </div>
         ) : (
           <table>
             <thead>

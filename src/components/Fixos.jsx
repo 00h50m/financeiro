@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { compilar } from '../lib/filtro'
+import { CampoBusca, ResumoFiltro } from './FiltroLista'
 import { fmt, mesLabel, nowYM, addMonths, fixosAtivos, corPessoa, nomeCasa, donoDoFixo } from '../lib/utils'
 
 export default function Fixos({ store }) {
@@ -12,6 +14,9 @@ export default function Fixos({ store }) {
     mes_fim: '', dia_vencimento: '', variavel: false,
   })
   const [filtroPessoa, setFiltroPessoa] = useState('') // '' = todas
+  const [busca, setBusca] = useState('')
+  const [filtroStatus, setFiltroStatus] = useState('') // 'ativas' | 'inativas'
+  const [filtroPagamento, setFiltroPagamento] = useState('') // 'cartao' | 'avulsa' | 'variavel'
   const [saving, setSaving] = useState(false)
   const mesAtual = nowYM()
   const casa = nomeCasa(pessoas)
@@ -76,7 +81,24 @@ export default function Fixos({ store }) {
     if (ok) setModal(false) // se deu erro, mantém o formulário
   }
 
-  const doFiltro = (f) => !filtroPessoa || donoDoFixo(f, pessoas) === filtroPessoa
+  const { combina } = compilar(busca)
+  const filtroAtivo = !!(busca.trim() || filtroPessoa || filtroStatus || filtroPagamento)
+  const limparFiltros = () => { setBusca(''); setFiltroPessoa(''); setFiltroStatus(''); setFiltroPagamento('') }
+  const ativosAgoraTodos = fixosAtivos(fixos, mesAtual)
+  const estaAtivo = (f) => ativosAgoraTodos.some((x) => x.id === f.id)
+  const doFiltro = (f) => {
+    if (filtroPessoa && donoDoFixo(f, pessoas) !== filtroPessoa) return false
+    if (filtroStatus === 'ativas' && !estaAtivo(f)) return false
+    if (filtroStatus === 'inativas' && estaAtivo(f)) return false
+    if (filtroPagamento === 'cartao' && !f.cartao_id) return false
+    if (filtroPagamento === 'avulsa' && f.cartao_id) return false
+    if (filtroPagamento === 'variavel' && !f.variavel) return false
+    const atual = ativosAgoraTodos.find((x) => x.id === f.id)
+    return combina({
+      texto: [f.nome, f.categoria, f.subcategoria, donoDoFixo(f, pessoas), cartoes.find((c) => c.id === f.cartao_id)?.nome, f.variavel ? 'variavel' : ''].filter(Boolean).join(' '),
+      valor: [Number(f.valor), atual ? Number(atual.valor) : null],
+    })
+  }
   const fixosVisiveis = fixos.filter(doFiltro)
   const ativosAgora = fixosAtivos(fixosVisiveis, mesAtual)
   async function alternarAtivo(f, encerrado) {
@@ -95,7 +117,7 @@ export default function Fixos({ store }) {
     const r = window.prompt(`Valor real de "${f.nome}" em ${mesLabel(mesAtual)} (R$):`, String(atual.valor).replace('.', ','))
     if (r === null) return
     const v = Number(String(r).trim().replace(/\./g, '').replace(',', '.'))
-    if (!r.trim() || Number.isNaN(v) || v < 0) { window.alert('Valor inválido.'); return }
+    if (!r.trim() || Number.isNaN(v) || v < 0) { window.alert('Valor inválido.\n\nDigite só números, com vírgula nos centavos (ex.: 312,40).'); return }
     await definirValorFixo(f.id, mesAtual, v)
   }
 
@@ -209,6 +231,18 @@ export default function Fixos({ store }) {
 
       <div className="toolbar">
         <button className="btn btn-primary" onClick={() => abrir(null)}>+ Novo fixo</button>
+        <CampoBusca valor={busca} onChange={setBusca} />
+        <select value={filtroStatus} onChange={(e) => setFiltroStatus(e.target.value)} aria-label="Filtrar por situação">
+          <option value="">Ativas e encerradas</option>
+          <option value="ativas">Só as ativas hoje</option>
+          <option value="inativas">Pausadas / encerradas</option>
+        </select>
+        <select value={filtroPagamento} onChange={(e) => setFiltroPagamento(e.target.value)} aria-label="Filtrar por forma de pagamento">
+          <option value="">Todas as formas</option>
+          <option value="cartao">Pagas no cartão</option>
+          <option value="avulsa">Pagas à parte</option>
+          <option value="variavel">Valor variável</option>
+        </select>
         <select value={filtroPessoa} onChange={(e) => setFiltroPessoa(e.target.value)} aria-label="Filtrar por pessoa">
           <option value="">Todas as pessoas</option>
           {pessoas.map((p) => <option key={p.id} value={p.nome}>{p.nome}</option>)}
@@ -219,9 +253,10 @@ export default function Fixos({ store }) {
         </span>
       </div>
 
+      <ResumoFiltro ativo={filtroAtivo} mostrando={fixosVisiveis.length} total={fixos.length} onLimpar={limparFiltros} />
       <div className="card">
         {fixosVisiveis.length === 0 ? (
-          <div className="empty">{fixos.length === 0 ? 'Nenhum gasto fixo cadastrado.' : 'Nenhuma conta fixa para esse filtro.'}</div>
+          <div className="empty">{fixos.length === 0 ? 'Nenhum gasto fixo cadastrado.' : 'Nenhuma conta fixa com esses filtros.\nTente outro termo ou clique em "Limpar filtros".'}</div>
         ) : (
           <table>
             <thead>

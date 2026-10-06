@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { corPessoa } from '../lib/utils'
 import { formatarCodigo } from '../lib/pareamento'
 import { chamarAdminTelegram } from '../lib/automacoes'
+import { explicarErro } from '../lib/erros'
 
 const quando = (iso) => (iso ? new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '—')
 const PASSOS_VARIAVEIS = {
@@ -25,7 +26,7 @@ function ConectarPessoa({ store, bot }) {
 
   async function gerar() {
     setErro('')
-    try { setCodigo(await gerarPareamento('telegram', pessoaId)) } catch (e) { setErro(e.message || 'Erro ao gerar o código') }
+    try { setCodigo(await gerarPareamento('telegram', pessoaId)) } catch (e) { setErro(explicarErro(e, 'gerar o código de conexão')) }
   }
   const restante = codigo ? Math.max(0, Math.floor((codigo.expira_em - agora) / 1000)) : 0
   const valido = codigo && restante > 0

@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { compilar } from '../lib/filtro'
+import { CampoBusca, ResumoFiltro } from './FiltroLista'
 import { fmt, fmtK, mesLabel, nowYM, addMonths, totalRenda, tituloCompra, subtituloCompra, hojeSP } from '../lib/utils'
 import { mesFechado } from '../lib/fechamento'
 import { resumoDoMes, sobraAnterior, lerUsarSaldoAnterior, gravarUsarSaldoAnterior } from '../lib/financeiro'
@@ -17,6 +19,8 @@ export default function Pagamentos({ store }) {
 
   const ajusteAtual = Number(saldoAjustes.find((a) => a.mes === mes)?.ajuste) || 0
   const [saldoReal, setSaldoReal] = useState('')
+  const [busca, setBusca] = useState('')
+  const [filtroPago, setFiltroPago] = useState('') // 'pagas' | 'apagar'
 
   const dados = { fixos, fixosPagamentos, cartoes, compras, faturas, rendas, saldoAjustes, comprasPagamentos, comprasPagamentosOk }
   const resumo = resumoDoMes(dados, mes, { usarSaldoAnterior: usarSobra })
@@ -46,6 +50,17 @@ export default function Pagamentos({ store }) {
   const dinheiroDisponivel = resumo.disponivel
   const saldo = resumo.sobraProjetada
 
+  const { combina } = compilar(busca)
+  const filtroAtivo = !!(busca.trim() || filtroPago)
+  const passaPago = (pago) => !filtroPago || (filtroPago === 'pagas' ? !!pago : !pago)
+  const fixosVis = fixosAtivos.filter((f) => passaPago(fixoPagamento(f.id)?.pago)
+    && combina({ texto: [f.nome, f.categoria, f.subcategoria, f.estimado ? 'estimado' : ''].filter(Boolean).join(' '), valor: Number(f.valor) }))
+  const cartoesVis = linhasCartao.filter((l) => passaPago(l.pago) && combina({ texto: l.nome, valor: Number(l.valor) }))
+  const outrasVis = outrasContas.filter((c) => passaPago(c.pago)
+    && combina({ texto: [tituloCompra(c), subtituloCompra(c), c.obs, c.categoria, c.subcategoria].filter(Boolean).join(' '), valor: Number(c.valorParcela) }))
+  const totalLinhas = fixosAtivos.length + linhasCartao.length + outrasContas.length
+  const totalVis = fixosVis.length + cartoesVis.length + outrasVis.length
+
   async function acertar() {
     const real = Number(saldoReal)
     if (saldoReal === '' || Number.isNaN(real)) return
@@ -58,7 +73,7 @@ export default function Pagamentos({ store }) {
     const r = window.prompt(`Valor real de "${fixo.nome}" em ${mesLabel(mes)} (R$):`, String(fixo.valor).replace('.', ','))
     if (r === null) return false
     const v = Number(String(r).trim().replace(/\./g, '').replace(',', '.'))
-    if (!r.trim() || Number.isNaN(v) || v < 0) { window.alert('Valor inválido.'); return false }
+    if (!r.trim() || Number.isNaN(v) || v < 0) { window.alert('Valor inválido.\n\nDigite só números, com vírgula nos centavos (ex.: 312,40).'); return false }
     return definirValorFixo(fixo.id, mes, v)
   }
   async function toggleFixo(fixo) {
@@ -97,6 +112,15 @@ export default function Pagamentos({ store }) {
           </button>
         )}
       </div>
+      <div className="toolbar">
+        <CampoBusca valor={busca} onChange={setBusca} />
+        <select value={filtroPago} onChange={(e) => setFiltroPago(e.target.value)} aria-label="Filtrar por situação do pagamento">
+          <option value="">Pagas e a pagar</option>
+          <option value="apagar">Só a pagar</option>
+          <option value="pagas">Só pagas</option>
+        </select>
+      </div>
+      <ResumoFiltro ativo={filtroAtivo} mostrando={totalVis} total={totalLinhas} onLimpar={() => { setBusca(''); setFiltroPago('') }} />
 
       {mesFechado(store.fechamentos, mes) && (
         <div className="alert alert-amber" style={{ marginBottom: 12 }}>
@@ -194,8 +218,8 @@ export default function Pagamentos({ store }) {
       </details>
 
       <div className="section-label">contas fixas</div>
-      {fixosAtivos.length === 0 ? (
-        <div className="empty">Nenhuma conta fixa ativa em {mesLabel(mes)}.{'\n'}Cadastre em "Fixos" para acompanhar aqui.</div>
+      {fixosVis.length === 0 ? (
+        <div className="empty">{filtroAtivo && fixosAtivos.length > 0 ? 'Nenhuma conta fixa com esses filtros.' : <>Nenhuma conta fixa ativa em {mesLabel(mes)}.{'\n'}Cadastre em "Fixos" para acompanhar aqui.</>}</div>
       ) : (
         <div className="card">
           <table>
@@ -210,7 +234,7 @@ export default function Pagamentos({ store }) {
               </tr>
             </thead>
             <tbody>
-              {fixosAtivos.map((f) => {
+              {fixosVis.map((f) => {
                 const pg = fixoPagamento(f.id)
                 return (
                   <tr key={f.id} style={{ opacity: pg?.pago ? 0.6 : 1 }}>
@@ -250,8 +274,8 @@ export default function Pagamentos({ store }) {
       )}
 
       <div className="section-label">faturas dos cartões</div>
-      {linhasCartao.length === 0 ? (
-        <div className="empty">Nenhum cartão com movimento em {mesLabel(mes)}.</div>
+      {cartoesVis.length === 0 ? (
+        <div className="empty">{filtroAtivo && linhasCartao.length > 0 ? 'Nenhuma fatura com esses filtros.' : `Nenhum cartão com movimento em ${mesLabel(mes)}.`}</div>
       ) : (
         <div className="card">
           <table>
@@ -265,7 +289,7 @@ export default function Pagamentos({ store }) {
               </tr>
             </thead>
             <tbody>
-              {linhasCartao.map((l) => (
+              {cartoesVis.map((l) => (
                 <tr key={l.cartao_id} style={{ opacity: l.pago ? 0.6 : 1 }}>
                   <td style={{ textAlign: 'center' }}>
                     <input type="checkbox" checked={l.pago} onChange={() => toggleCartao(l)} />
@@ -301,8 +325,8 @@ export default function Pagamentos({ store }) {
       )}
 
       <div className="section-label">outras contas (sem cartão)</div>
-      {outrasContas.length === 0 ? (
-        <div className="empty">Nenhuma conta sem cartão em {mesLabel(mes)}.{'\n'}Compras lançadas como "Sem cartão" aparecem aqui.</div>
+      {outrasVis.length === 0 ? (
+        <div className="empty">{filtroAtivo && outrasContas.length > 0 ? 'Nenhuma conta com esses filtros.' : <>Nenhuma conta sem cartão em {mesLabel(mes)}.{'\n'}Compras lançadas como "Sem cartão" aparecem aqui.</>}</div>
       ) : (
         <div className="card">
           <table>
@@ -316,7 +340,7 @@ export default function Pagamentos({ store }) {
               </tr>
             </thead>
             <tbody>
-              {outrasContas.map((c) => (
+              {outrasVis.map((c) => (
                 <tr key={c.id} style={{ opacity: c.pago ? 0.6 : 1 }}>
                   <td style={{ textAlign: 'center' }}>
                     <input type="checkbox" checked={!!c.pago} onChange={() => toggleOutraConta(c)} />

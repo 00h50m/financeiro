@@ -187,7 +187,7 @@ select option { background: var(--bg3); }
 .prog-fill { height: 100%; border-radius: 3px; }
 .section-label { font-size: 11px; font-weight: 500; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; margin: 24px 0 10px; }
 .section-label:first-child { margin-top: 0; }
-.alert { padding: 11px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 14px; line-height: 1.5; }
+.alert { padding: 11px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 14px; line-height: 1.5; white-space: pre-line; }
 .alert-red { background: var(--red-bg); border: 1px solid var(--red-border); color: #fca5a5; }
 .alert-green { background: var(--green-bg); border: 1px solid var(--green-border); color: #86efac; }
 .alert-amber { background: var(--amber-bg); border: 1px solid var(--amber-border); color: #fcd34d; }
