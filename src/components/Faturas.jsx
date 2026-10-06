@@ -1,6 +1,7 @@
-import { useState } from 'react'
-import { fmt, mesLabel, nowYM, hojeSP } from '../lib/utils'
-import { lancadoDoCartao } from '../lib/financeiro'
+import { useState, Fragment } from 'react'
+import { fmt, mesLabel, nowYM, hojeSP, tituloCompra, subtituloCompra } from '../lib/utils'
+import { lancadoDoCartao, itensDaFatura } from '../lib/financeiro'
+import EditarCompra from './EditarCompra'
 import { lerValorReal, validarFatura, dadosDaFatura } from '../lib/faturaEdicao'
 
 const CHAVE_REVISADAS = 'faturas_revisadas'
@@ -8,12 +9,73 @@ const lerRevisadas = () => {
   try { return JSON.parse(localStorage.getItem(CHAVE_REVISADAS) || '[]') } catch { return [] }
 }
 
-export default function Faturas({ store }) {
+const fmtDia = (iso) => String(iso).slice(0, 10).split('-').reverse().slice(0, 2).join('/')
+
+// Lista do que compõe o "lançado" de uma fatura, com Editar em cada compra.
+function ComprasDaFatura({ det, onEditar, irPara }) {
+  if (det.itens.length === 0 && det.fixos.length === 0) {
+    return <div style={{ padding: '10px 14px', fontSize: 12, color: 'var(--text3)' }}>Nenhuma compra lançada neste cartão e mês.</div>
+  }
+  return (
+    <div style={{ padding: '4px 14px 12px' }}>
+      <table>
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Compra</th>
+            <th>Categoria</th>
+            <th style={{ textAlign: 'center' }}>Parcela</th>
+            <th style={{ textAlign: 'right' }}>Neste mês</th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          {det.itens.map(({ compra: c, parcela, de, valor }) => (
+            <tr key={c.id}>
+              <td style={{ fontFamily: 'DM Mono', fontSize: 12, color: 'var(--text3)', whiteSpace: 'nowrap' }}>{fmtDia(c.data_compra)}</td>
+              <td>
+                <div style={{ fontWeight: 500 }}>{tituloCompra(c)}</div>
+                {subtituloCompra(c) && <div style={{ fontSize: 11, color: 'var(--text3)' }}>no cartão: {subtituloCompra(c)}</div>}
+                {c.grupo_id && <span className="badge badge-blue" style={{ fontSize: 10 }}>compra dividida</span>}
+              </td>
+              <td style={{ fontSize: 12, color: 'var(--text2)' }}>{c.categoria}<br /><span style={{ color: 'var(--text3)' }}>{c.subcategoria}</span></td>
+              <td style={{ textAlign: 'center' }}>
+                {de > 1 ? <span className="badge badge-amber">{parcela}/{de}</span> : <span className="badge badge-gray">à vista</span>}
+              </td>
+              <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(valor)}</td>
+              <td><button className="btn btn-ghost btn-sm" onClick={() => onEditar(c)}>Editar</button></td>
+            </tr>
+          ))}
+          {det.fixos.map((f) => (
+            <tr key={f.id}>
+              <td />
+              <td><div style={{ fontWeight: 500 }}>{f.nome}</div><span className="badge badge-gray" style={{ fontSize: 10 }}>conta fixa</span></td>
+              <td />
+              <td style={{ textAlign: 'center' }}><span className="badge badge-gray">mensal</span></td>
+              <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(f.valor)}</td>
+              <td>{irPara && <button className="btn btn-ghost btn-sm" onClick={() => irPara('fixos')}>Contas fixas</button>}</td>
+            </tr>
+          ))}
+          <tr style={{ borderTop: '1px solid var(--border2)' }}>
+            <td colSpan={4} style={{ color: 'var(--text2)' }}>Total lançado</td>
+            <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontWeight: 500 }}>{fmt(det.total)}</td>
+            <td />
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+export default function Faturas({ store, irPara }) {
   const { faturas, cartoes, compras, upsertFatura, updateFatura, delFatura } = store
   const [modal, setModal] = useState(false)
   const formVazio = { cartao_id: '', mes: nowYM(), valor_real: '', pago: false, data_pagamento: '' }
   const [form, setForm] = useState(formVazio)
   const [editId, setEditId] = useState(null) // null = lançando uma fatura nova
+  const [abertas, setAbertas] = useState([]) // faturas com a lista de compras aberta
+  const [compraEditando, setCompraEditando] = useState(null)
+  const alternarCompras = (id) => setAbertas((a) => (a.includes(id) ? a.filter((x) => x !== id) : [...a, id]))
   const [saving, setSaving] = useState(false)
   const s = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
 
@@ -132,6 +194,8 @@ export default function Faturas({ store }) {
         </div>
       )}
 
+      {compraEditando && <EditarCompra store={store} compra={compraEditando} onClose={() => setCompraEditando(null)} />}
+
       <div className="toolbar">
         <button className="btn btn-primary" onClick={() => abrirNova()}>
           + Lançar fatura
@@ -192,10 +256,26 @@ export default function Faturas({ store }) {
                   {fatsDoMes.map((fat) => {
                     const cartao = cartoes.find((c) => c.id === fat.cartao_id)
                     const lanc = getLancado(fat.cartao_id, mes)
+                    const det = itensDaFatura(compras, cartoes, fat.cartao_id, mes, store.fixos)
+                    const aberta = abertas.includes(fat.id)
+                    const qtd = det.itens.length + det.fixos.length
+                    const botaoCompras = (
+                      <button className="btn btn-ghost btn-sm" onClick={() => alternarCompras(fat.id)} style={{ marginRight: 6 }} aria-expanded={aberta}>
+                        {aberta ? '▾' : '▸'} Compras ({qtd})
+                      </button>
+                    )
+                    const linhaDetalhe = aberta && (
+                      <tr>
+                        <td colSpan={6} style={{ background: 'var(--bg3)', padding: 0 }}>
+                          <ComprasDaFatura det={det} onEditar={setCompraEditando} irPara={irPara} />
+                        </td>
+                      </tr>
+                    )
                     if (!temReal(fat)) {
                       // Linha criada só para marcar como paga: ainda não há valor do banco para comparar.
                       return (
-                        <tr key={fat.id}>
+                        <Fragment key={fat.id}>
+                        <tr>
                           <td style={{ fontWeight: 500 }}>{cartao?.nome || '—'}</td>
                           <td style={{ textAlign: 'right', color: 'var(--text3)' }}>—</td>
                           <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(lanc)}</td>
@@ -205,16 +285,20 @@ export default function Faturas({ store }) {
                             {fat.pago && <span className="badge badge-green">paga</span>}{' '}
                             <button className="btn btn-ghost btn-sm" onClick={() => abrirEdicao(fat)}>Informar valor</button>
                           </td>
-                          <td>
+                          <td style={{ whiteSpace: 'nowrap' }}>
+                            {botaoCompras}
                             <button className="btn btn-ghost btn-sm" onClick={() => abrirEdicao(fat)} style={{ marginRight: 6 }}>Editar</button>
                           </td>
                         </tr>
+                        {linhaDetalhe}
+                        </Fragment>
                       )
                     }
                     const diff = fat.valor_real - lanc
                     const pct = fat.valor_real > 0 ? Math.round((lanc / fat.valor_real) * 100) : 0
                     return (
-                      <tr key={fat.id}>
+                      <Fragment key={fat.id}>
+                      <tr>
                         <td style={{ fontWeight: 500 }}>{cartao?.nome || '—'}</td>
                         <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(fat.valor_real)}</td>
                         <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(lanc)}</td>
@@ -230,10 +314,13 @@ export default function Faturas({ store }) {
                           {fat.pago && <> <span className="badge badge-green" title={fat.data_pagamento ? `Paga em ${String(fat.data_pagamento).slice(0, 10).split('-').reverse().join('/')}` : 'Paga'}>paga</span></>}
                         </td>
                         <td style={{ whiteSpace: 'nowrap' }}>
+                          {botaoCompras}
                           <button className="btn btn-ghost btn-sm" onClick={() => abrirEdicao(fat)} style={{ marginRight: 6 }}>Editar</button>
                           <button className="btn btn-danger" onClick={() => { if (confirm('Remover o valor real desta fatura? Se ela estava marcada como paga, isso também some.')) delFatura(fat.id) }}>×</button>
                         </td>
                       </tr>
+                      {linhaDetalhe}
+                      </Fragment>
                     )
                   })}
                   {fatsDoMes.length > 1 && (

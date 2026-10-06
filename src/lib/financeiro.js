@@ -42,6 +42,21 @@ export function lancadoDoCartao(compras, cartoes, cartaoId, mes, fixos = []) {
   return total
 }
 
+// O que compõe o "lançado" de uma fatura: cada compra do cartão com a parcela que cai no mês (mais as contas
+// fixas no cartão). A soma de `total` é exatamente lancadoDoCartao.
+export function itensDaFatura(compras, cartoes, cartaoId, mes, fixos = []) {
+  const itens = []
+  for (const c of compras) {
+    if (c.cartao_id !== cartaoId) continue
+    const p = gerarParcelas(c, cartoes).find((x) => x.mes === mes)
+    if (p) itens.push({ compra: c, parcela: p.num, de: p.total, valor: p.valor })
+  }
+  itens.sort((a, b) => (String(a.compra.data_compra) < String(b.compra.data_compra) ? 1 : -1))
+  const fixosNoCartao = fixosDoCartao(fixos, cartoes, cartaoId, mes).map((f) => ({ id: f.id, nome: f.nome, valor: Number(f.valor) }))
+  const total = itens.reduce((t, i) => t + i.valor, 0) + fixosNoCartao.reduce((t, f) => t + f.valor, 0)
+  return { itens, fixos: fixosNoCartao, total }
+}
+
 // Valor da fatura: o valor real, SÓ se a pessoa informou; senão o que foi lançado (estimado).
 export function valorFatura(fatura, lancado) {
   const temReal = fatura?.valor_real != null && fatura.valor_real !== ''

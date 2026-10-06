@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  rendaDoMes, valorFatura, detalhePagamentos, sobraAnterior, resumoDoMes, parcelaPaga, parcelasPagas, lancadoDoCartao,
+  rendaDoMes, valorFatura, detalhePagamentos, sobraAnterior, resumoDoMes, parcelaPaga, parcelasPagas, lancadoDoCartao, itensDaFatura,
 } from '../financeiro'
 import { calcMesInicio, gerarParcelas, gastosPorCategoria, limiteUsado, addMonths } from '../utils'
 
@@ -302,3 +302,34 @@ describe('conta fixa paga no cartão', () => {
     expect(lancadoDoCartao([compraNubank], [nubank], 'c1', mes)).toBe(300) // sem fixos informados: como antes
   })
 })
+
+describe('o que compõe a fatura', () => {
+  const mes = '2026-10'
+  const c1 = compra({ id: 'a', data_compra: '2026-10-05', descricao: 'Mercado', valor_total: 300, cartao_id: 'c1' })
+  const c2 = compra({ id: 'b', data_compra: '2026-10-08', descricao: 'Notebook', valor_total: 900, parcelas: 3, cartao_id: 'c1' })
+  const c3 = compra({ id: 'c', data_compra: '2026-08-02', descricao: 'Celular', valor_total: 600, parcelas: 6, cartao_id: 'c1' }) // parcela de outubro vem de agosto
+  const futura = compra({ id: 'd', data_compra: '2026-12-02', descricao: 'Viagem', valor_total: 500, cartao_id: 'c1' })
+  const semCartao = compra({ id: 'e', data_compra: '2026-10-05', descricao: 'Pix', valor_total: 80, cartao_id: null })
+  const netflix = { id: 'nf', nome: 'Netflix', valor: 55, ativo: true, cartao_id: 'c1' }
+
+  it('lista cada compra com a parcela do mês, a mais recente primeiro', () => {
+    const r = itensDaFatura([c1, c2, c3, futura, semCartao], [nubank], 'c1', mes)
+    expect(r.itens.map((i) => i.compra.id)).toEqual(['b', 'a', 'c'])
+    expect(r.itens.find((i) => i.compra.id === 'b')).toMatchObject({ parcela: 1, de: 3, valor: 300 })
+    expect(r.itens.find((i) => i.compra.id === 'c')).toMatchObject({ parcela: 3, de: 6, valor: 100 })
+  })
+  it('inclui as contas fixas pagas no cartão', () => {
+    const r = itensDaFatura([c1], [nubank], 'c1', mes, [netflix])
+    expect(r.fixos).toEqual([{ id: 'nf', nome: 'Netflix', valor: 55 }])
+    expect(r.total).toBe(355)
+  })
+  it('a soma é exatamente o "lançado" da fatura', () => {
+    const todas = [c1, c2, c3, futura, semCartao]
+    expect(itensDaFatura(todas, [nubank], 'c1', mes, [netflix]).total).toBe(lancadoDoCartao(todas, [nubank], 'c1', mes, [netflix]))
+  })
+  it('cartão sem nada no mês: lista vazia', () => {
+    const r = itensDaFatura([futura], [nubank], 'c1', mes)
+    expect(r).toEqual({ itens: [], fixos: [], total: 0 })
+  })
+})
+
