@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { fmt, fmtK, mesLabel, nowYM, addMonths, gerarParcelas } from '../lib/utils'
 import { resumoDoMes } from '../lib/financeiro'
 import { saldoMeta } from '../lib/metas'
-import { simular, analisar, melhorInicio, taxaMensalDeAnual, LIMITES } from '../lib/emprestimo'
+import { simular, analisar, melhorInicio, taxaMensalDeAnual, saldoDevedorEstimado, taxaDaObservacao, LIMITES } from '../lib/emprestimo'
 import { terminandoLogo } from '../lib/parcelamentos'
 
 const lerNum = (t) => {
@@ -21,18 +21,20 @@ const TITULO = {
 const COR_PONTO = { bom: 'var(--green)', atencao: 'var(--amber)', ruim: 'var(--red)', aviso: 'var(--blue)', info: 'var(--text3)' }
 const ICONE_PONTO = { bom: '●', atencao: '●', ruim: '●', aviso: '●', info: '○' }
 const CHAVE_CENARIOS = 'emprestimos_cenarios'
-const lerCenarios = () => { try { return JSON.parse(localStorage.getItem(CHAVE_CENARIOS) || '[]') } catch { return [] } }
-const gravarCenarios = (l) => { try { localStorage.setItem(CHAVE_CENARIOS, JSON.stringify(l)) } catch { /* sem armazenamento: não lembra */ } }
+const lerLocal = () => { try { return JSON.parse(localStorage.getItem(CHAVE_CENARIOS) || '[]') } catch { return [] } }
+const gravarLocal = (l) => { try { localStorage.setItem(CHAVE_CENARIOS, JSON.stringify(l)) } catch { /* sem armazenamento: não lembra */ } }
 
 export default function Emprestimos({ store, irPara }) {
-  const { compras, cartoes, categorias, pessoas, metas, metasMovimentos, metasOk, config, addCompra } = store
+  const { compras, cartoes, categorias, pessoas, metas, metasMovimentos, metasOk, config, configOk, definirConfig, addCompra } = store
   const hoje = nowYM()
   const [f, setF] = useState({
     nome: '', valor: '', tipoTaxa: 'mes', taxa: '', prazo: '24', sistema: 'price', iof: '', tarifa: '', seguro: '',
     financiarCustos: true, primeiro: addMonths(hoje, 1), dia: '10', pessoa: pessoas[0]?.nome || '',
   })
   const [salvando, setSalvando] = useState(false)
-  const [cenarios, setCenarios] = useState(lerCenarios)
+  // Propostas guardadas: na conta (tabela config) quando existe, para aparecerem no celular e no computador; senão só neste aparelho.
+  const cenarios = configOk && Array.isArray(config?.[CHAVE_CENARIOS]) ? config[CHAVE_CENARIOS] : configOk ? [] : lerLocal()
+  const salvarCenarios = (lista) => (configOk ? definirConfig(CHAVE_CENARIOS, lista) : gravarLocal(lista))
   const [verCronograma, setVerCronograma] = useState(false)
   const s = (k) => (e) => setF((p) => ({ ...p, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }))
 
@@ -85,10 +87,9 @@ export default function Emprestimos({ store, irPara }) {
   function guardar() {
     if (!sim || !analise) return
     const novo = { id: Date.now(), nome: f.nome.trim() || `${fmtK(sim.valor)} em ${sim.prazo}x`, valor: sim.valor, prazo: sim.prazo, taxaMes: sim.taxaMes, primeira: sim.primeira, total: sim.total, cetAno: sim.cetAno, veredito: analise.veredito, sistema: sim.sistema }
-    const lista = [novo, ...cenarios].slice(0, 5)
-    setCenarios(lista); gravarCenarios(lista)
+    salvarCenarios([novo, ...cenarios].slice(0, 5))
   }
-  const removerCenario = (id) => { const l = cenarios.filter((c) => c.id !== id); setCenarios(l); gravarCenarios(l) }
+  const removerCenario = (id) => salvarCenarios(cenarios.filter((c) => c.id !== id))
 
   const erroEntrada = !f.valor.trim() ? '' : !(valor > 0) ? 'Digite o valor que vai receber (ex.: 10000).' : !Number.isFinite(taxaIn) ? 'Digite a taxa de juros (ex.: 2,1).' : !Number.isInteger(prazo) || prazo < 1 || prazo > 120 ? 'O prazo deve ser de 1 a 120 meses.' : ''
 
@@ -259,7 +260,7 @@ export default function Emprestimos({ store, irPara }) {
                 })}
               </tbody>
             </table>
-            <div style={{ padding: '8px 14px', fontSize: 11, color: 'var(--text3)' }}>Compare pelo CET (custo real), não pela taxa anunciada. Guardado só neste aparelho.</div>
+            <div style={{ padding: '8px 14px', fontSize: 11, color: 'var(--text3)' }}>Compare pelo CET (custo real), não pela taxa anunciada. {configOk ? 'Ficam guardadas na sua conta.' : 'Guardado só neste aparelho (rode config.sql no Supabase para guardar na conta).'}</div>
           </div>
         </>
       )}
@@ -269,7 +270,7 @@ export default function Emprestimos({ store, irPara }) {
           <div className="section-label">empréstimos contratados no app</div>
           <div className="card">
             <table>
-              <thead><tr><th>Empréstimo</th><th style={{ textAlign: 'right' }}>Parcela</th><th style={{ textAlign: 'center' }}>Parcelas</th><th style={{ textAlign: 'right' }}>Falta pagar</th><th>Termina</th></tr></thead>
+              <thead><tr><th>Empréstimo</th><th style={{ textAlign: 'right' }}>Parcela</th><th style={{ textAlign: 'center' }}>Parcelas</th><th style={{ textAlign: 'right' }}>Falta pagar</th><th style={{ textAlign: 'right' }} title="Valor presente das parcelas que faltam, à taxa do contrato: é o que o banco deve cobrar para quitar hoje (estimativa)">Quitando hoje (estim.)</th><th>Termina</th></tr></thead>
               <tbody>
                 {contratados.map((c) => {
                   const ps = gerarParcelas(c, cartoes)
@@ -280,6 +281,15 @@ export default function Emprestimos({ store, irPara }) {
                       <td style={{ textAlign: 'right' }} className="mono">{fmt(ps[0].valor)}</td>
                       <td style={{ textAlign: 'center' }} className="mono">{ps.length - resta.length}/{ps.length}</td>
                       <td style={{ textAlign: 'right' }} className="mono">{fmt(resta.reduce((t, p) => t + p.valor, 0))}</td>
+                      <td style={{ textAlign: 'right' }} className="mono">
+                        {(() => {
+                          const taxa = taxaDaObservacao(c.obs)
+                          const est = resta.length && taxa != null ? saldoDevedorEstimado(resta.map((p) => p.valor), taxa) : null
+                          if (est == null) return '—'
+                          const total = resta.reduce((t, p) => t + p.valor, 0)
+                          return <>{fmt(est)}<div style={{ fontSize: 11, color: 'var(--green)' }}>economiza ~{fmt(total - est)}</div></>
+                        })()}
+                      </td>
                       <td className="mono">{resta.length ? mesLabel(ps[ps.length - 1].mes) : 'quitado'}</td>
                     </tr>
                   )

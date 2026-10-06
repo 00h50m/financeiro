@@ -29,11 +29,11 @@ export default function Fixos({ store }) {
   async function cadastrarRecorrente(r) {
     // se a cobrança deste mês já foi lançada como compra, a conta fixa só começa no mês que vem (senão contaria duas vezes)
     const inicio = r.meses.includes(mesAtual) ? addMonths(mesAtual, 1) : mesAtual
-    if (!confirm(`Cadastrar "${r.nome}" como conta fixa de ${fmt(r.ultimo)}${r.valorFixo ? '' : ' (valor variável, estimativa pela última cobrança)'}?\n\nComeça em ${mesLabel(inicio)}${r.cartao_id ? ' e passa a contar dentro da fatura do cartão' : ''}. As compras já lançadas continuam como estão.`)) return
+    if (!confirm(`Cadastrar "${r.nome}" como conta fixa de ${fmt(r.ultimo)}${r.valorFixo || r.aumento ? '' : ' (valor variável, estimativa pela última cobrança)'}?\n\nComeça em ${mesLabel(inicio)}${r.cartao_id ? ' e passa a contar dentro da fatura do cartão' : ''}. As compras já lançadas continuam como estão.`)) return
     await addFixo({
       nome: r.nome, valor: r.ultimo, pessoa: r.pessoa || null, categoria: r.categoria, subcategoria: r.subcategoria, ativo: true, mes_inicio: inicio,
       ...(colunaCartaoOk && r.cartao_id ? { cartao_id: r.cartao_id } : {}),
-      ...(colunaVariavelOk && !r.valorFixo ? { variavel: true } : {}),
+      ...(colunaVariavelOk && !r.valorFixo && !r.aumento ? { variavel: true } : {}),
     })
   }
   const casa = nomeCasa(pessoas)
@@ -299,7 +299,7 @@ export default function Fixos({ store }) {
             <tbody>
               {recorrentes.map((r) => (
                 <tr key={r.chave + r.cartao_id}>
-                  <td>{r.nome}<div style={{ fontSize: 11, color: 'var(--text3)' }}>{r.categoria}{!r.valorFixo && ' · valor varia'}</div></td>
+                  <td>{r.nome}<div style={{ fontSize: 11, color: 'var(--text3)' }}>{r.categoria}{!r.valorFixo && !r.aumento && ' · valor varia'}</div></td>
                   <td style={{ textAlign: 'right' }} className="mono">
                     {fmt(r.ultimo)}
                     {r.aumento && <div style={{ fontSize: 11, color: 'var(--amber)' }}>↑ {r.aumento.pct}% (era {fmt(r.aumento.de)})</div>}
