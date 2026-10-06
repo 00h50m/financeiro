@@ -4,6 +4,8 @@ import { hojeSP, mesLabel } from './utils.js'
 import { mesesFechadosTocados, mesFechado } from './fechamento.js'
 import { mesesAfetadosPelaFatura } from './faturaEdicao.js'
 import { amigavel, explicarErro } from './erros.js'
+import { avisoTeto } from './alertaTeto.js'
+import { unirValores } from './fixosVersoes.js'
 import { gerarCodigo, hashCodigo } from './pareamento.js'
 
 const POR_PAGINA = 1000 // o Supabase devolve no máximo 1000 linhas por consulta
@@ -28,6 +30,14 @@ export function useStore(email = null) {
   const [faturas, setFaturas] = useState([])
   const [categorias, setCategorias] = useState([])
   const [fixosPagamentos, setFixosPagamentos] = useState([])
+  const [aviso, setAviso] = useState(null) // { texto, tipo } — recado rápido na tela (ex.: categoria perto do teto)
+  const timerAviso = useRef(null)
+  function mostrarAviso(texto, tipo = 'amber') {
+    clearTimeout(timerAviso.current)
+    setAviso({ texto, tipo })
+    timerAviso.current = setTimeout(() => setAviso(null), 10000)
+  }
+  const [desfazivel, setDesfazivel] = useState(null) // última exclusão que ainda dá para desfazer
   const [fixosValores, setFixosValores] = useState([])
   const [fixosValoresOk, setFixosValoresOk] = useState(true)
   const [saldoAjustes, setSaldoAjustes] = useState([])
@@ -173,6 +183,30 @@ export function useStore(email = null) {
     return true
   }
 
+  // DESFAZER EXCLUSÃO: guarda as linhas apagadas por 15 s; "desfazer" insere de volta com os mesmos ids (pai antes dos filhos).
+  const timerDesfazer = useRef(null)
+  function oferecerDesfazer(rotulo, itens, quais) {
+    const linhas = itens.filter((i) => i.linhas.length)
+    if (!linhas.length) return
+    clearTimeout(timerDesfazer.current)
+    setDesfazivel({ rotulo, itens: linhas, quais })
+    timerDesfazer.current = setTimeout(() => setDesfazivel(null), 15000)
+  }
+  const dispensarDesfazer = () => { clearTimeout(timerDesfazer.current); setDesfazivel(null) }
+  async function desfazerExclusao() {
+    const d = desfazivel
+    if (!d) return false
+    dispensarDesfazer()
+    const ok = await op(async () => {
+      for (const { tabela, linhas } of d.itens) {
+        const r = await sb.from(tabela).insert(linhas)
+        if (r.error) throw r.error
+      }
+    }, d.quais, 'desfazer a exclusão')
+    if (ok) await registrarAuditoria({ entidade: d.itens[0].tabela, entidade_id: String(d.itens[0].linhas[0].id || ''), acao: 'desfazer_exclusao', depois: { rotulo: d.rotulo, linhas: d.itens.map((i) => `${i.tabela}: ${i.linhas.length}`) } })
+    return ok
+  }
+
   // CARTÕES
   const addCartao = (data) => op(async () => {
     const r = await sb.from('cartoes').insert(data)
@@ -223,10 +257,20 @@ export function useStore(email = null) {
   }
 
   // COMPRAS
-  const addCompra = (data) => comJustificativa([data], 'adicionar_em_mes_fechado', data.descricao || '', null, data, () => op(async () => {
-    const r = await sb.from('compras').insert(data)
-    if (r.error) throw r.error
-  }, ['compras'], 'salvar a compra'))
+  const addCompra = (data) => comJustificativa([data], 'adicionar_em_mes_fechado', data.descricao || '', null, data, async () => {
+    const ok = await op(async () => {
+      const r = await sb.from('compras').insert(data)
+      if (r.error) throw r.error
+    }, ['compras'], 'salvar a compra')
+    if (ok) {
+      // mesmo aviso do Telegram: categoria que chegou perto (80%) ou passou do teto com esta compra
+      try {
+        const texto = avisoTeto({ compra: data, compras: [...compras, data], cartoes, fixos: fixosComValores, orcamentos })
+        if (texto) mostrarAviso(texto, texto.includes('passou') ? 'red' : 'amber')
+      } catch { /* aviso é só um extra: nunca atrapalha o salvamento */ }
+    }
+    return ok
+  })
   const updateCompra = (id, data) => {
     const antes = compras.find((c) => c.id === id)
     return comJustificativa([antes, antes && { ...antes, ...data }], 'editar_em_mes_fechado', id, antes || null, data, () => op(async () => {
@@ -263,10 +307,17 @@ export function useStore(email = null) {
   }
   const delCompra = (id) => {
     const antes = compras.find((c) => c.id === id)
-    return comJustificativa([antes], 'apagar_em_mes_fechado', id, antes || null, null, () => op(async () => {
-      const r = await sb.from('compras').delete().eq('id', id)
-      if (r.error) throw r.error
-    }, ['compras', 'comprasPagamentos', 'inbox'], 'apagar a compra'))
+    return comJustificativa([antes], 'apagar_em_mes_fechado', id, antes || null, null, async () => {
+      const ok = await op(async () => {
+        const r = await sb.from('compras').delete().eq('id', id)
+        if (r.error) throw r.error
+      }, ['compras', 'comprasPagamentos', 'inbox'], 'apagar a compra')
+      if (ok && antes) oferecerDesfazer(`Compra "${antes.identificacao || antes.descricao}" apagada.`, [
+        { tabela: 'compras', linhas: [antes] },
+        ...(comprasPagamentosOk ? [{ tabela: 'compras_pagamentos', linhas: comprasPagamentos.filter((p) => p.compra_id === id) }] : []),
+      ], ['compras', 'comprasPagamentos'])
+      return ok
+    })
   }
 
   // FECHAMENTO MENSAL (fechar e reabrir são funções do banco: transação única + auditoria)
@@ -294,10 +345,21 @@ export function useStore(email = null) {
     const r = await sb.from('fixos').update(data).eq('id', id)
     if (r.error) throw r.error
   }, ['fixos'], 'salvar a conta fixa')
-  const delFixo = (id) => op(async () => {
-    const r = await sb.from('fixos').delete().eq('id', id)
-    if (r.error) throw r.error
-  }, ['fixos', 'fixosPagamentos', 'fixosValores'], 'apagar a conta fixa')
+  const delFixo = async (id) => {
+    const bruto = fixos.find((f) => f.id === id)
+    const ok = await op(async () => {
+      const r = await sb.from('fixos').delete().eq('id', id)
+      if (r.error) throw r.error
+    }, ['fixos', 'fixosPagamentos', 'fixosValores'], 'apagar a conta fixa')
+    if (ok && bruto) {
+      oferecerDesfazer(`Conta fixa "${bruto.nome}" apagada.`, [
+        { tabela: 'fixos', linhas: [bruto] },
+        { tabela: 'fixos_pagamentos', linhas: fixosPagamentos.filter((p) => p.fixo_id === id) },
+        ...(fixosValoresOk ? [{ tabela: 'fixos_valores', linhas: fixosValores.filter((v) => v.fixo_id === id) }] : []),
+      ], ['fixos', 'fixosPagamentos', 'fixosValores'])
+    }
+    return ok
+  }
 
   // FATURAS
   const upsertFatura = (data) => op(async () => {
@@ -328,10 +390,15 @@ export function useStore(email = null) {
     }
     return ok
   }
-  const delFatura = (id) => op(async () => {
-    const r = await sb.from('faturas').delete().eq('id', id)
-    if (r.error) throw r.error
-  }, ['faturas'], 'apagar a fatura')
+  const delFatura = async (id) => {
+    const antes = faturas.find((f) => f.id === id)
+    const ok = await op(async () => {
+      const r = await sb.from('faturas').delete().eq('id', id)
+      if (r.error) throw r.error
+    }, ['faturas'], 'apagar a fatura')
+    if (ok && antes) oferecerDesfazer(`Fatura de ${mesLabel(antes.mes)} apagada.`, [{ tabela: 'faturas', linhas: [antes] }], ['faturas'])
+    return ok
+  }
 
   // VALOR REAL DE CONTA FIXA VARIÁVEL (por mês): só aquele mês muda. Em mês fechado pede o motivo e audita.
   const definirValorFixo = async (fixo_id, mes, valor) => {
@@ -704,7 +771,8 @@ export function useStore(email = null) {
       if (!porFixo.has(v.fixo_id)) porFixo.set(v.fixo_id, {})
       porFixo.get(v.fixo_id)[v.mes] = Number(v.valor)
     }
-    return fixos.map((f) => (porFixo.has(f.id) ? Object.defineProperty({ ...f }, 'valores', { value: porFixo.get(f.id), enumerable: false }) : f))
+    const unidos = unirValores(fixos, porFixo) // o valor real de um mês vale para a conta toda, mesmo se foi guardado numa versão antiga dela
+    return fixos.map((f) => (unidos.has(f.id) ? Object.defineProperty({ ...f }, 'valores', { value: unidos.get(f.id), enumerable: false }) : f))
   }, [fixos, fixosValores])
 
   return {
@@ -720,6 +788,7 @@ export function useStore(email = null) {
     addFixo, updateFixo, delFixo,
     upsertFatura, updateFatura, delFatura,
     marcarFixoPago, marcarParcelaPaga,
+    aviso, mostrarAviso, desfazivel, desfazerExclusao, dispensarDesfazer,
     fecharMes, reabrirMes, listarAuditoria, registrarAuditoria,
     definirAjusteSaldo,
     atualizarRegra, esquecerRegra,

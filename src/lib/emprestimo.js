@@ -150,3 +150,17 @@ export function melhorInicio(sim, primeiroMes, dadosDoMes, rendaFallback = 0, ma
   }
   return null
 }
+
+// Quanto custaria quitar hoje: valor presente das parcelas que faltam, descontadas à taxa do contrato (é assim que o banco tira os juros futuros).
+// valores = parcelas que faltam em ordem (a 1ª vence neste mês, k = 0). É uma estimativa: o banco informa o valor exato.
+export function saldoDevedorEstimado(valores, taxaMes) {
+  if (!valores.length || !(taxaMes >= 0)) return null
+  return r2(valores.reduce((t, v, k) => t + v / (1 + taxaMes) ** k, 0))
+}
+// A taxa mensal fica gravada no texto da compra ("taxa 2,50% a.m."); sem ela não dá para estimar.
+export function taxaDaObservacao(obs) {
+  const m = String(obs || '').match(/taxa ([\d.,]+)% a\.m\./)
+  if (!m) return null
+  const n = Number(m[1].replace(/\./g, '').replace(',', '.'))
+  return Number.isFinite(n) ? n / 100 : null
+}

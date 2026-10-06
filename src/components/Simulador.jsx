@@ -72,7 +72,7 @@ export default function Simulador({ store }) {
 
   const temRenda = rendasComValor.length > 0
   const limite = Number(cartao?.limite) || 0
-  const limiteLivre = limite ? limite - limiteUsado(cartao.id, compras, cartoes, faturas, hoje).usado : 0
+  const limiteLivre = limite ? limite - limiteUsado(cartao.id, compras, cartoes, faturas, hoje, store.fixos).usado : 0
   const parcela = modo === 'parcela' ? v : v > 0 ? valorParcela(v, n, taxa) : 0
   const totalPago = parcela * n
   const folgaJanela = menorFolga(inicio, n)

@@ -12,6 +12,7 @@ import Renda from './components/Renda'
 import Fixos from './components/Fixos'
 import Simulador from './components/Simulador'
 import Emprestimos from './components/Emprestimos'
+import Graficos from './components/Graficos'
 import Cartoes from './components/Cartoes'
 import Categorias from './components/Categorias'
 import Pessoas from './components/Pessoas'
@@ -40,6 +41,7 @@ const ICONES = {
   importar: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M17 8l-5-5-5 5 M12 3v12',
   renda: 'M23 6l-9.5 9.5-5-5L1 18 M17 6h6v6',
   fixos: 'M17 1l4 4-4 4 M3 11V9a4 4 0 0 1 4-4h14 M7 23l-4-4 4-4 M21 13v2a4 4 0 0 1-4 4H3',
+  graficos: 'M4 20V10 M10 20V4 M16 20v-7 M22 20H2',
   emprestimos: 'M3 10l9-6 9 6 M5 10v8 M9 10v8 M15 10v8 M19 10v8 M3 21h18 M12 14h.01',
   simulador: 'M4 2h16v20H4z M8 6h8 M8 10h.01 M12 10h.01 M16 10h.01 M8 14h.01 M12 14h.01 M16 14h.01 M8 18h8',
   cartoes: 'M1 4h22v16H1z M1 10h22',
@@ -75,6 +77,7 @@ const GRUPOS = [
     titulo: 'Visão geral',
     abas: [
       { id: 'dashboard', label: 'Dashboard', Component: Dashboard },
+      { id: 'graficos', label: 'Gráficos', Component: Graficos },
       { id: 'busca', label: 'Buscar', Component: Busca },
       { id: 'calendario', label: 'Calendário', Component: Calendario },
     ],
@@ -277,6 +280,19 @@ function AppLogado({ email }) {
         </header>
         <Component store={store} irPara={irPara} />
       </div>
+
+      {(store.desfazivel || store.aviso) && (
+        <div className="toast-area" role="status" aria-live="polite">
+          {store.aviso && <div className={`toast toast-${store.aviso.tipo}`}>{store.aviso.texto}</div>}
+          {store.desfazivel && (
+            <div className="toast">
+              <span>{store.desfazivel.rotulo}</span>
+              <button className="btn btn-primary btn-sm" onClick={store.desfazerExclusao}>Desfazer</button>
+              <button className="btn btn-ghost btn-sm" onClick={store.dispensarDesfazer} aria-label="Dispensar">×</button>
+            </div>
+          )}
+        </div>
+      )}
 
       <nav className="bottom-nav" aria-label="Atalhos">
         {[['dashboard', 'Início'], ['inbox', 'Inbox'], ['compras', 'Compras'], ['pagamentos', 'Pagar']].map(([id, rotulo]) => (

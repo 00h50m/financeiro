@@ -4,6 +4,7 @@ import { lancadoDoCartao, itensDaFatura } from '../lib/financeiro'
 import EditarCompra from './EditarCompra'
 import { mesesDeFaturas } from '../lib/faturaMeses'
 import { compilar } from '../lib/filtro'
+import { paraCsv, baixarCsv } from '../lib/csvExport'
 import { CampoBusca, ResumoFiltro } from './FiltroLista'
 import { lerValorReal, validarFatura, dadosDaFatura } from '../lib/faturaEdicao'
 
@@ -169,6 +170,9 @@ export default function Faturas({ store, irPara }) {
     return { det: daFatura ? det : { ...det, itens, fixos: fixosOk, parcial: true, qtdTotal: det.itens.length + det.fixos.length }, abrir: !daFatura }
   }
 
+  // Linhas para exportar: as faturas que aparecem na tela (respeitando busca e filtros).
+  const linhasExportar = meses.flatMap((m) => m.linhas.map((l) => ({ mes: m.mes, fat: faturaDaLinha(l, m.mes) }))).filter(({ fat, mes }) => filtrarFatura(fat, mes))
+    .map(({ fat, mes }) => { const lanc = getLancado(fat.cartao_id, mes); const real = temReal(fat) ? Number(fat.valor_real) : null; return { mes, cartao: cartoes.find((c) => c.id === fat.cartao_id)?.nome || '', real, lanc, dif: real == null ? null : real - lanc, paga: !!fat.pago } })
   const mesesComResultado = filtroAtivo ? meses.filter((m) => m.linhas.some((l) => filtrarFatura(faturaDaLinha(l, m.mes), m.mes))).length : meses.length
 
   return (
@@ -241,6 +245,11 @@ export default function Faturas({ store, irPara }) {
           + Lançar fatura
         </button>
         <CampoBusca valor={busca} onChange={setBusca} placeholder="Buscar compra, cartão, mês ou valor (ex.: shellbox, 136,30, 10/2026)" />
+        <button className="btn btn-ghost btn-sm" disabled={!linhasExportar.length} title="Baixa as faturas que estão na tela (com os filtros) em CSV, para abrir no Excel"
+          onClick={() => baixarCsv('faturas', paraCsv([
+            { titulo: 'Mês', valor: (l) => l.mes.split('-').reverse().join('/') }, { titulo: 'Cartão', valor: (l) => l.cartao }, { titulo: 'Fatura real (banco)', valor: (l) => l.real ?? '' },
+            { titulo: 'Lançado no app', valor: (l) => l.lanc }, { titulo: 'Diferença', valor: (l) => l.dif ?? '' }, { titulo: 'Paga', valor: (l) => (l.paga ? 'sim' : 'não') },
+          ], linhasExportar))}>Exportar CSV</button>
         <select value={filtroCartao} onChange={(e) => setFiltroCartao(e.target.value)} aria-label="Filtrar por cartão">
           <option value="">Todos os cartões</option>
           {cartoes.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}

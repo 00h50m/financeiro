@@ -81,3 +81,13 @@ describe('fatura escolhida na compra', () => {
     expect(gerarParcelas({ ...c, fatura_mes: '2026-10' }, [cartao]).map((p) => p.mes)).toEqual(['2026-10', '2026-11'])
   })
 })
+
+describe('limite do cartão com contas fixas no cartão', () => {
+  it('conta fixa no cartão ocupa limite enquanto a fatura do mês não está paga', async () => {
+    const { limiteUsado } = await import('../utils')
+    const fixos = [{ id: 'f', nome: 'Internet', valor: 100, ativo: true, cartao_id: 'c1' }, { id: 'g', nome: 'Outra', valor: 50, ativo: true, cartao_id: 'c2' }]
+    expect(limiteUsado('c1', [], [{ id: 'c1' }], [], '2026-10', fixos).usado).toBe(100)
+    expect(limiteUsado('c1', [], [{ id: 'c1' }], [{ cartao_id: 'c1', mes: '2026-10', pago: true }], '2026-10', fixos).usado).toBe(0)
+    expect(limiteUsado('c1', [], [{ id: 'c1' }], [], '2026-10').usado).toBe(0)
+  })
+})

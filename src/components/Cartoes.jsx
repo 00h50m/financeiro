@@ -47,7 +47,7 @@ export default function Cartoes({ store }) {
   function renderLimite(c) {
     const limite = Number(c.limite) || 0
     if (!limite) return <span style={{ fontSize: 12, color: 'var(--text3)' }}>não informado</span>
-    const { atual, futuro, usado, semInformacao } = limiteUsado(c.id, compras, cartoes, faturas, mes)
+    const { atual, futuro, usado, semInformacao } = limiteUsado(c.id, compras, cartoes, faturas, mes, store.fixos)
     const pct = Math.round((usado / limite) * 100)
     const cor = pct > 90 ? 'var(--red)' : pct > 70 ? 'var(--amber)' : 'var(--green)'
     return (

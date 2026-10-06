@@ -81,3 +81,18 @@ describe('análise: cabe no orçamento?', () => {
     expect(im[0]).toMatchObject({ renda: 5000, rendaEstimada: true })
   })
 })
+
+import { saldoDevedorEstimado, taxaDaObservacao } from '../emprestimo'
+describe('quitar um empréstimo contratado', () => {
+  it('saldo devedor estimado = valor presente das parcelas que faltam', () => {
+    const s = simular({ valor: 10000, taxaMes: 0.02, prazo: 12 })
+    // logo após pagar a 6ª parcela, faltam 6; o saldo devedor da tabela é o saldo depois da parcela 6
+    const faltam = s.parcelas.slice(6).map((p) => p.valor)
+    expect(saldoDevedorEstimado(faltam, 0.02)).toBeCloseTo(s.parcelas[5].saldo * 1.02, 0) // 1ª parcela que falta vence daqui a 1 mês: k=0 aqui, então vale saldo × (1+i)
+    expect(saldoDevedorEstimado([], 0.02)).toBeNull()
+  })
+  it('lê a taxa gravada na observação', () => {
+    expect(taxaDaObservacao('Empréstimo de R$ 10.000,00 · taxa 2,50% a.m. · CET 2,60% a.m.')).toBeCloseTo(0.025, 5)
+    expect(taxaDaObservacao('sem taxa')).toBeNull()
+  })
+})

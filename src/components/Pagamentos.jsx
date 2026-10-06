@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { compilar } from '../lib/filtro'
 import { mediaRecente, pendenciasValorVariavel } from '../lib/fixosVariaveis'
+import ValorDoMes from './ValorDoMes'
 import { CampoBusca, ResumoFiltro } from './FiltroLista'
 import { fmt, fmtK, mesLabel, nowYM, addMonths, totalRenda, tituloCompra, subtituloCompra, hojeSP } from '../lib/utils'
 import { mesFechado } from '../lib/fechamento'
@@ -273,13 +274,9 @@ export default function Pagamentos({ store }) {
                       {f.dia_vencimento ? `dia ${f.dia_vencimento}` : '—'}
                     </td>
                     <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>
-                      {fmt(f.valor)}
-                      {f.variavel && (
-                        <div style={{ fontSize: 11, marginTop: 2 }}>
-                          {f.estimado ? <span className="badge badge-amber" style={{ fontSize: 10 }}>estimado</span> : <span className="badge badge-green" style={{ fontSize: 10 }}>real</span>}
-                          {' '}<button className="link-btn" onClick={() => informarValor(f)}>{f.estimado ? 'informar valor real' : 'corrigir'}</button>
-                        </div>
-                      )}
+                      {f.variavel ? (
+                        <ValorDoMes fixo={f} mes={mes} real={store.fixos.find((x) => x.id === f.id)?.valores?.[mes]} definirValorFixo={definirValorFixo} compacto />
+                      ) : fmt(f.valor)}
                     </td>
                     <td style={{ fontSize: 12, color: 'var(--text3)', fontFamily: 'DM Mono' }}>{dataFmt(pg?.data_pagamento) || '—'}</td>
                   </tr>

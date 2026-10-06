@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { fmt, calcMesInicio, addMonths, mesLabel, hojeSP } from '../lib/utils'
+import { acharSemelhantes } from '../lib/duplicadas'
 import { restante, somaPartes, validarDivisao, planoDeDivisao, planoDeUniao } from '../lib/divisaoCompra'
 
 const brl = (v) => fmt(Math.abs(v))
@@ -10,7 +11,7 @@ const brl = (v) => fmt(Math.abs(v))
 //   onSaveDivisao(plano, grupoId) grava uma divisão (partes novas, alteradas e removidas)
 export default function ModalCompra({
   cartoes, categorias, pessoas, onSave, onSaveDivisao, onClose,
-  editar = null, grupo = null, gruposOk = false, faturaMesOk = false, avisoPagamentos = false,
+  editar = null, grupo = null, gruposOk = false, faturaMesOk = false, avisoPagamentos = false, comprasExistentes = [],
 }) {
   const origem = grupo?.length ? grupo[0] : editar
   const emEdicao = !!origem
@@ -98,6 +99,15 @@ export default function ModalCompra({
 
   async function save(fechar) {
     if (!ok) return
+    // Compra nova que parece uma já lançada (mesmo cartão, valor, dias próximos e nome parecido): confirma antes de duplicar.
+    if (!emEdicao && !dividir) {
+      const parecidas = acharSemelhantes({ descricao: f.descricao, valor_total: Number(f.valor_total), parcelas: Number(f.parcelas), cartao_id: f.cartao_id || null, data_compra: f.data_compra }, comprasExistentes)
+      if (parecidas.length) {
+        const p = parecidas[0]
+        const quando = String(p.data_compra).slice(0, 10).split('-').reverse().join('/')
+        if (!window.confirm(`Parece que essa compra já foi lançada:\n\n"${p.identificacao || p.descricao}" — ${fmt(p.valor_total)} em ${quando}${parecidas.length > 1 ? ` (e mais ${parecidas.length - 1} parecida${parecidas.length > 2 ? 's' : ''})` : ''}.\n\nLançar mesmo assim?`)) return
+      }
+    }
     setSaving(true)
     let salvou
     if (dividir) {

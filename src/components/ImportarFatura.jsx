@@ -54,7 +54,7 @@ function recalcular(linhas, compras, aliases, modo) {
 const fmtDia = (iso) => String(iso).slice(0, 10).split('-').reverse().slice(0, 2).join('/')
 
 // "O que falta lançar?": compara o CSV com o que está lançado neste cartão e mês, nos dois sentidos.
-function PainelConferencia({ conf, cartaoNome, faturaReal, onEditar }) {
+function PainelConferencia({ conf, cartaoNome, faturaReal, onEditar, onMover, faturaMesOk }) {
   const [aberto, setAberto] = useState(true)
   const { totais, faltaLancar, sobrandoNoFinapp, valorDiferente, contaFixa, foraDoMes = [] } = conf
   const difAppBanco = faturaReal != null ? Math.round((conf.totalFinapp - faturaReal) * 100) / 100 : null
@@ -131,12 +131,18 @@ function PainelConferencia({ conf, cartaoNome, faturaReal, onEditar }) {
                         </span>
                       </td>
                       <td style={{ textAlign: 'right' }} className="mono">{fmt(f.valor)}</td>
-                      <td><button className="btn btn-ghost btn-sm" onClick={() => onEditar(f.compra)}>Editar compra</button></td>
+                      <td style={{ whiteSpace: 'nowrap' }}>
+                        {!f.outroCartao && faturaMesOk && <button className="btn btn-primary btn-sm" onClick={() => onMover(f.compra, conf.mes)} style={{ marginRight: 6 }}>Colocar nesta fatura</button>}
+                        <button className="btn btn-ghost btn-sm" onClick={() => onEditar(f.compra)}>Editar compra</button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>A compra existe, mas cai em outra fatura (data depois do fechamento, cartão errado ou mês diferente). Abra "Editar compra" e acerte a data ou o cartão para ela entrar neste mês.</div>
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
+                A compra existe, mas cai em outra fatura (data depois do fechamento, cartão errado ou mês diferente).
+                {faturaMesOk ? ' "Colocar nesta fatura" mantém a data e só escolhe em qual fatura ela entra.' : <> Para corrigir em um clique, rode <code>inbox/21_compras_fatura_mes.sql</code> no Supabase; por ora use "Editar compra" e acerte a data ou o cartão.</>}
+              </div>
             </>
           )}
 
@@ -197,7 +203,9 @@ function PainelConferencia({ conf, cartaoNome, faturaReal, onEditar }) {
 }
 
 export default function ImportarFatura({ store }) {
-  const { cartoes, categorias, compras, faturas, pessoas, regras = [], aliases = [], importarTransacoes } = store
+  const { cartoes, categorias, compras, faturas, pessoas, regras = [], aliases = [], importarTransacoes, updateCompra } = store
+  // Sem a coluna fatura_mes no banco (inbox/21 não rodou) a importação segue a regra do fechamento, como antes.
+  const faturaMesOk = compras.some((c) => 'fatura_mes' in c)
   const [linhas, setLinhas] = useState([])
   const [nomeArquivo, setNomeArquivo] = useState('')
   const [erroArquivo, setErroArquivo] = useState('')
@@ -357,7 +365,8 @@ export default function ImportarFatura({ store }) {
         if (!mesFatura) return
         mes = mesFatura
       } else {
-        mes = cartaoObj ? calcMesInicio(l.data, cartaoObj) : l.data.slice(0, 7)
+        // com a coluna fatura_mes, a linha entra na fatura do arquivo (mês escolhido), não na que o fechamento sugere
+        mes = mesFatura && faturaMesOk && cartaoObj ? mesFatura : cartaoObj ? calcMesInicio(l.data, cartaoObj) : l.data.slice(0, 7)
       }
       const key = `${l.cartao_id}|${mes}`
       if (!grupos[key]) grupos[key] = { cartao_id: l.cartao_id, mes, soma: 0 }
@@ -405,6 +414,7 @@ export default function ImportarFatura({ store }) {
         cartao_id: l.cartao_id,
         valor_total: valorTotalLinha(l, modoValor),
         parcelas: n,
+        ...(faturaMesOk && mesFatura && k === 1 && cartoes.find((c) => c.id === l.cartao_id) && calcMesInicio(l.data, cartoes.find((c) => c.id === l.cartao_id)) !== mesFatura ? { fatura_mes: mesFatura } : {}),
         obs: [l.observacao, nota].filter(Boolean).join(' · ') || undefined,
       }
     })
@@ -513,6 +523,8 @@ export default function ImportarFatura({ store }) {
               cartaoNome={cartao?.nome || '—'}
               faturaReal={fatura && fatura.valor_real != null ? Number(fatura.valor_real) : null}
               onEditar={setCompraEditando}
+              faturaMesOk={faturaMesOk}
+              onMover={(compra, mes) => updateCompra(compra.id, { fatura_mes: mes })}
             />
           ))}
 
