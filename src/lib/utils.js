@@ -143,7 +143,8 @@ export const statusTeto = (gasto, teto) => {
 // com fatura ainda não paga, mais faturas de meses anteriores registradas e não pagas.
 // Meses passados sem fatura registrada NÃO entram na conta (não há como saber se foram pagos) e vêm
 // separados em `semInformacao`, para a tela poder avisar.
-export const limiteUsado = (cartaoId, compras, cartoes, faturas, mes) => {
+// `fixos`: contas fixas pagas neste cartão (fixos.cartao_id) também ocupam limite no mês, enquanto a fatura do mês não foi paga.
+export const limiteUsado = (cartaoId, compras, cartoes, faturas, mes, fixos = []) => {
   const faturaDe = (m) => faturas.find((f) => f.cartao_id === cartaoId && f.mes === m)
   let atual = 0
   let futuro = 0
@@ -158,6 +159,9 @@ export const limiteUsado = (cartaoId, compras, cartoes, faturas, mes) => {
       else semInformacao += p.valor
     })
   })
+  if (!faturaDe(mes)?.pago) {
+    fixosAtivos(fixos, mes).filter((f) => f.cartao_id === cartaoId).forEach((f) => { atual += Number(f.valor) })
+  }
   return { atual, futuro, usado: atual + futuro, semInformacao }
 }
 
