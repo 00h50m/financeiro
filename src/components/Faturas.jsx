@@ -22,13 +22,13 @@ function ComprasDaFatura({ det, onEditar, irPara }) {
   }
   return (
     <div style={{ padding: '4px 14px 12px' }}>
-      <table>
+      <table className="tabela-compacta">
         <thead>
           <tr>
-            <th>Data</th>
+            <th className="col-opc">Data</th>
             <th>Compra</th>
-            <th>Categoria</th>
-            <th style={{ textAlign: 'center' }}>Parcela</th>
+            <th className="col-opc">Categoria</th>
+            <th className="col-opc" style={{ textAlign: 'center' }}>Parcela</th>
             <th style={{ textAlign: 'right' }}>Neste mês</th>
             <th />
           </tr>
@@ -36,14 +36,15 @@ function ComprasDaFatura({ det, onEditar, irPara }) {
         <tbody>
           {det.itens.map(({ compra: c, parcela, de, valor }) => (
             <tr key={c.id}>
-              <td style={{ fontFamily: 'DM Mono', fontSize: 12, color: 'var(--text3)', whiteSpace: 'nowrap' }}>{fmtDia(c.data_compra)}</td>
-              <td>
+              <td className="col-opc" style={{ fontFamily: 'DM Mono', fontSize: 12, color: 'var(--text3)', whiteSpace: 'nowrap' }}>{fmtDia(c.data_compra)}</td>
+              <td className="nome-cel">
                 <div style={{ fontWeight: 500 }}>{tituloCompra(c)}</div>
+                <div className="so-mobile">{fmtDia(c.data_compra)} · {c.categoria}{de > 1 ? ` · parcela ${parcela}/${de}` : ' · à vista'}</div>
                 {subtituloCompra(c) && <div style={{ fontSize: 11, color: 'var(--text3)' }}>no cartão: {subtituloCompra(c)}</div>}
                 {c.grupo_id && <span className="badge badge-blue" style={{ fontSize: 10 }}>compra dividida</span>}
               </td>
-              <td style={{ fontSize: 12, color: 'var(--text2)' }}>{c.categoria}<br /><span style={{ color: 'var(--text3)' }}>{c.subcategoria}</span></td>
-              <td style={{ textAlign: 'center' }}>
+              <td className="col-opc" style={{ fontSize: 12, color: 'var(--text2)' }}>{c.categoria}<br /><span style={{ color: 'var(--text3)' }}>{c.subcategoria}</span></td>
+              <td className="col-opc" style={{ textAlign: 'center' }}>
                 {de > 1 ? <span className="badge badge-amber">{parcela}/{de}</span> : <span className="badge badge-gray">à vista</span>}
               </td>
               <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(valor)}</td>
@@ -52,16 +53,16 @@ function ComprasDaFatura({ det, onEditar, irPara }) {
           ))}
           {det.fixos.map((f) => (
             <tr key={f.id}>
-              <td />
+              <td className="col-opc" />
               <td><div style={{ fontWeight: 500 }}>{f.nome}</div><span className="badge badge-gray" style={{ fontSize: 10 }}>conta fixa</span></td>
-              <td />
-              <td style={{ textAlign: 'center' }}><span className="badge badge-gray">mensal</span></td>
+              <td className="col-opc" />
+              <td className="col-opc" style={{ textAlign: 'center' }}><span className="badge badge-gray">mensal</span></td>
               <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(f.valor)}</td>
               <td>{irPara && <button className="btn btn-ghost btn-sm" onClick={() => irPara('fixos')}>Contas fixas</button>}</td>
             </tr>
           ))}
           <tr style={{ borderTop: '1px solid var(--border2)' }}>
-            <td colSpan={4} style={{ color: 'var(--text2)' }}>
+            <td colSpan={4} className="nome-cel" style={{ color: 'var(--text2)' }}>
               {det.parcial ? `Só o que combina com a busca (${det.itens.length + det.fixos.length} de ${det.qtdTotal}) · total da fatura` : 'Total lançado'}
             </td>
             <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontWeight: 500 }}>{fmt(det.total)}</td>
@@ -308,14 +309,14 @@ export default function Faturas({ store, irPara }) {
               </span>
             </div>
             <div className="card">
-              <table>
+              <table className="tabela-compacta">
                 <thead>
                   <tr>
                     <th>Cartão</th>
-                    <th style={{ textAlign: 'right' }}>Fatura real</th>
-                    <th style={{ textAlign: 'right' }}>Lançado</th>
+                    <th className="col-opc" style={{ textAlign: 'right' }}>Fatura real</th>
+                    <th className="col-opc" style={{ textAlign: 'right' }}>Lançado</th>
                     <th style={{ textAlign: 'right' }}>Diferença</th>
-                    <th>Status</th>
+                    <th className="col-opc">Status</th>
                     <th />
                   </tr>
                 </thead>
@@ -343,16 +344,20 @@ export default function Faturas({ store, irPara }) {
                       return (
                         <Fragment key={fat.id}>
                         <tr>
-                          <td style={{ fontWeight: 500 }}>{cartao?.nome || '—'}</td>
+                          <td className="nome-cel" style={{ fontWeight: 500 }}>
+                            {cartao?.nome || '—'}
+                            <div className="so-mobile">Lançado {fmt(lanc)} · {fat.sintetica ? 'fatura não lançada' : 'sem valor do banco'}{fat.pago ? ' · paga' : ''}</div>
+                            <button className="btn btn-ghost btn-sm so-mobile" style={{ marginTop: 6 }} onClick={() => (fat.sintetica ? abrirNova({ cartao_id: fat.cartao_id, mes }) : abrirEdicao(fat))}>Informar valor</button>
+                          </td>
+                          <td className="col-opc" style={{ textAlign: 'right', color: 'var(--text3)' }}>—</td>
+                          <td className="col-opc" style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(lanc)}</td>
                           <td style={{ textAlign: 'right', color: 'var(--text3)' }}>—</td>
-                          <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(lanc)}</td>
-                          <td style={{ textAlign: 'right', color: 'var(--text3)' }}>—</td>
-                          <td>
+                          <td className="col-opc">
                             <span className="badge badge-gray">{fat.sintetica ? 'fatura não lançada' : 'sem valor do banco'}</span>{' '}
                             {fat.pago && <span className="badge badge-green">paga</span>}{' '}
                             <button className="btn btn-ghost btn-sm" onClick={() => (fat.sintetica ? abrirNova({ cartao_id: fat.cartao_id, mes }) : abrirEdicao(fat))}>Informar valor</button>
                           </td>
-                          <td style={{ whiteSpace: 'nowrap' }}>
+                          <td className="acoes-td" style={{ whiteSpace: 'nowrap' }}>
                             {botaoCompras}
                             {!fat.sintetica && <button className="btn btn-ghost btn-sm" onClick={() => abrirEdicao(fat)} style={{ marginRight: 6 }}>Editar</button>}
                           </td>
@@ -366,13 +371,16 @@ export default function Faturas({ store, irPara }) {
                     return (
                       <Fragment key={fat.id}>
                       <tr>
-                        <td style={{ fontWeight: 500 }}>{cartao?.nome || '—'}</td>
-                        <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(fat.valor_real)}</td>
-                        <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(lanc)}</td>
+                        <td className="nome-cel" style={{ fontWeight: 500 }}>
+                          {cartao?.nome || '—'}
+                          <div className="so-mobile">Real {fmt(fat.valor_real)} · Lançado {fmt(lanc)} · {Math.abs(diff) < 1 ? '✓ OK' : diff > 0 ? `${pct}% lançado` : 'excede'}{fat.pago ? ' · paga' : ''}</div>
+                        </td>
+                        <td className="col-opc" style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(fat.valor_real)}</td>
+                        <td className="col-opc" style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(lanc)}</td>
                         <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13, color: Math.abs(diff) < 0.02 ? 'var(--text3)' : diff > 0 ? 'var(--red)' : 'var(--green)' }}>
                           {Math.abs(diff) < 0.02 ? '—' : (diff > 0 ? '+' : '') + fmt(diff)}
                         </td>
-                        <td>
+                        <td className="col-opc">
                           {Math.abs(diff) < 1
                             ? <span className="badge badge-green">✓ OK</span>
                             : diff > 0
@@ -380,7 +388,7 @@ export default function Faturas({ store, irPara }) {
                               : <span className="badge badge-amber">excede</span>}
                           {fat.pago && <> <span className="badge badge-green" title={fat.data_pagamento ? `Paga em ${String(fat.data_pagamento).slice(0, 10).split('-').reverse().join('/')}` : 'Paga'}>paga</span></>}
                         </td>
-                        <td style={{ whiteSpace: 'nowrap' }}>
+                        <td className="acoes-td" style={{ whiteSpace: 'nowrap' }}>
                           {botaoCompras}
                           <button className="btn btn-ghost btn-sm" onClick={() => abrirEdicao(fat)} style={{ marginRight: 6 }}>Editar</button>
                           <button className="btn btn-danger" onClick={() => { if (confirm('Remover o valor real desta fatura? Se ela estava marcada como paga, isso também some.')) delFatura(fat.id) }}>×</button>
@@ -393,12 +401,12 @@ export default function Faturas({ store, irPara }) {
                   {fatsDoMes.length > 1 && (
                     <tr style={{ borderTop: '2px solid var(--border2)' }}>
                       <td style={{ fontWeight: 500, color: 'var(--text2)' }}>Total</td>
-                      <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontWeight: 500 }}>{semNenhumReal ? '—' : fmt(totalReal)}</td>
-                      <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontWeight: 500 }}>{fmt(semNenhumReal ? totalLancTodos : totalLanc)}</td>
+                      <td className="col-opc" style={{ textAlign: 'right', fontFamily: 'DM Mono', fontWeight: 500 }}>{semNenhumReal ? '—' : fmt(totalReal)}</td>
+                      <td className="col-opc" style={{ textAlign: 'right', fontFamily: 'DM Mono', fontWeight: 500 }}>{fmt(semNenhumReal ? totalLancTodos : totalLanc)}</td>
                       <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13, color: Math.abs(totalDiff) < 0.02 ? 'var(--text3)' : totalDiff > 0 ? 'var(--red)' : 'var(--green)' }}>
                         {Math.abs(totalDiff) < 0.02 ? '—' : (totalDiff > 0 ? '+' : '') + fmt(totalDiff)}
                       </td>
-                      <td /><td />
+                      <td className="col-opc" /><td />
                     </tr>
                   )}
                 </tbody>

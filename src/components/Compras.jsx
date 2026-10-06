@@ -159,20 +159,20 @@ export default function Compras({ store }) {
             {filtroAtivo ? 'Nenhuma compra com esses filtros.\nTente outro termo ou clique em "Limpar filtros".' : 'Nenhuma compra encontrada.\nClique em "+ Nova compra" para começar.'}
           </div>
         ) : (
-          <table>
+          <table className="tabela-compacta">
             <thead>
               <tr>
                 <th style={{ width: 28 }}>
                   <input type="checkbox" checked={todasMarcadas} title="Marcar todas as que aparecem"
                     onChange={() => setMarcadas(todasMarcadas ? [] : idsVisiveis)} />
                 </th>
-                <th>Data</th>
+                <th className="col-opc">Data</th>
                 <th>Descrição</th>
-                <th>Pessoa</th>
-                <th>Categoria</th>
-                <th>Cartão</th>
+                <th className="col-opc">Pessoa</th>
+                <th className="col-opc">Categoria</th>
+                <th className="col-opc">Cartão</th>
                 <th style={{ textAlign: 'right' }}>Valor</th>
-                <th style={{ textAlign: 'center' }}>Parcelas</th>
+                <th className="col-opc" style={{ textAlign: 'center' }}>Parcelas</th>
                 <th />
               </tr>
             </thead>
@@ -183,10 +183,10 @@ export default function Compras({ store }) {
                 return (
                   <tr key={c.id}>
                     <td><input type="checkbox" checked={marcadas.includes(c.id)} onChange={() => alternar(c.id)} /></td>
-                    <td style={{ fontFamily: 'DM Mono', fontSize: 12, color: 'var(--text3)', whiteSpace: 'nowrap' }}>
+                    <td className="col-opc" style={{ fontFamily: 'DM Mono', fontSize: 12, color: 'var(--text3)', whiteSpace: 'nowrap' }}>
                       {dd[2]}/{dd[1]}/{dd[0].slice(2)}
                     </td>
-                    <td>
+                    <td className="nome-cel">
                       <div style={{ fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
                         {tituloCompra(c)}
                         <button
@@ -204,17 +204,20 @@ export default function Compras({ store }) {
                       {c.fatura_mes && c.cartao_id && <div style={{ fontSize: 11, color: 'var(--text3)' }}><span className="badge badge-blue" style={{ fontSize: 10 }}>fatura de {mesLabel(c.fatura_mes)} (escolhida)</span></div>}
                       {c.obs && <div style={{ fontSize: 11, color: 'var(--text3)' }}>{c.obs}</div>}
                       {rotuloOrigem(c.origem) && <div style={{ fontSize: 11, color: 'var(--text3)' }}>{rotuloOrigem(c.origem)}</div>}
+                      <div className="so-mobile">
+                        {dd[2]}/{dd[1]}/{dd[0].slice(2)} · {c.pessoa} · {cartao ? cartao.nome : 'Sem cartão'} · {c.categoria}{c.subcategoria ? ` › ${c.subcategoria}` : ''}{Number(c.parcelas) > 1 ? ` · ${c.parcelas}x de ${fmt(valorParcelaBase(c))}` : ' · à vista'}
+                      </div>
                     </td>
-                    <td>
+                    <td className="col-opc">
                       <span className={`badge badge-${corPessoa(pessoas, c.pessoa)}`}>
                         {c.pessoa}
                       </span>
                     </td>
-                    <td style={{ fontSize: 12, color: 'var(--text2)' }}>
+                    <td className="col-opc" style={{ fontSize: 12, color: 'var(--text2)' }}>
                       {c.categoria}<br />
                       <span style={{ color: 'var(--text3)' }}>{c.subcategoria}</span>
                     </td>
-                    <td>
+                    <td className="col-opc">
                       {cartao ? (
                         <span className="badge badge-gray">{cartao.nome}</span>
                       ) : (
@@ -234,8 +237,8 @@ export default function Compras({ store }) {
                         </div>
                       )}
                     </td>
-                    <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(c.valor_total)}</td>
-                    <td style={{ textAlign: 'center' }}>
+                    <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13, whiteSpace: 'nowrap' }}>{fmt(c.valor_total)}</td>
+                    <td className="col-opc" style={{ textAlign: 'center' }}>
                       {Number(c.parcelas) > 1 ? (
                         <div>
                           <span className="badge badge-amber">{c.parcelas}x</span>
@@ -247,7 +250,7 @@ export default function Compras({ store }) {
                         <span className="badge badge-gray">à vista</span>
                       )}
                     </td>
-                    <td style={{ whiteSpace: 'nowrap' }}>
+                    <td className="acoes-td" style={{ whiteSpace: 'nowrap' }}>
                       <button className="btn btn-ghost btn-sm" onClick={() => abrirEdicao(c)} style={{ marginRight: 6 }}>Editar</button>
                       <button
                         className="btn btn-danger"

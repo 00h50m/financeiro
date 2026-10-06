@@ -318,3 +318,25 @@ input[type='checkbox'] { width: auto; min-height: 0; accent-color: var(--brand);
 .toast { display: flex; gap: 10px; align-items: center; background: var(--bg4); border: 1px solid var(--border2); color: var(--text); padding: 10px 14px; border-radius: 10px; font-size: 13px; box-shadow: 0 8px 24px rgba(0,0,0,.4); line-height: 1.4; }
 .toast-amber { border-color: var(--amber-border); background: var(--amber-bg); color: #fcd34d; }
 .toast-red { border-color: var(--red-border); background: var(--red-bg); color: #fca5a5; }
+
+/* CELULAR: tabelas "compactas" mostram só o essencial (nome, valor, ações); o resto vai numa linha pequena embaixo do nome. */
+.so-mobile { display: none; font-size: 11px; color: var(--text3); margin-top: 3px; line-height: 1.5; font-weight: 400; }
+@media (max-width: 600px) {
+  .col-opc { display: none !important; }
+  .so-mobile { display: block; }
+  .card table.tabela-compacta { min-width: 0 !important; table-layout: auto; }
+  .tabela-compacta td, .tabela-compacta th { padding: 9px 7px; }
+  .tabela-compacta td:first-child, .tabela-compacta th:first-child { padding-left: 10px; }
+  .tabela-compacta td:last-child, .tabela-compacta th:last-child { padding-right: 10px; }
+  .tabela-compacta .nome-cel { overflow-wrap: anywhere; min-width: 0; }
+  .acoes-cel { flex-direction: column !important; align-items: stretch; gap: 6px !important; }
+  .toolbar input, .toolbar select, .toolbar .btn { width: auto !important; max-width: none !important; }
+  .toolbar > input[type="search"], .toolbar > span:first-child { flex: 1 1 100%; }
+  .toolbar > span { max-width: 100%; }
+}
+@media (max-width: 600px) {
+  .acoes-td { white-space: normal !important; }
+  .acoes-td .btn { display: flex; width: 100%; margin: 0 0 6px 0 !important; justify-content: center; min-width: 40px; }
+}
+.so-cel { display: none; }
+@media (max-width: 600px) { .so-cel { display: table-cell; } }

@@ -128,30 +128,33 @@ export default function Cartoes({ store }) {
             Nenhum cartão cadastrado.{'\n'}Comece adicionando seus cartões — eles são necessários para registrar compras.
           </div>
         ) : (
-          <table>
+          <table className="tabela-compacta">
             <thead>
               <tr>
                 <th>Nome</th>
-                <th>Titular</th>
-                <th style={{ textAlign: 'center' }}>Fechamento</th>
-                <th style={{ textAlign: 'center' }}>Vencimento</th>
-                <th style={{ minWidth: 220 }}>Limite</th>
+                <th className="col-opc">Titular</th>
+                <th className="col-opc" style={{ textAlign: 'center' }}>Fechamento</th>
+                <th className="col-opc" style={{ textAlign: 'center' }}>Vencimento</th>
+                <th style={{ minWidth: 160 }}>Limite</th>
                 <th />
               </tr>
             </thead>
             <tbody>
               {cartoes.map((c) => (
                 <tr key={c.id}>
-                  <td style={{ fontWeight: 500 }}>{c.nome}</td>
-                  <td>
+                  <td className="nome-cel" style={{ fontWeight: 500 }}>
+                    {c.nome}
+                    <div className="so-mobile">{c.titular} · fecha {c.fechamento ? `dia ${c.fechamento}` : '—'} · vence {c.vencimento ? `dia ${c.vencimento}` : '—'}</div>
+                  </td>
+                  <td className="col-opc">
                     <span className={`badge badge-${corPessoa(pessoas, c.titular)}`}>
                       {c.titular}
                     </span>
                   </td>
-                  <td style={{ textAlign: 'center', fontFamily: 'DM Mono' }}>{c.fechamento ? `dia ${c.fechamento}` : '—'}</td>
-                  <td style={{ textAlign: 'center', fontFamily: 'DM Mono' }}>{c.vencimento ? `dia ${c.vencimento}` : '—'}</td>
+                  <td className="col-opc" style={{ textAlign: 'center', fontFamily: 'DM Mono' }}>{c.fechamento ? `dia ${c.fechamento}` : '—'}</td>
+                  <td className="col-opc" style={{ textAlign: 'center', fontFamily: 'DM Mono' }}>{c.vencimento ? `dia ${c.vencimento}` : '—'}</td>
                   <td>{renderLimite(c)}</td>
-                  <td style={{ display: 'flex', gap: 6 }}>
+                  <td className="acoes-cel" style={{ display: 'flex', gap: 6 }}>
                     <button className="btn btn-ghost btn-sm" onClick={() => abrir(c)}>Editar</button>
                     <button
                       className="btn btn-danger"

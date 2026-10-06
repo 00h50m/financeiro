@@ -131,17 +131,17 @@ export default function Parcelamentos({ store }) {
           </span>
         </button>
         {!recolhidas[agrupar + '|' + pessoa] && <div className="card">
-          <table>
+          <table className="tabela-compacta">
             <thead>
               <tr>
                 <th>Compra</th>
-                {agrupar !== 'pessoa' && <th>Pessoa</th>}
-                {agrupar !== 'cartao' && <th>Cartão</th>}
-                {agrupar !== 'categoria' && <th>Categoria</th>}
-                <th style={{ textAlign: 'right' }}>Parcela</th>
-                <th style={{ width: 130, textAlign: 'center' }}>Progresso</th>
+                {agrupar !== 'pessoa' && <th className="col-opc">Pessoa</th>}
+                {agrupar !== 'cartao' && <th className="col-opc">Cartão</th>}
+                {agrupar !== 'categoria' && <th className="col-opc">Categoria</th>}
+                <th className="col-opc" style={{ textAlign: 'right' }}>Parcela</th>
+                <th className="col-opc" style={{ width: 130, textAlign: 'center' }}>Progresso</th>
                 <th style={{ textAlign: 'right' }}>Restante</th>
-                <th style={{ textAlign: 'center' }}>Término</th>
+                <th className="col-opc" style={{ textAlign: 'center' }}>Término</th>
                 <th />
               </tr>
             </thead>
@@ -162,18 +162,19 @@ export default function Parcelamentos({ store }) {
                 return (
                   <Fragment key={c.id}>
                   <tr>
-                    <td>
+                    <td className="nome-cel">
                       <div style={{ fontWeight: 500 }}>{tituloCompra(c)}</div>
+                      <div className="so-mobile">{fmt(valorParcelaBase(c))}/mês · {pagas}/{total} pagas · {nomeCartao(c)} · {c.categoria}{termino ? ` · termina em ${mesLabel(termino)}` : ''}</div>
                       {subtituloCompra(c) && <div style={{ fontSize: 11, color: 'var(--text3)' }}>no cartão: {subtituloCompra(c)}</div>}
                       {c.obs && <div style={{ fontSize: 11, color: 'var(--text3)' }}>{c.obs}</div>}
                     </td>
-                    {agrupar !== 'pessoa' && <td style={{ fontSize: 12, color: 'var(--text2)' }}>{c.pessoa}</td>}
-                    {agrupar !== 'cartao' && <td><span className="badge badge-gray">{cartao?.nome || '—'}</span></td>}
-                    {agrupar !== 'categoria' && <td style={{ fontSize: 12, color: 'var(--text2)' }}>{c.categoria}</td>}
-                    <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>
+                    {agrupar !== 'pessoa' && <td className="col-opc" style={{ fontSize: 12, color: 'var(--text2)' }}>{c.pessoa}</td>}
+                    {agrupar !== 'cartao' && <td className="col-opc"><span className="badge badge-gray">{cartao?.nome || '—'}</span></td>}
+                    {agrupar !== 'categoria' && <td className="col-opc" style={{ fontSize: 12, color: 'var(--text2)' }}>{c.categoria}</td>}
+                    <td className="col-opc" style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>
                       {fmt(valorParcelaBase(c))}
                     </td>
-                    <td style={{ padding: '11px 14px' }}>
+                    <td className="col-opc" style={{ padding: '11px 14px' }}>
                       <div style={{ fontSize: 11, color: 'var(--text3)', textAlign: 'center', marginBottom: 3 }}>
                         {pagas} / {total}
                       </div>
@@ -184,11 +185,11 @@ export default function Parcelamentos({ store }) {
                         }} />
                       </div>
                     </td>
-                    <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(valorRest)}</td>
-                    <td style={{ textAlign: 'center' }}>
+                    <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13, whiteSpace: 'nowrap' }}>{fmt(valorRest)}</td>
+                    <td className="col-opc" style={{ textAlign: 'center' }}>
                       {termino ? <span className={`badge ${badgeT}`}>{mesLabel(termino)}</span> : '—'}
                     </td>
-                    <td><button className="btn btn-ghost btn-sm" onClick={() => { setSimulando(simulando === c.id ? null : c.id); setValorBanco('') }} aria-expanded={simulando === c.id}>Quitar?</button></td>
+                    <td className="acoes-td"><button className="btn btn-ghost btn-sm" onClick={() => { setSimulando(simulando === c.id ? null : c.id); setValorBanco('') }} aria-expanded={simulando === c.id}>Quitar?</button></td>
                   </tr>
                   {simulando === c.id && (() => {
                     const sim = simularQuitacao(c, cartoes, mes, lerValor(valorBanco))
@@ -220,11 +221,12 @@ export default function Parcelamentos({ store }) {
                 )
               })}
               <tr style={{ fontWeight: 600, borderTop: '1px solid var(--border)' }}>
-                <td colSpan={3}>Total de {pessoa} ({lista.length})</td>
-                <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(lista.reduce((t, c) => t + valorParcelaBase(c), 0))}</td>
-                <td />
+                <td className="col-opc" colSpan={3}>Total de {pessoa} ({lista.length})</td>
+                <td className="so-cel">Total ({lista.length})</td>
+                <td className="col-opc" style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(lista.reduce((t, c) => t + valorParcelaBase(c), 0))}</td>
+                <td className="col-opc" />
                 <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(lista.reduce((t, c) => t + valoresDe(c).restante, 0))}</td>
-                <td />
+                <td className="col-opc" />
                 <td />
               </tr>
             </tbody>
