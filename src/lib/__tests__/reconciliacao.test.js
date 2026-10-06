@@ -69,3 +69,17 @@ describe('compra dividida em categorias', () => {
     expect(r.nivel).toBe('nenhum')
   })
 })
+
+describe('parcelamento nos dois lados', () => {
+  it('mesmo total, mesmas parcelas, mesmo cartão, lugar e dia: exato', () => {
+    const c = compra({ descricao: 'MAGALU', valor_total: 300, parcelas: 3, data_compra: '2026-10-04', origem: 'telegram' })
+    const r = encontrarCorrespondencia(ev({ valor: 300, parcelas: 3, estabelecimento_chave: 'magalu' }), [c])
+    expect(r.nivel).toBe('exato')
+  })
+  it('número de parcelas diferente continua só "provável"', () => {
+    const c = compra({ descricao: 'MAGALU', valor_total: 300, parcelas: 3, data_compra: '2026-10-04', origem: 'telegram' })
+    const r = encontrarCorrespondencia(ev({ valor: 300, parcelas: 6, estabelecimento_chave: 'magalu' }), [c])
+    expect(r.nivel).not.toBe('exato')
+  })
+})
+
