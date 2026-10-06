@@ -1,14 +1,16 @@
-import { chaveEstabelecimento, indexarAliases } from './estabelecimento.js'
+import { chaveEstabelecimento, indexarAliases, similaridadeEstabelecimento } from './estabelecimento.js'
 import { construirRegrasDoHistorico, sugerirCategoria, sugerirPorNome, categoriaValida } from './categorizacao.js'
 import { pontuar } from './reconciliacao.js'
 import { normBasico, normNome, round2 } from './normalizacao.js'
 import { sugerirIdentificacao } from './nomesAmigaveis.js'
 import { comprasComGruposSomados } from './divisaoCompra.js'
+import { itensDaFatura } from './financeiro.js'
 
 // Inteligência da importação de fatura (CSV): reconhecer o que já está lançado, sugerir categoria e nome.
 // Tudo puro e testável; a tela só mostra o resultado.
 
 const TOLERANCIA_VALOR = 0.02
+const diasEntre = (a, b) => Math.abs(Date.parse(String(a).slice(0, 10) + 'T12:00:00Z') - Date.parse(String(b).slice(0, 10) + 'T12:00:00Z')) / 86400000
 
 // modo: 'parcela' = a coluna valor do CSV é o valor de UMA parcela (padrão de fatura de cartão);
 //       'total'   = a coluna valor é o valor total da compra parcelada.
@@ -44,22 +46,26 @@ export function analisarLinhas(linhas, { compras: comprasLancadas = [], aliases 
   const compras = comprasComGruposSomados(comprasLancadas)
   const indice = indexarAliases(aliases)
   const usadas = new Set()
-  return linhas.map((l) => {
-    const { chave } = chaveEstabelecimento(l.descricao, indice)
-    const n = Number(l.parcela_total) || 1
-    const k = Number(l.parcela_atual) || 1
-    const livres = compras.filter((c) => !usadas.has(c.id))
+  const infos = linhas.map((l) => ({
+    chave: chaveEstabelecimento(l.descricao, indice).chave,
+    n: Number(l.parcela_total) || 1,
+    k: Number(l.parcela_atual) || 1,
+  }))
+  const resultado = linhas.map(() => null)
 
+  // 1ª passada: o que casa com valor igual (exata / parecida / parcelamento)
+  linhas.forEach((l, idx) => {
+    const { chave, n, k } = infos[idx]
+    const livres = compras.filter((c) => !usadas.has(c.id))
     if (k > 1 && l.cartao_id) {
       const valorParcela = valorParcelaLinha(l, modo)
       const achada = livres.find((c) =>
         Number(c.parcelas) === n && c.cartao_id === l.cartao_id &&
         (normNome(c.descricao) === normNome(l.descricao) || chaveEstabelecimento(c.descricao, indice).chave === chave) &&
         Math.abs(Number(c.valor_total) / Number(c.parcelas) - valorParcela) < TOLERANCIA_VALOR)
-      if (achada) { usadas.add(achada.id); return { chave, correspondencia: { tipo: 'parcelamento', compra: achada, score: 1 } } }
-      return { chave, correspondencia: null }
+      if (achada) { usadas.add(achada.id); resultado[idx] = { tipo: 'parcelamento', compra: achada, score: 1 } }
+      return
     }
-
     const ev = {
       valor: valorTotalLinha(l, modo), data_evento: l.data, parcelas: n,
       cartao_id: l.cartao_id || null, estabelecimento_chave: chave,
@@ -69,10 +75,29 @@ export function analisarLinhas(linhas, { compras: comprasLancadas = [], aliases 
       const p = pontuar(ev, c, indice)
       if (p && p.score >= 0.5 && (!melhor || p.score > melhor.score)) melhor = p
     }
-    if (!melhor) return { chave, correspondencia: null }
-    usadas.add(melhor.compra.id)
-    return { chave, correspondencia: { tipo: melhor.exato ? 'exata' : 'parecida', compra: melhor.compra, score: melhor.score } }
+    if (melhor) {
+      usadas.add(melhor.compra.id)
+      resultado[idx] = { tipo: melhor.exato ? 'exata' : 'parecida', compra: melhor.compra, score: melhor.score }
+    }
   })
+
+  // 2ª passada: o que sobrou procura a MESMA compra com valor diferente (ex.: juros/IOF, valor digitado errado).
+  // Só depois da 1ª, para uma linha nova não "roubar" a compra que pertence a outra linha de valor igual.
+  linhas.forEach((l, idx) => {
+    if (resultado[idx] || !l.cartao_id) return
+    const { chave, n, k } = infos[idx]
+    const valorLinha = k > 1 ? valorParcelaLinha(l, modo) : valorTotalLinha(l, modo)
+    const candidatas = compras
+      .filter((c) => !usadas.has(c.id) && c.cartao_id === l.cartao_id && similaridadeEstabelecimento(chave, chaveEstabelecimento(c.descricao, indice).chave) >= 0.8)
+      .filter((c) => (k > 1 || n > 1 ? Number(c.parcelas) === n : (Number(c.parcelas) || 1) === 1 && diasEntre(l.data, c.data_compra) <= 3))
+      .map((c) => ({ c, d: Math.abs((k > 1 ? Number(c.valor_total) / Number(c.parcelas) : Number(c.valor_total)) - valorLinha) }))
+      .sort((a, b) => a.d - b.d)
+    if (!candidatas.length) return
+    usadas.add(candidatas[0].c.id)
+    resultado[idx] = { tipo: 'valor_diferente', compra: candidatas[0].c, score: 0.6 }
+  })
+
+  return linhas.map((_, idx) => ({ chave: infos[idx].chave, correspondencia: resultado[idx] }))
 }
 
 // Regras de categoria prontas para uso (calcula o histórico uma vez por arquivo, não por linha).
@@ -109,7 +134,7 @@ export function problemasDaLinha(l, categorias, mesFatura, { normalizarData }) {
 
 // Resumo do arquivo para o aviso do topo.
 export function resumirAnalise(linhas) {
-  const ja = (l) => l.correspondencia && ['exata', 'parecida', 'parcelamento'].includes(l.correspondencia.tipo)
+  const ja = (l) => l.correspondencia && ['exata', 'parecida', 'parcelamento', 'valor_diferente'].includes(l.correspondencia.tipo)
   const total = linhas.length
   const jaLancadas = linhas.filter(ja).length
   return {
@@ -117,6 +142,7 @@ export function resumirAnalise(linhas) {
     jaLancadas,
     exatas: linhas.filter((l) => l.correspondencia?.tipo === 'exata').length,
     parecidas: linhas.filter((l) => l.correspondencia?.tipo === 'parecida').length,
+    valoresDiferentes: linhas.filter((l) => l.correspondencia?.tipo === 'valor_diferente').length,
     parcelamentos: linhas.filter((l) => l.correspondencia?.tipo === 'parcelamento').length,
     novas: total - jaLancadas,
     repetidasNoArquivo: linhas.filter((l) => l.duplicataCsv).length,
@@ -128,3 +154,66 @@ export function resumirAnalise(linhas) {
 // Sugestão de nome para a coluna Identificação.
 export const sugerirNomeLinha = (descricao, { compras = [], aliases = [] } = {}) =>
   sugerirIdentificacao({ descricao, compras, indiceAliases: indexarAliases(aliases) })
+
+const dif = (a, b) => Math.round((a - b) * 100) / 100
+
+// Conferência de UMA fatura (cartão + mês) entre o CSV e o que está lançado. Responde "o que falta lançar?":
+//   faltaLancar     está no CSV e não está no Finapp
+//   sobrandoNoFinapp está lançado neste cartão e mês e não aparece no CSV (lançado a mais, de outro mês, nome muito diferente...)
+//   valorDiferente   parece a mesma compra nos dois lados, mas com valores diferentes
+//   contaFixa        linha do CSV que já é uma conta fixa paga neste cartão
+// `linhas` já vêm de analisarLinhas (com `correspondencia`). Valores são sempre os da PARCELA que cai no mês.
+export function conferirFatura({ linhas, compras, cartoes, fixos = [], cartaoId, mes, aliases = [] }, modo = 'parcela') {
+  const indice = indexarAliases(aliases)
+  const doCartao = linhas.filter((l) => l.cartao_id === cartaoId && l.valor !== '' && !Number.isNaN(Number(l.valor)))
+  const { itens, fixos: fixosNoCartao } = itensDaFatura(comprasComGruposSomados(compras), cartoes, cartaoId, mes, fixos)
+  const idsCasados = new Set(doCartao.map((l) => l.correspondencia?.compra?.id).filter(Boolean))
+
+  let faltaLancar = doCartao.filter((l) => !l.correspondencia)
+  let sobrando = itens.filter((i) => !idsCasados.has(i.compra.id))
+  const chaveDe = (d) => chaveEstabelecimento(d, indice).chave
+
+  // linhas do CSV que são uma conta fixa deste cartão (mesmo lugar e valor): não faltam, já existem como fixo
+  const contaFixa = []
+  const fixosLivres = [...fixosNoCartao]
+  faltaLancar = faltaLancar.filter((l) => {
+    const i = fixosLivres.findIndex((f) => Math.abs(f.valor - valorParcelaLinha(l, modo)) < TOLERANCIA_VALOR && similaridadeEstabelecimento(chaveDe(l.descricao), chaveDe(f.nome)) >= 0.8)
+    if (i < 0) return true
+    contaFixa.push({ linha: l, fixo: fixosLivres[i] })
+    fixosLivres.splice(i, 1)
+    return false
+  })
+
+  // mesma compra com valor diferente: já veio pareada da análise (tipo 'valor_diferente')
+  const valorDiferente = []
+  for (const l of doCartao.filter((x) => x.correspondencia?.tipo === 'valor_diferente')) {
+    const compra = l.correspondencia.compra
+    const item = itens.find((i) => i.compra.id === compra.id)
+    const csv = valorParcelaLinha(l, modo)
+    const app = item ? item.valor : (Number(compra.parcelas) > 1 ? Number(compra.valor_total) / Number(compra.parcelas) : Number(compra.valor_total))
+    valorDiferente.push({ linha: l, item: item || { compra, valor: app, parcela: 1, de: Number(compra.parcelas) || 1 }, csv, app, diferenca: dif(csv, app) })
+  }
+
+  const soma = (xs, f) => dif(xs.reduce((t, x) => t + f(x), 0), 0)
+  const totalCsv = soma(doCartao, (l) => valorParcelaLinha(l, modo))
+  const sobrandoTotal = soma(sobrando, (i) => i.valor) + soma(fixosLivres, (f) => f.valor)
+  return {
+    cartaoId, mes,
+    totalCsv,
+    totalFinapp: soma(itens, (i) => i.valor) + soma(fixosNoCartao, (f) => f.valor),
+    faltaLancar: faltaLancar.map((l) => ({ linha: l, valor: valorParcelaLinha(l, modo) })),
+    sobrandoNoFinapp: [
+      ...sobrando.map((i) => ({ compra: i.compra, parcela: i.parcela, de: i.de, valor: i.valor })),
+      ...fixosLivres.map((f) => ({ fixo: f, valor: f.valor })),
+    ],
+    valorDiferente,
+    contaFixa,
+    totais: {
+      falta: soma(faltaLancar, (l) => valorParcelaLinha(l, modo)),
+      sobra: sobrandoTotal,
+      valores: soma(valorDiferente, (v) => v.diferenca),
+    },
+    bate: faltaLancar.length === 0 && sobrando.length === 0 && fixosLivres.length === 0 && valorDiferente.length === 0,
+  }
+}
+
