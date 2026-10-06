@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { fmt, mesLabel, nowYM } from '../lib/utils'
+import { fmt, mesLabel, nowYM, hojeSP } from '../lib/utils'
 import { lancadoDoCartao } from '../lib/financeiro'
+import { lerValorReal, validarFatura, dadosDaFatura } from '../lib/faturaEdicao'
 
 const CHAVE_REVISADAS = 'faturas_revisadas'
 const lerRevisadas = () => {
@@ -8,9 +9,11 @@ const lerRevisadas = () => {
 }
 
 export default function Faturas({ store }) {
-  const { faturas, cartoes, compras, upsertFatura, delFatura } = store
+  const { faturas, cartoes, compras, upsertFatura, updateFatura, delFatura } = store
   const [modal, setModal] = useState(false)
-  const [form, setForm] = useState({ cartao_id: '', mes: nowYM(), valor_real: '' })
+  const formVazio = { cartao_id: '', mes: nowYM(), valor_real: '', pago: false, data_pagamento: '' }
+  const [form, setForm] = useState(formVazio)
+  const [editId, setEditId] = useState(null) // null = lançando uma fatura nova
   const [saving, setSaving] = useState(false)
   const s = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
 
@@ -32,10 +35,34 @@ export default function Faturas({ store }) {
     await upsertFatura({ cartao_id: f.cartao_id, mes: f.mes, valor_real: null })
   }
 
+  function abrirNova(extra = {}) {
+    setForm({ ...formVazio, ...extra })
+    setEditId(null)
+    setModal(true)
+  }
+  function abrirEdicao(fat) {
+    setForm({
+      cartao_id: fat.cartao_id,
+      mes: fat.mes,
+      valor_real: temReal(fat) ? String(fat.valor_real) : '',
+      pago: !!fat.pago,
+      data_pagamento: fat.data_pagamento ? String(fat.data_pagamento).slice(0, 10) : '',
+    })
+    setEditId(fat.id)
+    setModal(true)
+  }
+
+  const erros = validarFatura(form, { faturas, cartoes, id: editId })
   async function salvar() {
-    if (!form.cartao_id || !form.mes || !form.valor_real) return
+    if (erros.length) return
     setSaving(true)
-    const ok = await upsertFatura({ cartao_id: form.cartao_id, mes: form.mes, valor_real: Number(form.valor_real) })
+    let ok
+    if (editId) {
+      ok = await updateFatura(editId, dadosDaFatura(form, hojeSP()))
+    } else {
+      // fatura nova: guarda só o valor (o pagamento continua sendo marcado em Pagamentos, como antes)
+      ok = await upsertFatura({ cartao_id: form.cartao_id, mes: form.mes, valor_real: lerValorReal(form.valor_real).valor })
+    }
     setSaving(false)
     if (ok) setModal(false) // se deu erro, mantém o formulário
   }
@@ -47,9 +74,11 @@ export default function Faturas({ store }) {
       {modal && (
         <div className="overlay" onClick={(e) => { if (e.target.className === 'overlay') setModal(false) }}>
           <div className="modal">
-            <div className="modal-title">Lançar fatura</div>
+            <div className="modal-title">{editId ? 'Editar fatura' : 'Lançar fatura'}</div>
             <div className="alert alert-blue" style={{ marginBottom: 16 }}>
-              Informe o valor total que aparece no app do banco. O sistema compara com seus lançamentos e mostra a diferença.
+              {editId
+                ? 'Corrija o valor do banco, o cartão, o mês ou o pagamento. Deixar o valor vazio faz a fatura voltar a valer o que foi lançado.'
+                : 'Informe o valor total que aparece no app do banco. O sistema compara com seus lançamentos e mostra a diferença.'}
             </div>
             <div className="form-row cols2">
               <div className="form-group">
@@ -66,19 +95,37 @@ export default function Faturas({ store }) {
             </div>
             <div className="form-row">
               <div className="form-group">
-                <label>Valor real da fatura (R$)</label>
+                <label>Valor real da fatura (R$){editId ? ' — opcional' : ''}</label>
                 <input type="number" step="0.01" min="0" placeholder="0,00" value={form.valor_real} onChange={s('valor_real')} autoFocus />
               </div>
             </div>
             {form.cartao_id && form.mes && (
               <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: -8, marginBottom: 8 }}>
                 Lançado neste mês: {fmt(getLancado(form.cartao_id, form.mes))}
+                {lerValorReal(form.valor_real).valor > 0 && ` · diferença para o banco: ${fmt(lerValorReal(form.valor_real).valor - getLancado(form.cartao_id, form.mes))}`}
               </div>
+            )}
+            {editId && (
+              <div className="form-row cols2" style={{ marginBottom: 8 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={form.pago} onChange={(e) => setForm((f) => ({ ...f, pago: e.target.checked, data_pagamento: e.target.checked ? f.data_pagamento || hojeSP() : '' }))} />
+                  Fatura paga
+                </label>
+                {form.pago && (
+                  <div className="form-group">
+                    <label>Pago em</label>
+                    <input type="date" value={form.data_pagamento} onChange={s('data_pagamento')} />
+                  </div>
+                )}
+              </div>
+            )}
+            {erros.length > 0 && (form.valor_real !== '' || editId) && (
+              <div style={{ fontSize: 12, color: 'var(--amber)', marginBottom: 8 }}>{erros[0]}</div>
             )}
             <div className="modal-footer">
               <button className="btn btn-ghost" onClick={() => setModal(false)}>Cancelar</button>
-              <button className="btn btn-primary" onClick={salvar} disabled={!form.cartao_id || !form.valor_real || saving}>
-                {saving ? 'Salvando...' : 'Salvar fatura'}
+              <button className="btn btn-primary" onClick={salvar} disabled={erros.length > 0 || saving}>
+                {saving ? 'Salvando...' : editId ? 'Salvar alterações' : 'Salvar fatura'}
               </button>
             </div>
           </div>
@@ -86,7 +133,7 @@ export default function Faturas({ store }) {
       )}
 
       <div className="toolbar">
-        <button className="btn btn-primary" onClick={() => { setForm({ cartao_id: '', mes: nowYM(), valor_real: '' }); setModal(true) }}>
+        <button className="btn btn-primary" onClick={() => abrirNova()}>
           + Lançar fatura
         </button>
       </div>
@@ -155,9 +202,12 @@ export default function Faturas({ store }) {
                           <td style={{ textAlign: 'right', color: 'var(--text3)' }}>—</td>
                           <td>
                             <span className="badge badge-gray">sem valor do banco</span>{' '}
-                            <button className="btn btn-ghost btn-sm" onClick={() => { setForm({ cartao_id: fat.cartao_id, mes, valor_real: '' }); setModal(true) }}>Informar valor</button>
+                            {fat.pago && <span className="badge badge-green">paga</span>}{' '}
+                            <button className="btn btn-ghost btn-sm" onClick={() => abrirEdicao(fat)}>Informar valor</button>
                           </td>
-                          <td />
+                          <td>
+                            <button className="btn btn-ghost btn-sm" onClick={() => abrirEdicao(fat)} style={{ marginRight: 6 }}>Editar</button>
+                          </td>
                         </tr>
                       )
                     }
@@ -177,8 +227,10 @@ export default function Faturas({ store }) {
                             : diff > 0
                               ? <span className="badge badge-red">{pct}% lançado</span>
                               : <span className="badge badge-amber">excede</span>}
+                          {fat.pago && <> <span className="badge badge-green" title={fat.data_pagamento ? `Paga em ${String(fat.data_pagamento).slice(0, 10).split('-').reverse().join('/')}` : 'Paga'}>paga</span></>}
                         </td>
-                        <td>
+                        <td style={{ whiteSpace: 'nowrap' }}>
+                          <button className="btn btn-ghost btn-sm" onClick={() => abrirEdicao(fat)} style={{ marginRight: 6 }}>Editar</button>
                           <button className="btn btn-danger" onClick={() => { if (confirm('Remover o valor real desta fatura? Se ela estava marcada como paga, isso também some.')) delFatura(fat.id) }}>×</button>
                         </td>
                       </tr>

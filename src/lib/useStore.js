@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { sb } from './supabase.js'
 import { hojeSP, mesLabel } from './utils.js'
-import { mesesFechadosTocados } from './fechamento.js'
+import { mesesFechadosTocados, mesFechado } from './fechamento.js'
+import { mesesAfetadosPelaFatura } from './faturaEdicao.js'
 import { gerarCodigo, hashCodigo } from './pareamento.js'
 
 const POR_PAGINA = 1000 // o Supabase devolve no máximo 1000 linhas por consulta
@@ -300,6 +301,27 @@ export function useStore(email = null) {
     }
     if (r.error) throw r.error
   }, ['faturas'])
+  // Editar uma fatura (valor real, cartão, mês, pagamento). Mudar fatura de mês FECHADO muda os números dele:
+  // pede o motivo e registra na auditoria, como nas compras.
+  const updateFatura = async (id, data) => {
+    const antes = faturas.find((f) => f.id === id)
+    const fechados = mesesAfetadosPelaFatura(antes, data).filter((m) => mesFechado(fechamentos, m))
+    let motivo = null
+    if (fechados.length) {
+      motivo = window.prompt(`${fechados.map(mesLabel).join(', ')} já está fechado e esta alteração muda os números dele.\n\nPara continuar, escreva o motivo:`)
+      if (!motivo || motivo.trim().length < 3) return false
+    }
+    const ok = await op(async () => {
+      const r = await sb.from('faturas').update(data).eq('id', id)
+      if (r.error?.code === '23505') throw new Error('Já existe uma fatura desse cartão nesse mês.')
+      if (r.error?.code === '23502') throw new Error('Falta rodar a atualização 13 do banco (arquivo inbox/13_faturas_valor_real_opcional.sql no Supabase).')
+      if (r.error) throw r.error
+    }, ['faturas'])
+    if (ok && fechados.length) {
+      await registrarAuditoria({ entidade: 'fatura', entidade_id: id, acao: 'editar_em_mes_fechado', antes, depois: data, motivo: `${motivo.trim()} (meses fechados: ${fechados.join(', ')})` })
+    }
+    return ok
+  }
   const delFatura = (id) => op(async () => {
     const r = await sb.from('faturas').delete().eq('id', id)
     if (r.error) throw r.error
@@ -660,7 +682,7 @@ export function useStore(email = null) {
     addCompra, updateCompra, salvarDivisao, updateComprasLote, delCompra,
     upsertRenda,
     addFixo, updateFixo, delFixo,
-    upsertFatura, delFatura,
+    upsertFatura, updateFatura, delFatura,
     marcarFixoPago, marcarParcelaPaga,
     fecharMes, reabrirMes, listarAuditoria, registrarAuditoria,
     definirAjusteSaldo,
