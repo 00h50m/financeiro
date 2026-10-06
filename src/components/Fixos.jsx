@@ -1,6 +1,9 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { compilar } from '../lib/filtro'
 import { mediaRecente } from '../lib/fixosVariaveis'
+import { detectarRecorrencias } from '../lib/recorrencias'
+import { indexarAliases } from '../lib/estabelecimento'
+import { paraCsv, baixarCsv } from '../lib/csvExport'
 import { CampoBusca, ResumoFiltro } from './FiltroLista'
 import { fmt, mesLabel, nowYM, addMonths, fixosAtivos, corPessoa, nomeCasa, donoDoFixo } from '../lib/utils'
 
@@ -20,6 +23,19 @@ export default function Fixos({ store }) {
   const [filtroPagamento, setFiltroPagamento] = useState('') // 'cartao' | 'avulsa' | 'variavel'
   const [saving, setSaving] = useState(false)
   const mesAtual = nowYM()
+  const [ignoradas, setIgnoradas] = useState(() => { try { return JSON.parse(localStorage.getItem('recorrencias_ignoradas') || '[]') } catch { return [] } })
+  const ignorar = (chave) => { const l = [...ignoradas, chave]; setIgnoradas(l); try { localStorage.setItem('recorrencias_ignoradas', JSON.stringify(l)) } catch { /* sem armazenamento */ } }
+  const recorrentes = useMemo(() => detectarRecorrencias(store.compras, fixos, mesAtual, { aliases: indexarAliases(store.aliases || []), ignoradas }), [store.compras, store.aliases, fixos, mesAtual, ignoradas])
+  async function cadastrarRecorrente(r) {
+    // se a cobrança deste mês já foi lançada como compra, a conta fixa só começa no mês que vem (senão contaria duas vezes)
+    const inicio = r.meses.includes(mesAtual) ? addMonths(mesAtual, 1) : mesAtual
+    if (!confirm(`Cadastrar "${r.nome}" como conta fixa de ${fmt(r.ultimo)}${r.valorFixo ? '' : ' (valor variável, estimativa pela última cobrança)'}?\n\nComeça em ${mesLabel(inicio)}${r.cartao_id ? ' e passa a contar dentro da fatura do cartão' : ''}. As compras já lançadas continuam como estão.`)) return
+    await addFixo({
+      nome: r.nome, valor: r.ultimo, pessoa: r.pessoa || null, categoria: r.categoria, subcategoria: r.subcategoria, ativo: true, mes_inicio: inicio,
+      ...(colunaCartaoOk && r.cartao_id ? { cartao_id: r.cartao_id } : {}),
+      ...(colunaVariavelOk && !r.valorFixo ? { variavel: true } : {}),
+    })
+  }
   const casa = nomeCasa(pessoas)
   // Sem a coluna no banco (fixos_cartao.sql não rodou) o campo fica desligado, para não quebrar o salvamento.
   const colunaVariavelOk = fixosValoresOk && (fixos.length === 0 || 'variavel' in fixos[0])
@@ -242,6 +258,13 @@ export default function Fixos({ store }) {
 
       <div className="toolbar">
         <button className="btn btn-primary" onClick={() => abrir(null)}>+ Novo fixo</button>
+        <button className="btn btn-ghost btn-sm" disabled={!fixosVisiveis.length} title="Baixa a lista que está na tela (com os filtros) em CSV, para abrir no Excel"
+          onClick={() => baixarCsv('contas-fixas', paraCsv([
+            { titulo: 'Nome', valor: (f) => f.nome }, { titulo: 'De quem', valor: (f) => donoDoFixo(f, pessoas) }, { titulo: 'Categoria', valor: (f) => f.categoria },
+            { titulo: 'Subcategoria', valor: (f) => f.subcategoria }, { titulo: 'Valor (mês atual)', valor: (f) => Number(ativosAgora.find((x) => x.id === f.id)?.valor ?? f.valor) },
+            { titulo: 'Valor variável', valor: (f) => (f.variavel ? 'sim' : 'não') }, { titulo: 'Cartão', valor: (f) => cartoes.find((c) => c.id === f.cartao_id)?.nome || '' },
+            { titulo: 'Vencimento (dia)', valor: (f) => f.dia_vencimento || '' }, { titulo: 'Início', valor: (f) => f.mes_inicio || '' }, { titulo: 'Fim', valor: (f) => f.mes_fim || '' },
+          ], fixosVisiveis))}>Exportar CSV</button>
         <CampoBusca valor={busca} onChange={setBusca} />
         <select value={filtroStatus} onChange={(e) => setFiltroStatus(e.target.value)} aria-label="Filtrar por situação">
           <option value="">Ativas e encerradas</option>
@@ -264,6 +287,34 @@ export default function Fixos({ store }) {
         </span>
       </div>
 
+      {recorrentes.length > 0 && (
+        <details className="card" style={{ padding: '10px 14px', marginBottom: 14 }}>
+          <summary style={{ cursor: 'pointer', fontSize: 13 }}>
+            <b>{recorrentes.length} cobrança{recorrentes.length > 1 ? 's' : ''} recorrente{recorrentes.length > 1 ? 's' : ''} detectada{recorrentes.length > 1 ? 's' : ''}</b>
+            <span style={{ color: 'var(--text3)' }}> — aparecem todo mês nas compras e ainda não são contas fixas</span>
+            {recorrentes.some((r) => r.aumento) && <span className="badge badge-amber" style={{ marginLeft: 8, fontSize: 10 }}>preço subiu</span>}
+          </summary>
+          <table style={{ marginTop: 10 }}>
+            <thead><tr><th>Cobrança</th><th style={{ textAlign: 'right' }}>Última</th><th>Histórico</th><th /></tr></thead>
+            <tbody>
+              {recorrentes.map((r) => (
+                <tr key={r.chave + r.cartao_id}>
+                  <td>{r.nome}<div style={{ fontSize: 11, color: 'var(--text3)' }}>{r.categoria}{!r.valorFixo && ' · valor varia'}</div></td>
+                  <td style={{ textAlign: 'right' }} className="mono">
+                    {fmt(r.ultimo)}
+                    {r.aumento && <div style={{ fontSize: 11, color: 'var(--amber)' }}>↑ {r.aumento.pct}% (era {fmt(r.aumento.de)})</div>}
+                  </td>
+                  <td style={{ fontSize: 12, color: 'var(--text2)' }}>{r.meses.length} meses seguidos · média {fmt(r.medio)}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>
+                    <button className="btn btn-primary btn-sm" onClick={() => cadastrarRecorrente(r)}>Cadastrar como conta fixa</button>{' '}
+                    <button className="btn btn-ghost btn-sm" onClick={() => ignorar(r.chave)}>Ignorar</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </details>
+      )}
       <ResumoFiltro ativo={filtroAtivo} mostrando={fixosVisiveis.length} total={fixos.length} onLimpar={limparFiltros} />
       <div className="card">
         {fixosVisiveis.length === 0 ? (

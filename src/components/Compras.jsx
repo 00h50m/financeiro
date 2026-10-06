@@ -5,6 +5,7 @@ import ModalCompra from './ModalCompra'
 import { rotuloOrigem } from '../lib/origem'
 import { partesDoGrupo } from '../lib/divisaoCompra'
 import { compilar } from '../lib/filtro'
+import { paraCsv, baixarCsv } from '../lib/csvExport'
 import { CampoBusca, ResumoFiltro } from './FiltroLista'
 
 export default function Compras({ store }) {
@@ -85,6 +86,7 @@ export default function Compras({ store }) {
           grupo={edicao?.grupo || null}
           gruposOk={gruposOk}
           faturaMesOk={compras.some((c) => 'fatura_mes' in c)}
+          comprasExistentes={compras}
           avisoPagamentos={!!edicao && (comprasPagamentos || []).some((p) => (edicao.grupo || [edicao.compra]).some((c) => c.id === p.compra_id))}
           onSave={edicao?.compra ? (dados) => updateCompra(edicao.compra.id, dados) : addCompra}
           onSaveDivisao={salvarDivisao}
@@ -120,7 +122,14 @@ export default function Compras({ store }) {
           <option value="vista">Só à vista</option>
           <option value="parcelada">Só parceladas</option>
         </select>
-        <button className="btn btn-primary" onClick={() => setModal(true)} style={{ marginLeft: 'auto' }}>
+        <button className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto' }} disabled={!lista.length} title="Baixa a lista que está na tela (com os filtros) em CSV, para abrir no Excel"
+          onClick={() => baixarCsv('compras', paraCsv([
+            { titulo: 'Data', valor: (c) => String(c.data_compra).slice(0, 10).split('-').reverse().join('/') }, { titulo: 'Descrição', valor: (c) => c.descricao }, { titulo: 'Identificação', valor: (c) => c.identificacao || '' },
+            { titulo: 'Pessoa', valor: (c) => c.pessoa }, { titulo: 'Categoria', valor: (c) => c.categoria }, { titulo: 'Subcategoria', valor: (c) => c.subcategoria },
+            { titulo: 'Cartão', valor: (c) => cartoes.find((x) => x.id === c.cartao_id)?.nome || 'Sem cartão' }, { titulo: 'Valor total', valor: (c) => Number(c.valor_total) },
+            { titulo: 'Parcelas', valor: (c) => Number(c.parcelas) || 1 }, { titulo: 'Valor da parcela', valor: (c) => valorParcelaBase(c) }, { titulo: 'Observação', valor: (c) => c.obs || '' },
+          ], lista))}>Exportar CSV</button>
+        <button className="btn btn-primary" onClick={() => setModal(true)}>
           + Nova compra
         </button>
       </div>
