@@ -36,3 +36,12 @@ export function unirValores(fixos, valoresPorId) {
   }
   return saida
 }
+
+// Versões que sobram numa conta: cópias que começam no mesmo mês da principal, ou antigas que ficaram sem data de fim
+// (as duas valem no mesmo mês que a principal e são contadas só uma vez, mas continuam no banco até serem juntadas).
+export function versoesRedundantes(grupo) {
+  const p = grupo.principal
+  return grupo.versoes.filter((v) => v.id !== p.id && v.ativo && (
+    inicioDe(v) === inicioDe(p) || (!v.mes_fim && inicioDe(v) < inicioDe(p))
+  ))
+}

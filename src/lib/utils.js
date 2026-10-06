@@ -1,3 +1,4 @@
+import { chaveConta } from './fixosVersoes.js'
 // Compra tem `descricao` (nome como aparece no cartão) e `identificacao` (o que é, escrito pela usuária).
 export const tituloCompra = (c) => c.identificacao || c.descricao
 export const subtituloCompra = (c) => (c.identificacao ? c.descricao : '')
@@ -93,14 +94,26 @@ export const totalRenda = (r) =>
 // Contas fixas que contam como ativas em um mês (respeita o mês de início e o de término).
 // Conta de valor variável: usa o valor real informado para aquele mês (f.valores[mes]); sem ele, a estimativa (f.valor)
 // e `estimado: true`. Cada mês é independente: informar um mês não mexe nos outros.
-export const fixosAtivos = (fixos, mes) =>
-  fixos
+// Se a mesma conta (nome, dono e cartão) aparece em mais de uma versão no mesmo mês — acontece quando uma edição criou
+// cópias —, só UMA conta: a que começou por último (empate: a mais recente). Assim o total nunca conta a conta duas vezes.
+export const fixosAtivos = (fixos, mes) => {
+  const vigentes = fixos
     .filter((f) => f.ativo && (!f.mes_inicio || f.mes_inicio <= mes) && (!f.mes_fim || f.mes_fim >= mes))
     .map((f) => {
       const real = f.valores?.[mes]
-      if (real != null) return { ...f, valor: Number(real), estimado: false }
-      return f.variavel ? { ...f, estimado: true } : f
+      // a cópia continua levando os valores reais de todos os meses (não enumerável: não vai para backup nem gravação)
+      const comValores = (o) => (f.valores ? Object.defineProperty(o, 'valores', { value: f.valores, enumerable: false }) : o)
+      if (real != null) return comValores({ ...f, valor: Number(real), estimado: false })
+      return f.variavel ? comValores({ ...f, estimado: true }) : f
     })
+  const escolhida = new Map()
+  vigentes.forEach((f, i) => {
+    const k = chaveConta(f)
+    const atual = escolhida.get(k)
+    if (!atual || (f.mes_inicio || '') >= (atual.f.mes_inicio || '')) escolhida.set(k, { f, i })
+  })
+  return vigentes.filter((f, i) => escolhida.get(chaveConta(f)).i === i)
+}
 
 // Gastos do mês agrupados por categoria: parcela do mês de cada compra + contas fixas categorizadas.
 // Retorna { [categoria]: { total, itens: [{ nome, sub, valor, origem, detalhe }] } }.

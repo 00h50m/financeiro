@@ -5,13 +5,13 @@ import { resumoDoMes, lerUsarSaldoAnterior } from '../lib/financeiro'
 import { comprasLiquidas, fixosLiquidos } from '../lib/divisoes'
 import { riscosDoMes, mesFechado } from '../lib/fechamento'
 import { pendenciasValorVariavel } from '../lib/fixosVariaveis'
-import { textoResumoMensal } from '../lib/resumoMensal'
+import { montarResumoMensal, textoDoResumo } from '../lib/resumoMensal'
 
 export default function Dashboard({ store, irPara }) {
   const { compras, cartoes, fixos, pessoas, orcamentos } = store
   const mes = nowYM()
   const [abertas, setAbertas] = useState({})
-  const [resumo, setResumo] = useState(null) // texto do resumo do mês (modal)
+  const [resumo, setResumo] = useState(null) // resumo do mês (modal): dados estruturados
   const [copiado, setCopiado] = useState(false)
   const alternar = (categoria) => setAbertas((a) => ({ ...a, [categoria]: !a[categoria] }))
 
@@ -80,13 +80,38 @@ export default function Dashboard({ store, irPara }) {
     <div className="page">
       {resumo != null && (
         <div className="overlay" onClick={(e) => { if (e.target.className === 'overlay') setResumo(null) }}>
-          <div className="modal">
-            <div className="modal-title">Resumo de {mesLabel(mes)}</div>
-            <textarea readOnly value={resumo} rows={16} style={{ width: '100%', fontFamily: 'DM Mono, monospace', fontSize: 12, lineHeight: 1.6 }} onFocus={(e) => e.target.select()} aria-label="Texto do resumo" />
-            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 6 }}>Texto simples, pronto para colar no WhatsApp ou Telegram. Usa os mesmos números do Dashboard.</div>
+          <div className="modal" style={{ maxWidth: 520 }}>
+            <div className="modal-title">{resumo.titulo}</div>
+            {resumo.vazio ? <div className="empty" style={{ padding: 24 }}>Ainda não há renda nem gastos neste mês.</div> : (
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, marginBottom: 12 }}>
+                  {resumo.kpis.map((k) => (
+                    <div key={k.rotulo} style={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px' }}>
+                      <div style={{ fontSize: 11, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '.06em' }}>{k.rotulo}</div>
+                      <div className="mono" style={{ fontSize: 17, marginTop: 4, color: k.tom === 'bom' ? 'var(--green)' : k.tom === 'ruim' ? 'var(--red)' : 'var(--text)' }}>{k.valor}</div>
+                      {k.nota && <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>{k.nota}</div>}
+                    </div>
+                  ))}
+                </div>
+                {resumo.comparativo && <div style={{ fontSize: 13, color: resumo.comparativo.dif > 0 ? 'var(--amber)' : 'var(--green)', marginBottom: 12 }}>{resumo.comparativo.dif > 0 ? '↑' : resumo.comparativo.dif < 0 ? '↓' : '='} {resumo.comparativo.texto}</div>}
+                {resumo.categorias.length > 0 && (
+                  <>
+                    <div className="section-label" style={{ margin: '4px 0 6px' }}>onde foi o dinheiro</div>
+                    {resumo.categorias.map((c) => (
+                      <div key={c.nome} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 13, padding: '5px 0', borderBottom: '1px solid var(--border)' }}>
+                        <span>{c.nome}</span><span className="mono">{fmt(c.valor)} <span style={{ color: 'var(--text3)' }}>· {String(c.pct).replace('.', ',')}%</span></span>
+                      </div>
+                    ))}
+                  </>
+                )}
+                {resumo.avisos.map((a, i) => (
+                  <div key={i} className={`alert alert-${a.tom === 'ruim' ? 'red' : a.tom === 'atencao' ? 'amber' : a.tom === 'bom' ? 'green' : 'blue'}`} style={{ marginTop: 10, marginBottom: 0, fontSize: 12 }}>{a.texto}</div>
+                ))}
+              </>
+            )}
             <div className="modal-footer">
               <button className="btn btn-ghost" onClick={() => setResumo(null)}>Fechar</button>
-              <button className="btn btn-primary" onClick={async () => { try { await navigator.clipboard.writeText(resumo); setCopiado(true); setTimeout(() => setCopiado(false), 2000) } catch { window.alert('Não consegui copiar automaticamente. Toque no texto, selecione tudo e copie.') } }}>{copiado ? 'Copiado ✓' : 'Copiar'}</button>
+              <button className="btn btn-primary" disabled={resumo.vazio} title="Copia como texto simples, pronto para colar no WhatsApp ou Telegram" onClick={async () => { try { await navigator.clipboard.writeText(textoDoResumo(resumo)); setCopiado(true); setTimeout(() => setCopiado(false), 2000) } catch { window.alert('Não consegui copiar automaticamente neste navegador.') } }}>{copiado ? 'Copiado ✓' : 'Copiar como texto'}</button>
             </div>
           </div>
         </div>
@@ -94,7 +119,7 @@ export default function Dashboard({ store, irPara }) {
 
       <div className="section-label" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <span>{mesLabel(mes)} · central do mês{fechadoAtual ? ' · fechado' : ''}</span>
-        <button className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto', textTransform: 'none', letterSpacing: 0 }} onClick={() => setResumo(textoResumoMensal(store, mes, hojeSP()))}>Resumo do mês</button>
+        <button className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto', textTransform: 'none', letterSpacing: 0 }} onClick={() => setResumo(montarResumoMensal(store, mes, hojeSP()))}>Resumo do mês</button>
       </div>
 
       <div className="metric-grid">

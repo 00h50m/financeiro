@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { sb } from './supabase.js'
-import { hojeSP, mesLabel } from './utils.js'
+import { hojeSP, mesLabel, addMonths, nowYM } from './utils.js'
 import { mesesFechadosTocados, mesFechado } from './fechamento.js'
 import { mesesAfetadosPelaFatura } from './faturaEdicao.js'
 import { amigavel, explicarErro } from './erros.js'
 import { avisoTeto } from './alertaTeto.js'
-import { unirValores } from './fixosVersoes.js'
+import { unirValores, chaveConta } from './fixosVersoes.js'
 import { gerarCodigo, hashCodigo } from './pareamento.js'
 
 const POR_PAGINA = 1000 // o Supabase devolve no máximo 1000 linhas por consulta
@@ -400,6 +400,23 @@ export function useStore(email = null) {
     return ok
   }
 
+  // Junta cópias duplicadas de uma conta fixa: os valores reais e pagamentos das cópias passam para a conta que fica
+  // (sem sobrescrever o que ela já tem) e só então as cópias são removidas.
+  const juntarVersoes = (principalId, removerIds) => op(async () => {
+    const valores = fixosValores.filter((v) => removerIds.includes(v.fixo_id)).map(({ mes, valor }) => ({ fixo_id: principalId, mes, valor }))
+    if (valores.length && fixosValoresOk) {
+      const r = await sb.from('fixos_valores').upsert(valores, { onConflict: 'fixo_id,mes', ignoreDuplicates: true })
+      if (r.error) throw r.error
+    }
+    const pagamentos = fixosPagamentos.filter((p) => removerIds.includes(p.fixo_id)).map(({ mes, pago, data_pagamento }) => ({ fixo_id: principalId, mes, pago, data_pagamento }))
+    if (pagamentos.length) {
+      const r = await sb.from('fixos_pagamentos').upsert(pagamentos, { onConflict: 'fixo_id,mes', ignoreDuplicates: true })
+      if (r.error) throw r.error
+    }
+    const r = await sb.from('fixos').delete().in('id', removerIds)
+    if (r.error) throw r.error
+  }, ['fixos', 'fixosPagamentos', 'fixosValores'], 'juntar as versões duplicadas da conta')
+
   // VALOR REAL DE CONTA FIXA VARIÁVEL (por mês): só aquele mês muda. Em mês fechado pede o motivo e audita.
   const definirValorFixo = async (fixo_id, mes, valor) => {
     const antes = fixosValores.find((v) => v.fixo_id === fixo_id && v.mes === mes)?.valor ?? null
@@ -408,14 +425,41 @@ export function useStore(email = null) {
       motivo = window.prompt(`${mesLabel(mes)} já está fechado e esta alteração muda os números dele.\n\nPara continuar, escreva o motivo:`)
       if (!motivo || motivo.trim().length < 3) return false
     }
+    // o valor do mês é da CONTA (todas as versões dela): ao gravar ou apagar, nenhuma versão fica com outro valor guardado para o mesmo mês
+    const fx = fixos.find((f) => f.id === fixo_id)
+    const idsDaConta = fx ? fixos.filter((f) => chaveConta(f) === chaveConta(fx)).map((f) => f.id) : [fixo_id]
     const ok = await op(async () => {
-      const r = valor == null
-        ? await sb.from('fixos_valores').delete().eq('fixo_id', fixo_id).eq('mes', mes)
-        : await sb.from('fixos_valores').upsert({ fixo_id, mes, valor }, { onConflict: 'fixo_id,mes' })
+      let r = await sb.from('fixos_valores').delete().in('fixo_id', idsDaConta).eq('mes', mes)
       if (r.error) throw r.error
-    }, ['fixosValores'])
+      if (valor != null) {
+        r = await sb.from('fixos_valores').upsert({ fixo_id, mes, valor }, { onConflict: 'fixo_id,mes' })
+        if (r.error) throw r.error
+      }
+    }, ['fixosValores'], valor == null ? 'voltar o mês para a estimativa' : 'salvar o valor do mês')
     if (ok && motivo) {
       await registrarAuditoria({ entidade: 'fixo_valor', entidade_id: fixo_id, acao: 'editar_em_mes_fechado', antes: { mes, valor: antes }, depois: { mes, valor }, motivo: `${motivo.trim()} (mês fechado: ${mes})` })
+    }
+    return ok
+  }
+
+  // Apagar um período do histórico de valores (uma versão antiga da conta). Muda os números dos meses desse período:
+  // se algum deles já está fechado, exige o motivo e registra na auditoria.
+  const apagarVersaoFixo = async (versao) => {
+    const meses = []
+    for (let m = versao.mes_inicio || addMonths(nowYM(), -24); m <= (versao.mes_fim || nowYM()) && meses.length < 120; m = addMonths(m, 1)) meses.push(m)
+    const fechados = meses.filter((m) => mesFechado(fechamentos, m))
+    let motivo = null
+    if (fechados.length) {
+      motivo = window.prompt(`Este período inclui ${fechados.length === 1 ? 'um mês já fechado' : `${fechados.length} meses já fechados`} (${fechados.slice(0, 3).map(mesLabel).join(', ')}${fechados.length > 3 ? '…' : ''}). Apagar muda os números ${fechados.length === 1 ? 'dele' : 'deles'}.\n\nPara continuar, escreva o motivo:`)
+      if (!motivo || motivo.trim().length < 3) return false
+    }
+    const ok = await op(async () => {
+      const r = await sb.from('fixos').delete().eq('id', versao.id)
+      if (r.error) throw r.error
+    }, ['fixos', 'fixosPagamentos', 'fixosValores'], 'apagar o período da conta fixa')
+    if (ok) {
+      oferecerDesfazer(`Período da conta "${versao.nome}" apagado.`, [{ tabela: 'fixos', linhas: [versao] }, { tabela: 'fixos_pagamentos', linhas: fixosPagamentos.filter((p) => p.fixo_id === versao.id) }, ...(fixosValoresOk ? [{ tabela: 'fixos_valores', linhas: fixosValores.filter((v) => v.fixo_id === versao.id) }] : [])], ['fixos', 'fixosPagamentos', 'fixosValores'])
+      if (motivo) await registrarAuditoria({ entidade: 'fixo', entidade_id: versao.id, acao: 'apagar_periodo_em_mes_fechado', antes: versao, motivo: `${motivo.trim()} (meses fechados: ${fechados.join(', ')})` })
     }
     return ok
   }
@@ -788,7 +832,7 @@ export function useStore(email = null) {
     addFixo, updateFixo, delFixo,
     upsertFatura, updateFatura, delFatura,
     marcarFixoPago, marcarParcelaPaga,
-    aviso, mostrarAviso, desfazivel, desfazerExclusao, dispensarDesfazer,
+    juntarVersoes, apagarVersaoFixo, aviso, mostrarAviso, desfazivel, desfazerExclusao, dispensarDesfazer,
     fecharMes, reabrirMes, listarAuditoria, registrarAuditoria,
     definirAjusteSaldo,
     atualizarRegra, esquecerRegra,

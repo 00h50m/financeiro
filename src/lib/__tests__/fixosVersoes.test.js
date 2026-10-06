@@ -28,3 +28,16 @@ describe('versões de uma conta fixa', () => {
     expect(m.has('c')).toBe(false)
   })
 })
+
+import { versoesRedundantes } from '../fixosVersoes'
+describe('versões redundantes', () => {
+  it('cópias do mesmo mês e antigas sem fim sobram; a encerrada com fim é histórico legítimo', () => {
+    const base = { nome: 'Condomínio', valor: 900, ativo: true }
+    const lista = [{ ...base, id: 'a', mes_inicio: null, mes_fim: '2026-09', valor: 748 }, { ...base, id: 'b', mes_inicio: '2026-10' }, { ...base, id: 'c', mes_inicio: '2026-10' }, { ...base, id: 'd', mes_inicio: '2026-10' }]
+    const g = agruparVersoes(lista, '2026-10')[0]
+    expect(g.principal.id).toBe('d')
+    expect(versoesRedundantes(g).map((v) => v.id).sort()).toEqual(['b', 'c'])
+    const g2 = agruparVersoes([{ ...base, id: 'x', mes_inicio: null }, { ...base, id: 'y', mes_inicio: '2026-10' }], '2026-10')[0]
+    expect(versoesRedundantes(g2).map((v) => v.id)).toEqual(['x'])
+  })
+})
