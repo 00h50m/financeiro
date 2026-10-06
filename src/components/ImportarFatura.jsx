@@ -1,13 +1,14 @@
 import { normalizarData, normalizarValor } from '../lib/csvFormato'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Papa from 'papaparse'
 import { fmt, mesLabel, calcMesInicio, addMonths, nowYM, gerarParcelas, tituloCompra } from '../lib/utils'
 import { extrairParcela, limparDescricao, normBasico } from '../lib/normalizacao'
 import { chaveEstabelecimento, indexarAliases } from '../lib/estabelecimento'
 import {
   analisarLinhas, prepararRegras, sugerirCategoriaLinha, sugerirNomeLinha, problemasDaLinha, resumirAnalise,
-  resolverCartaoPorNome, valorParcelaLinha, valorTotalLinha,
+  resolverCartaoPorNome, valorParcelaLinha, valorTotalLinha, conferirFatura,
 } from '../lib/importacao'
+import EditarCompra from './EditarCompra'
 import { rotuloOrigem } from '../lib/origem'
 
 const COLUNAS_ESPERADAS = ['data', 'descricao', 'valor', 'categoria', 'parcela_atual', 'parcela_total', 'cartao', 'observacao']
@@ -32,7 +33,7 @@ function recalcular(linhas, compras, aliases, modo) {
     const { chave, correspondencia } = achados[i]
     const emAndamento = Number(l.parcela_atual) > 1
     const tipo = correspondencia?.tipo
-    const jaLancada = tipo === 'exata' || tipo === 'parecida'
+    const jaLancada = tipo === 'exata' || tipo === 'parecida' || tipo === 'valor_diferente'
     const parcelamentoJa = tipo === 'parcelamento'
     return {
       ...l,
@@ -48,6 +49,118 @@ function recalcular(linhas, compras, aliases, modo) {
   return marcarDuplicatasNoCsv(comFlags)
 }
 
+
+const fmtDia = (iso) => String(iso).slice(0, 10).split('-').reverse().slice(0, 2).join('/')
+
+// "O que falta lançar?": compara o CSV com o que está lançado neste cartão e mês, nos dois sentidos.
+function PainelConferencia({ conf, cartaoNome, faturaReal, onEditar }) {
+  const [aberto, setAberto] = useState(true)
+  const { totais, faltaLancar, sobrandoNoFinapp, valorDiferente, contaFixa } = conf
+  const difCsvBanco = faturaReal != null ? Math.round((conf.totalCsv - faturaReal) * 100) / 100 : null
+  const tabela = { width: '100%' }
+  return (
+    <div className="card" style={{ padding: 14, overflow: 'visible' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ fontWeight: 500 }}>
+          O que falta lançar · {cartaoNome} · {mesLabel(conf.mes)}
+          {conf.bate ? <span className="badge badge-green" style={{ marginLeft: 8 }}>✓ tudo lançado</span> : <span className="badge badge-amber" style={{ marginLeft: 8 }}>há diferenças</span>}
+        </div>
+        <button className="btn btn-ghost btn-sm" onClick={() => setAberto((a) => !a)}>{aberto ? 'Recolher' : 'Ver detalhes'}</button>
+      </div>
+      <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', margin: '10px 0', fontSize: 13 }}>
+        {faturaReal != null && <span>Banco (fatura real): <b className="mono">{fmt(faturaReal)}</b></span>}
+        <span>Soma do CSV: <b className="mono">{fmt(conf.totalCsv)}</b></span>
+        <span>Lançado no Finapp: <b className="mono">{fmt(conf.totalFinapp)}</b></span>
+      </div>
+      {difCsvBanco != null && Math.abs(difCsvBanco) > 0.05 && (
+        <div className="alert alert-amber">
+          O próprio CSV {difCsvBanco > 0 ? 'passa' : 'fica abaixo'} do valor do banco em <b>{fmt(Math.abs(difCsvBanco))}</b>: pode haver linha a mais ou a menos no CSV
+          (ex.: IOF, juros de parcelamento, estorno ou compra de outro mês). Confira as linhas abaixo com o extrato do banco.
+        </div>
+      )}
+      {conf.bate && <div className="alert alert-green" style={{ marginBottom: 0 }}>Tudo o que está no CSV já está lançado neste cartão e mês, e nada sobra no Finapp.</div>}
+      {aberto && !conf.bate && (
+        <>
+          <div style={{ fontSize: 12, color: 'var(--text2)', lineHeight: 1.6, marginBottom: 8 }}>
+            Para o Finapp ficar igual ao CSV: lançar <b>{fmt(totais.falta)}</b>
+            {valorDiferente.length > 0 && <> · corrigir valores (<b>{totais.valores > 0 ? '+' : ''}{fmt(totais.valores)}</b>)</>}
+            {sobrandoNoFinapp.length > 0 && <> · rever o que sobra (<b>{fmt(totais.sobra)}</b>)</>}.
+          </div>
+
+          {faltaLancar.length > 0 && (
+            <>
+              <div className="section-label" style={{ marginTop: 12 }}>falta lançar — está no CSV e não está em Compras ({faltaLancar.length})</div>
+              <table style={tabela}>
+                <tbody>
+                  {faltaLancar.map(({ linha: l, valor }) => (
+                    <tr key={l._id}>
+                      <td className="mono" style={{ fontSize: 12, color: 'var(--text3)', whiteSpace: 'nowrap' }}>{fmtDia(l.data)}</td>
+                      <td>{l.descricao}{Number(l.parcela_total) > 1 && <span className="badge badge-amber" style={{ marginLeft: 6, fontSize: 10 }}>{l.parcela_atual || 1}/{l.parcela_total}</span>}</td>
+                      <td style={{ textAlign: 'right' }} className="mono">{fmt(valor)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>Essas linhas ficam marcadas na lista abaixo; é só confirmar a importação.</div>
+            </>
+          )}
+
+          {valorDiferente.length > 0 && (
+            <>
+              <div className="section-label" style={{ marginTop: 12 }}>mesma compra, valor diferente ({valorDiferente.length})</div>
+              <table style={tabela}>
+                <thead><tr><th>Compra</th><th style={{ textAlign: 'right' }}>No CSV</th><th style={{ textAlign: 'right' }}>No Finapp</th><th style={{ textAlign: 'right' }}>Diferença</th><th /></tr></thead>
+                <tbody>
+                  {valorDiferente.map(({ linha: l, item, csv, app, diferenca }) => (
+                    <tr key={l._id}>
+                      <td>{l.descricao} <span style={{ fontSize: 11, color: 'var(--text3)' }}>· {tituloCompra(item.compra)}</span></td>
+                      <td style={{ textAlign: 'right' }} className="mono">{fmt(csv)}</td>
+                      <td style={{ textAlign: 'right' }} className="mono">{fmt(app)}</td>
+                      <td style={{ textAlign: 'right', color: diferenca > 0 ? 'var(--red)' : 'var(--amber)' }} className="mono">{diferenca > 0 ? '+' : ''}{fmt(diferenca)}</td>
+                      <td><button className="btn btn-ghost btn-sm" onClick={() => onEditar(item.compra)}>Editar compra</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>Essas linhas vêm desmarcadas na importação (já existe uma compra parecida). Corrija o valor da compra em vez de importar de novo.</div>
+            </>
+          )}
+
+          {sobrandoNoFinapp.length > 0 && (
+            <>
+              <div className="section-label" style={{ marginTop: 12 }}>sobrando no Finapp — lançado neste cartão e mês, mas não está no CSV ({sobrandoNoFinapp.length})</div>
+              <table style={tabela}>
+                <tbody>
+                  {sobrandoNoFinapp.map((x) => (
+                    <tr key={x.compra?.id || x.fixo.id}>
+                      <td className="mono" style={{ fontSize: 12, color: 'var(--text3)', whiteSpace: 'nowrap' }}>{x.compra ? fmtDia(x.compra.data_compra) : ''}</td>
+                      <td>
+                        {x.compra ? tituloCompra(x.compra) : x.fixo.nome}
+                        {x.fixo && <span className="badge badge-gray" style={{ marginLeft: 6, fontSize: 10 }}>conta fixa</span>}
+                        {x.compra && rotuloOrigem(x.compra.origem) && <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--text3)' }}>{rotuloOrigem(x.compra.origem)}</span>}
+                        {x.de > 1 && <span className="badge badge-amber" style={{ marginLeft: 6, fontSize: 10 }}>{x.parcela}/{x.de}</span>}
+                      </td>
+                      <td style={{ textAlign: 'right' }} className="mono">{fmt(x.valor)}</td>
+                      <td>{x.compra && <button className="btn btn-ghost btn-sm" onClick={() => onEditar(x.compra)}>Editar</button>}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>Pode ser compra lançada a mais, de outro mês, ou com nome muito diferente do que está no CSV.</div>
+            </>
+          )}
+
+          {contaFixa.length > 0 && (
+            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 10 }}>
+              Já cadastradas como conta fixa neste cartão (por isso não faltam): {contaFixa.map((c) => `${c.linha.descricao} → ${c.fixo.nome}`).join(' · ')}.
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
 export default function ImportarFatura({ store }) {
   const { cartoes, categorias, compras, faturas, pessoas, regras = [], aliases = [], importarTransacoes } = store
   const [linhas, setLinhas] = useState([])
@@ -57,9 +170,12 @@ export default function ImportarFatura({ store }) {
   const [resultado, setResultado] = useState(null)
   const [modoValor, setModoValor] = useState('parcela')
   const [mesFatura, setMesFatura] = useState('')
+  const [compraEditando, setCompraEditando] = useState(null)
   const [cartaoGlobal, setCartaoGlobal] = useState('')
 
   const reanalisar = (ls, m = modoValor) => recalcular(ls, compras, aliases, m)
+  // Se uma compra for editada/lançada enquanto o arquivo está aberto, refaz a conferência com os dados novos.
+  useEffect(() => { setLinhas((ls) => (ls.length ? recalcular(ls, compras, aliases, modoValor) : ls)) }, [compras])
 
   function handleFile(e) {
     const file = e.target.files[0]
@@ -223,6 +339,14 @@ export default function ImportarFatura({ store }) {
       .sort((a, b) => (a.cartaoNome + a.mes).localeCompare(b.cartaoNome + b.mes))
   })()
 
+  const conferenciasDetalhadas = mesFatura
+    ? [...new Set(linhas.filter((l) => l.cartao_id && l.data).map((l) => l.cartao_id))].map((cartaoId) => ({
+      conf: conferirFatura({ linhas, compras, cartoes, fixos: store.fixos, cartaoId, mes: mesFatura, aliases }, modoValor),
+      cartao: cartoes.find((c) => c.id === cartaoId),
+      fatura: faturas.find((f) => f.cartao_id === cartaoId && f.mes === mesFatura),
+    }))
+    : []
+
   async function confirmar() {
     if (prontas.length === 0) return
     setImportando(true)
@@ -262,6 +386,7 @@ export default function ImportarFatura({ store }) {
 
   return (
     <div className="page">
+      {compraEditando && <EditarCompra store={store} compra={compraEditando} onClose={() => setCompraEditando(null)} />}
       <div className="alert alert-blue">
         Suba o CSV já padronizado (gerado fora do app, a partir do PDF da fatura). Confira e ajuste as linhas
         abaixo antes de confirmar — nada é gravado até você clicar em "Confirmar importação".
@@ -341,9 +466,20 @@ export default function ImportarFatura({ store }) {
               {resumo.novas} linha{resumo.novas !== 1 ? 's novas' : ' nova'}
               {resumo.jaLancadas > 0 && ` · ${resumo.jaLancadas} já lançada${resumo.jaLancadas !== 1 ? 's' : ''} em Compras (desmarcada${resumo.jaLancadas !== 1 ? 's' : ''})`}
               {resumo.parecidas > 0 && ` · ${resumo.parecidas} só parecida${resumo.parecidas !== 1 ? 's' : ''} — confira`}
+              {resumo.valoresDiferentes > 0 && ` · ${resumo.valoresDiferentes} com valor diferente do lançado — veja em "O que falta lançar"`}
               {resumo.repetidasNoArquivo > 0 && ` · ${resumo.repetidasNoArquivo} linha${resumo.repetidasNoArquivo !== 1 ? 's' : ''} repetida${resumo.repetidasNoArquivo !== 1 ? 's' : ''} dentro do próprio arquivo`}
             </div>
           )}
+
+          {conferenciasDetalhadas.map(({ conf, cartao, fatura }) => (
+            <PainelConferencia
+              key={conf.cartaoId}
+              conf={conf}
+              cartaoNome={cartao?.nome || '—'}
+              faturaReal={fatura && fatura.valor_real != null ? Number(fatura.valor_real) : null}
+              onEditar={setCompraEditando}
+            />
+          ))}
 
           {conferencia.length > 0 && (
             <>
@@ -441,6 +577,7 @@ export default function ImportarFatura({ store }) {
                         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 }}>
                           {l.correspondencia?.tipo === 'exata' && <span className="badge badge-amber">já lançada</span>}
                           {l.correspondencia?.tipo === 'parecida' && <span className="badge badge-amber" title="Mesmo valor e cartão, com nome ou data um pouco diferentes">parece já lançada</span>}
+                          {l.correspondencia?.tipo === 'valor_diferente' && <span className="badge badge-red" title="Parece a mesma compra, mas o valor lançado é diferente. Corrija a compra em vez de importar de novo.">valor diferente do lançado</span>}
                           {l.duplicataCsv && <span className="badge badge-gray" title="Há outra linha igual neste arquivo (pode ser uma compra repetida de verdade)">repetida no arquivo</span>}
                         </div>
                         {c && (
