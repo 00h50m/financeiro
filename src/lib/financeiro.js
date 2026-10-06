@@ -4,7 +4,7 @@
 //
 // Todas as funções são puras (sem React, sem rede). `d` = os dados do app:
 // { fixos, fixosPagamentos, cartoes, compras, faturas, rendas, saldoAjustes, comprasPagamentos, comprasPagamentosOk, fechamentos }.
-import { addMonths, fixosAtivos, gerarParcelas, totalRenda } from './utils'
+import { addMonths, fixosAtivos, gerarParcelas, totalRenda } from './utils.js'
 
 const POR_DIA = (a, b) => (a.dia_vencimento || 99) - (b.dia_vencimento || 99)
 

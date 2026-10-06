@@ -1,6 +1,6 @@
 // CALENDÁRIO FINANCEIRO: o que vence em cada dia do mês. Sem duplicar: cada item aparece uma vez.
 // Fonte: o mesmo detalhe do motor financeiro (fixos ativos, faturas do mês, parcelas sem cartão).
-import { detalhePagamentos } from './financeiro'
+import { detalhePagamentos } from './financeiro.js'
 
 export const diasNoMes = (mes) => new Date(Number(mes.slice(0, 4)), Number(mes.slice(5, 7)), 0).getDate()
 const clampDia = (dia, mes) => Math.min(Math.max(1, Number(dia) || 1), diasNoMes(mes))

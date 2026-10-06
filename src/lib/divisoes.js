@@ -5,7 +5,7 @@
 //  - A parte dos outros fica "a receber" até ser marcada como recebida; só então entra como receita do mês
 //    (divisoes_repasses), então a sobra nunca conta com dinheiro que ainda não chegou.
 // Funções puras. `d` = { divisoes, divisoesRepasses, compras, fixos, cartoes }.
-import { fixosAtivos, gerarParcelas, tituloCompra } from './utils'
+import { fixosAtivos, gerarParcelas, tituloCompra } from './utils.js'
 
 const arred = (n) => Math.round(n * 100) / 100
 
