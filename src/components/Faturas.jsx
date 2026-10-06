@@ -2,6 +2,7 @@ import { useState, Fragment } from 'react'
 import { fmt, mesLabel, nowYM, hojeSP, tituloCompra, subtituloCompra } from '../lib/utils'
 import { lancadoDoCartao, itensDaFatura } from '../lib/financeiro'
 import EditarCompra from './EditarCompra'
+import { mesesDeFaturas } from '../lib/faturaMeses'
 import { lerValorReal, validarFatura, dadosDaFatura } from '../lib/faturaEdicao'
 
 const CHAVE_REVISADAS = 'faturas_revisadas'
@@ -75,6 +76,7 @@ export default function Faturas({ store, irPara }) {
   const [editId, setEditId] = useState(null) // null = lançando uma fatura nova
   const [abertas, setAbertas] = useState([]) // faturas com a lista de compras aberta
   const [compraEditando, setCompraEditando] = useState(null)
+  const [verTodos, setVerTodos] = useState(false) // meses antigos ficam recolhidos
   const alternarCompras = (id) => setAbertas((a) => (a.includes(id) ? a.filter((x) => x !== id) : [...a, id]))
   const [saving, setSaving] = useState(false)
   const s = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
@@ -129,7 +131,10 @@ export default function Faturas({ store, irPara }) {
     if (ok) setModal(false) // se deu erro, mantém o formulário
   }
 
-  const mesList = [...new Set(faturas.map((f) => f.mes))].sort().reverse()
+  // Todos os meses com fatura cadastrada OU com algo lançado no cartão (antes só os com valor do banco).
+  const todosMeses = mesesDeFaturas({ faturas, compras, cartoes, fixos: store.fixos, hoje: nowYM() })
+  const MESES_VISIVEIS = 12
+  const meses = verTodos ? todosMeses : todosMeses.slice(0, MESES_VISIVEIS)
 
   return (
     <div className="page">
@@ -217,14 +222,15 @@ export default function Faturas({ store, irPara }) {
         </div>
       )}
 
-      {mesList.length === 0 && (
+      {meses.length === 0 && (
         <div className="empty">
           Nenhuma fatura lançada ainda.{'\n'}Lance o valor real do banco e o sistema mostra o que está faltando categorizar.
         </div>
       )}
 
-      {mesList.map((mes) => {
-        const fatsDoMes = faturas.filter((f) => f.mes === mes)
+      {meses.map(({ mes, linhas }) => {
+        // Cartão com compras no mês mas sem fatura cadastrada vira uma linha "de mentira" (sem id no banco).
+        const fatsDoMes = linhas.map((l) => l.fatura || { id: `sem|${l.cartao_id}|${mes}`, cartao_id: l.cartao_id, mes, valor_real: null, pago: false, sintetica: true })
         const comReal = fatsDoMes.filter(temReal)
         const totalReal = comReal.reduce((s, f) => s + Number(f.valor_real), 0)
         const totalLanc = comReal.reduce((s, f) => s + getLancado(f.cartao_id, mes), 0)
@@ -281,13 +287,13 @@ export default function Faturas({ store, irPara }) {
                           <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(lanc)}</td>
                           <td style={{ textAlign: 'right', color: 'var(--text3)' }}>—</td>
                           <td>
-                            <span className="badge badge-gray">sem valor do banco</span>{' '}
+                            <span className="badge badge-gray">{fat.sintetica ? 'fatura não lançada' : 'sem valor do banco'}</span>{' '}
                             {fat.pago && <span className="badge badge-green">paga</span>}{' '}
-                            <button className="btn btn-ghost btn-sm" onClick={() => abrirEdicao(fat)}>Informar valor</button>
+                            <button className="btn btn-ghost btn-sm" onClick={() => (fat.sintetica ? abrirNova({ cartao_id: fat.cartao_id, mes }) : abrirEdicao(fat))}>Informar valor</button>
                           </td>
                           <td style={{ whiteSpace: 'nowrap' }}>
                             {botaoCompras}
-                            <button className="btn btn-ghost btn-sm" onClick={() => abrirEdicao(fat)} style={{ marginRight: 6 }}>Editar</button>
+                            {!fat.sintetica && <button className="btn btn-ghost btn-sm" onClick={() => abrirEdicao(fat)} style={{ marginRight: 6 }}>Editar</button>}
                           </td>
                         </tr>
                         {linhaDetalhe}
@@ -340,6 +346,13 @@ export default function Faturas({ store, irPara }) {
           </div>
         )
       })}
+      {todosMeses.length > MESES_VISIVEIS && (
+        <div style={{ textAlign: 'center', margin: '8px 0 24px' }}>
+          <button className="btn btn-ghost" onClick={() => setVerTodos((v) => !v)}>
+            {verTodos ? 'Mostrar só os últimos 12 meses' : `Mostrar meses anteriores (${todosMeses.length - MESES_VISIVEIS})`}
+          </button>
+        </div>
+      )}
     </div>
   )
 }
