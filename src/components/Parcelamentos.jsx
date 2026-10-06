@@ -1,8 +1,13 @@
+import { useState } from 'react'
+import { compilar } from '../lib/filtro'
+import { CampoBusca, ResumoFiltro } from './FiltroLista'
 import { fmtK, fmt, mesLabel, nowYM, gerarParcelas, valorParcelaBase, tituloCompra, subtituloCompra } from '../lib/utils'
 
 export default function Parcelamentos({ store }) {
   const { compras, cartoes, pessoas } = store
   const mes = nowYM()
+  const [busca, setBusca] = useState('')
+  const [filtroCartao, setFiltroCartao] = useState('')
 
   // Só compras parceladas (2x ou mais): uma compra à vista deste mês não é um parcelamento em andamento.
   const ativas = compras.filter((c) => Number(c.parcelas) > 1 && gerarParcelas(c, cartoes).some((p) => p.mes >= mes))
@@ -23,8 +28,18 @@ export default function Parcelamentos({ store }) {
     .map(([nome, v]) => ({ nome, ...v }))
     .sort((a, b) => b.restante - a.restante)
 
+  const { combina } = compilar(busca)
+  const filtroAtivo = !!(busca.trim() || filtroCartao)
+  const filtradas = ativas.filter((c) =>
+    (!filtroCartao || c.cartao_id === filtroCartao) &&
+    combina({
+      texto: [c.descricao, c.identificacao, c.categoria, c.subcategoria, c.obs, c.pessoa, cartoes.find((x) => x.id === c.cartao_id)?.nome].filter(Boolean).join(' '),
+      valor: [Number(c.valor_total), valorParcelaBase(c)],
+      data: c.data_compra,
+    }))
+
   function renderGrupo(pessoa) {
-    const lista = ativas.filter((c) => c.pessoa === pessoa)
+    const lista = filtradas.filter((c) => c.pessoa === pessoa)
     if (!lista.length) return null
     return (
       <div key={pessoa}>
@@ -152,9 +167,20 @@ export default function Parcelamentos({ store }) {
         </>
       )}
 
+      {ativas.length > 0 && (
+        <div className="toolbar">
+          <CampoBusca valor={busca} onChange={setBusca} />
+          <select value={filtroCartao} onChange={(e) => setFiltroCartao(e.target.value)} aria-label="Filtrar por cartão">
+            <option value="">Todos os cartões</option>
+            {cartoes.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+          </select>
+        </div>
+      )}
+      <ResumoFiltro ativo={filtroAtivo} mostrando={filtradas.length} total={ativas.length} onLimpar={() => { setBusca(''); setFiltroCartao('') }} />
+      {filtroAtivo && filtradas.length === 0 && <div className="empty">Nenhum parcelamento com esses filtros.{'\n'}Tente outro termo ou clique em "Limpar filtros".</div>}
       {pessoas.map((p) => renderGrupo(p.nome))}
       {/* Compras de quem não está (mais) na lista de pessoas: aparecem aqui para os totais do topo fecharem. */}
-      {[...new Set(ativas.map((c) => c.pessoa))]
+      {[...new Set(filtradas.map((c) => c.pessoa))]
         .filter((nome) => !pessoas.some((p) => p.nome === nome))
         .map((nome) => renderGrupo(nome))}
     </div>

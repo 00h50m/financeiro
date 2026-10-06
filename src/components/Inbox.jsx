@@ -3,6 +3,9 @@ import { fmt, hojeSP, corPessoa, tituloCompra } from '../lib/utils'
 import { prepararEvento } from '../lib/evento'
 import { construirRegrasDoHistorico } from '../lib/categorizacao'
 import { indexarAliases } from '../lib/estabelecimento'
+import { explicarErro } from '../lib/erros'
+import { compilar } from '../lib/filtro'
+import { CampoBusca, ResumoFiltro } from './FiltroLista'
 
 const ORIGENS = {
   manual: '✍️ Manual',
@@ -69,7 +72,7 @@ function CartaoEvento({ ev, store }) {
   async function executar(fn) {
     setBusy(true)
     setErro('')
-    try { await fn() } catch (e) { setErro(e.message || 'Erro ao salvar') }
+    try { await fn() } catch (e) { setErro(explicarErro(e, 'salvar o lançamento')) }
     setBusy(false)
   }
 
@@ -224,7 +227,7 @@ function NovoNoInbox({ store, onFechar }) {
     }, { categorias, cartoes, pessoas, regras, aliases, compras, eventos })
     if (erros.length) return setErro(erros.join(', '))
     setBusy(true)
-    try { await adicionarEventos([evento]); onFechar() } catch (e) { setErro(e.message || 'Erro ao adicionar') }
+    try { await adicionarEventos([evento]); onFechar() } catch (e) { setErro(explicarErro(e, 'adicionar ao Inbox')) }
     setBusy(false)
   }
 
@@ -263,8 +266,19 @@ export default function Inbox({ store }) {
   const { eventos, regras, aliases, compras, inboxOk, adicionarRegras } = store
   const [novo, setNovo] = useState(false)
   const [aprendendo, setAprendendo] = useState(false)
-  const pendentes = eventos.filter((e) => e.status === 'pendente' || e.status === 'aguardando_dados')
-  const resolvidos = eventos.filter((e) => !pendentes.includes(e)).slice(0, 8)
+  const [busca, setBusca] = useState('')
+  const [filtroStatus, setFiltroStatus] = useState('') // 'pendentes' | 'resolvidos'
+  const { combina } = compilar(busca)
+  const filtroAtivo = !!(busca.trim() || filtroStatus)
+  const combinaEvento = (e) => combina({
+    texto: [e.descricao_original, e.categoria, e.subcategoria, e.obs, nomeOrigem(e), STATUS_RESOLVIDO[e.status]?.[1]].filter(Boolean).join(' '),
+    valor: Math.abs(Number(e.valor)), data: e.data_evento,
+  })
+  const todosPendentes = eventos.filter((e) => e.status === 'pendente' || e.status === 'aguardando_dados')
+  const todosResolvidos = eventos.filter((e) => !todosPendentes.includes(e))
+  const pendentes = filtroStatus === 'resolvidos' ? [] : todosPendentes.filter(combinaEvento)
+  // sem filtro: só os 8 mais recentes; com busca/filtro: todos os que combinam
+  const resolvidos = filtroStatus === 'pendentes' ? [] : (filtroAtivo ? todosResolvidos.filter(combinaEvento) : todosResolvidos.slice(0, 8))
 
   if (!inboxOk) {
     return (
@@ -284,7 +298,7 @@ export default function Inbox({ store }) {
         .map(({ estabelecimento_chave, categoria, subcategoria, confirmacoes, rejeicoes }) => ({ estabelecimento_chave, categoria, subcategoria, confirmacoes, rejeicoes }))
       await adicionarRegras(lista)
     } catch (e) {
-      alert('Erro: ' + e.message)
+      alert(explicarErro(e, 'aprender as categorias com o histórico'))
     }
     setAprendendo(false)
   }
@@ -305,10 +319,24 @@ export default function Inbox({ store }) {
         )}
       </div>
 
+      {eventos.length > 0 && (
+        <div className="toolbar">
+          <CampoBusca valor={busca} onChange={setBusca} />
+          <select value={filtroStatus} onChange={(e) => setFiltroStatus(e.target.value)} aria-label="Filtrar por situação">
+            <option value="">Pendentes e resolvidos</option>
+            <option value="pendentes">Só pendentes</option>
+            <option value="resolvidos">Só resolvidos</option>
+          </select>
+        </div>
+      )}
+      <ResumoFiltro ativo={filtroAtivo} mostrando={pendentes.length + resolvidos.length} total={eventos.length} onLimpar={() => { setBusca(''); setFiltroStatus('') }} />
+
       {novo && <NovoNoInbox store={store} onFechar={() => setNovo(false)} />}
 
       {pendentes.length === 0 ? (
-        <div className="card"><div className="empty">Nada pendente.{'\n'}Quando algo chegar, aparece aqui para você confirmar.</div></div>
+        filtroStatus === 'resolvidos' ? null : (
+          <div className="card"><div className="empty">{filtroAtivo && todosPendentes.length > 0 ? 'Nenhum lançamento pendente com esses filtros.\nTente outro termo ou clique em "Limpar filtros".' : 'Nada pendente.\nQuando algo chegar, aparece aqui para você confirmar.'}</div></div>
+        )
       ) : (
         pendentes.map((ev) => <CartaoEvento key={ev.id} ev={ev} store={store} />)
       )}

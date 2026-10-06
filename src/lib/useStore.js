@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { sb } from './supabase.js'
 import { hojeSP, mesLabel } from './utils.js'
 import { mesesFechadosTocados, mesFechado } from './fechamento.js'
 import { mesesAfetadosPelaFatura } from './faturaEdicao.js'
+import { amigavel, explicarErro } from './erros.js'
 import { gerarCodigo, hashCodigo } from './pareamento.js'
 
 const POR_PAGINA = 1000 // o Supabase devolve no máximo 1000 linhas por consulta
@@ -27,6 +28,8 @@ export function useStore(email = null) {
   const [faturas, setFaturas] = useState([])
   const [categorias, setCategorias] = useState([])
   const [fixosPagamentos, setFixosPagamentos] = useState([])
+  const [fixosValores, setFixosValores] = useState([])
+  const [fixosValoresOk, setFixosValoresOk] = useState(true)
   const [saldoAjustes, setSaldoAjustes] = useState([])
   const [pessoas, setPessoas] = useState([])
   const [orcamentos, setOrcamentos] = useState([])
@@ -73,7 +76,7 @@ export function useStore(email = null) {
     if (!silent) setLoading(true)
     if (!silent) setError(null)
     try {
-      const [c, co, r, fx, fa, cat, fxp, sa, ps, orc, cfg, ev, rg, al, it, cp, fe, me, mm, dv, dr] = await Promise.all([
+      const [c, co, r, fx, fa, cat, fxp, fxv, sa, ps, orc, cfg, ev, rg, al, it, cp, fe, me, mm, dv, dr] = await Promise.all([
         quer('cartoes') ? sb.from('cartoes').select('*').order('created_at') : nada,
         quer('compras') ? lerTudo('compras', (q) => q.order('data_compra', { ascending: false }).order('id')) : nada,
         quer('rendas') ? sb.from('rendas').select('*').order('mes', { ascending: false }) : nada,
@@ -81,6 +84,7 @@ export function useStore(email = null) {
         quer('faturas') ? lerTudo('faturas', (q) => q.order('mes', { ascending: false }).order('id')) : nada,
         quer('categorias') ? sb.from('categorias').select('*').order('nome') : nada,
         quer('fixosPagamentos') ? lerTudo('fixos_pagamentos', (q) => q.order('id')) : nada,
+        quer('fixosValores') ? lerTudo('fixos_valores', (q) => q.order('id')) : nada,
         quer('saldoAjustes') ? sb.from('saldo_ajustes').select('*') : nada,
         quer('pessoas') ? sb.from('pessoas').select('*').order('created_at') : nada,
         quer('orcamentos') ? sb.from('orcamentos').select('*') : nada,
@@ -107,6 +111,8 @@ export function useStore(email = null) {
       if (fa) setFaturas(fa.data || [])
       if (cat) setCategorias(cat.data || [])
       if (fxp) setFixosPagamentos(fxp.data || [])
+      // Valor real mensal é opcional: sem a migration 20 as contas fixas seguem só com o valor cadastrado.
+      if (fxv) { setFixosValoresOk(!fxv.error); setFixosValores(fxv.error ? [] : fxv.data || []) }
       if (sa) setSaldoAjustes(sa.data || [])
       if (ps) setPessoas(ps.data || [])
       // Pagamento por parcela é opcional: sem a migration 14 o app usa o "pago" antigo da compra.
@@ -141,7 +147,7 @@ export function useStore(email = null) {
         setIntegracoesTelegram(inboxPronto && it && !it.error ? it.data || [] : [])
       }
     } catch (e) {
-      if (!silent) setError(e.message || 'Erro ao conectar com o banco')
+      if (!silent) setError(explicarErro(e, 'carregar os dados'))
       if (!silent) setLoading(false)
       return false
     }
@@ -154,13 +160,13 @@ export function useStore(email = null) {
   // Devolve true se gravou; false se deu erro (já avisado na tela). Quem chama só fecha o formulário ou
   // segue para o próximo passo quando for true, para nunca perder o que a pessoa digitou.
   // `quais`: grupos que a ação alterou (recarga seletiva); sem ele, recarrega tudo (mais seguro quando há cascata).
-  async function op(fn, quais = null) {
+  async function op(fn, quais = null, acao = 'salvar a alteração') {
     setSyncState('syncing')
     try {
       await fn()
     } catch (e) {
       setSyncState('error')
-      alert('Erro: ' + (e.message || e))
+      alert(explicarErro(e, acao))
       return false
     }
     setSyncState((await loadAll({ silent: true, quais })) ? 'ok' : 'error')
@@ -171,15 +177,15 @@ export function useStore(email = null) {
   const addCartao = (data) => op(async () => {
     const r = await sb.from('cartoes').insert(data)
     if (r.error) throw r.error
-  })
+  }, null, 'salvar o cartão')
   const updateCartao = (id, data) => op(async () => {
     const r = await sb.from('cartoes').update(data).eq('id', id)
     if (r.error) throw r.error
-  })
+  }, null, 'salvar o cartão')
   const delCartao = (id) => op(async () => {
     const r = await sb.from('cartoes').delete().eq('id', id)
     if (r.error) throw r.error
-  })
+  }, null, 'apagar o cartão (apague ou mude antes as compras e faturas dele)')
 
   // AUDITORIA (só eventos financeiros relevantes; falha em gravar não derruba a ação principal)
   async function registrarAuditoria(reg) {
@@ -220,20 +226,20 @@ export function useStore(email = null) {
   const addCompra = (data) => comJustificativa([data], 'adicionar_em_mes_fechado', data.descricao || '', null, data, () => op(async () => {
     const r = await sb.from('compras').insert(data)
     if (r.error) throw r.error
-  }, ['compras']))
+  }, ['compras'], 'salvar a compra'))
   const updateCompra = (id, data) => {
     const antes = compras.find((c) => c.id === id)
     return comJustificativa([antes, antes && { ...antes, ...data }], 'editar_em_mes_fechado', id, antes || null, data, () => op(async () => {
       const r = await sb.from('compras').update(data).eq('id', id)
       if (r.error) throw r.error
-    }, ['compras']))
+    }, ['compras'], 'salvar a compra'))
   }
   const updateComprasLote = (ids, data) => {
     const antes = compras.filter((c) => ids.includes(c.id))
     return comJustificativa([...antes, ...antes.map((c) => ({ ...c, ...data }))], 'editar_lote_em_mes_fechado', `${ids.length} compras`, null, { ids, ...data }, () => op(async () => {
       const r = await sb.from('compras').update(data).in('id', ids)
       if (r.error) throw r.error
-    }, ['compras']))
+    }, ['compras'], 'alterar as compras selecionadas'))
   }
   // Divisão de compra em categorias (ver lib/divisaoCompra.js). Ordem segura: primeiro entra o novo, depois
   // atualiza, por último remove — se algo falhar no meio, nada some. Respeita o mês fechado como as demais.
@@ -253,54 +259,54 @@ export function useStore(email = null) {
         const r = await sb.from('compras').delete().in('id', plano.remover)
         if (r.error) throw r.error
       }
-    }, ['compras', 'comprasPagamentos', 'inbox']))
+    }, ['compras', 'comprasPagamentos', 'inbox'], 'dividir a compra em categorias'))
   }
   const delCompra = (id) => {
     const antes = compras.find((c) => c.id === id)
     return comJustificativa([antes], 'apagar_em_mes_fechado', id, antes || null, null, () => op(async () => {
       const r = await sb.from('compras').delete().eq('id', id)
       if (r.error) throw r.error
-    }, ['compras', 'comprasPagamentos', 'inbox']))
+    }, ['compras', 'comprasPagamentos', 'inbox'], 'apagar a compra'))
   }
 
   // FECHAMENTO MENSAL (fechar e reabrir são funções do banco: transação única + auditoria)
   const fecharMes = (mes, foto) => op(async () => {
     const r = await sb.rpc('fechar_mes', { p_mes: mes, p_foto: foto, p_usuario: email })
     if (r.error) throw r.error
-  }, ['fechamentos'])
+  }, ['fechamentos'], 'fechar o mês')
   const reabrirMes = (mes, motivo) => op(async () => {
     const r = await sb.rpc('reabrir_mes', { p_mes: mes, p_motivo: motivo, p_usuario: email })
     if (r.error) throw r.error
-  }, ['fechamentos'])
+  }, ['fechamentos'], 'reabrir o mês')
 
   // RENDA
   const upsertRenda = (data) => op(async () => {
     const r = await sb.from('rendas').upsert(data, { onConflict: 'mes' })
     if (r.error) throw r.error
-  }, ['rendas'])
+  }, ['rendas'], 'salvar a renda')
 
   // FIXOS
   const addFixo = (data) => op(async () => {
     const r = await sb.from('fixos').insert(data)
     if (r.error) throw r.error
-  }, ['fixos'])
+  }, ['fixos'], 'salvar a conta fixa')
   const updateFixo = (id, data) => op(async () => {
     const r = await sb.from('fixos').update(data).eq('id', id)
     if (r.error) throw r.error
-  }, ['fixos'])
+  }, ['fixos'], 'salvar a conta fixa')
   const delFixo = (id) => op(async () => {
     const r = await sb.from('fixos').delete().eq('id', id)
     if (r.error) throw r.error
-  }, ['fixos', 'fixosPagamentos'])
+  }, ['fixos', 'fixosPagamentos', 'fixosValores'], 'apagar a conta fixa')
 
   // FATURAS
   const upsertFatura = (data) => op(async () => {
     const r = await sb.from('faturas').upsert(data, { onConflict: 'cartao_id,mes' })
     if (r.error?.code === '23502') {
-      throw new Error('Falta rodar a atualização 13 do banco (arquivo inbox/13_faturas_valor_real_opcional.sql no Supabase).')
+      throw amigavel('Falta rodar a atualização 13 do banco (arquivo inbox/13_faturas_valor_real_opcional.sql no Supabase).')
     }
     if (r.error) throw r.error
-  }, ['faturas'])
+  }, ['faturas'], 'salvar a fatura')
   // Editar uma fatura (valor real, cartão, mês, pagamento). Mudar fatura de mês FECHADO muda os números dele:
   // pede o motivo e registra na auditoria, como nas compras.
   const updateFatura = async (id, data) => {
@@ -313,8 +319,8 @@ export function useStore(email = null) {
     }
     const ok = await op(async () => {
       const r = await sb.from('faturas').update(data).eq('id', id)
-      if (r.error?.code === '23505') throw new Error('Já existe uma fatura desse cartão nesse mês.')
-      if (r.error?.code === '23502') throw new Error('Falta rodar a atualização 13 do banco (arquivo inbox/13_faturas_valor_real_opcional.sql no Supabase).')
+      if (r.error?.code === '23505') throw amigavel('Já existe uma fatura desse cartão nesse mês.')
+      if (r.error?.code === '23502') throw amigavel('Falta rodar a atualização 13 do banco (arquivo inbox/13_faturas_valor_real_opcional.sql no Supabase).')
       if (r.error) throw r.error
     }, ['faturas'])
     if (ok && fechados.length) {
@@ -325,7 +331,27 @@ export function useStore(email = null) {
   const delFatura = (id) => op(async () => {
     const r = await sb.from('faturas').delete().eq('id', id)
     if (r.error) throw r.error
-  }, ['faturas'])
+  }, ['faturas'], 'apagar a fatura')
+
+  // VALOR REAL DE CONTA FIXA VARIÁVEL (por mês): só aquele mês muda. Em mês fechado pede o motivo e audita.
+  const definirValorFixo = async (fixo_id, mes, valor) => {
+    const antes = fixosValores.find((v) => v.fixo_id === fixo_id && v.mes === mes)?.valor ?? null
+    let motivo = null
+    if (mesFechado(fechamentos, mes)) {
+      motivo = window.prompt(`${mesLabel(mes)} já está fechado e esta alteração muda os números dele.\n\nPara continuar, escreva o motivo:`)
+      if (!motivo || motivo.trim().length < 3) return false
+    }
+    const ok = await op(async () => {
+      const r = valor == null
+        ? await sb.from('fixos_valores').delete().eq('fixo_id', fixo_id).eq('mes', mes)
+        : await sb.from('fixos_valores').upsert({ fixo_id, mes, valor }, { onConflict: 'fixo_id,mes' })
+      if (r.error) throw r.error
+    }, ['fixosValores'])
+    if (ok && motivo) {
+      await registrarAuditoria({ entidade: 'fixo_valor', entidade_id: fixo_id, acao: 'editar_em_mes_fechado', antes: { mes, valor: antes }, depois: { mes, valor }, motivo: `${motivo.trim()} (mês fechado: ${mes})` })
+    }
+    return ok
+  }
 
   // PAGAMENTOS DE FIXOS (por mês)
   const marcarFixoPago = (fixo_id, mes, pago) => op(async () => {
@@ -334,7 +360,7 @@ export function useStore(email = null) {
       { onConflict: 'fixo_id,mes' }
     )
     if (r.error) throw r.error
-  }, ['fixosPagamentos'])
+  }, ['fixosPagamentos'], 'marcar o pagamento da conta fixa')
 
   // PAGAMENTO POR PARCELA (compras sem cartão): uma linha por compra e mês
   const marcarParcelaPaga = (compra_id, mes, pago) => op(async () => {
@@ -343,7 +369,7 @@ export function useStore(email = null) {
       { onConflict: 'compra_id,mes' }
     )
     if (r.error) throw r.error
-  }, ['comprasPagamentos'])
+  }, ['comprasPagamentos'], 'marcar o pagamento da parcela')
 
   // SALDO (dinheiro disponível — ajuste manual por mês)
   const definirAjusteSaldo = async (mes, ajuste) => {
@@ -363,11 +389,11 @@ export function useStore(email = null) {
   const addMeta = (m) => op(async () => {
     const r = await sb.from('metas').insert(m)
     if (r.error) throw r.error
-  }, ['metas'])
+  }, ['metas'], 'salvar a meta')
   const updateMeta = (id, patch) => op(async () => {
     const r = await sb.from('metas').update(patch).eq('id', id)
     if (r.error) throw r.error
-  }, ['metas'])
+  }, ['metas'], 'salvar a meta')
   const registrarMovimentoMeta = async (mov) => {
     const ok = await op(async () => {
       const r = await sb.from('metas_movimentos').insert({ usuario: email, ...mov })
@@ -390,7 +416,7 @@ export function useStore(email = null) {
   const addDivisao = (data) => op(async () => {
     const r = await sb.from('divisoes').insert(data)
     if (r.error) throw r.error
-  }, ['divisoes'])
+  }, ['divisoes'], 'salvar a divisão')
   const delDivisao = async (divisao) => {
     const recebidos = divisoesRepasses.filter((x) => x.divisao_id === divisao.id)
     const fechados = recebidos.map((x) => x.mes).filter((m) => fechamentos.some((f) => f.mes === m && f.status === 'fechado'))
@@ -402,7 +428,7 @@ export function useStore(email = null) {
     const ok = await op(async () => {
       const r = await sb.from('divisoes').delete().eq('id', divisao.id)
       if (r.error) throw r.error
-    }, ['divisoes'])
+    }, ['divisoes'], 'apagar a divisão')
     if (ok && motivo) await registrarAuditoria({ entidade: 'divisao', entidade_id: divisao.id, acao: 'apagar_em_mes_fechado', antes: { divisao, repasses: recebidos }, motivo: motivo.trim() })
     return ok
   }
@@ -418,7 +444,7 @@ export function useStore(email = null) {
         { onConflict: 'divisao_id,mes' }
       )
       if (r.error) throw r.error
-    }, ['divisoes'])
+    }, ['divisoes'], 'registrar o recebimento')
     if (ok && motivo) await registrarAuditoria({ entidade: 'divisao_repasse', entidade_id: `${divisaoId}|${mes}`, acao: 'receber_em_mes_fechado', depois: { valor }, motivo: motivo.trim() })
     return ok
   }
@@ -432,7 +458,7 @@ export function useStore(email = null) {
     const ok = await op(async () => {
       const r = await sb.from('divisoes_repasses').delete().eq('divisao_id', divisaoId).eq('mes', mes)
       if (r.error) throw r.error
-    }, ['divisoes'])
+    }, ['divisoes'], 'desfazer o recebimento')
     if (ok && motivo) await registrarAuditoria({ entidade: 'divisao_repasse', entidade_id: `${divisaoId}|${mes}`, acao: 'desfazer_recebimento_em_mes_fechado', antes, motivo: motivo.trim() })
     return ok
   }
@@ -441,7 +467,7 @@ export function useStore(email = null) {
   const definirConfig = (chave, valor) => op(async () => {
     const r = await sb.from('config').upsert({ chave, valor, atualizado_em: new Date().toISOString() }, { onConflict: 'chave' })
     if (r.error) throw r.error
-  }, ['config'])
+  }, ['config'], 'salvar a configuração')
 
   // ORÇAMENTOS (teto mensal por categoria; valor vazio/0 remove o teto)
   const definirOrcamento = (categoria, valor) => op(async () => {
@@ -449,7 +475,7 @@ export function useStore(email = null) {
       ? await sb.from('orcamentos').upsert({ categoria, valor, atualizado_em: new Date().toISOString() }, { onConflict: 'categoria' })
       : await sb.from('orcamentos').delete().eq('categoria', categoria)
     if (r.error) throw r.error
-  }, ['orcamentos'])
+  }, ['orcamentos'], 'salvar o teto')
   const definirOrcamentos = (lista) => op(async () => {
     const agora = new Date().toISOString()
     const r = await sb.from('orcamentos').upsert(
@@ -457,7 +483,7 @@ export function useStore(email = null) {
       { onConflict: 'categoria' }
     )
     if (r.error) throw r.error
-  }, ['orcamentos'])
+  }, ['orcamentos'], 'salvar os tetos')
 
   // As regras aprendidas e os eventos em aberto do Inbox/Telegram também guardam o nome da categoria.
   // Sem acompanhar a mudança, a sugestão continuaria com o nome velho e o Confirmar falharia ("categoria inválida").
@@ -483,14 +509,14 @@ export function useStore(email = null) {
   const addCategoria = (nome) => op(async () => {
     const r = await sb.from('categorias').insert({ nome, subcategorias: [] })
     if (r.error) throw r.error
-  })
+  }, null, 'salvar a categoria')
   const delCategoria = (id) => op(async () => {
     const nome = categorias.find((c) => c.id === id)?.nome
     const r = await sb.from('categorias').delete().eq('id', id)
     if (r.error) throw r.error
     // O teto de uma categoria removida não faz mais sentido.
     if (nome && orcamentosOk) await sb.from('orcamentos').delete().eq('categoria', nome)
-  })
+  }, null, 'apagar a categoria')
   const renomearCategoria = (id, nomeAntigo, nomeNovo) => op(async () => {
     const r = await sb.from('categorias').update({ nome: nomeNovo }).eq('id', id)
     if (r.error) throw r.error
@@ -555,11 +581,11 @@ export function useStore(email = null) {
   const addPessoa = (nome, cor) => op(async () => {
     const r = await sb.from('pessoas').insert({ nome, cor })
     if (r.error) throw r.error
-  })
+  }, null, 'salvar a pessoa')
   const delPessoa = (id) => op(async () => {
     const r = await sb.from('pessoas').delete().eq('id', id)
     if (r.error) throw r.error
-  })
+  }, null, 'apagar a pessoa')
   const mudarCorPessoa = (id, cor) => op(async () => {
     const r = await sb.from('pessoas').update({ cor }).eq('id', id)
     if (r.error) throw r.error
@@ -579,7 +605,7 @@ export function useStore(email = null) {
   // Não usa `op`: o chamador precisa do erro para dar feedback próprio na tela de importação.
   async function importarTransacoes(rows) {
     const j = exigirJustificativa(rows) // importar para mês fechado também pede justificativa
-    if (!j.ok) throw new Error('Importação cancelada: o mês já está fechado e faltou o motivo.')
+    if (!j.ok) throw amigavel('Importação cancelada: o mês já está fechado e faltou o motivo.')
     setSyncState('syncing')
     try {
       const r = await sb.from('compras').insert(rows)
@@ -671,12 +697,22 @@ export function useStore(email = null) {
     if (r.error) throw r.error
   })
 
+  // Cada conta fixa leva seus valores reais por mês em `valores` (não enumerável: não vai para backup, spread nem gravação).
+  const fixosComValores = useMemo(() => {
+    const porFixo = new Map()
+    for (const v of fixosValores) {
+      if (!porFixo.has(v.fixo_id)) porFixo.set(v.fixo_id, {})
+      porFixo.get(v.fixo_id)[v.mes] = Number(v.valor)
+    }
+    return fixos.map((f) => (porFixo.has(f.id) ? Object.defineProperty({ ...f }, 'valores', { value: porFixo.get(f.id), enumerable: false }) : f))
+  }, [fixos, fixosValores])
+
   return {
     email,
     integracoesTelegram, gerarPareamento, pausarIntegracao, desconectarIntegracao,
     eventos, regras, aliases, inboxOk,
     confirmarEvento, vincularEvento, ignorarEvento, adicionarEventos, adicionarRegras,
-    cartoes, compras, rendas, fixos, faturas, categorias, fixosPagamentos, comprasPagamentos, comprasPagamentosOk, fechamentos, fechamentosOk, metas, metasMovimentos, metasOk, divisoes, divisoesRepasses, divisoesOk, saldoAjustes, pessoas, orcamentos, orcamentosOk, config, configOk,
+    cartoes, compras, rendas, fixos: fixosComValores, fixosValores, fixosValoresOk, definirValorFixo, faturas, categorias, fixosPagamentos, comprasPagamentos, comprasPagamentosOk, fechamentos, fechamentosOk, metas, metasMovimentos, metasOk, divisoes, divisoesRepasses, divisoesOk, saldoAjustes, pessoas, orcamentos, orcamentosOk, config, configOk,
     loading, syncState, error, loadAll,
     addCartao, updateCartao, delCartao,
     addCompra, updateCompra, salvarDivisao, updateComprasLote, delCompra,

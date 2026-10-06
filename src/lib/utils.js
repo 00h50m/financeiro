@@ -87,8 +87,16 @@ export const totalRenda = (r) =>
   RENDA_CAMPOS.reduce((s, [k]) => s + Number(r?.[k] || 0), 0)
 
 // Contas fixas que contam como ativas em um mês (respeita o mês de início e o de término).
+// Conta de valor variável: usa o valor real informado para aquele mês (f.valores[mes]); sem ele, a estimativa (f.valor)
+// e `estimado: true`. Cada mês é independente: informar um mês não mexe nos outros.
 export const fixosAtivos = (fixos, mes) =>
-  fixos.filter((f) => f.ativo && (!f.mes_inicio || f.mes_inicio <= mes) && (!f.mes_fim || f.mes_fim >= mes))
+  fixos
+    .filter((f) => f.ativo && (!f.mes_inicio || f.mes_inicio <= mes) && (!f.mes_fim || f.mes_fim >= mes))
+    .map((f) => {
+      const real = f.valores?.[mes]
+      if (real != null) return { ...f, valor: Number(real), estimado: false }
+      return f.variavel ? { ...f, estimado: true } : f
+    })
 
 // Gastos do mês agrupados por categoria: parcela do mês de cada compra + contas fixas categorizadas.
 // Retorna { [categoria]: { total, itens: [{ nome, sub, valor, origem, detalhe }] } }.

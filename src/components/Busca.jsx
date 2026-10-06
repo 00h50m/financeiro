@@ -8,8 +8,8 @@ export default function Busca({ store, irPara }) {
 
   return (
     <div className="page">
-      <input autoFocus placeholder="Buscar compra, conta fixa, cartão, meta, Inbox ou valor (ex.: 89,90)" value={termo} onChange={(e) => setTermo(e.target.value)} style={{ width: '100%', marginBottom: 14 }} aria-label="Buscar em todo o app" />
-      {termo.trim().length < 2 && <div style={{ fontSize: 13, color: 'var(--text3)' }}>Digite pelo menos 2 letras. Acento e maiúscula não importam.</div>}
+      <input autoFocus placeholder="Buscar compra, conta fixa, fatura, cartão, meta ou Inbox — por nome, valor (89,90), faixa (100..200) ou data (05/09)" value={termo} onChange={(e) => setTermo(e.target.value)} style={{ width: '100%', marginBottom: 14 }} aria-label="Buscar em todo o app" />
+      {termo.trim().length < 2 && <div style={{ fontSize: 13, color: 'var(--text3)' }}>{'Digite pelo menos 2 caracteres. Acento e maiúscula não importam. Dá para juntar termos: "mercado >100", "shellbox 01/09", "100..200".'}</div>}
       {termo.trim().length >= 2 && r.total === 0 && <div className="card" style={{ padding: 16, fontSize: 13, color: 'var(--text3)' }}>Nada encontrado para "{termo}".</div>}
       {r.grupos.map((g) => (
         <div key={g.id}>

@@ -10,6 +10,7 @@ import {
 } from '../lib/importacao'
 import EditarCompra from './EditarCompra'
 import { rotuloOrigem } from '../lib/origem'
+import { explicarErro } from '../lib/erros'
 
 const COLUNAS_ESPERADAS = ['data', 'descricao', 'valor', 'categoria', 'parcela_atual', 'parcela_total', 'cartao', 'observacao']
 const ROTULO_FONTE = { historico: 'pelo histórico', nome: 'pelo nome' }
@@ -413,7 +414,7 @@ export default function ImportarFatura({ store }) {
       setLinhas([])
       setNomeArquivo('')
     } catch (e) {
-      setResultado({ ok: false, msg: e.message || 'Erro ao importar' })
+      setResultado({ ok: false, msg: explicarErro(e, 'importar as compras') })
     }
     setImportando(false)
   }
@@ -451,7 +452,7 @@ export default function ImportarFatura({ store }) {
         <div className="alert alert-green">✓ {resultado.n} transaç{resultado.n === 1 ? 'ão importada' : 'ões importadas'} com sucesso.</div>
       )}
       {resultado && !resultado.ok && (
-        <div className="alert alert-red">Erro ao importar: {resultado.msg}</div>
+        <div className="alert alert-red" style={{ whiteSpace: "pre-line" }}>{resultado.msg}</div>
       )}
 
       {linhas.length === 0 ? (

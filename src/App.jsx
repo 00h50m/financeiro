@@ -189,8 +189,8 @@ function AppLogado({ email }) {
   if (store.error) {
     return (
       <div style={{ padding: 32, color: 'var(--red)', fontSize: 14 }}>
-        <div style={{ fontWeight: 500, marginBottom: 8 }}>Erro de conexão com o Supabase</div>
-        <div style={{ color: 'var(--text2)', fontSize: 13 }}>{store.error}</div>
+        <div style={{ fontWeight: 500, marginBottom: 8 }}>Não consegui carregar seus dados</div>
+        <div style={{ color: 'var(--text2)', fontSize: 13, whiteSpace: 'pre-line' }}>{store.error}</div>
         <button className="btn btn-ghost" style={{ marginTop: 16 }} onClick={() => store.loadAll()}>
           Tentar novamente
         </button>

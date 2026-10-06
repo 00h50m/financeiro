@@ -3,6 +3,8 @@ import { fmt, mesLabel, nowYM, hojeSP, tituloCompra, subtituloCompra } from '../
 import { lancadoDoCartao, itensDaFatura } from '../lib/financeiro'
 import EditarCompra from './EditarCompra'
 import { mesesDeFaturas } from '../lib/faturaMeses'
+import { compilar } from '../lib/filtro'
+import { CampoBusca, ResumoFiltro } from './FiltroLista'
 import { lerValorReal, validarFatura, dadosDaFatura } from '../lib/faturaEdicao'
 
 const CHAVE_REVISADAS = 'faturas_revisadas'
@@ -58,7 +60,9 @@ function ComprasDaFatura({ det, onEditar, irPara }) {
             </tr>
           ))}
           <tr style={{ borderTop: '1px solid var(--border2)' }}>
-            <td colSpan={4} style={{ color: 'var(--text2)' }}>Total lançado</td>
+            <td colSpan={4} style={{ color: 'var(--text2)' }}>
+              {det.parcial ? `Só o que combina com a busca (${det.itens.length + det.fixos.length} de ${det.qtdTotal}) · total da fatura` : 'Total lançado'}
+            </td>
             <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontWeight: 500 }}>{fmt(det.total)}</td>
             <td />
           </tr>
@@ -76,6 +80,9 @@ export default function Faturas({ store, irPara }) {
   const [editId, setEditId] = useState(null) // null = lançando uma fatura nova
   const [abertas, setAbertas] = useState([]) // faturas com a lista de compras aberta
   const [compraEditando, setCompraEditando] = useState(null)
+  const [busca, setBusca] = useState('')
+  const [filtroCartao, setFiltroCartao] = useState('')
+  const [filtroSituacao, setFiltroSituacao] = useState('') // 'diferenca' | 'semvalor' | 'nao_paga'
   const [verTodos, setVerTodos] = useState(false) // meses antigos ficam recolhidos
   const alternarCompras = (id) => setAbertas((a) => (a.includes(id) ? a.filter((x) => x !== id) : [...a, id]))
   const [saving, setSaving] = useState(false)
@@ -134,7 +141,35 @@ export default function Faturas({ store, irPara }) {
   // Todos os meses com fatura cadastrada OU com algo lançado no cartão (antes só os com valor do banco).
   const todosMeses = mesesDeFaturas({ faturas, compras, cartoes, fixos: store.fixos, hoje: nowYM() })
   const MESES_VISIVEIS = 12
-  const meses = verTodos ? todosMeses : todosMeses.slice(0, MESES_VISIVEIS)
+  const filtroAtivo = !!(busca.trim() || filtroCartao || filtroSituacao)
+  const limparFiltros = () => { setBusca(''); setFiltroCartao(''); setFiltroSituacao('') }
+  const { combina } = compilar(busca)
+  const buscando = !!busca.trim()
+  // Com busca/filtro ligados, olha todos os meses (não só os 12 mais novos) e mostra só as faturas que combinam.
+  const meses = filtroAtivo || verTodos ? todosMeses : todosMeses.slice(0, MESES_VISIVEIS)
+  const faturaDaLinha = (l, mes) => l.fatura || { id: `sem|${l.cartao_id}|${mes}`, cartao_id: l.cartao_id, mes, valor_real: null, pago: false, sintetica: true }
+  // O que da fatura combina com a busca: compras e fixos do cartão (nome, categoria, valor, data), ou a própria fatura (cartão, mês, valores).
+  function filtrarFatura(fat, mes) {
+    const cartao = cartoes.find((c) => c.id === fat.cartao_id)
+    const lanc = getLancado(fat.cartao_id, mes)
+    if (filtroCartao && fat.cartao_id !== filtroCartao) return null
+    const real = temReal(fat) ? Number(fat.valor_real) : null
+    if (filtroSituacao === 'semvalor' && real != null) return null
+    if (filtroSituacao === 'diferenca' && (real == null || Math.abs(real - lanc) < 0.05)) return null
+    if (filtroSituacao === 'nao_paga' && fat.pago) return null
+    const det = itensDaFatura(compras, cartoes, fat.cartao_id, mes, store.fixos)
+    if (!buscando) return { det }
+    const daFatura = combina({ texto: `${cartao?.nome || ''} ${mesLabel(mes)}`, valor: [real, lanc], data: mes })
+    const itens = det.itens.filter((i) => combina({
+      texto: [i.compra.descricao, i.compra.identificacao, i.compra.categoria, i.compra.subcategoria, i.compra.obs, i.compra.pessoa, cartao?.nome].filter(Boolean).join(' '),
+      valor: [i.valor, Number(i.compra.valor_total)], data: i.compra.data_compra,
+    }))
+    const fixosOk = det.fixos.filter((f) => combina({ texto: `${f.nome} conta fixa`, valor: f.valor }))
+    if (!daFatura && !itens.length && !fixosOk.length) return null
+    return { det: daFatura ? det : { ...det, itens, fixos: fixosOk, parcial: true, qtdTotal: det.itens.length + det.fixos.length }, abrir: !daFatura }
+  }
+
+  const mesesComResultado = filtroAtivo ? meses.filter((m) => m.linhas.some((l) => filtrarFatura(faturaDaLinha(l, m.mes), m.mes))).length : meses.length
 
   return (
     <div className="page">
@@ -205,7 +240,19 @@ export default function Faturas({ store, irPara }) {
         <button className="btn btn-primary" onClick={() => abrirNova()}>
           + Lançar fatura
         </button>
+        <CampoBusca valor={busca} onChange={setBusca} placeholder="Buscar compra, cartão, mês ou valor (ex.: shellbox, 136,30, 10/2026)" />
+        <select value={filtroCartao} onChange={(e) => setFiltroCartao(e.target.value)} aria-label="Filtrar por cartão">
+          <option value="">Todos os cartões</option>
+          {cartoes.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+        </select>
+        <select value={filtroSituacao} onChange={(e) => setFiltroSituacao(e.target.value)} aria-label="Filtrar por situação">
+          <option value="">Todas as situações</option>
+          <option value="diferenca">Com diferença (banco ≠ lançado)</option>
+          <option value="semvalor">Sem valor do banco</option>
+          <option value="nao_paga">Não pagas</option>
+        </select>
       </div>
+      <ResumoFiltro ativo={filtroAtivo} mostrando={mesesComResultado} total={todosMeses.length} onLimpar={limparFiltros} />
 
       {suspeitas.length > 0 && (
         <div className="alert alert-amber" style={{ marginBottom: 16 }}>
@@ -227,10 +274,15 @@ export default function Faturas({ store, irPara }) {
           Nenhuma fatura lançada ainda.{'\n'}Lance o valor real do banco e o sistema mostra o que está faltando categorizar.
         </div>
       )}
+      {filtroAtivo && meses.length > 0 && mesesComResultado === 0 && (
+        <div className="empty">Nenhuma fatura com esses filtros.{'\n'}Tente outro termo ou clique em "Limpar filtros".</div>
+      )}
 
       {meses.map(({ mes, linhas }) => {
         // Cartão com compras no mês mas sem fatura cadastrada vira uma linha "de mentira" (sem id no banco).
         const fatsDoMes = linhas.map((l) => l.fatura || { id: `sem|${l.cartao_id}|${mes}`, cartao_id: l.cartao_id, mes, valor_real: null, pago: false, sintetica: true })
+        const vistas = new Map(fatsDoMes.map((f) => [f.id, filtrarFatura(f, mes)]).filter(([, v]) => v))
+        if (filtroAtivo && vistas.size === 0) return null
         const comReal = fatsDoMes.filter(temReal)
         const totalReal = comReal.reduce((s, f) => s + Number(f.valor_real), 0)
         const totalLanc = comReal.reduce((s, f) => s + getLancado(f.cartao_id, mes), 0)
@@ -259,11 +311,11 @@ export default function Faturas({ store, irPara }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {fatsDoMes.map((fat) => {
+                  {fatsDoMes.filter((f) => vistas.has(f.id)).map((fat) => {
                     const cartao = cartoes.find((c) => c.id === fat.cartao_id)
                     const lanc = getLancado(fat.cartao_id, mes)
-                    const det = itensDaFatura(compras, cartoes, fat.cartao_id, mes, store.fixos)
-                    const aberta = abertas.includes(fat.id)
+                    const { det, abrir } = vistas.get(fat.id)
+                    const aberta = abertas.includes(fat.id) || !!abrir
                     const qtd = det.itens.length + det.fixos.length
                     const botaoCompras = (
                       <button className="btn btn-ghost btn-sm" onClick={() => alternarCompras(fat.id)} style={{ marginRight: 6 }} aria-expanded={aberta}>
@@ -346,7 +398,7 @@ export default function Faturas({ store, irPara }) {
           </div>
         )
       })}
-      {todosMeses.length > MESES_VISIVEIS && (
+      {!filtroAtivo && todosMeses.length > MESES_VISIVEIS && (
         <div style={{ textAlign: 'center', margin: '8px 0 24px' }}>
           <button className="btn btn-ghost" onClick={() => setVerTodos((v) => !v)}>
             {verTodos ? 'Mostrar só os últimos 12 meses' : `Mostrar meses anteriores (${todosMeses.length - MESES_VISIVEIS})`}

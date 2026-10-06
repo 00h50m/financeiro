@@ -107,7 +107,7 @@ export default function Divididos({ store }) {
     const t = window.prompt(`Quanto ${i.pessoa} pagou de "${i.descricao}"? (R$)`, String(i.esperado).replace('.', ','))
     if (t === null) return
     const v = num(t)
-    if (!(v >= 0) || Number.isNaN(v)) return alert('Valor inválido.')
+    if (!(v >= 0) || Number.isNaN(v)) return alert('Valor inválido.\n\nDigite só números, com vírgula nos centavos (ex.: 312,40).')
     await marcarRepasse(i.divisao.id, mes, v)
   }
 
