@@ -56,6 +56,10 @@ alter table compras add column if not exists data_pagamento date;
 -- opcional e guarda o que a compra é, escrito pela usuária.
 alter table compras add column if not exists identificacao text;
 
+-- `grupo_id`: partes de uma compra dividida em várias categorias (ex.: Mercado Livre) compartilham o mesmo
+-- grupo_id. Cada parte é uma linha normal de compras. Ver inbox/19_compras_grupo.sql.
+alter table compras add column if not exists grupo_id uuid;
+
 -- ============================================================
 -- RENDAS (uma linha por mês, formato YYYY-MM)
 -- ============================================================

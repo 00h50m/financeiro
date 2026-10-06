@@ -19,7 +19,7 @@ describe('contrato do banco', () => {
   })
   it('carregarContexto traz categoria e subcategoria das compras (o aprendizado pelo histórico depende delas)', () => {
     const fonte = readFileSync(new URL('../db.js', import.meta.url), 'utf8')
-    const linha = fonte.split('\n').find((l) => l.includes("todas('compras', 'id,data_compra"))
+    const linha = fonte.split('\n').find((l) => l.includes('const COLUNAS_CASAR ='))
     for (const col of ['categoria', 'subcategoria', 'cartao_id', 'descricao']) expect(linha).toContain(col)
   })
 })

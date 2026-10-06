@@ -1,4 +1,5 @@
 import { chaveEstabelecimento, similaridadeEstabelecimento } from './estabelecimento.js'
+import { comprasComGruposSomados } from './divisaoCompra.js'
 
 // Procura, entre as compras já lançadas, a que provavelmente é o mesmo gasto de um evento
 // (Telegram, notificação, linha de CSV...). Nunca decide sozinho: devolve o nível e quem.
@@ -19,7 +20,7 @@ function mesmaOrigem(compra, evento, eventos) {
     x.compra_id === compra.id && x.origem === evento.origem && ['confirmado', 'vinculado'].includes(x.status))
 }
 
-function pontuar(ev, c, indiceAliases) {
+export function pontuar(ev, c, indiceAliases) {
   const valorEv = Number(ev.valor)
   const totalC = Number(c.valor_total)
   const parcC = Number(c.parcelas) || 1
@@ -43,17 +44,20 @@ function pontuar(ev, c, indiceAliases) {
   if (sim === 0) return null
 
   const parcelado = parcC > 1 || parcEv > 1
+  // Mesmo parcelamento dos dois lados (ex.: 3x de 300 no mesmo dia): a data vale como numa compra à vista.
+  const mesmoParcelamento = parcC > 1 && parcC === parcEv
   const d = dias(ev.data_evento, (c.data_compra || '').slice(0, 10))
   if (!parcelado && d > JANELA_DIAS) return null // parcela cai em outro mês: a data não vale
-  const dataFator = parcelado ? 0.85 : FATOR_DATA[Math.round(d)] ?? 0.75
+  const dataFator = parcelado && !(mesmoParcelamento && d <= JANELA_DIAS) ? 0.85 : FATOR_DATA[Math.round(d)] ?? 0.75
 
   const score = Math.round(sim * dataFator * cartaoFator * valorFator * 100) / 100
-  const exato = !parcelado && valorFator === 1 && cartaoFator === 1 && sim === 1 && d <= 1
+  const exato = (!parcelado || mesmoParcelamento) && valorFator === 1 && cartaoFator === 1 && sim === 1 && d <= 1
   return { compra: c, score, exato }
 }
 
 export function encontrarCorrespondencia(ev, compras, { indiceAliases = new Map(), eventos = [] } = {}) {
-  const candidatos = compras
+  // Compra dividida em categorias é uma cobrança só (soma das partes) para fatura e notificação.
+  const candidatos = comprasComGruposSomados(compras)
     .filter((c) => !mesmaOrigem(c, ev, eventos))
     .map((c) => pontuar(ev, c, indiceAliases))
     .filter((x) => x && x.score >= 0.5)

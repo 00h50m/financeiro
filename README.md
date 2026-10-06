@@ -13,7 +13,7 @@ Sistema financeiro pessoal (React + Vite + Supabase), com login, instalável no 
 - **Parcelamentos** — compras parceladas em andamento, progresso, valor restante e término.
 - **Faturas** — valor real de cada fatura (por cartão/mês) comparado ao que foi lançado.
 - **Pagamentos** — controle do que está pago e a pagar no mês (contas fixas, faturas, contas sem cartão), total de dívidas, dinheiro disponível (renda + sobra do mês anterior − pago) e acerto com o saldo real da conta.
-- **Importar fatura** — CSV da fatura → revisão editável → salva. Detecta duplicatas, confere parcelas e valor da fatura, sugere categoria pelo histórico e lança parcelas em andamento.
+- **Importar fatura** — CSV da fatura → revisão editável → salva. Detecta duplicatas, confere parcelas e valor da fatura, sugere categoria pelo histórico e lança parcelas em andamento. Reconhece o que já está em Compras mesmo com nome ou data diferentes (lançado à mão, pelo Telegram ou por notificação), cada compra casa com uma linha só, avisa quando o arquivo parece já ter sido importado, sugere nome (Identificação) e categoria e guarda o texto original da fatura.
 
 **Planejamento**
 - **Renda** — renda por mês (salários, extras, mesada, outros).
@@ -50,7 +50,7 @@ Rode no SQL Editor do Supabase:
 | `config.sql` | Configurações (reserva de emergência) |
 | `cartoes_limite.sql` | Coluna de limite do cartão |
 | `fixos_mes_inicio.sql` | Histórico das contas fixas (mudar o valor só daqui para frente) |
-| `inbox/01` a `inbox/18` | Inbox Financeiro (rodar **em ordem**, uma parte por vez; cada uma é repetível). `inbox/desfazer.sql` reverte. |
+| `inbox/01` a `inbox/19` | Inbox Financeiro (rodar **em ordem**, uma parte por vez; cada uma é repetível). `inbox/desfazer.sql` reverte. |
 
 Usuários: crie em **Authentication → Users** e deixe o cadastro aberto desligado.
 

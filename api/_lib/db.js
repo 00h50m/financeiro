@@ -17,6 +17,14 @@ export function criarDb({ url, serviceKey }) {
       if (pagina.length < POR_PAGINA) return linhas
     }
   }
+  // Compras para procurar correspondência. grupo_id (compra dividida em categorias) só existe depois do SQL
+  // inbox/19; sem ele o bot segue funcionando, só não soma as partes.
+  const COLUNAS_CASAR = 'id,data_compra,descricao,identificacao,cartao_id,valor_total,parcelas,origem,categoria,subcategoria'
+  async function comprasParaCasar() {
+    try { return await todas('compras', COLUNAS_CASAR + ',grupo_id', (q) => q.order('id')) } catch {
+      return await todas('compras', COLUNAS_CASAR, (q) => q.order('id'))
+    }
+  }
   const emAndamento = (uid) => sb.from('eventos_financeiros').select('*')
     .eq('origem', 'telegram').in('status', ABERTOS).eq('contexto->>telegram_user_id', String(uid))
     .order('capturado_em', { ascending: false }).limit(1)
@@ -59,7 +67,7 @@ export function criarDb({ url, serviceKey }) {
         todas('pessoas', '*', (q) => q.order('created_at')),
         todas('regras_categorizacao', '*'),
         todas('estabelecimento_aliases', '*'),
-        todas('compras', 'id,data_compra,descricao,identificacao,cartao_id,valor_total,parcelas,origem,categoria,subcategoria', (q) => q.order('id')),
+        comprasParaCasar(),
         todas('eventos_financeiros', 'id,compra_id,origem,status', (q) => q.not('compra_id', 'is', null).order('id')),
       ])
       return { categorias, cartoes, pessoas, regras, aliases, compras, eventos }

@@ -51,3 +51,35 @@ describe('reconciliação', () => {
     expect(r.nivel).toBe('provavel')
   })
 })
+
+describe('compra dividida em categorias', () => {
+  it('a cobrança inteira casa com as partes somadas (e "Vincular" aponta para uma parte que existe)', () => {
+    const partes = [
+      compra({ id: 'p1', grupo_id: 'g', valor_total: 100, origem: 'telegram', descricao: 'MERCADO LIVRE', categoria: 'Casa' }),
+      compra({ id: 'p2', grupo_id: 'g', valor_total: 150, origem: 'telegram', descricao: 'MERCADO LIVRE', categoria: 'Animais' }),
+      compra({ id: 'p3', grupo_id: 'g', valor_total: 50, origem: 'telegram', descricao: 'MERCADO LIVRE', categoria: 'Casa' }),
+    ]
+    const r = encontrarCorrespondencia(ev({ valor: 300, estabelecimento_chave: 'mercado livre' }), partes)
+    expect(r.nivel).toBe('exato')
+    expect(r.compra.id).toBe('p1')
+  })
+  it('sem a soma, uma parte sozinha não casa com a cobrança inteira', () => {
+    const r = encontrarCorrespondencia(ev({ valor: 300, estabelecimento_chave: 'mercado livre' }),
+      [compra({ id: 'p1', valor_total: 100, origem: 'telegram', descricao: 'MERCADO LIVRE' })])
+    expect(r.nivel).toBe('nenhum')
+  })
+})
+
+describe('parcelamento nos dois lados', () => {
+  it('mesmo total, mesmas parcelas, mesmo cartão, lugar e dia: exato', () => {
+    const c = compra({ descricao: 'MAGALU', valor_total: 300, parcelas: 3, data_compra: '2026-10-04', origem: 'telegram' })
+    const r = encontrarCorrespondencia(ev({ valor: 300, parcelas: 3, estabelecimento_chave: 'magalu' }), [c])
+    expect(r.nivel).toBe('exato')
+  })
+  it('número de parcelas diferente continua só "provável"', () => {
+    const c = compra({ descricao: 'MAGALU', valor_total: 300, parcelas: 3, data_compra: '2026-10-04', origem: 'telegram' })
+    const r = encontrarCorrespondencia(ev({ valor: 300, parcelas: 6, estabelecimento_chave: 'magalu' }), [c])
+    expect(r.nivel).not.toBe('exato')
+  })
+})
+
