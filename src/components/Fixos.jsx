@@ -347,14 +347,14 @@ export default function Fixos({ store }) {
         {fixosVisiveis.length === 0 ? (
           <div className="empty">{fixos.length === 0 ? 'Nenhum gasto fixo cadastrado.' : 'Nenhuma conta fixa com esses filtros.\nTente outro termo ou clique em "Limpar filtros".'}</div>
         ) : (
-          <table>
+          <table className="tabela-compacta">
             <thead>
               <tr>
                 <th>Nome</th>
-                <th>De quem</th>
-                <th>Categoria</th>
+                <th className="col-opc">De quem</th>
+                <th className="col-opc">Categoria</th>
                 <th style={{ textAlign: 'right' }}>Valor/mês (estimado se variável)</th>
-                <th style={{ textAlign: 'center' }}>Status</th>
+                <th className="col-opc" style={{ textAlign: 'center' }}>Status</th>
                 <th />
               </tr>
             </thead>
@@ -369,7 +369,7 @@ export default function Fixos({ store }) {
                 return (
                   <Fragment key={f.id}>
                   <tr>
-                    <td style={{ fontWeight: 500 }}>
+                    <td className="nome-cel" style={{ fontWeight: 500 }}>
                       {f.nome}
                       {f.variavel && <span className="badge badge-amber" style={{ marginLeft: 6, fontSize: 10 }}>valor variável</span>}
                       {redundantes.length > 0 && (
@@ -406,11 +406,16 @@ export default function Fixos({ store }) {
                           {encerrado ? `encerrado em ${mesLabel(f.mes_fim)}` : `até ${mesLabel(f.mes_fim)}`}
                         </div>
                       )}
+                      <div className="so-mobile">
+                        {donoDoFixo(f, pessoas)} · {f.categoria || 'sem categoria'}{f.subcategoria ? ` › ${f.subcategoria}` : ''}
+                        {f.cartao_id && cartoes.find((c) => c.id === f.cartao_id) ? ` · no cartão ${cartoes.find((c) => c.id === f.cartao_id).nome}` : f.dia_vencimento ? ` · vence dia ${f.dia_vencimento}` : ''}
+                        {' · '}{!f.ativo ? 'pausado' : encerrado ? 'encerrado' : 'ativo'}
+                      </div>
                     </td>
-                    <td>
+                    <td className="col-opc">
                       <span className={`badge badge-${corPessoa(pessoas, donoDoFixo(f, pessoas))}`}>{donoDoFixo(f, pessoas)}</span>
                     </td>
-                    <td style={{ fontSize: 12, color: 'var(--text2)' }}>
+                    <td className="col-opc" style={{ fontSize: 12, color: 'var(--text2)' }}>
                       {f.categoria ? (
                         <>
                           {f.categoria}<br />
@@ -430,7 +435,7 @@ export default function Fixos({ store }) {
                         <ValorDoMes fixo={ativosAgora.find((x) => x.id === f.id)} mes={mesAtual} real={f.valores?.[mesAtual]} definirValorFixo={definirValorFixo} />
                       ) : fmt(ativosAgora.find((x) => x.id === f.id)?.valor ?? f.valor)}
                     </td>
-                    <td style={{ textAlign: 'center' }}>
+                    <td className="col-opc" style={{ textAlign: 'center' }}>
                       <button
                         className={`badge ${f.ativo && !encerrado ? 'badge-green' : 'badge-gray'}`}
                         style={{ cursor: 'pointer' }}
@@ -439,7 +444,8 @@ export default function Fixos({ store }) {
                         {!f.ativo ? 'Pausado' : encerrado ? 'Encerrado' : 'Ativo'}
                       </button>
                     </td>
-                    <td style={{ display: 'flex', gap: 6 }}>
+                    <td className="acoes-cel" style={{ display: 'flex', gap: 6 }}>
+                      <button className="btn btn-ghost btn-sm so-mobile" style={{ color: 'var(--text2)', fontSize: 12 }} onClick={() => alternarAtivo(f, encerrado)}>{!f.ativo || encerrado ? 'Reativar' : 'Pausar'}</button>
                       {f.variavel && <button className="btn btn-ghost btn-sm" onClick={() => setMesesAbertos((a) => ({ ...a, [f.id]: a[f.id] ? false : 'curto' }))} aria-expanded={painelAberto} title="Ver, corrigir ou apagar o valor real de cada mês">{painelAberto ? '▾' : '▸'} Meses</button>}
                       <button className="btn btn-ghost btn-sm" onClick={() => abrir(f)}>Editar</button>
                       <button className="btn btn-danger" onClick={async () => { if (confirm(`Remover "${f.nome}"${versoes.length > 1 ? ` e o histórico de valores (${versoes.length} versões)` : ''}?`)) for (const v of versoes) await delFixo(v.id) }}>×</button>

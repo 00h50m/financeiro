@@ -182,14 +182,14 @@ export default function Dashboard({ store, irPara }) {
 
       <div className="section-label">distribuição por pessoa · {mesLabel(mes)}</div>
       <div className="card">
-        <table>
+        <table className="tabela-compacta">
           <thead>
             <tr>
               <th>Pessoa</th>
-              <th style={{ textAlign: 'right' }}>Parcelamentos</th>
-              <th style={{ textAlign: 'right' }}>Fixos</th>
+              <th className="col-opc" style={{ textAlign: 'right' }}>Parcelamentos</th>
+              <th className="col-opc" style={{ textAlign: 'right' }}>Fixos</th>
               <th style={{ textAlign: 'right' }}>Total</th>
-              <th>Participação</th>
+              <th className="col-opc">Participação</th>
             </tr>
           </thead>
           <tbody>
@@ -201,11 +201,12 @@ export default function Dashboard({ store, irPara }) {
                     <span className={`badge badge-${corPessoa(pessoas, pessoa)}`}>
                       {pessoa}
                     </span>
+                    <div className="so-mobile">Parcelamentos {fmt(parc)} · Fixos {fmt(fix)} · {p2}% do total</div>
                   </td>
-                  <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(parc)}</td>
-                  <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(fix)}</td>
+                  <td className="col-opc" style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(parc)}</td>
+                  <td className="col-opc" style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(fix)}</td>
                   <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(total)}</td>
-                  <td>
+                  <td className="col-opc">
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <div className="prog-bar" style={{ flex: 1 }}>
                         <div className="prog-fill" style={{ width: p2 + '%', background: corPessoaCss(pessoas, pessoa) }} />
@@ -218,10 +219,10 @@ export default function Dashboard({ store, irPara }) {
             })}
             <tr style={{ borderTop: '1px solid var(--border2)' }}>
               <td style={{ color: 'var(--text2)' }}>Total</td>
-              <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13, color: 'var(--text2)' }}>{fmt(totalParc)}</td>
-              <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13, color: 'var(--text2)' }}>{fmt(totalFixos)}</td>
+              <td className="col-opc" style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13, color: 'var(--text2)' }}>{fmt(totalParc)}</td>
+              <td className="col-opc" style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13, color: 'var(--text2)' }}>{fmt(totalFixos)}</td>
               <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13, color: 'var(--text2)' }}>{fmt(totalParc + totalFixos)}</td>
-              <td />
+              <td className="col-opc" />
             </tr>
           </tbody>
         </table>
@@ -255,14 +256,14 @@ export default function Dashboard({ store, irPara }) {
         {porCategoria.length === 0 ? (
           <div className="empty">Nenhum gasto categorizado em {mesLabel(mes)} ainda.</div>
         ) : (
-          <table>
+          <table className="tabela-compacta">
             <thead>
               <tr>
                 <th>Categoria</th>
                 <th style={{ textAlign: 'right' }}>Valor</th>
                 <th style={{ textAlign: 'right' }}>vs {mesLabel(mesAnterior)}</th>
-                <th style={{ textAlign: 'right' }} title="Compara com a média dos 5 meses anteriores ao atual">vs média (5 meses)</th>
-                <th>Participação</th>
+                <th className="col-opc" style={{ textAlign: 'right' }} title="Compara com a média dos 5 meses anteriores ao atual">vs média (5 meses)</th>
+                <th className="col-opc">Participação</th>
               </tr>
             </thead>
             <tbody>
@@ -285,6 +286,7 @@ export default function Dashboard({ store, irPara }) {
                             <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
                               {itens.length} {itens.length === 1 ? 'gasto' : 'gastos'}
                               {teto > 0 && ` · teto ${fmtK(teto)}`}
+                              <span className="so-mobile" style={{ display: 'inline' }}>{` · ${pct}% do total`}</span>
                             </div>
                           </div>
                         </div>
@@ -299,7 +301,7 @@ export default function Dashboard({ store, irPara }) {
                           return <span style={{ color: dif > 0 ? 'var(--red)' : 'var(--green)' }} title={`Mês anterior: ${fmt(ant)}`}>{dif > 0 ? '↑' : '↓'} {fmt(Math.abs(dif))} <span style={{ color: 'var(--text3)' }}>({Math.round((Math.abs(dif) / ant) * 100)}%)</span></span>
                         })()}
                       </td>
-                      <td style={{ textAlign: 'right', fontSize: 12, whiteSpace: 'nowrap' }}>
+                      <td className="col-opc" style={{ textAlign: 'right', fontSize: 12, whiteSpace: 'nowrap' }}>
                         {(() => {
                           const antes = serie6.slice(0, -1).map((l) => l.porCategoria?.[categoria] || 0)
                           const media = antes.reduce((t, v) => t + v, 0) / (antes.length || 1)
@@ -309,7 +311,7 @@ export default function Dashboard({ store, irPara }) {
                           return <span style={{ color: p > 0 ? 'var(--red)' : 'var(--green)' }} title={`Média dos 5 meses anteriores: ${fmt(media)}`}>{p > 0 ? '↑' : '↓'} {Math.abs(p)}% <span style={{ color: 'var(--text3)' }}>({fmt(media)})</span></span>
                         })()}
                       </td>
-                      <td>
+                      <td className="col-opc">
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <div className="prog-bar" style={{ flex: 1 }}>
                             <div className="prog-fill" style={{ width: pct + '%', background: 'var(--blue)' }} />
@@ -359,14 +361,14 @@ export default function Dashboard({ store, irPara }) {
 
       <div className="section-label">projeção · próximos 6 meses</div>
       <div className="card">
-        <table>
+        <table className="tabela-compacta">
           <thead>
             <tr>
               <th>Mês</th>
               <th style={{ textAlign: 'right' }}>Renda</th>
               <th style={{ textAlign: 'right' }}>Compromisso</th>
               <th style={{ textAlign: 'right' }}>Sobra do mês</th>
-              <th style={{ width: 100 }} />
+              <th className="col-opc" style={{ width: 100 }} />
             </tr>
           </thead>
           <tbody>
@@ -387,7 +389,7 @@ export default function Dashboard({ store, irPara }) {
                     {p.renda > 0 ? fmtK(p.saldo) : '—'}
                   </span>
                 </td>
-                <td>
+                <td className="col-opc">
                   {p.renda > 0 && (
                     <div className="prog-bar">
                       <div className="prog-fill" style={{ width: Math.min(100, Math.round((p.compromisso / p.renda) * 100)) + '%', background: p.saldo >= 0 ? 'var(--green)' : 'var(--red)' }} />

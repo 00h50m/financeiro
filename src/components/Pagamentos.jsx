@@ -240,15 +240,15 @@ export default function Pagamentos({ store }) {
         <div className="empty">{filtroAtivo && fixosAtivos.length > 0 ? 'Nenhuma conta fixa com esses filtros.' : <>Nenhuma conta fixa ativa em {mesLabel(mes)}.{'\n'}Cadastre em "Fixos" para acompanhar aqui.</>}</div>
       ) : (
         <div className="card">
-          <table>
+          <table className="tabela-compacta">
             <thead>
               <tr>
                 <th style={{ textAlign: 'center' }}>Pago</th>
                 <th>Nome</th>
-                <th>Categoria</th>
-                <th style={{ textAlign: 'center' }}>Vence</th>
+                <th className="col-opc">Categoria</th>
+                <th className="col-opc" style={{ textAlign: 'center' }}>Vence</th>
                 <th style={{ textAlign: 'right' }}>Valor</th>
-                <th>Pago em</th>
+                <th className="col-opc">Pago em</th>
               </tr>
             </thead>
             <tbody>
@@ -259,8 +259,11 @@ export default function Pagamentos({ store }) {
                     <td style={{ textAlign: 'center' }}>
                       <input type="checkbox" checked={!!pg?.pago} onChange={() => toggleFixo(f)} />
                     </td>
-                    <td style={{ fontWeight: 500, textDecoration: pg?.pago ? 'line-through' : 'none' }}>{f.nome}</td>
-                    <td style={{ fontSize: 12, color: 'var(--text2)' }}>
+                    <td className="nome-cel" style={{ fontWeight: 500 }}>
+                      <span style={{ textDecoration: pg?.pago ? 'line-through' : 'none' }}>{f.nome}</span>
+                      <div className="so-mobile">{[f.categoria, f.dia_vencimento ? `vence dia ${f.dia_vencimento}` : '', pg?.pago && dataFmt(pg?.data_pagamento) ? `pago em ${dataFmt(pg.data_pagamento)}` : ''].filter(Boolean).join(' · ')}</div>
+                    </td>
+                    <td className="col-opc" style={{ fontSize: 12, color: 'var(--text2)' }}>
                       {f.categoria ? (
                         <>
                           {f.categoria}<br />
@@ -270,7 +273,7 @@ export default function Pagamentos({ store }) {
                         <span style={{ color: 'var(--text3)' }}>—</span>
                       )}
                     </td>
-                    <td style={{ textAlign: 'center', fontFamily: 'DM Mono', fontSize: 12, color: 'var(--text3)' }}>
+                    <td className="col-opc" style={{ textAlign: 'center', fontFamily: 'DM Mono', fontSize: 12, color: 'var(--text3)' }}>
                       {f.dia_vencimento ? `dia ${f.dia_vencimento}` : '—'}
                     </td>
                     <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>
@@ -278,7 +281,7 @@ export default function Pagamentos({ store }) {
                         <ValorDoMes fixo={f} mes={mes} real={store.fixos.find((x) => x.id === f.id)?.valores?.[mes]} definirValorFixo={definirValorFixo} compacto fechado={mesFechado(store.fechamentos, mes)} />
                       ) : fmt(f.valor)}
                     </td>
-                    <td style={{ fontSize: 12, color: 'var(--text3)', fontFamily: 'DM Mono' }}>{dataFmt(pg?.data_pagamento) || '—'}</td>
+                    <td className="col-opc" style={{ fontSize: 12, color: 'var(--text3)', fontFamily: 'DM Mono' }}>{dataFmt(pg?.data_pagamento) || '—'}</td>
                   </tr>
                 )
               })}
@@ -292,14 +295,14 @@ export default function Pagamentos({ store }) {
         <div className="empty">{filtroAtivo && linhasCartao.length > 0 ? 'Nenhuma fatura com esses filtros.' : `Nenhum cartão com movimento em ${mesLabel(mes)}.`}</div>
       ) : (
         <div className="card">
-          <table>
+          <table className="tabela-compacta">
             <thead>
               <tr>
                 <th style={{ textAlign: 'center' }}>Pago</th>
                 <th>Cartão</th>
                 <th style={{ textAlign: 'right' }}>Valor</th>
-                <th>Origem</th>
-                <th>Pago em</th>
+                <th className="col-opc">Origem</th>
+                <th className="col-opc">Pago em</th>
               </tr>
             </thead>
             <tbody>
@@ -308,8 +311,9 @@ export default function Pagamentos({ store }) {
                   <td style={{ textAlign: 'center' }}>
                     <input type="checkbox" checked={l.pago} onChange={() => toggleCartao(l)} />
                   </td>
-                  <td style={{ fontWeight: 500, textDecoration: l.pago ? 'line-through' : 'none' }}>
+                  <td className="nome-cel" style={{ fontWeight: 500, textDecoration: l.pago ? 'line-through' : 'none' }}>
                     {l.nome}
+                    <div className="so-mobile" style={{ textDecoration: 'none' }}>{l.temFatura ? 'valor real da fatura' : 'estimado (lançado)'}{l.pago && dataFmt(l.dataPagamento) ? ` · pago em ${dataFmt(l.dataPagamento)}` : ''}</div>
                     {l.fixosNoCartao?.length > 0 && (
                       <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 400, textDecoration: 'none' }}>
                         inclui contas fixas: {l.fixosNoCartao.map((f) => `${f.nome} ${fmt(f.valor)}`).join(' · ')}
@@ -317,14 +321,14 @@ export default function Pagamentos({ store }) {
                     )}
                   </td>
                   <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(l.valor)}</td>
-                  <td>
+                  <td className="col-opc">
                     {l.temFatura ? (
                       <span className="badge badge-green">valor real da fatura</span>
                     ) : (
                       <span className="badge badge-gray">estimado (lançado)</span>
                     )}
                   </td>
-                  <td style={{ fontSize: 12, color: 'var(--text3)', fontFamily: 'DM Mono' }}>{dataFmt(l.dataPagamento) || '—'}</td>
+                  <td className="col-opc" style={{ fontSize: 12, color: 'var(--text3)', fontFamily: 'DM Mono' }}>{dataFmt(l.dataPagamento) || '—'}</td>
                 </tr>
               ))}
             </tbody>
@@ -343,14 +347,14 @@ export default function Pagamentos({ store }) {
         <div className="empty">{filtroAtivo && outrasContas.length > 0 ? 'Nenhuma conta com esses filtros.' : <>Nenhuma conta sem cartão em {mesLabel(mes)}.{'\n'}Compras lançadas como "Sem cartão" aparecem aqui.</>}</div>
       ) : (
         <div className="card">
-          <table>
+          <table className="tabela-compacta">
             <thead>
               <tr>
                 <th style={{ textAlign: 'center' }}>Pago</th>
                 <th>Descrição</th>
                 <th style={{ textAlign: 'right' }}>Valor</th>
-                <th style={{ textAlign: 'center' }}>Parcela</th>
-                <th>Pago em</th>
+                <th className="col-opc" style={{ textAlign: 'center' }}>Parcela</th>
+                <th className="col-opc">Pago em</th>
               </tr>
             </thead>
             <tbody>
@@ -359,20 +363,21 @@ export default function Pagamentos({ store }) {
                   <td style={{ textAlign: 'center' }}>
                     <input type="checkbox" checked={!!c.pago} onChange={() => toggleOutraConta(c)} />
                   </td>
-                  <td style={{ fontWeight: 500, textDecoration: c.pago ? 'line-through' : 'none' }}>
+                  <td className="nome-cel" style={{ fontWeight: 500, textDecoration: c.pago ? 'line-through' : 'none' }}>
                     {tituloCompra(c)}
+                    <div className="so-mobile" style={{ textDecoration: 'none' }}>{c.parcelaTotal > 1 ? `parcela ${c.parcelaNum}/${c.parcelaTotal}` : 'à vista'}{c.pago && dataFmt(c.data_pagamento) ? ` · pago em ${dataFmt(c.data_pagamento)}` : ''}</div>
                     {subtituloCompra(c) && <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 400 }}>no cartão: {subtituloCompra(c)}</div>}
                     {c.obs &&<div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 400 }}>{c.obs}</div>}
                   </td>
                   <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(c.valorParcela)}</td>
-                  <td style={{ textAlign: 'center' }}>
+                  <td className="col-opc" style={{ textAlign: 'center' }}>
                     {c.parcelaTotal > 1 ? (
                       <span className="badge badge-amber">{c.parcelaNum}/{c.parcelaTotal}</span>
                     ) : (
                       <span className="badge badge-gray">à vista</span>
                     )}
                   </td>
-                  <td style={{ fontSize: 12, color: 'var(--text3)', fontFamily: 'DM Mono' }}>{dataFmt(c.data_pagamento) || '—'}</td>
+                  <td className="col-opc" style={{ fontSize: 12, color: 'var(--text3)', fontFamily: 'DM Mono' }}>{dataFmt(c.data_pagamento) || '—'}</td>
                 </tr>
               ))}
             </tbody>

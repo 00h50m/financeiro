@@ -74,8 +74,8 @@ export default function Evolucao({ store }) {
 
       <div className="section-label">últimos 12 meses</div>
       <div className="card" style={{ padding: 16 }}>
-        <table>
-          <thead><tr><th>Mês</th><th style={{ textAlign: 'right' }}>Renda</th><th style={{ textAlign: 'right' }}>Despesas</th><th style={{ textAlign: 'right' }}>Sobra</th><th style={{ textAlign: 'right' }}>% guardado</th><th>Origem</th></tr></thead>
+        <table className="tabela-compacta">
+          <thead><tr><th>Mês</th><th style={{ textAlign: 'right' }}>Renda</th><th style={{ textAlign: 'right' }}>Despesas</th><th style={{ textAlign: 'right' }}>Sobra</th><th className="col-opc" style={{ textAlign: 'right' }}>% guardado</th><th className="col-opc">Origem</th></tr></thead>
           <tbody>
             {serie.map((l) => (
               <tr key={l.mes} style={{ opacity: l.temDados ? 1 : 0.45 }}>
@@ -83,8 +83,8 @@ export default function Evolucao({ store }) {
                 <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{l.temDados ? fmtK(l.renda) : '—'}</td>
                 <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{l.temDados ? fmtK(l.despesas) : '—'}</td>
                 <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13, color: l.sobra < 0 ? 'var(--red)' : undefined }}>{l.temDados ? fmtK(l.sobra) : '—'}</td>
-                <td style={{ textAlign: 'right', fontSize: 13 }}>{l.taxaPoupanca != null ? l.taxaPoupanca + '%' : '—'}</td>
-                <td style={{ fontSize: 12, color: 'var(--text3)' }}>{l.temDados ? (l.fonte === 'fechado' ? 'fechado' : 'ao vivo') : 'sem dados'}</td>
+                <td className="col-opc" style={{ textAlign: 'right', fontSize: 13 }}>{l.taxaPoupanca != null ? l.taxaPoupanca + '%' : '—'}</td>
+                <td className="col-opc" style={{ fontSize: 12, color: 'var(--text3)' }}>{l.temDados ? (l.fonte === 'fechado' ? 'fechado' : 'ao vivo') : 'sem dados'}</td>
               </tr>
             ))}
           </tbody>

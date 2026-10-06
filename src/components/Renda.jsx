@@ -81,12 +81,12 @@ export default function Renda({ store }) {
       )}
 
       <div className="card">
-        <table>
+        <table className="tabela-compacta">
           <thead>
             <tr>
               <th>Mês</th>
               {RENDA_CAMPOS.map(([k, l]) => (
-                <th key={k} style={{ textAlign: 'right' }}>{l.split(' ')[0]}</th>
+                <th key={k} className="col-opc" style={{ textAlign: 'right' }}>{l.split(' ')[0]}</th>
               ))}
               <th style={{ textAlign: 'right' }}>Total</th>
               <th />
@@ -101,9 +101,10 @@ export default function Renda({ store }) {
                   <td>
                     {mesLabel(m)}
                     {m === mes && <span className="badge badge-green" style={{ marginLeft: 6, fontSize: 10 }}>atual</span>}
+                    <div className="so-mobile">{RENDA_CAMPOS.filter(([k]) => r?.[k] && Number(r[k]) > 0).map(([k, l]) => `${l.split(' ')[0]} ${fmt(r[k])}`).join(' · ') || 'sem renda cadastrada'}</div>
                   </td>
                   {RENDA_CAMPOS.map(([k]) => (
-                    <td key={k} style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 12, color: r?.[k] && Number(r[k]) > 0 ? 'var(--text)' : 'var(--text3)' }}>
+                    <td key={k} className="col-opc" style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 12, color: r?.[k] && Number(r[k]) > 0 ? 'var(--text)' : 'var(--text3)' }}>
                       {r?.[k] && Number(r[k]) > 0 ? fmt(r[k]) : '—'}
                     </td>
                   ))}
