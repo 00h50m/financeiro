@@ -62,3 +62,28 @@ describe('dados dos gráficos', () => {
     expect(q.map((m) => m.total)).toEqual([200, 200, 200])
   })
 })
+
+import { projecao, sobraAcumulada, anoAAno, progressoDasMetas } from '../graficos'
+describe('projeção e extras', () => {
+  const base = { ...d, compras: [...d.compras, compra({ valor_total: 900, parcelas: 3, categoria: 'Casa', data_compra: '2026-10-05' })], metas: [{ id: 'm1', nome: 'Viagem', tipo: 'objetivo', valor_alvo: 1000, ativa: true }], metasMovimentos: [{ meta_id: 'm1', valor: 250 }] }
+  it('projeção: comprometido + gasto à vista médio; sobra e acumulada coerentes', () => {
+    const p = projecao(base, '2026-10', 3)
+    expect(p.map((x) => x.mes)).toEqual(['2026-10', '2026-11', '2026-12'])
+    p.forEach((x) => { expect(x.despesas).toBeCloseTo(x.comprometido + x.aVistaEstimado, 2); expect(x.sobra).toBeCloseTo(x.renda - x.despesas, 2) })
+    expect(p[2].acumulada).toBeCloseTo(p.reduce((t, x) => t + x.sobra, 0), 2)
+    expect(p[0].aVistaEstimado).toBeGreaterThanOrEqual(0)
+  })
+  it('sobra acumulada soma só meses com dados', () => {
+    const s = sobraAcumulada(d, '2026-10', 3)
+    expect(s[s.length - 1].acumulada).toBeCloseTo(s.reduce((t, x) => t + (x.temDados ? x.sobra : 0), 0), 2)
+  })
+  it('ano a ano: 12 meses, futuro nulo', () => {
+    const a = anoAAno(d, 2026, '2026-10')
+    expect(a).toHaveLength(12)
+    expect(a[10].atual).toBeNull() // nov/2026 ainda não chegou
+    expect(a[8].atual).not.toBeNull() // set/2026 tem dados
+  })
+  it('metas: progresso em % do alvo', () => {
+    expect(progressoDasMetas(base, '2026-10-05')[0]).toMatchObject({ nome: 'Viagem', saldo: 250, alvo: 1000, pct: 25 })
+  })
+})

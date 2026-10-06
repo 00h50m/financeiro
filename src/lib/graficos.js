@@ -3,6 +3,8 @@ import { addMonths, fixosAtivos, gerarParcelas, donoDoFixo, nomeCasa } from './u
 import { serieMensal, resumoParaSerie } from './evolucao.js'
 import { comprasLiquidas, fixosLiquidos } from './divisoes.js'
 import { calendarioQuitacao } from './parcelamentos.js'
+import { resumoDoMes, rendaDoMes, detalhePagamentos } from './financeiro.js'
+import { situacaoDaMeta } from './metas.js'
 
 const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100
 
@@ -72,3 +74,49 @@ export function composicaoDosMeses(d, mesFim, n = 6) {
 
 // Parcelas que caem em cada um dos próximos n meses (calendário de quitação). -> [{ mes, total, qtd, terminam }]
 export const quitacaoDosMeses = (d, mesInicio, n = 12) => calendarioQuitacao(d.compras, d.cartoes, mesInicio, n)
+
+// ---------- Projeção e visões extras ----------
+
+// Compras à vista (1 parcela) que caem em cada mês: é o gasto "do dia a dia" que ainda não foi lançado nos meses futuros.
+const aVistaDoMes = (d, mes) => comprasLiquidas(d).reduce((t, c) => (Number(c.parcelas) > 1 ? t : t + gerarParcelas(c, d.cartoes).filter((p) => p.mes === mes).reduce((s, p) => s + p.valor, 0)), 0)
+
+// Projeção dos próximos meses SE nada mudar: o que já está comprometido (parcelas, contas fixas, faturas) + o gasto à vista
+// médio dos 3 meses anteriores (o que você costuma gastar no dia a dia e ainda não lançou). Renda: a cadastrada; sem ela, a última conhecida.
+// -> [{ mes, renda, rendaEstimada, comprometido, aVistaEstimado, despesas, sobra, acumulada }]
+export function projecao(d, mesInicio, n = 6) {
+  const media = r2([1, 2, 3].reduce((t, i) => t + aVistaDoMes(d, addMonths(mesInicio, -i)), 0) / 3)
+  const cache = new Map()
+  let ultimaRenda = 0
+  for (let i = 0; i <= 12 && !ultimaRenda; i++) ultimaRenda = rendaDoMes(d.rendas, addMonths(mesInicio, -i)).valor
+  let acumulada = 0
+  return Array.from({ length: n }, (_, i) => addMonths(mesInicio, i)).map((mes) => {
+    const r = resumoDoMes(d, mes, { usarSaldoAnterior: false, cacheDetalhes: cache })
+    const renda = r.renda > 0 ? r.renda : ultimaRenda
+    const aVistaEstimado = r2(Math.max(0, media - aVistaDoMes(d, mes)))
+    const despesas = r2(r.comprometido + aVistaEstimado)
+    const sobra = r2(renda - despesas)
+    acumulada = r2(acumulada + sobra)
+    return { mes, renda: r2(renda), rendaEstimada: !(r.renda > 0), comprometido: r2(r.comprometido), aVistaEstimado, despesas, sobra, acumulada }
+  })
+}
+
+// Sobra acumulada ao longo dos meses (soma da sobra de cada mês com dados). -> [{ mes, sobra, acumulada }]
+export function sobraAcumulada(d, mesFim, n = 12) {
+  let acumulada = 0
+  return serieMensal(d, mesFim, n).map((l) => { if (l.temDados) acumulada = r2(acumulada + l.sobra); return { mes: l.mes, sobra: r2(l.sobra), acumulada, temDados: l.temDados } })
+}
+
+// Despesas de cada mês do ano `ano` e do anterior, lado a lado. Meses futuros ficam null. -> [{ mes (1-12), atual, anterior }]
+export function anoAAno(d, ano, hoje) {
+  const cache = new Map()
+  const val = (a, m) => { const mes = `${a}-${String(m).padStart(2, '0')}`; const r = resumoParaSerie(d, mes, cache); return r.renda > 0 || r.despesas > 0 ? r2(r.despesas) : null }
+  return Array.from({ length: 12 }, (_, i) => ({ mes: i + 1, atual: `${ano}-${String(i + 1).padStart(2, '0')}` <= hoje ? val(ano, i + 1) : null, anterior: val(ano - 1, i + 1) }))
+}
+
+// Progresso das metas ativas (saldo contra alvo). Reserva usa o custo do mês escolhido.
+export function progressoDasMetas(d, hoje) {
+  if (!(d.metas || []).length) return []
+  const det = detalhePagamentos(d, hoje.slice(0, 7))
+  const custos = { custoFixos: det.totalFixos, custoTotal: det.comprometido }
+  return d.metas.filter((m) => m.ativa !== false).map((m) => ({ nome: m.nome, ...situacaoDaMeta(m, d.metasMovimentos || [], custos, hoje) })).filter((m) => m.alvo > 0)
+}

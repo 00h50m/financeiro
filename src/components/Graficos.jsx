@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
-import { fmt, fmtK, mesLabel, nowYM, addMonths, nomeCasa } from '../lib/utils'
-import { rendaXDespesas, categoriasDoMes, evolucaoDaCategoria, categoriasComGasto, gastoPorPessoa, composicaoDosMeses, quitacaoDosMeses } from '../lib/graficos'
+import { fmt, fmtK, mesLabel, nowYM, addMonths, nomeCasa, hojeSP } from '../lib/utils'
+import { rendaXDespesas, categoriasDoMes, evolucaoDaCategoria, categoriasComGasto, gastoPorPessoa, composicaoDosMeses, quitacaoDosMeses, projecao, sobraAcumulada, anoAAno, progressoDasMetas } from '../lib/graficos'
 import { CartaoGrafico, SERIE } from './graficos/base'
 import Colunas from './graficos/Colunas'
 import Barras from './graficos/Barras'
@@ -24,6 +24,11 @@ export default function Graficos({ store }) {
   const quit = useMemo(() => quitacaoDosMeses(d, hoje, 12), [d, hoje])
   const pess = useMemo(() => gastoPorPessoa(d, hoje, n), [d, hoje, n])
   const comp = useMemo(() => composicaoDosMeses(d, hoje, n), [d, hoje, n])
+  const proj = useMemo(() => projecao(d, hoje, n), [d, hoje, n])
+  const acum = useMemo(() => sobraAcumulada(d, hoje, 12), [d, hoje])
+  const ano = Number(hoje.slice(0, 4))
+  const aa = useMemo(() => anoAAno(d, ano, hoje), [d, ano, hoje])
+  const metasProg = useMemo(() => progressoDasMetas(d, hojeSP()), [d])
 
   const temAlgo = rx.some((m) => m.temDados)
   const serieRD = [{ nome: 'Renda', cor: SERIE[0] }, { nome: 'Despesas', cor: SERIE[1] }]
@@ -43,6 +48,18 @@ export default function Graficos({ store }) {
       </div>
 
       {!temAlgo && <div className="alert alert-blue">Ainda não há renda nem gastos nesse período para desenhar. Cadastre a renda e lance compras, e os gráficos aparecem aqui.</div>}
+
+      <CartaoGrafico
+        titulo="Projeção: quanto sobra nos próximos meses"
+        sub="Se nada mudar: o que já está comprometido (parcelas, contas fixas, faturas) mais o gasto à vista médio dos últimos 3 meses. É uma estimativa, não uma garantia."
+        legenda={serieRD}
+        tabela={{ cabecalhos: ['Mês', 'Renda', 'Comprometido', 'À vista (estimado)', 'Despesas', 'Sobra', 'Sobra acumulada'], linhas: proj.map((m) => [mesLabel(m.mes) + (m.rendaEstimada ? '*' : ''), fmt(m.renda), fmt(m.comprometido), fmt(m.aVistaEstimado), fmt(m.despesas), fmt(m.sobra), fmt(m.acumulada)]) }}
+      >
+        <Colunas series={[{ nome: 'Renda', cor: SERIE[0] }, { nome: 'Despesas projetadas', cor: SERIE[1] }]}
+          meses={proj.map((m) => ({ rotulo: m.mes, valores: [m.renda, m.despesas], extra: [{ nome: 'Já comprometido', valor: m.comprometido }, { nome: 'À vista estimado', valor: m.aVistaEstimado }, { nome: 'Sobra', valorTxt: (m.sobra < 0 ? '− ' : '') + fmt(Math.abs(m.sobra)) }, { nome: 'Sobra acumulada', valorTxt: (m.acumulada < 0 ? '− ' : '') + fmt(Math.abs(m.acumulada)) }] }))}
+          tituloBalao={(m) => mesLabel(m.rotulo) + ' (projeção)'} />
+        {proj.some((m) => m.rendaEstimada) && <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 6 }}>* Meses sem renda cadastrada usam a última renda conhecida.</div>}
+      </CartaoGrafico>
 
       <CartaoGrafico
         titulo="Renda e despesas mês a mês"
@@ -108,6 +125,47 @@ export default function Graficos({ store }) {
       >
         <Colunas empilhado series={serieComp} meses={comp.map((m) => ({ rotulo: m.mes, valores: [m.fixas, m.variaveis, m.compras] }))} tituloBalao={(m) => mesLabel(m.rotulo)} />
       </CartaoGrafico>
+
+      <CartaoGrafico
+        titulo="Sobra acumulada"
+        sub="Soma da sobra de cada mês, desde o início do período: mostra se, no total, você está guardando ou consumindo reserva."
+        tabela={{ cabecalhos: ['Mês', 'Sobra do mês', 'Acumulada'], linhas: acum.filter((m) => m.temDados).map((m) => [mesLabel(m.mes), fmt(m.sobra), fmt(m.acumulada)]) }}
+      >
+        <Linha pontos={acum.map((m) => ({ mes: m.mes, valor: m.acumulada }))} nome="Sobra acumulada" />
+      </CartaoGrafico>
+
+      <CartaoGrafico
+        titulo={`Despesas: ${ano} contra ${ano - 1}`}
+        sub="Mês a mês, para ver se o ano está mais caro ou mais barato que o anterior (meses sem dados ficam vazios)."
+        legenda={[{ nome: String(ano - 1), cor: SERIE[1] }, { nome: String(ano), cor: SERIE[0] }]}
+        tabela={{ cabecalhos: ['Mês', String(ano - 1), String(ano)], linhas: aa.map((m) => [mesLabel(`${ano}-${String(m.mes).padStart(2, '0')}`).slice(0, 3), m.anterior == null ? '—' : fmt(m.anterior), m.atual == null ? '—' : fmt(m.atual)]) }}
+      >
+        <Colunas series={[{ nome: String(ano - 1), cor: SERIE[1] }, { nome: String(ano), cor: SERIE[0] }]}
+          meses={aa.map((m) => ({ rotulo: `${ano}-${String(m.mes).padStart(2, '0')}`, valores: [m.anterior || 0, m.atual || 0] }))}
+          tituloBalao={(m) => mesLabel(m.rotulo).slice(0, 3)} />
+      </CartaoGrafico>
+
+      {metasProg.length > 0 && (
+        <CartaoGrafico
+          titulo="Progresso das metas"
+          sub="Quanto já foi guardado em relação ao alvo de cada meta."
+          tabela={{ cabecalhos: ['Meta', 'Guardado', 'Alvo', '%'], linhas: metasProg.map((m) => [m.nome, fmt(m.saldo), fmt(m.alvo), m.pct + '%']) }}
+        >
+          <div>
+            {metasProg.map((m) => (
+              <div key={m.nome} style={{ margin: '10px 0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, gap: 8, flexWrap: 'wrap' }}>
+                  <span>{m.nome}{m.atingida && <span className="badge badge-green" style={{ marginLeft: 8, fontSize: 10 }}>atingida</span>}</span>
+                  <span className="mono" style={{ color: 'var(--text2)' }}>{fmt(m.saldo)} de {fmt(m.alvo)} · <b style={{ color: 'var(--text)' }}>{m.pct}%</b></span>
+                </div>
+                <div className="prog-bar" style={{ marginTop: 6 }} role="progressbar" aria-valuenow={m.pct} aria-valuemin={0} aria-valuemax={100} aria-label={m.nome}>
+                  <div className="prog-fill" style={{ width: m.pct + '%', background: 'var(--serie-3)' }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </CartaoGrafico>
+      )}
     </div>
   )
 }

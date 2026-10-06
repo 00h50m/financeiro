@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { fmt } from '../../lib/utils'
-import { Balao, GradeY, escalaY, mesCurto, useLargura } from './base'
+import { Balao, GradeY, escalaFaixa, mesCurto, useLargura } from './base'
 
 // Linha de uma série ao longo dos meses, com linha de referência opcional (ex.: teto do Orçamento) e cursor que acompanha o mouse.
 //   pontos [{ mes, valor }]   referencia { valor, rotulo }
@@ -10,9 +10,10 @@ export default function Linha({ pontos, cor = 'var(--serie-1)', referencia = nul
   const M = { t: 14, r: 22, b: 26, l: 46 }
   const H = altura
   const maxDados = Math.max(0, ...pontos.map((p) => p.valor), referencia?.valor || 0)
-  const { max, marcas } = escalaY(maxDados)
+  const minDados = Math.min(0, ...pontos.map((p) => p.valor))
+  const { min, max, marcas } = escalaFaixa(minDados, maxDados)
   const x = (i) => M.l + (pontos.length === 1 ? (W - M.l - M.r) / 2 : (i / (pontos.length - 1)) * (W - M.l - M.r))
-  const y = (v) => M.t + (1 - v / max) * (H - M.t - M.b)
+  const y = (v) => M.t + ((max - v) / (max - min)) * (H - M.t - M.b)
   const linha = pontos.map((p, i) => `${i ? 'L' : 'M'}${x(i)},${y(p.valor)}`).join(' ')
   const area = `${linha} L${x(pontos.length - 1)},${y(0)} L${x(0)},${y(0)} Z`
   const passo = Math.max(1, Math.ceil(34 / Math.max(1, (W - M.l - M.r) / Math.max(1, pontos.length - 1))))
@@ -33,6 +34,7 @@ export default function Linha({ pontos, cor = 'var(--serie-1)', referencia = nul
             <text x={W - M.r} y={y(referencia.valor) - 5} textAnchor="end" fontSize="11" fill="var(--text2)">{referencia.rotulo}</text>
           </g>
         )}
+        {min < 0 && <line x1={M.l} x2={W - M.r} y1={y(0)} y2={y(0)} stroke="var(--border2)" strokeWidth="1" />}
         <path d={area} fill={cor} opacity="0.1" />
         <path d={linha} fill="none" stroke={cor} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
         {alvo != null && <line x1={x(alvo)} x2={x(alvo)} y1={M.t} y2={H - M.b} stroke="var(--border2)" strokeWidth="1" />}

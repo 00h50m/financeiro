@@ -31,6 +31,19 @@ export function escalaY(max, alvo = 4) {
   for (let v = 0; v <= topo + 1e-9; v += passo) marcas.push(Math.round(v * 100) / 100)
   return { max: topo, marcas }
 }
+// Escala com valores negativos: de um múltiplo redondo abaixo do mínimo até um acima do máximo.
+export function escalaFaixa(min, max, alvo = 4) {
+  if (!(min < 0)) { const e = escalaY(max, alvo); return { min: 0, max: e.max, marcas: e.marcas } }
+  const amplitude = Math.max(1, max - min)
+  const bruto = amplitude / alvo
+  const pot = 10 ** Math.floor(Math.log10(bruto))
+  const passo = [1, 2, 2.5, 5, 10].map((m) => m * pot).find((p) => p >= bruto)
+  const lo = Math.floor(min / passo) * passo
+  const hi = Math.max(passo, Math.ceil(Math.max(0, max) / passo) * passo)
+  const marcas = []
+  for (let v = lo; v <= hi + 1e-9; v += passo) marcas.push(Math.round(v * 100) / 100)
+  return { min: lo, max: hi, marcas }
+}
 export const compacto = (v) => {
   const a = Math.abs(v)
   if (a >= 1e6) return (v / 1e6).toFixed(1).replace('.', ',').replace(',0', '') + ' mi'
