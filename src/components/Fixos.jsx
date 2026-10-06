@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { compilar } from '../lib/filtro'
+import { mediaRecente } from '../lib/fixosVariaveis'
 import { CampoBusca, ResumoFiltro } from './FiltroLista'
 import { fmt, mesLabel, nowYM, addMonths, fixosAtivos, corPessoa, nomeCasa, donoDoFixo } from '../lib/utils'
 
@@ -188,6 +189,16 @@ export default function Fixos({ store }) {
                 O valor muda todo mês (energia, condomínio, água...)
               </label>
             </div>
+            {form.variavel && editId && (() => {
+              const m = mediaRecente(fixos.find((x) => x.id === editId), mesAtual)
+              if (!m) return <div className="alert alert-blue">Ainda não há valores reais informados — quando você informar os primeiros meses, o app sugere a média aqui.</div>
+              return (
+                <div className="alert alert-green">
+                  Média dos últimos {m.meses} mese{m.meses > 1 ? 's' : ''} informados: <b>{fmt(m.media)}</b>.{' '}
+                  {Number(form.valor) !== m.media && <button className="link-btn" onClick={() => setForm((f) => ({ ...f, valor: m.media }))}>Usar como estimativa</button>}
+                </div>
+              )
+            })()}
             {form.variavel && (
               <div className="alert alert-blue">
                 O valor acima vale só como <b>estimativa</b>. Quando a conta chegar, informe o valor real do mês em <b>Pagamentos</b> — só aquele mês muda, os outros não são alterados.

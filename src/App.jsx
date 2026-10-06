@@ -11,6 +11,7 @@ import ImportarFatura from './components/ImportarFatura'
 import Renda from './components/Renda'
 import Fixos from './components/Fixos'
 import Simulador from './components/Simulador'
+import Emprestimos from './components/Emprestimos'
 import Cartoes from './components/Cartoes'
 import Categorias from './components/Categorias'
 import Pessoas from './components/Pessoas'
@@ -39,6 +40,7 @@ const ICONES = {
   importar: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M17 8l-5-5-5 5 M12 3v12',
   renda: 'M23 6l-9.5 9.5-5-5L1 18 M17 6h6v6',
   fixos: 'M17 1l4 4-4 4 M3 11V9a4 4 0 0 1 4-4h14 M7 23l-4-4 4-4 M21 13v2a4 4 0 0 1-4 4H3',
+  emprestimos: 'M3 10l9-6 9 6 M5 10v8 M9 10v8 M15 10v8 M19 10v8 M3 21h18 M12 14h.01',
   simulador: 'M4 2h16v20H4z M8 6h8 M8 10h.01 M12 10h.01 M16 10h.01 M8 14h.01 M12 14h.01 M16 14h.01 M8 18h8',
   cartoes: 'M1 4h22v16H1z M1 10h22',
   categorias: 'M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z M7 7h.01',
@@ -100,6 +102,7 @@ const GRUPOS = [
       { id: 'metas', label: 'Metas', Component: Metas },
       { id: 'reserva', label: 'Reserva', Component: Reserva },
       { id: 'simulador', label: 'Simulador', Component: Simulador },
+      { id: 'emprestimos', label: 'Empréstimos', Component: Emprestimos },
     ],
   },
   {

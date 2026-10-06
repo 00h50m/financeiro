@@ -84,6 +84,7 @@ export default function Compras({ store }) {
           editar={edicao?.compra || null}
           grupo={edicao?.grupo || null}
           gruposOk={gruposOk}
+          faturaMesOk={compras.some((c) => 'fatura_mes' in c)}
           avisoPagamentos={!!edicao && (comprasPagamentos || []).some((p) => (edicao.grupo || [edicao.compra]).some((c) => c.id === p.compra_id))}
           onSave={edicao?.compra ? (dados) => updateCompra(edicao.compra.id, dados) : addCompra}
           onSaveDivisao={salvarDivisao}
@@ -191,6 +192,7 @@ export default function Compras({ store }) {
                           <span className="badge badge-blue" style={{ fontSize: 10 }}>dividida em {tamanhoGrupo[c.grupo_id]} categorias</span>
                         </div>
                       )}
+                      {c.fatura_mes && c.cartao_id && <div style={{ fontSize: 11, color: 'var(--text3)' }}><span className="badge badge-blue" style={{ fontSize: 10 }}>fatura de {mesLabel(c.fatura_mes)} (escolhida)</span></div>}
                       {c.obs && <div style={{ fontSize: 11, color: 'var(--text3)' }}>{c.obs}</div>}
                       {rotuloOrigem(c.origem) && <div style={{ fontSize: 11, color: 'var(--text3)' }}>{rotuloOrigem(c.origem)}</div>}
                     </td>

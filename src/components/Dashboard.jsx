@@ -1,8 +1,9 @@
 import { useState, Fragment } from 'react'
-import { fmt, fmtK, mesLabel, nowYM, addMonths, gerarParcelas, corPessoa, corPessoaCss, fixosAtivos, gastosPorCategoria, statusTeto, nomeCasa, donoDoFixo } from '../lib/utils'
+import { fmt, fmtK, mesLabel, nowYM, addMonths, gerarParcelas, corPessoa, corPessoaCss, fixosAtivos, gastosPorCategoria, statusTeto, nomeCasa, donoDoFixo, hojeSP } from '../lib/utils'
 import { resumoDoMes, lerUsarSaldoAnterior } from '../lib/financeiro'
 import { comprasLiquidas, fixosLiquidos } from '../lib/divisoes'
 import { riscosDoMes, mesFechado } from '../lib/fechamento'
+import { pendenciasValorVariavel } from '../lib/fixosVariaveis'
 
 export default function Dashboard({ store, irPara }) {
   const { compras, cartoes, fixos, pessoas, orcamentos } = store
@@ -51,6 +52,7 @@ export default function Dashboard({ store, irPara }) {
   })
   const totalGeralPessoas = gastoPessoa.reduce((t, g) => t + g.total, 0)
 
+  const pendenciasVariaveis = pendenciasValorVariavel(fixos, hojeSP())
   const porCategoriaMap = gastosPorCategoria(comprasLiquidas(store), cartoes, fixosLiquidos(store), mes)
   const porCategoria = Object.entries(porCategoriaMap)
     .map(([categoria, { total, itens }]) => ({
@@ -61,6 +63,8 @@ export default function Dashboard({ store, irPara }) {
     }))
     .sort((a, b) => b.total - a.total)
 
+  const mesAnterior = addMonths(mes, -1)
+  const anteriorPorCategoria = gastosPorCategoria(comprasLiquidas(store), cartoes, fixosLiquidos(store), mesAnterior)
   const riscos = riscosDoMes(store, mes)
   const fechadoAtual = mesFechado(store.fechamentos, mes)
 
@@ -176,6 +180,14 @@ export default function Dashboard({ store, irPara }) {
         </table>
       </div>
 
+      {pendenciasVariaveis.length > 0 && (
+        <div className="alert alert-amber" style={{ marginTop: 20 }}>
+          <strong>{pendenciasVariaveis.length === 1 ? '1 conta de valor variável' : `${pendenciasVariaveis.length} contas de valor variável`} ainda com valor estimado:</strong>{' '}
+          {pendenciasVariaveis.map((p) => `${p.fixo.nome} (${mesLabel(p.mes)}${p.tipo === 'vencida' ? `, venceu há ${p.diasAtraso} dia${p.diasAtraso > 1 ? 's' : ''}` : ''})`).join(' · ')}.{' '}
+          <a href="#pagamentos" onClick={(e) => { e.preventDefault(); irPara?.('pagamentos') }} style={{ color: 'inherit', textDecoration: 'underline' }}>Informar em Pagamentos</a>
+        </div>
+      )}
+
       {estouradas.length > 0 && (
         <div className="alert alert-red" style={{ marginTop: 20 }}>
           <strong>{estouradas.length === 1 ? '1 categoria passou' : `${estouradas.length} categorias passaram`} do teto este mês:</strong>{' '}
@@ -201,6 +213,7 @@ export default function Dashboard({ store, irPara }) {
               <tr>
                 <th>Categoria</th>
                 <th style={{ textAlign: 'right' }}>Valor</th>
+                <th style={{ textAlign: 'right' }}>vs {mesLabel(mesAnterior)}</th>
                 <th>Participação</th>
               </tr>
             </thead>
@@ -229,6 +242,15 @@ export default function Dashboard({ store, irPara }) {
                         </div>
                       </td>
                       <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(total)}</td>
+                      <td style={{ textAlign: 'right', fontSize: 12, whiteSpace: 'nowrap' }}>
+                        {(() => {
+                          const ant = anteriorPorCategoria[categoria]?.total || 0
+                          const dif = Math.round((total - ant) * 100) / 100
+                          if (!ant) return <span style={{ color: 'var(--text3)' }}>novo</span>
+                          if (Math.abs(dif) < 0.005) return <span style={{ color: 'var(--text3)' }}>igual</span>
+                          return <span style={{ color: dif > 0 ? 'var(--red)' : 'var(--green)' }} title={`Mês anterior: ${fmt(ant)}`}>{dif > 0 ? '↑' : '↓'} {fmt(Math.abs(dif))} <span style={{ color: 'var(--text3)' }}>({Math.round((Math.abs(dif) / ant) * 100)}%)</span></span>
+                        })()}
+                      </td>
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <div className="prog-bar" style={{ flex: 1 }}>
@@ -240,7 +262,7 @@ export default function Dashboard({ store, irPara }) {
                     </tr>
                     {aberta && (
                       <tr>
-                        <td colSpan={3} style={{ padding: 0, background: 'var(--bg3)' }}>
+                        <td colSpan={4} style={{ padding: 0, background: 'var(--bg3)' }}>
                           <table>
                             <tbody>
                               {itens.map((it, i) => (

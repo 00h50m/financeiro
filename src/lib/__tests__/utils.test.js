@@ -68,3 +68,16 @@ describe('contas fixas de valor variável', () => {
     expect(JSON.stringify(energia)).not.toContain('312.4')
   })
 })
+
+describe('fatura escolhida na compra', () => {
+  it('fatura_mes manda sobre o fechamento; sem cartão ou valor inválido volta ao automático', async () => {
+    const { mesDaFatura, gerarParcelas } = await import('../utils')
+    const cartao = { id: 'c1', fechamento: 1 }
+    const c = { cartao_id: 'c1', data_compra: '2026-09-01', valor_total: 100, parcelas: 2 }
+    expect(mesDaFatura(c, cartao)).toBe('2026-09')
+    expect(mesDaFatura({ ...c, fatura_mes: '2026-10' }, cartao)).toBe('2026-10')
+    expect(mesDaFatura({ ...c, fatura_mes: 'lixo' }, cartao)).toBe('2026-09')
+    expect(mesDaFatura({ ...c, fatura_mes: '2026-10' }, undefined)).toBe('2026-09')
+    expect(gerarParcelas({ ...c, fatura_mes: '2026-10' }, [cartao]).map((p) => p.mes)).toEqual(['2026-10', '2026-11'])
+  })
+})

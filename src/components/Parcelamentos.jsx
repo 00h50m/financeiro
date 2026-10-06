@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, Fragment } from 'react'
+import { calendarioQuitacao, terminandoLogo, simularQuitacao } from '../lib/parcelamentos'
 import { compilar } from '../lib/filtro'
 import { CampoBusca, ResumoFiltro } from './FiltroLista'
 import { fmtK, fmt, mesLabel, nowYM, gerarParcelas, valorParcelaBase, tituloCompra, subtituloCompra } from '../lib/utils'
@@ -8,6 +9,8 @@ export default function Parcelamentos({ store }) {
   const mes = nowYM()
   const [busca, setBusca] = useState('')
   const [filtroCartao, setFiltroCartao] = useState('')
+  const [simulando, setSimulando] = useState(null) // id da compra com a simulação de quitação aberta
+  const [valorBanco, setValorBanco] = useState('')
 
   // Só compras parceladas (2x ou mais): uma compra à vista deste mês não é um parcelamento em andamento.
   const ativas = compras.filter((c) => Number(c.parcelas) > 1 && gerarParcelas(c, cartoes).some((p) => p.mes >= mes))
@@ -25,6 +28,12 @@ export default function Parcelamentos({ store }) {
       valor: [Number(c.valor_total), valorParcelaBase(c)],
       data: c.data_compra,
     }))
+
+  const calendario = calendarioQuitacao(compras, cartoes, mes, 12)
+  const maxCal = Math.max(1, ...calendario.map((m) => m.total))
+  const acabamLogo = terminandoLogo(compras, cartoes, mes, 2)
+  const liberaTotal = acabamLogo.reduce((t, a) => t + a.libera, 0)
+  const lerValor = (t) => { const n = Number(String(t).trim().replace(/\./g, '').replace(',', '.')); return String(t).trim() && Number.isFinite(n) && n >= 0 ? n : null }
 
   // Restante (do mês atual em diante) e parcela do mês de cada compra, para os resumos e os totais.
   const valoresDe = (c) => {
@@ -114,6 +123,7 @@ export default function Parcelamentos({ store }) {
                 <th style={{ width: 130, textAlign: 'center' }}>Progresso</th>
                 <th style={{ textAlign: 'right' }}>Restante</th>
                 <th style={{ textAlign: 'center' }}>Término</th>
+                <th />
               </tr>
             </thead>
             <tbody>
@@ -131,7 +141,8 @@ export default function Parcelamentos({ store }) {
                 const badgeT = mesesLeft <= 2 ? 'badge-green' : mesesLeft <= 6 ? 'badge-amber' : 'badge-blue'
 
                 return (
-                  <tr key={c.id}>
+                  <Fragment key={c.id}>
+                  <tr>
                     <td>
                       <div style={{ fontWeight: 500 }}>{tituloCompra(c)}</div>
                       {subtituloCompra(c) && <div style={{ fontSize: 11, color: 'var(--text3)' }}>no cartão: {subtituloCompra(c)}</div>}
@@ -157,7 +168,35 @@ export default function Parcelamentos({ store }) {
                     <td style={{ textAlign: 'center' }}>
                       {termino ? <span className={`badge ${badgeT}`}>{mesLabel(termino)}</span> : '—'}
                     </td>
+                    <td><button className="btn btn-ghost btn-sm" onClick={() => { setSimulando(simulando === c.id ? null : c.id); setValorBanco('') }} aria-expanded={simulando === c.id}>Quitar?</button></td>
                   </tr>
+                  {simulando === c.id && (() => {
+                    const sim = simularQuitacao(c, cartoes, mes, lerValor(valorBanco))
+                    return (
+                      <tr>
+                        <td colSpan={8} style={{ background: 'var(--bg3)', padding: '12px 16px' }}>
+                          <div style={{ fontSize: 13, lineHeight: 1.7 }}>
+                            Quitar <b>{tituloCompra(c)}</b> agora: faltam <b>{sim.parcelasRestantes}</b> parcela{sim.parcelasRestantes > 1 ? 's' : ''} ({fmt(sim.restante)} somando tudo, até {mesLabel(sim.ultimoMes)}).
+                            Depois disso, <b>{fmt(sim.libera)}</b> deixa de sair todo mês.
+                          </div>
+                          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 8 }}>
+                            <label style={{ fontSize: 12, color: 'var(--text2)' }}>Quanto o banco/loja cobra para quitar hoje (R$, opcional):</label>
+                            <input value={valorBanco} onChange={(e) => setValorBanco(e.target.value)} placeholder="ex.: 950,00" style={{ width: 130 }} inputMode="decimal" />
+                          </div>
+                          {sim.economia != null && (
+                            <div className={`alert alert-${sim.economia > 0 ? 'green' : 'amber'}`} style={{ marginTop: 10, marginBottom: 0 }}>
+                              {sim.economia > 0
+                                ? <>Quitando por {fmt(sim.valorBanco)} você <b>economiza {fmt(sim.economia)}</b> ({String(sim.descontoPct).replace('.', ',')}% do que falta) — são os juros que deixa de pagar.</>
+                                : sim.economia === 0 ? <>Esse valor é igual ao que falta: quitar não economiza nada, só libera o fluxo mais cedo.</>
+                                  : <>Esse valor é <b>{fmt(Math.abs(sim.economia))} maior</b> que o que falta nas parcelas: não compensa quitar assim.</>}
+                            </div>
+                          )}
+                          <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 8 }}>O app não sabe os juros embutidos nas parcelas; peça ao banco o valor de quitação antecipada (por lei, os juros futuros saem do valor).</div>
+                        </td>
+                      </tr>
+                    )
+                  })()}
+                  </Fragment>
                 )
               })}
               <tr style={{ fontWeight: 600, borderTop: '1px solid var(--border)' }}>
@@ -165,6 +204,7 @@ export default function Parcelamentos({ store }) {
                 <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(lista.reduce((t, c) => t + valorParcelaBase(c), 0))}</td>
                 <td />
                 <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(lista.reduce((t, c) => t + valoresDe(c).restante, 0))}</td>
+                <td />
                 <td />
               </tr>
             </tbody>
@@ -190,6 +230,39 @@ export default function Parcelamentos({ store }) {
           <div className="metric-val amber">{fmtK(totalMes)}</div>
         </div>
       </div>
+
+      {acabamLogo.length > 0 && (
+        <div className="alert alert-green">
+          <b>{acabamLogo.length === 1 ? '1 parcelamento acaba' : `${acabamLogo.length} parcelamentos acabam`} em até 2 meses</b> — libera <b>{fmt(liberaTotal)}</b> por mês no seu orçamento:
+          {acabamLogo.map((a) => (
+            <div key={a.compra.id} style={{ fontSize: 12, marginTop: 2 }}>
+              · {tituloCompra(a.compra)} — {a.mesesRestantes === 0 ? 'última parcela este mês' : `termina em ${mesLabel(a.termino)}`} ({a.parcelasRestantes} parcela{a.parcelasRestantes > 1 ? 's' : ''}) · libera {fmt(a.libera)}/mês
+            </div>
+          ))}
+        </div>
+      )}
+
+      {ativas.length > 0 && (
+        <>
+          <div className="section-label">calendário de quitação · próximos 12 meses</div>
+          <div className="card" style={{ padding: '6px 14px' }}>
+            {calendario.map((m, i) => {
+              const anterior = i > 0 ? calendario[i - 1].total : null
+              const dif = anterior == null ? null : Math.round((m.total - anterior) * 100) / 100
+              return (
+                <div key={m.mes} style={{ display: 'grid', gridTemplateColumns: '70px 1fr 110px 120px', gap: 10, alignItems: 'center', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+                  <span className="mono" style={{ color: 'var(--text3)' }}>{mesLabel(m.mes)}</span>
+                  <div className="prog-bar"><div className="prog-fill" style={{ width: (m.total / maxCal) * 100 + '%', background: 'var(--amber)' }} /></div>
+                  <span className="mono" style={{ textAlign: 'right' }}>{fmt(m.total)}</span>
+                  <span style={{ fontSize: 11, color: m.terminam.length ? 'var(--green)' : dif < 0 ? 'var(--green)' : 'var(--text3)' }}>
+                    {m.terminam.length ? `acaba: ${m.terminam.map((c) => tituloCompra(c)).join(', ').slice(0, 40)}` : dif ? `${dif < 0 ? '↓' : '↑'} ${fmt(Math.abs(dif))}` : ''}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </>
+      )}
 
       {ativas.length > 0 && (
         <div className="toolbar">

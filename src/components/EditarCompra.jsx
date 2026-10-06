@@ -16,6 +16,7 @@ export default function EditarCompra({ store, compra, onClose }) {
       editar={grupo ? null : compra}
       grupo={grupo}
       gruposOk={compras.some((c) => 'grupo_id' in c)}
+      faturaMesOk={compras.some((c) => 'fatura_mes' in c)}
       avisoPagamentos={(comprasPagamentos || []).some((p) => ids.includes(p.compra_id))}
       onSave={(dados) => updateCompra(compra.id, dados)}
       onSaveDivisao={salvarDivisao}

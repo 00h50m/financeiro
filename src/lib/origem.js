@@ -4,6 +4,7 @@ const ROTULOS = {
   android_notification: '📱 Notificação',
   csv: '📄 Fatura (CSV)',
   inbox: '📥 Inbox',
+  emprestimo: '🏦 Empréstimo',
 }
 
 export const rotuloOrigem = (origem) => {
