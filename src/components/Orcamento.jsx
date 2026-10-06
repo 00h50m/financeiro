@@ -1,4 +1,6 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
+import Sparkbars from './Sparkbars'
+import { historicoPorCategoria, sugerirTetos } from '../lib/orcamentoSugestao'
 import { comprasLiquidas, fixosLiquidos } from '../lib/divisoes'
 import { fmt, fmtK, mesLabel, nowYM, addMonths, totalRenda, gastosPorCategoria, statusTeto } from '../lib/utils'
 
@@ -9,12 +11,13 @@ const STATUS = {
   estourou: { badge: 'badge-red', texto: 'Estourou', cor: 'var(--red)' },
 }
 
-const arredondar10 = (v) => Math.ceil(v / 10) * 10
 
 export default function Orcamento({ store }) {
   const { compras, cartoes, fixos, divisoes, categorias, rendas, orcamentos, orcamentosOk, definirOrcamento, definirOrcamentos } = store
   const [mes, setMes] = useState(nowYM())
   const [rascunho, setRascunho] = useState({}) // categoria -> texto digitado, enquanto não salvou
+  const [painel, setPainel] = useState(null) // sugestões abertas: [{ ...sugestão, marcada, valor }]
+  const historico = useMemo(() => historicoPorCategoria({ ...store, compras: store.compras }, mes, 6), [store, mes])
 
   if (!orcamentosOk) {
     return (
@@ -55,24 +58,24 @@ export default function Orcamento({ store }) {
     if (valor !== tetoDe(categoria)) definirOrcamento(categoria, valor)
   }
 
-  // Média dos 3 meses anteriores (só o que já aconteceu), arredondada para cima de 10 em 10.
-  function sugerirTetos() {
-    const anteriores = [1, 2, 3].map((n) => gastosPorCategoria(comprasLiquidas({ compras, divisoes }), cartoes, fixosLiquidos({ fixos, divisoes }), addMonths(mes, -n)))
-    const sugestoes = nomes
-      .filter((c) => !tetoDe(c))
-      .map((categoria) => {
-        const media = anteriores.reduce((s, g) => s + (g[categoria]?.total || 0), 0) / 3
-        return { categoria, valor: arredondar10(media) }
-      })
-      .filter((s) => s.valor > 0)
-    if (!sugestoes.length) {
-      alert('Não há histórico suficiente nos 3 meses anteriores a ' + mesLabel(mes) + ' para sugerir tetos.')
+  // Sugestões pelo histórico: abre um painel para revisar, editar e aplicar só o que fizer sentido.
+  function abrirSugestoes() {
+    const tetos = Object.fromEntries(orcamentos.map((o) => [o.categoria, Number(o.valor)]))
+    const lista = sugerirTetos(historico, tetos).filter((s) => s.sugerido > 0)
+    if (!lista.length) {
+      alert('Ainda não há gastos nos meses anteriores a ' + mesLabel(mes) + ' para sugerir tetos.\n\nQuando houver pelo menos um mês de histórico, a sugestão aparece aqui.')
       return
     }
-    const resumo = sugestoes.map((s) => `${s.categoria}: ${fmtK(s.valor)}`).join('\n')
-    if (confirm(`Definir estes tetos mensais (média dos 3 meses anteriores)? Categorias que já têm teto não mudam.\n\n${resumo}`)) {
-      definirOrcamentos(sugestoes)
-    }
+    setPainel(lista.map((s) => ({ ...s, valor: String(s.sugerido), marcada: !s.atual && !s.irregular })))
+  }
+  const mudarSugestao = (categoria, patch) => setPainel((l) => l.map((x) => (x.categoria === categoria ? { ...x, ...patch } : x)))
+  function aplicarSugestoes() {
+    const lista = painel.filter((s) => s.marcada && Number(s.valor) > 0).map((s) => ({ categoria: s.categoria, valor: Number(s.valor) }))
+    if (!lista.length) return
+    const sobrescreve = painel.filter((s) => s.marcada && s.atual).length
+    if (sobrescreve && !confirm(`${sobrescreve} categoria${sobrescreve > 1 ? 's' : ''} já tem${sobrescreve > 1 ? 'em' : ''} teto e vai${sobrescreve > 1 ? 'ão' : ''} mudar. Continuar?`)) return
+    definirOrcamentos(lista)
+    setPainel(null)
   }
 
   return (
@@ -81,10 +84,49 @@ export default function Orcamento({ store }) {
         <button className="btn btn-ghost btn-sm" onClick={() => setMes(addMonths(mes, -1))}>← Mês anterior</button>
         <strong style={{ minWidth: 70, textAlign: 'center' }}>{mesLabel(mes)}</strong>
         <button className="btn btn-ghost btn-sm" onClick={() => setMes(addMonths(mes, 1))}>Próximo mês →</button>
-        <button className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto' }} onClick={sugerirTetos}>
-          Sugerir tetos pela média
+        <button className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto' }} onClick={abrirSugestoes}>
+          Sugerir tetos pelo histórico
         </button>
       </div>
+
+      {painel && (
+        <div className="card" style={{ padding: 16, overflow: 'visible' }}>
+          <div style={{ fontWeight: 500, marginBottom: 4 }}>Sugestão de tetos pelo histórico</div>
+          <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 10, lineHeight: 1.6 }}>
+            Base: média dos 3 meses anteriores a {mesLabel(mes)} + 10% de folga, arredondada para cima de 10 em 10. Você pode editar cada valor. Por padrão só vêm marcadas as categorias <b>sem teto e com gasto regular</b>;
+            as de gasto irregular (aparecem em menos de 2 dos 3 meses) ficam desmarcadas para você decidir.
+          </div>
+          <table>
+            <thead><tr><th /><th>Categoria</th><th style={{ textAlign: 'right' }}>Teto atual</th><th style={{ textAlign: 'right' }}>Média 3 meses</th><th style={{ textAlign: 'right' }}>Maior mês (6)</th><th style={{ width: 130 }}>Teto sugerido</th><th>Observação</th></tr></thead>
+            <tbody>
+              {painel.map((s) => (
+                <tr key={s.categoria}>
+                  <td><input type="checkbox" checked={s.marcada} onChange={(e) => mudarSugestao(s.categoria, { marcada: e.target.checked })} aria-label={`Aplicar sugestão para ${s.categoria}`} /></td>
+                  <td style={{ fontWeight: 500 }}>{s.categoria}</td>
+                  <td style={{ textAlign: 'right' }} className="mono">{s.atual ? fmt(s.atual) : '—'}</td>
+                  <td style={{ textAlign: 'right' }} className="mono">{fmt(s.media3)}</td>
+                  <td style={{ textAlign: 'right' }} className="mono">{fmt(s.maximo)}</td>
+                  <td><input type="number" min="0" step="10" value={s.valor} onChange={(e) => mudarSugestao(s.categoria, { valor: e.target.value })} style={{ width: 110 }} /></td>
+                  <td style={{ fontSize: 12, color: s.irregular ? 'var(--amber)' : 'var(--text3)' }}>{s.nota}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {(() => {
+            const marcadas = painel.filter((s) => s.marcada && Number(s.valor) > 0)
+            const novoTotal = totalTeto - marcadas.reduce((t, s) => t + s.atual, 0) + marcadas.reduce((t, s) => t + Number(s.valor), 0)
+            return (
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginTop: 12 }}>
+                <button className="btn btn-primary" onClick={aplicarSugestoes} disabled={!marcadas.length}>Aplicar {marcadas.length} teto{marcadas.length === 1 ? '' : 's'}</button>
+                <button className="btn btn-ghost" onClick={() => setPainel(null)}>Cancelar</button>
+                <span style={{ fontSize: 12, color: 'var(--text2)' }}>
+                  Soma dos tetos ficaria em <b className="mono">{fmt(novoTotal)}</b>{renda > 0 && <> ({Math.round((novoTotal / renda) * 100)}% da renda de {mesLabel(mes)}{novoTotal > renda ? ' — acima da renda!' : ''})</>}
+                </span>
+              </div>
+            )
+          })()}
+        </div>
+      )}
 
       <div className="metric-grid">
         <div className="metric">
@@ -123,6 +165,7 @@ export default function Orcamento({ store }) {
               <th>Categoria</th>
               <th style={{ width: 140 }}>Teto mensal (R$)</th>
               <th style={{ textAlign: 'right' }}>Gasto</th>
+              <th title="Gasto nos 6 meses anteriores ao mês escolhido">6 meses ant.</th>
               <th style={{ textAlign: 'right' }}>Restante</th>
               <th style={{ width: 150 }}>Uso do teto</th>
               <th />
@@ -149,6 +192,7 @@ export default function Orcamento({ store }) {
                   <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13, color: l.gasto ? 'var(--text)' : 'var(--text3)' }}>
                     {l.gasto ? fmt(l.gasto) : '—'}
                   </td>
+                  <td><Sparkbars valores={[...(historico[l.categoria] || [0, 0, 0, 0, 0, 0]), l.gasto]} rotulos={['', '', '', '', '', '', mesLabel(mes)]} /></td>
                   <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13, color: l.teto ? st.cor : 'var(--text3)' }}>
                     {l.teto ? fmt(l.restante) : '—'}
                   </td>
