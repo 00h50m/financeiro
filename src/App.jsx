@@ -13,6 +13,7 @@ import Fixos from './components/Fixos'
 import Simulador from './components/Simulador'
 import Emprestimos from './components/Emprestimos'
 import Graficos from './components/Graficos'
+import AvisoNovaVersao, { versaoDoApp } from './components/AvisoNovaVersao'
 import Cartoes from './components/Cartoes'
 import Categorias from './components/Categorias'
 import Pessoas from './components/Pessoas'
@@ -250,6 +251,7 @@ function AppLogado({ email }) {
         </nav>
 
         <div className="sidebar-rodape">
+        {versaoDoApp && <div className="sidebar-item-label" style={{ fontSize: 10, color: 'var(--text3)', padding: '0 12px 4px' }} title="Número da versão que está rodando neste aparelho">versão {versaoDoApp}</div>}
         <button className="sidebar-recolher sidebar-sair" onClick={() => sb.auth.signOut()} title={`Sair (${email})`}>
           <Icone nome="sair" />
           <span className="sidebar-item-label">Sair <span className="sidebar-email">{email}</span></span>
@@ -280,6 +282,8 @@ function AppLogado({ email }) {
         </header>
         <Component store={store} irPara={irPara} />
       </div>
+
+      <AvisoNovaVersao />
 
       {(store.desfazivel || store.aviso) && (
         <div className="toast-area" role="status" aria-live="polite">

@@ -240,7 +240,7 @@ export default function Pagamentos({ store }) {
         <div className="empty">{filtroAtivo && fixosAtivos.length > 0 ? 'Nenhuma conta fixa com esses filtros.' : <>Nenhuma conta fixa ativa em {mesLabel(mes)}.{'\n'}Cadastre em "Fixos" para acompanhar aqui.</>}</div>
       ) : (
         <div className="card">
-          <table className="tabela-compacta">
+          <table className="tabela-compacta lista-cartoes">
             <thead>
               <tr>
                 <th style={{ textAlign: 'center' }}>Pago</th>
@@ -256,7 +256,7 @@ export default function Pagamentos({ store }) {
                 const pg = fixoPagamento(f.id)
                 return (
                   <tr key={f.id} style={{ opacity: pg?.pago ? 0.6 : 1 }}>
-                    <td style={{ textAlign: 'center' }}>
+                    <td className="check-cel" style={{ textAlign: 'center' }}>
                       <input type="checkbox" checked={!!pg?.pago} onChange={() => toggleFixo(f)} />
                     </td>
                     <td className="nome-cel" style={{ fontWeight: 500 }}>
@@ -276,7 +276,7 @@ export default function Pagamentos({ store }) {
                     <td className="col-opc" style={{ textAlign: 'center', fontFamily: 'DM Mono', fontSize: 12, color: 'var(--text3)' }}>
                       {f.dia_vencimento ? `dia ${f.dia_vencimento}` : '—'}
                     </td>
-                    <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>
+                    <td className="valor-cel" style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>
                       {f.variavel ? (
                         <ValorDoMes fixo={f} mes={mes} real={store.fixos.find((x) => x.id === f.id)?.valores?.[mes]} definirValorFixo={definirValorFixo} compacto fechado={mesFechado(store.fechamentos, mes)} />
                       ) : fmt(f.valor)}
@@ -295,7 +295,7 @@ export default function Pagamentos({ store }) {
         <div className="empty">{filtroAtivo && linhasCartao.length > 0 ? 'Nenhuma fatura com esses filtros.' : `Nenhum cartão com movimento em ${mesLabel(mes)}.`}</div>
       ) : (
         <div className="card">
-          <table className="tabela-compacta">
+          <table className="tabela-compacta lista-cartoes">
             <thead>
               <tr>
                 <th style={{ textAlign: 'center' }}>Pago</th>
@@ -308,7 +308,7 @@ export default function Pagamentos({ store }) {
             <tbody>
               {cartoesVis.map((l) => (
                 <tr key={l.cartao_id} style={{ opacity: l.pago ? 0.6 : 1 }}>
-                  <td style={{ textAlign: 'center' }}>
+                  <td className="check-cel" style={{ textAlign: 'center' }}>
                     <input type="checkbox" checked={l.pago} onChange={() => toggleCartao(l)} />
                   </td>
                   <td className="nome-cel" style={{ fontWeight: 500, textDecoration: l.pago ? 'line-through' : 'none' }}>
@@ -320,7 +320,7 @@ export default function Pagamentos({ store }) {
                       </div>
                     )}
                   </td>
-                  <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(l.valor)}</td>
+                  <td className="valor-cel" style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(l.valor)}</td>
                   <td className="col-opc">
                     {l.temFatura ? (
                       <span className="badge badge-green">valor real da fatura</span>
@@ -347,7 +347,7 @@ export default function Pagamentos({ store }) {
         <div className="empty">{filtroAtivo && outrasContas.length > 0 ? 'Nenhuma conta com esses filtros.' : <>Nenhuma conta sem cartão em {mesLabel(mes)}.{'\n'}Compras lançadas como "Sem cartão" aparecem aqui.</>}</div>
       ) : (
         <div className="card">
-          <table className="tabela-compacta">
+          <table className="tabela-compacta lista-cartoes">
             <thead>
               <tr>
                 <th style={{ textAlign: 'center' }}>Pago</th>
@@ -360,7 +360,7 @@ export default function Pagamentos({ store }) {
             <tbody>
               {outrasVis.map((c) => (
                 <tr key={c.id} style={{ opacity: c.pago ? 0.6 : 1 }}>
-                  <td style={{ textAlign: 'center' }}>
+                  <td className="check-cel" style={{ textAlign: 'center' }}>
                     <input type="checkbox" checked={!!c.pago} onChange={() => toggleOutraConta(c)} />
                   </td>
                   <td className="nome-cel" style={{ fontWeight: 500, textDecoration: c.pago ? 'line-through' : 'none' }}>
@@ -369,7 +369,7 @@ export default function Pagamentos({ store }) {
                     {subtituloCompra(c) && <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 400 }}>no cartão: {subtituloCompra(c)}</div>}
                     {c.obs &&<div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 400 }}>{c.obs}</div>}
                   </td>
-                  <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(c.valorParcela)}</td>
+                  <td className="valor-cel" style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(c.valorParcela)}</td>
                   <td className="col-opc" style={{ textAlign: 'center' }}>
                     {c.parcelaTotal > 1 ? (
                       <span className="badge badge-amber">{c.parcelaNum}/{c.parcelaTotal}</span>

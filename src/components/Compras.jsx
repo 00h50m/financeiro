@@ -159,7 +159,7 @@ export default function Compras({ store }) {
             {filtroAtivo ? 'Nenhuma compra com esses filtros.\nTente outro termo ou clique em "Limpar filtros".' : 'Nenhuma compra encontrada.\nClique em "+ Nova compra" para começar.'}
           </div>
         ) : (
-          <table className="tabela-compacta">
+          <table className="tabela-compacta lista-cartoes">
             <thead>
               <tr>
                 <th style={{ width: 28 }}>
@@ -182,7 +182,7 @@ export default function Compras({ store }) {
                 const dd = c.data_compra.slice(0, 10).split('-')
                 return (
                   <tr key={c.id}>
-                    <td><input type="checkbox" checked={marcadas.includes(c.id)} onChange={() => alternar(c.id)} /></td>
+                    <td className="check-cel"><input type="checkbox" checked={marcadas.includes(c.id)} onChange={() => alternar(c.id)} /></td>
                     <td className="col-opc" style={{ fontFamily: 'DM Mono', fontSize: 12, color: 'var(--text3)', whiteSpace: 'nowrap' }}>
                       {dd[2]}/{dd[1]}/{dd[0].slice(2)}
                     </td>
@@ -237,7 +237,7 @@ export default function Compras({ store }) {
                         </div>
                       )}
                     </td>
-                    <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13, whiteSpace: 'nowrap' }}>{fmt(c.valor_total)}</td>
+                    <td className="valor-cel" style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13, whiteSpace: 'nowrap' }}>{fmt(c.valor_total)}</td>
                     <td className="col-opc" style={{ textAlign: 'center' }}>
                       {Number(c.parcelas) > 1 ? (
                         <div>
