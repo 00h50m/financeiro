@@ -179,6 +179,17 @@ describe('conferência da fatura: o que falta lançar', () => {
     expect(r.totalCsv).toBe(150)
     expect(r.totalFinapp).toBe(150)
   })
+  it('já lançada, mas em outra fatura: não diz "tudo lançado" e aponta o mês da compra', () => {
+    const fech1 = [{ id: 'c1', nome: 'Nubank', fechamento: 1 }]
+    // 01/09 com fechamento dia 1 cai na fatura de setembro; o CSV de outubro traz a linha
+    const shell = lancada({ descricao: 'Ec *Shellbox', valor_total: 136.3, data_compra: '2026-09-01' })
+    const r = conferir([linha({ descricao: 'Ec *Shellbox', valor: '136.30', data: '2026-09-01' })], [shell], { cartoes: fech1, mes: '2026-10' })
+    expect(r.bate).toBe(false)
+    expect(r.faltaLancar).toEqual([])
+    expect(r.foraDoMes).toHaveLength(1)
+    expect(r.foraDoMes[0]).toMatchObject({ valor: 136.3, mesDaCompra: '2026-09', outroCartao: false })
+    expect(r.totais.fora).toBe(136.3)
+  })
   it('falta lançar: linha do CSV sem compra', () => {
     const r = conferir([linha({ descricao: 'Drogasil', valor: '80.34', data: '2026-09-01' }), linha({ descricao: 'Mercado Extra', valor: '150', data: '2026-09-18' })], [lancada({ descricao: 'Mercado Extra', valor_total: 150, data_compra: '2026-09-18' })])
     expect(r.faltaLancar.map((f) => [f.linha.descricao, f.valor])).toEqual([['Drogasil', 80.34]])
