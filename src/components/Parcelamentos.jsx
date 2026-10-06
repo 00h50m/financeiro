@@ -131,7 +131,7 @@ export default function Parcelamentos({ store }) {
           </span>
         </button>
         {!recolhidas[agrupar + '|' + pessoa] && <div className="card">
-          <table className="tabela-compacta">
+          <table className="tabela-compacta lista-cartoes">
             <thead>
               <tr>
                 <th>Compra</th>
@@ -185,7 +185,7 @@ export default function Parcelamentos({ store }) {
                         }} />
                       </div>
                     </td>
-                    <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13, whiteSpace: 'nowrap' }}>{fmt(valorRest)}</td>
+                    <td className="valor-cel" style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13, whiteSpace: 'nowrap' }}>{fmt(valorRest)}</td>
                     <td className="col-opc" style={{ textAlign: 'center' }}>
                       {termino ? <span className={`badge ${badgeT}`}>{mesLabel(termino)}</span> : '—'}
                     </td>

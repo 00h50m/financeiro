@@ -347,7 +347,7 @@ export default function Fixos({ store }) {
         {fixosVisiveis.length === 0 ? (
           <div className="empty">{fixos.length === 0 ? 'Nenhum gasto fixo cadastrado.' : 'Nenhuma conta fixa com esses filtros.\nTente outro termo ou clique em "Limpar filtros".'}</div>
         ) : (
-          <table className="tabela-compacta">
+          <table className="tabela-compacta lista-cartoes">
             <thead>
               <tr>
                 <th>Nome</th>
@@ -430,7 +430,7 @@ export default function Fixos({ store }) {
                         <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>vence dia {f.dia_vencimento}</div>
                       ) : null}
                     </td>
-                    <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>
+                    <td className="valor-cel" style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>
                       {f.variavel && !encerrado && f.ativo && ativosAgora.find((x) => x.id === f.id) ? (
                         <ValorDoMes fixo={ativosAgora.find((x) => x.id === f.id)} mes={mesAtual} real={f.valores?.[mesAtual]} definirValorFixo={definirValorFixo} />
                       ) : fmt(ativosAgora.find((x) => x.id === f.id)?.valor ?? f.valor)}
