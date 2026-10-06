@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import { compilar } from '../lib/filtro'
 import { mediaRecente } from '../lib/fixosVariaveis'
-import { agruparVersoes } from '../lib/fixosVersoes'
+import { agruparVersoes, versoesRedundantes } from '../lib/fixosVersoes'
+import { mesFechado } from '../lib/fechamento'
 import ValorDoMes from './ValorDoMes'
 import { detectarRecorrencias } from '../lib/recorrencias'
 import { indexarAliases } from '../lib/estabelecimento'
@@ -10,7 +11,7 @@ import { CampoBusca, ResumoFiltro } from './FiltroLista'
 import { fmt, mesLabel, nowYM, addMonths, fixosAtivos, corPessoa, nomeCasa, donoDoFixo } from '../lib/utils'
 
 export default function Fixos({ store }) {
-  const { fixos, categorias, pessoas, cartoes, addFixo, updateFixo, delFixo, fixosValoresOk, definirValorFixo } = store
+  const { fixos, categorias, pessoas, cartoes, addFixo, updateFixo, delFixo, fixosValoresOk, definirValorFixo, juntarVersoes, apagarVersaoFixo, fechamentos, registrarAuditoria } = store
   const [modal, setModal] = useState(false)
   const [editId, setEditId] = useState(null)
   const [form, setForm] = useState({
@@ -21,6 +22,7 @@ export default function Fixos({ store }) {
   })
   const [filtroPessoa, setFiltroPessoa] = useState('') // '' = todas
   const [busca, setBusca] = useState('')
+  const [mesesAbertos, setMesesAbertos] = useState({}) // contas com o painel "valores mês a mês" aberto
   const [filtroStatus, setFiltroStatus] = useState('') // 'ativas' | 'inativas'
   const [filtroPagamento, setFiltroPagamento] = useState('') // 'cartao' | 'avulsa' | 'variavel'
   const [saving, setSaving] = useState(false)
@@ -87,13 +89,27 @@ export default function Fixos({ store }) {
     const antigo = editId && fixos.find((f) => f.id === editId)
     const mudouValor = antigo && Number(antigo.valor) !== dados.valor
     const jaComecou = antigo && (!antigo.mes_inicio || antigo.mes_inicio < mesAtual)
+    const vigente = antigo && (!antigo.mes_fim || antigo.mes_fim >= mesAtual)
+    // Mudar o valor de meses que já passaram (período antigo ou "para todos os meses") altera meses fechados? Pede motivo e audita.
+    const mudaPassado = mudouValor && jaComecou && (!vigente || antigo.variavel || form.variavel || form.aplicarDesde === 'todos')
+    let motivo = null
+    if (mudaPassado) {
+      const fim = antigo.mes_fim && antigo.mes_fim < mesAtual ? antigo.mes_fim : addMonths(mesAtual, -1)
+      const fechados = []
+      for (let m = antigo.mes_inicio || addMonths(mesAtual, -24); m <= fim && fechados.length < 120; m = addMonths(m, 1)) if (mesFechado(fechamentos, m)) fechados.push(m)
+      if (fechados.length && !antigo.variavel && !form.variavel) {
+        motivo = window.prompt(`Esta mudança de valor atinge ${fechados.length === 1 ? 'um mês já fechado' : `${fechados.length} meses já fechados`} (${fechados.slice(0, 3).map(mesLabel).join(', ')}${fechados.length > 3 ? '…' : ''}) e muda os números ${fechados.length === 1 ? 'dele' : 'deles'}.\n\nPara continuar, escreva o motivo:`)
+        if (!motivo || motivo.trim().length < 3) { setSaving(false); return }
+      }
+    }
     // Conta de valor variável: a estimativa só muda daqui para frente e NUNCA cria outra linha (os valores reais de cada mês ficam como estão).
     // Conta de valor fixo: se o valor mudou, a pessoa escolhe no formulário se vale "a partir deste mês" (guarda o histórico) ou "para todos os meses".
-    if (mudouValor && jaComecou && !antigo.variavel && !form.variavel && form.aplicarDesde === 'mes') {
+    if (mudouValor && jaComecou && vigente && !antigo.variavel && !form.variavel && form.aplicarDesde === 'mes') {
       ok = await addFixo({ ...dados, ativo: true, mes_inicio: mesAtual })
       if (ok) ok = await updateFixo(editId, { mes_fim: addMonths(mesAtual, -1) })
     } else {
       ok = editId ? await updateFixo(editId, dados) : await addFixo({ ...dados, ativo: true })
+      if (ok && motivo) await registrarAuditoria({ entidade: 'fixo', entidade_id: editId, acao: 'editar_valor_em_mes_fechado', antes: { valor: antigo.valor }, depois: { valor: dados.valor }, motivo: motivo.trim() })
     }
     setSaving(false)
     if (ok) setModal(false) // se deu erro, mantém o formulário
@@ -162,7 +178,7 @@ export default function Fixos({ store }) {
             </div>
             {editId && !form.variavel && (() => {
               const antigo = fixos.find((x) => x.id === editId)
-              const muda = antigo && !antigo.variavel && Number(antigo.valor) !== Number(form.valor) && form.valor !== '' && (!antigo.mes_inicio || antigo.mes_inicio < mesAtual)
+              const muda = antigo && !antigo.variavel && Number(antigo.valor) !== Number(form.valor) && form.valor !== '' && (!antigo.mes_inicio || antigo.mes_inicio < mesAtual) && (!antigo.mes_fim || antigo.mes_fim >= mesAtual)
               if (!muda) return null
               return (
                 <div className="alert alert-blue" style={{ lineHeight: 1.8 }}>
@@ -343,21 +359,46 @@ export default function Fixos({ store }) {
               </tr>
             </thead>
             <tbody>
-              {grupos.map(({ principal: f, versoes }) => {
+              {grupos.map((grupo) => {
+                const { principal: f, versoes } = grupo
+                const redundantes = versoesRedundantes(grupo)
                 const encerrado = f.mes_fim && f.mes_fim < mesAtual
+                // meses em que a conta vale (últimos 12 até o próximo), cada um com a versão que vale nele
+                const mesesDaConta = f.variavel ? Array.from({ length: 13 }, (_, i) => addMonths(mesAtual, i - 11)).map((m) => ({ m, v: fixosAtivos(versoes, m)[0] })).filter((x) => x.v).reverse() : []
+                const painelAberto = !!mesesAbertos[f.id]
                 return (
-                  <tr key={f.id}>
+                  <Fragment key={f.id}>
+                  <tr>
                     <td style={{ fontWeight: 500 }}>
                       {f.nome}
                       {f.variavel && <span className="badge badge-amber" style={{ marginLeft: 6, fontSize: 10 }}>valor variável</span>}
+                      {redundantes.length > 0 && (
+                        <div className="alert alert-amber" style={{ margin: '6px 0 0', padding: '6px 10px', fontSize: 11, fontWeight: 400 }}>
+                          {redundantes.length} cópia{redundantes.length > 1 ? 's' : ''} repetida{redundantes.length > 1 ? 's' : ''} desta conta (o total já conta só uma).{' '}
+                          <button className="link-btn" onClick={async () => { if (confirm(`Juntar as cópias de "${f.nome}"?\n\nFica só a versão em vigor (${fmt(f.valor)}); os valores reais e pagamentos das cópias passam para ela. Não dá para desfazer.`)) await juntarVersoes(f.id, redundantes.map((v) => v.id)) }}>Juntar agora</button>
+                        </div>
+                      )}
                       {versoes.length > 1 && (
-                        <details style={{ fontWeight: 400, marginTop: 2 }}>
-                          <summary style={{ fontSize: 11, color: 'var(--text3)', cursor: 'pointer' }}>histórico de valores ({versoes.length})</summary>
-                          {[...versoes].reverse().map((v) => (
-                            <div key={v.id} style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }} className="mono">
-                              {v.mes_inicio ? `desde ${mesLabel(v.mes_inicio)}` : 'desde o início'}{v.mes_fim ? ` até ${mesLabel(v.mes_fim)}` : ' · em vigor'}: {fmt(v.valor)}
-                            </div>
-                          ))}
+                        <details style={{ fontWeight: 400, marginTop: 4 }}>
+                          <summary style={{ fontSize: 11, color: 'var(--text3)', cursor: 'pointer' }}>histórico de valores ({versoes.length - redundantes.length} {versoes.length - redundantes.length === 1 ? 'período' : 'períodos'})</summary>
+                          <table style={{ marginTop: 4, width: 'auto' }}>
+                            <tbody>
+                              {[...versoes].filter((v) => !redundantes.some((r) => r.id === v.id)).reverse().map((v) => (
+                                <tr key={v.id}>
+                                  <td style={{ fontSize: 11, color: 'var(--text2)', padding: '2px 14px 2px 0', border: 0 }}>
+                                    {v.mes_inicio ? `de ${mesLabel(v.mes_inicio)}` : 'desde o início'}{v.mes_fim ? ` até ${mesLabel(v.mes_fim)}` : ' em diante'}
+                                  </td>
+                                  <td className="mono" style={{ fontSize: 11, padding: '2px 10px 2px 0', border: 0 }}>{fmt(v.valor)}{v.id === f.id && <span className="badge badge-green" style={{ marginLeft: 6, fontSize: 9 }}>em vigor</span>}</td>
+                                  <td style={{ border: 0, padding: '2px 0', whiteSpace: 'nowrap' }}>
+                                    {v.id !== f.id && <>
+                                      <button className="link-btn" onClick={() => abrir(v)}>editar</button>{' · '}
+                                      <button className="link-btn" onClick={() => { if (confirm(`Apagar o período ${v.mes_inicio ? 'de ' + mesLabel(v.mes_inicio) : 'desde o início'}${v.mes_fim ? ' até ' + mesLabel(v.mes_fim) : ''} (${fmt(v.valor)})?\n\nOs meses desse período deixam de ter essa conta. Dá para desfazer logo depois.`)) apagarVersaoFixo(v) }}>apagar</button>
+                                    </>}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
                         </details>
                       )}
                       {f.mes_fim && (
@@ -399,10 +440,38 @@ export default function Fixos({ store }) {
                       </button>
                     </td>
                     <td style={{ display: 'flex', gap: 6 }}>
+                      {f.variavel && <button className="btn btn-ghost btn-sm" onClick={() => setMesesAbertos((a) => ({ ...a, [f.id]: a[f.id] ? false : 'curto' }))} aria-expanded={painelAberto} title="Ver, corrigir ou apagar o valor real de cada mês">{painelAberto ? '▾' : '▸'} Meses</button>}
                       <button className="btn btn-ghost btn-sm" onClick={() => abrir(f)}>Editar</button>
                       <button className="btn btn-danger" onClick={async () => { if (confirm(`Remover "${f.nome}"${versoes.length > 1 ? ` e o histórico de valores (${versoes.length} versões)` : ''}?`)) for (const v of versoes) await delFixo(v.id) }}>×</button>
                     </td>
                   </tr>
+                  {painelAberto && (
+                    <tr>
+                      <td colSpan={6} style={{ background: 'var(--bg3)', padding: '12px 16px' }}>
+                        <div style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 8, lineHeight: 1.6 }}>
+                          <b>Valor real de cada mês.</b> Digite para lançar ou corrigir; <b>"usar estimativa"</b> apaga o valor daquele mês. Só o mês escolhido muda. Meses já fechados ficam travados até você pedir para alterar.
+                        </div>
+                        <table style={{ width: 'auto', minWidth: 360 }}>
+                          <thead><tr><th>Mês</th><th style={{ textAlign: 'right' }}>Valor</th><th /></tr></thead>
+                          <tbody>
+                            {(mesesAbertos[f.id] === 'todos' ? mesesDaConta : mesesDaConta.slice(0, 6)).map(({ m, v }) => (
+                              <tr key={m}>
+                                <td className="mono" style={{ fontSize: 12 }}>{mesLabel(m)}{m === mesAtual && <span className="badge badge-green" style={{ marginLeft: 6, fontSize: 9 }}>este mês</span>}</td>
+                                <td style={{ textAlign: 'right' }}><ValorDoMes fixo={v} mes={m} real={v.valores?.[m]} definirValorFixo={definirValorFixo} compacto fechado={mesFechado(fechamentos, m)} /></td>
+                                <td style={{ fontSize: 11, color: 'var(--text3)' }}>{v.valores?.[m] != null ? 'real' : 'estimado'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        {mesesDaConta.length > 6 && (
+                          <button className="link-btn" style={{ marginTop: 8, fontSize: 12 }} onClick={() => setMesesAbertos((a) => ({ ...a, [f.id]: a[f.id] === 'todos' ? 'curto' : 'todos' }))}>
+                            {mesesAbertos[f.id] === 'todos' ? 'mostrar só os 6 meses mais recentes' : `mostrar os ${mesesDaConta.length} meses`}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                 )
               })}
             </tbody>

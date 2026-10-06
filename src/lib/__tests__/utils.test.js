@@ -91,3 +91,24 @@ describe('limite do cartão com contas fixas no cartão', () => {
     expect(limiteUsado('c1', [], [{ id: 'c1' }], [], '2026-10').usado).toBe(0)
   })
 })
+
+describe('versões duplicadas de uma conta fixa no mesmo mês', () => {
+  it('três cópias iguais contam uma vez só; versão antiga encerrada não conta', async () => {
+    const { fixosAtivos } = await import('../utils')
+    const v = (id, o) => ({ id, nome: 'Condomínio', valor: 900, ativo: true, mes_inicio: '2026-10', mes_fim: null, ...o })
+    const lista = [v('a', { mes_inicio: null, mes_fim: '2026-09', valor: 748 }), v('b'), v('c'), v('d')]
+    const out = fixosAtivos(lista, '2026-10')
+    expect(out).toHaveLength(1)
+    expect(out[0]).toMatchObject({ id: 'd', valor: 900 })
+    expect(fixosAtivos(lista, '2026-09').map((f) => f.id)).toEqual(['a'])
+  })
+  it('versão antiga que ficou sem fim não soma junto com a nova', async () => {
+    const { fixosAtivos } = await import('../utils')
+    const out = fixosAtivos([{ id: 'a', nome: 'Seguro', valor: 100, ativo: true, mes_inicio: null }, { id: 'b', nome: 'Seguro', valor: 120, ativo: true, mes_inicio: '2026-10' }], '2026-10')
+    expect(out.map((f) => f.id)).toEqual(['b'])
+  })
+  it('contas diferentes (dono ou cartão) continuam separadas', async () => {
+    const { fixosAtivos } = await import('../utils')
+    expect(fixosAtivos([{ id: 'a', nome: 'Plano', valor: 50, ativo: true, pessoa: 'Gi' }, { id: 'b', nome: 'Plano', valor: 50, ativo: true, pessoa: 'Sabi' }], '2026-10')).toHaveLength(2)
+  })
+})
