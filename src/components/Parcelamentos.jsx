@@ -16,18 +16,6 @@ export default function Parcelamentos({ store }) {
   const totalMes = ativas.reduce((s, c) =>
     s + gerarParcelas(c, cartoes).filter((p) => p.mes === mes).reduce((ss, p) => ss + p.valor, 0), 0)
 
-  const porCartaoMap = {}
-  ativas.forEach((c) => {
-    const restante = gerarParcelas(c, cartoes).filter((p) => p.mes >= mes).reduce((s, p) => s + p.valor, 0)
-    const nome = cartoes.find((x) => x.id === c.cartao_id)?.nome || 'Sem cartão'
-    if (!porCartaoMap[nome]) porCartaoMap[nome] = { restante: 0, qtd: 0 }
-    porCartaoMap[nome].restante += restante
-    porCartaoMap[nome].qtd += 1
-  })
-  const porCartao = Object.entries(porCartaoMap)
-    .map(([nome, v]) => ({ nome, ...v }))
-    .sort((a, b) => b.restante - a.restante)
-
   const { combina } = compilar(busca)
   const filtroAtivo = !!(busca.trim() || filtroCartao)
   const filtradas = ativas.filter((c) =>
@@ -37,6 +25,77 @@ export default function Parcelamentos({ store }) {
       valor: [Number(c.valor_total), valorParcelaBase(c)],
       data: c.data_compra,
     }))
+
+  // Restante (do mês atual em diante) e parcela do mês de cada compra, para os resumos e os totais.
+  const valoresDe = (c) => {
+    const ps = gerarParcelas(c, cartoes)
+    return { restante: ps.filter((p) => p.mes >= mes).reduce((t, p) => t + p.valor, 0), doMes: ps.filter((p) => p.mes === mes).reduce((t, p) => t + p.valor, 0) }
+  }
+  const baseFiltrada = filtradas.reduce((t, c) => t + valoresDe(c).restante, 0)
+  function agrupar(chave) {
+    const mapa = {}
+    filtradas.forEach((c) => {
+      const k = chave(c)
+      const v = valoresDe(c)
+      if (!mapa[k]) mapa[k] = { nome: k, restante: 0, doMes: 0, qtd: 0 }
+      mapa[k].restante += v.restante
+      mapa[k].doMes += v.doMes
+      mapa[k].qtd += 1
+    })
+    return Object.values(mapa).sort((x, y) => y.restante - x.restante)
+  }
+  const porCartao = agrupar((c) => cartoes.find((x) => x.id === c.cartao_id)?.nome || 'Sem cartão')
+  const porCategoria = agrupar((c) => c.categoria || 'Sem categoria')
+
+  // Tabela de resumo com total e % do restante (usada por cartão e por categoria).
+  function TabelaResumo({ titulo, rotulo, linhas, badge }) {
+    if (!linhas.length) return null
+    const tot = linhas.reduce((t, l) => ({ qtd: t.qtd + l.qtd, doMes: t.doMes + l.doMes, restante: t.restante + l.restante }), { qtd: 0, doMes: 0, restante: 0 })
+    const pct = (v) => (baseFiltrada > 0 ? Math.round((v / baseFiltrada) * 1000) / 10 : 0)
+    return (
+      <>
+        <div className="section-label">{titulo}</div>
+        <div className="card">
+          <table>
+            <thead>
+              <tr>
+                <th>{rotulo}</th>
+                <th style={{ textAlign: 'center' }}>Compras ativas</th>
+                <th style={{ textAlign: 'right' }}>Parcela do mês</th>
+                <th style={{ textAlign: 'right' }}>Restante</th>
+                <th style={{ textAlign: 'right' }}>% do total</th>
+                <th>Participação</th>
+              </tr>
+            </thead>
+            <tbody>
+              {linhas.map(({ nome, qtd, doMes, restante }) => (
+                <tr key={nome}>
+                  <td>{badge ? <span className="badge badge-gray">{nome}</span> : nome}</td>
+                  <td style={{ textAlign: 'center', fontFamily: 'DM Mono', fontSize: 13 }}>{qtd}</td>
+                  <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(doMes)}</td>
+                  <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(restante)}</td>
+                  <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{pct(restante).toLocaleString('pt-BR', { minimumFractionDigits: 1 })}%</td>
+                  <td>
+                    <div className="prog-bar" style={{ minWidth: 80 }}>
+                      <div className="prog-fill" style={{ width: pct(restante) + '%', background: 'var(--amber)' }} />
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              <tr style={{ fontWeight: 600, borderTop: '1px solid var(--border)' }}>
+                <td>Total</td>
+                <td style={{ textAlign: 'center', fontFamily: 'DM Mono', fontSize: 13 }}>{tot.qtd}</td>
+                <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(tot.doMes)}</td>
+                <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(tot.restante)}</td>
+                <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>100%</td>
+                <td />
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </>
+    )
+  }
 
   function renderGrupo(pessoa) {
     const lista = filtradas.filter((c) => c.pessoa === pessoa)
@@ -101,6 +160,13 @@ export default function Parcelamentos({ store }) {
                   </tr>
                 )
               })}
+              <tr style={{ fontWeight: 600, borderTop: '1px solid var(--border)' }}>
+                <td colSpan={3}>Total de {pessoa} ({lista.length})</td>
+                <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(lista.reduce((t, c) => t + valorParcelaBase(c), 0))}</td>
+                <td />
+                <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(lista.reduce((t, c) => t + valoresDe(c).restante, 0))}</td>
+                <td />
+              </tr>
             </tbody>
           </table>
         </div>
@@ -125,48 +191,6 @@ export default function Parcelamentos({ store }) {
         </div>
       </div>
 
-      {ativas.length === 0 ? (
-        <div className="empty">
-          Nenhum parcelamento ativo.{'\n'}As compras parceladas aparecem aqui automaticamente.
-        </div>
-      ) : (
-        <>
-          <div className="section-label">dívida restante por cartão</div>
-          <div className="card">
-            <table>
-              <thead>
-                <tr>
-                  <th>Cartão</th>
-                  <th style={{ textAlign: 'center' }}>Compras ativas</th>
-                  <th style={{ textAlign: 'right' }}>Restante</th>
-                  <th>Participação</th>
-                </tr>
-              </thead>
-              <tbody>
-                {porCartao.map(({ nome, qtd, restante }) => {
-                  const pct = totalRestante > 0 ? Math.round((restante / totalRestante) * 100) : 0
-                  return (
-                    <tr key={nome}>
-                      <td><span className="badge badge-gray">{nome}</span></td>
-                      <td style={{ textAlign: 'center', fontFamily: 'DM Mono', fontSize: 13 }}>{qtd}</td>
-                      <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(restante)}</td>
-                      <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <div className="prog-bar" style={{ flex: 1 }}>
-                            <div className="prog-fill" style={{ width: pct + '%', background: 'var(--amber)' }} />
-                          </div>
-                          <span style={{ fontSize: 11, color: 'var(--text3)', minWidth: 28 }}>{pct}%</span>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
-
       {ativas.length > 0 && (
         <div className="toolbar">
           <CampoBusca valor={busca} onChange={setBusca} />
@@ -177,6 +201,18 @@ export default function Parcelamentos({ store }) {
         </div>
       )}
       <ResumoFiltro ativo={filtroAtivo} mostrando={filtradas.length} total={ativas.length} onLimpar={() => { setBusca(''); setFiltroCartao('') }} />
+      {ativas.length === 0 ? (
+        <div className="empty">
+          Nenhum parcelamento ativo.{'\n'}As compras parceladas aparecem aqui automaticamente.
+        </div>
+      ) : (
+        <>
+          {filtroAtivo && <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 6 }}>Os resumos abaixo consideram só o que combina com a busca/filtro.</div>}
+          {TabelaResumo({ titulo: 'dívida restante por cartão', rotulo: 'Cartão', linhas: porCartao, badge: true })}
+          {TabelaResumo({ titulo: 'dívida restante por categoria', rotulo: 'Categoria', linhas: porCategoria })}
+        </>
+      )}
+
       {filtroAtivo && filtradas.length === 0 && <div className="empty">Nenhum parcelamento com esses filtros.{'\n'}Tente outro termo ou clique em "Limpar filtros".</div>}
       {pessoas.map((p) => renderGrupo(p.nome))}
       {/* Compras de quem não está (mais) na lista de pessoas: aparecem aqui para os totais do topo fecharem. */}
