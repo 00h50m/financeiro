@@ -8,7 +8,7 @@ export default [
   js.configs.recommended,
   {
     files: ['src/**/*.{js,jsx}'],
-    languageOptions: { ecmaVersion: 2022, sourceType: 'module', globals: { ...globals.browser }, parserOptions: { ecmaFeatures: { jsx: true } } },
+    languageOptions: { ecmaVersion: 2022, sourceType: 'module', globals: { ...globals.browser, __APP_BUILD__: 'readonly' }, parserOptions: { ecmaFeatures: { jsx: true } } },
     plugins: { react, 'react-hooks': reactHooks },
     settings: { react: { version: 'detect' } },
     rules: {
