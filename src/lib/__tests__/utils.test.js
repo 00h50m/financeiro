@@ -44,3 +44,27 @@ describe('gerarParcelas com centavos', () => {
     expect(Math.round(ps.reduce((s, p) => s + p.valor, 0) * 100)).toBe(10000)
   })
 })
+
+describe('contas fixas de valor variável', () => {
+  const comValores = (f, valores) => Object.defineProperty({ ...f }, 'valores', { value: valores, enumerable: false })
+  const energia = comValores({ id: 1, nome: 'Energia', valor: 280, ativo: true, variavel: true }, { '2026-09': 312.4 })
+
+  it('mês com valor real usa o real; sem ele usa a estimativa e marca como estimado', async () => {
+    const { fixosAtivos } = await import('../utils')
+    const [set] = fixosAtivos([energia], '2026-09')
+    const [out] = fixosAtivos([energia], '2026-10')
+    expect(set).toMatchObject({ valor: 312.4, estimado: false })
+    expect(out).toMatchObject({ valor: 280, estimado: true })
+  })
+  it('informar um mês não altera os outros (passados ou futuros)', async () => {
+    const { fixosAtivos } = await import('../utils')
+    expect(fixosAtivos([energia], '2026-08')[0].valor).toBe(280)
+    expect(fixosAtivos([energia], '2026-11')[0].valor).toBe(280)
+  })
+  it('conta fixa comum não é marcada como estimada e os valores não vazam para backup/gravação', async () => {
+    const { fixosAtivos } = await import('../utils')
+    expect(fixosAtivos([{ id: 2, nome: 'Internet', valor: 100, ativo: true }], '2026-10')[0].estimado).toBeUndefined()
+    expect(Object.keys(energia)).not.toContain('valores')
+    expect(JSON.stringify(energia)).not.toContain('312.4')
+  })
+})

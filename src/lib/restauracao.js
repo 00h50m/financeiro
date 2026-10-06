@@ -6,7 +6,7 @@ export const ORDEM_RESTAURACAO = [
   ['pessoas', 'id', 'Pessoas'], ['cartoes', 'id', 'Cartões'], ['categorias', 'id', 'Categorias'], ['rendas', 'id', 'Rendas'],
   ['saldo_ajustes', 'mes', 'Ajustes de saldo'], ['orcamentos', 'categoria', 'Tetos do Orçamento'], ['config', 'chave', 'Configurações'],
   ['fixos', 'id', 'Contas fixas'], ['regras_categorizacao', 'id', 'Regras aprendidas'], ['estabelecimento_aliases', 'alias', 'Apelidos'],
-  ['compras', 'id', 'Compras'], ['faturas', 'id', 'Faturas'], ['fixos_pagamentos', 'id', 'Pagamentos das contas fixas'],
+  ['compras', 'id', 'Compras'], ['faturas', 'id', 'Faturas'], ['fixos_pagamentos', 'id', 'Pagamentos das contas fixas'], ['fixos_valores', 'id', 'Valores reais mensais das contas fixas'],
   ['compras_pagamentos', 'id', 'Pagamentos das parcelas'], ['eventos_financeiros', 'id', 'Inbox'], ['fechamentos', 'mes', 'Fechamentos'],
   ['metas', 'id', 'Metas'], ['metas_movimentos', 'id', 'Movimentos das metas'],
   ['divisoes', 'id', 'Divididos'], ['divisoes_repasses', 'id', 'Recebimentos dos Divididos'],
@@ -15,7 +15,7 @@ export const OBRIGATORIAS = ['compras', 'cartoes', 'faturas', 'fixos', 'fixos_pa
 
 // Relações que precisam fechar: [tabela filha, coluna, tabela pai].
 const RELACOES = [
-  ['compras', 'cartao_id', 'cartoes'], ['faturas', 'cartao_id', 'cartoes'], ['fixos_pagamentos', 'fixo_id', 'fixos'],
+  ['compras', 'cartao_id', 'cartoes'], ['faturas', 'cartao_id', 'cartoes'], ['fixos_pagamentos', 'fixo_id', 'fixos'], ['fixos_valores', 'fixo_id', 'fixos'],
   ['compras_pagamentos', 'compra_id', 'compras'], ['metas_movimentos', 'meta_id', 'metas'], ['divisoes_repasses', 'divisao_id', 'divisoes'],
 ]
 

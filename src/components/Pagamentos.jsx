@@ -6,7 +6,7 @@ import { resumoDoMes, sobraAnterior, lerUsarSaldoAnterior, gravarUsarSaldoAnteri
 export default function Pagamentos({ store }) {
   const {
     fixos, fixosPagamentos, cartoes, compras, faturas, rendas, saldoAjustes, comprasPagamentos, comprasPagamentosOk,
-    marcarFixoPago, marcarParcelaPaga, upsertFatura, updateCompra, definirAjusteSaldo,
+    marcarFixoPago, marcarParcelaPaga, definirValorFixo, upsertFatura, updateCompra, definirAjusteSaldo,
   } = store
   const [mes, setMes] = useState(nowYM())
   const [usarSobra, setUsarSobra] = useState(lerUsarSaldoAnterior)
@@ -53,8 +53,18 @@ export default function Pagamentos({ store }) {
     if (ok) setSaldoReal('')
   }
 
+  // Conta de valor variável: o valor real é informado por mês (só aquele mês muda).
+  async function informarValor(fixo) {
+    const r = window.prompt(`Valor real de "${fixo.nome}" em ${mesLabel(mes)} (R$):`, String(fixo.valor).replace('.', ','))
+    if (r === null) return false
+    const v = Number(String(r).trim().replace(/\./g, '').replace(',', '.'))
+    if (!r.trim() || Number.isNaN(v) || v < 0) { window.alert('Valor inválido.'); return false }
+    return definirValorFixo(fixo.id, mes, v)
+  }
   async function toggleFixo(fixo) {
     const atual = fixoPagamento(fixo.id)?.pago || false
+    // ao pagar uma conta variável ainda estimada, confirma o valor real antes (evita pagar sem registrar)
+    if (!atual && fixo.estimado && !(await informarValor(fixo))) return
     await marcarFixoPago(fixo.id, mes, !atual)
   }
 
@@ -221,7 +231,15 @@ export default function Pagamentos({ store }) {
                     <td style={{ textAlign: 'center', fontFamily: 'DM Mono', fontSize: 12, color: 'var(--text3)' }}>
                       {f.dia_vencimento ? `dia ${f.dia_vencimento}` : '—'}
                     </td>
-                    <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(f.valor)}</td>
+                    <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>
+                      {fmt(f.valor)}
+                      {f.variavel && (
+                        <div style={{ fontSize: 11, marginTop: 2 }}>
+                          {f.estimado ? <span className="badge badge-amber" style={{ fontSize: 10 }}>estimado</span> : <span className="badge badge-green" style={{ fontSize: 10 }}>real</span>}
+                          {' '}<button className="link-btn" onClick={() => informarValor(f)}>{f.estimado ? 'informar valor real' : 'corrigir'}</button>
+                        </div>
+                      )}
+                    </td>
                     <td style={{ fontSize: 12, color: 'var(--text3)', fontFamily: 'DM Mono' }}>{dataFmt(pg?.data_pagamento) || '—'}</td>
                   </tr>
                 )

@@ -2,20 +2,21 @@ import { useState } from 'react'
 import { fmt, mesLabel, nowYM, addMonths, fixosAtivos, corPessoa, nomeCasa, donoDoFixo } from '../lib/utils'
 
 export default function Fixos({ store }) {
-  const { fixos, categorias, pessoas, cartoes, addFixo, updateFixo, delFixo } = store
+  const { fixos, categorias, pessoas, cartoes, addFixo, updateFixo, delFixo, fixosValoresOk, definirValorFixo } = store
   const [modal, setModal] = useState(false)
   const [editId, setEditId] = useState(null)
   const [form, setForm] = useState({
     nome: '', valor: '', pessoa: '', cartao_id: '',
     categoria: categorias[0]?.nome || '',
     subcategoria: categorias[0]?.subcategorias?.[0] || '',
-    mes_fim: '', dia_vencimento: '',
+    mes_fim: '', dia_vencimento: '', variavel: false,
   })
   const [filtroPessoa, setFiltroPessoa] = useState('') // '' = todas
   const [saving, setSaving] = useState(false)
   const mesAtual = nowYM()
   const casa = nomeCasa(pessoas)
   // Sem a coluna no banco (fixos_cartao.sql não rodou) o campo fica desligado, para não quebrar o salvamento.
+  const colunaVariavelOk = fixosValoresOk && (fixos.length === 0 || 'variavel' in fixos[0])
   const colunaCartaoOk = fixos.length === 0 || 'cartao_id' in fixos[0]
   const cartaoEscolhido = cartoes.find((c) => c.id === form.cartao_id)
   const casaCadastrada = pessoas.some((p) => p.nome === casa)
@@ -29,7 +30,7 @@ export default function Fixos({ store }) {
         nome: fx.nome, valor: fx.valor, pessoa: fx.pessoa || (casaCadastrada ? casa : ''), cartao_id: fx.cartao_id || '',
         categoria: fx.categoria || categorias[0]?.nome || '',
         subcategoria: fx.subcategoria || categorias.find((c) => c.nome === fx.categoria)?.subcategorias?.[0] || '',
-        mes_fim: fx.mes_fim || '', dia_vencimento: fx.dia_vencimento || '',
+        mes_fim: fx.mes_fim || '', dia_vencimento: fx.dia_vencimento || '', variavel: !!fx.variavel,
       })
       setEditId(fx.id)
     } else {
@@ -37,7 +38,7 @@ export default function Fixos({ store }) {
         nome: '', valor: '', pessoa: casaCadastrada ? casa : '', cartao_id: '',
         categoria: categorias[0]?.nome || '',
         subcategoria: categorias[0]?.subcategorias?.[0] || '',
-        mes_fim: '', dia_vencimento: '',
+        mes_fim: '', dia_vencimento: '', variavel: false,
       })
       setEditId(null)
     }
@@ -52,6 +53,7 @@ export default function Fixos({ store }) {
       valor: Number(form.valor),
       pessoa: form.pessoa || null,
       ...(colunaCartaoOk ? { cartao_id: form.cartao_id || null } : {}),
+      ...(colunaVariavelOk ? { variavel: !!form.variavel } : {}),
       categoria: form.categoria,
       subcategoria: form.subcategoria,
       mes_fim: form.mes_fim || null,
@@ -87,6 +89,16 @@ export default function Fixos({ store }) {
     }
   }
 
+  // Conta variável: valor real do mês atual (as pagas no cartão não aparecem em Pagamentos, então dá para informar aqui também)
+  async function informarValorDoMes(f) {
+    const atual = ativosAgora.find((x) => x.id === f.id) || f
+    const r = window.prompt(`Valor real de "${f.nome}" em ${mesLabel(mesAtual)} (R$):`, String(atual.valor).replace('.', ','))
+    if (r === null) return
+    const v = Number(String(r).trim().replace(/\./g, '').replace(',', '.'))
+    if (!r.trim() || Number.isNaN(v) || v < 0) { window.alert('Valor inválido.'); return }
+    await definirValorFixo(f.id, mesAtual, v)
+  }
+
   const total = ativosAgora.reduce((s, f) => s + Number(f.valor), 0)
   const ok = form.nome && form.valor && form.categoria && !saving
 
@@ -112,7 +124,7 @@ export default function Fixos({ store }) {
                 </select>
               </div>
               <div className="form-group">
-                <label>Valor mensal (R$)</label>
+                <label>{form.variavel ? 'Valor estimado (R$)' : 'Valor mensal (R$)'}</label>
                 <input type="number" step="0.01" value={form.valor} onChange={s('valor')} placeholder="0,00" />
               </div>
             </div>
@@ -148,6 +160,20 @@ export default function Fixos({ store }) {
                 <input type="month" value={form.mes_fim} onChange={s('mes_fim')} min={mesAtual} />
               </div>
             </div>
+            <div className="form-row">
+              <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13 }}>
+                <input type="checkbox" checked={!!form.variavel} disabled={!colunaVariavelOk} onChange={(e) => setForm((f) => ({ ...f, variavel: e.target.checked }))} />
+                O valor muda todo mês (energia, condomínio, água...)
+              </label>
+            </div>
+            {form.variavel && (
+              <div className="alert alert-blue">
+                O valor acima vale só como <b>estimativa</b>. Quando a conta chegar, informe o valor real do mês em <b>Pagamentos</b> — só aquele mês muda, os outros não são alterados.
+              </div>
+            )}
+            {!colunaVariavelOk && (
+              <div className="alert alert-amber">Para usar valor variável, rode o arquivo <code>inbox/20_fixos_variaveis.sql</code> no Supabase e recarregue a página.</div>
+            )}
             <div className="form-row">
               <div className="form-group">
                 <label>Paga no cartão de crédito? (opcional)</label>
@@ -203,7 +229,7 @@ export default function Fixos({ store }) {
                 <th>Nome</th>
                 <th>De quem</th>
                 <th>Categoria</th>
-                <th style={{ textAlign: 'right' }}>Valor/mês</th>
+                <th style={{ textAlign: 'right' }}>Valor/mês (estimado se variável)</th>
                 <th style={{ textAlign: 'center' }}>Status</th>
                 <th />
               </tr>
@@ -215,6 +241,7 @@ export default function Fixos({ store }) {
                   <tr key={f.id}>
                     <td style={{ fontWeight: 500 }}>
                       {f.nome}
+                      {f.variavel && <span className="badge badge-amber" style={{ marginLeft: 6, fontSize: 10 }}>valor variável</span>}
                       {f.mes_fim && (
                         <div style={{ fontSize: 11, color: encerrado ? 'var(--text3)' : 'var(--amber)', marginTop: 2, fontWeight: 400 }}>
                           {encerrado ? `encerrado em ${mesLabel(f.mes_fim)}` : `até ${mesLabel(f.mes_fim)}`}
@@ -239,7 +266,15 @@ export default function Fixos({ store }) {
                         <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>vence dia {f.dia_vencimento}</div>
                       ) : null}
                     </td>
-                    <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(f.valor)}</td>
+                    <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>
+                      {fmt(ativosAgora.find((x) => x.id === f.id)?.valor ?? f.valor)}
+                      {f.variavel && !encerrado && f.ativo && (
+                        <div style={{ fontSize: 11, marginTop: 2 }}>
+                          {ativosAgora.find((x) => x.id === f.id)?.estimado ? <span className="badge badge-amber" style={{ fontSize: 10 }}>estimado em {mesLabel(mesAtual)}</span> : <span className="badge badge-green" style={{ fontSize: 10 }}>real em {mesLabel(mesAtual)}</span>}
+                          {' '}<button className="link-btn" onClick={() => informarValorDoMes(f)}>informar valor do mês</button>
+                        </div>
+                      )}
+                    </td>
                     <td style={{ textAlign: 'center' }}>
                       <button
                         className={`badge ${f.ativo && !encerrado ? 'badge-green' : 'badge-gray'}`}

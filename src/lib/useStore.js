@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { sb } from './supabase.js'
 import { hojeSP, mesLabel } from './utils.js'
 import { mesesFechadosTocados, mesFechado } from './fechamento.js'
@@ -27,6 +27,8 @@ export function useStore(email = null) {
   const [faturas, setFaturas] = useState([])
   const [categorias, setCategorias] = useState([])
   const [fixosPagamentos, setFixosPagamentos] = useState([])
+  const [fixosValores, setFixosValores] = useState([])
+  const [fixosValoresOk, setFixosValoresOk] = useState(true)
   const [saldoAjustes, setSaldoAjustes] = useState([])
   const [pessoas, setPessoas] = useState([])
   const [orcamentos, setOrcamentos] = useState([])
@@ -73,7 +75,7 @@ export function useStore(email = null) {
     if (!silent) setLoading(true)
     if (!silent) setError(null)
     try {
-      const [c, co, r, fx, fa, cat, fxp, sa, ps, orc, cfg, ev, rg, al, it, cp, fe, me, mm, dv, dr] = await Promise.all([
+      const [c, co, r, fx, fa, cat, fxp, fxv, sa, ps, orc, cfg, ev, rg, al, it, cp, fe, me, mm, dv, dr] = await Promise.all([
         quer('cartoes') ? sb.from('cartoes').select('*').order('created_at') : nada,
         quer('compras') ? lerTudo('compras', (q) => q.order('data_compra', { ascending: false }).order('id')) : nada,
         quer('rendas') ? sb.from('rendas').select('*').order('mes', { ascending: false }) : nada,
@@ -81,6 +83,7 @@ export function useStore(email = null) {
         quer('faturas') ? lerTudo('faturas', (q) => q.order('mes', { ascending: false }).order('id')) : nada,
         quer('categorias') ? sb.from('categorias').select('*').order('nome') : nada,
         quer('fixosPagamentos') ? lerTudo('fixos_pagamentos', (q) => q.order('id')) : nada,
+        quer('fixosValores') ? lerTudo('fixos_valores', (q) => q.order('id')) : nada,
         quer('saldoAjustes') ? sb.from('saldo_ajustes').select('*') : nada,
         quer('pessoas') ? sb.from('pessoas').select('*').order('created_at') : nada,
         quer('orcamentos') ? sb.from('orcamentos').select('*') : nada,
@@ -107,6 +110,8 @@ export function useStore(email = null) {
       if (fa) setFaturas(fa.data || [])
       if (cat) setCategorias(cat.data || [])
       if (fxp) setFixosPagamentos(fxp.data || [])
+      // Valor real mensal é opcional: sem a migration 20 as contas fixas seguem só com o valor cadastrado.
+      if (fxv) { setFixosValoresOk(!fxv.error); setFixosValores(fxv.error ? [] : fxv.data || []) }
       if (sa) setSaldoAjustes(sa.data || [])
       if (ps) setPessoas(ps.data || [])
       // Pagamento por parcela é opcional: sem a migration 14 o app usa o "pago" antigo da compra.
@@ -291,7 +296,7 @@ export function useStore(email = null) {
   const delFixo = (id) => op(async () => {
     const r = await sb.from('fixos').delete().eq('id', id)
     if (r.error) throw r.error
-  }, ['fixos', 'fixosPagamentos'])
+  }, ['fixos', 'fixosPagamentos', 'fixosValores'])
 
   // FATURAS
   const upsertFatura = (data) => op(async () => {
@@ -326,6 +331,26 @@ export function useStore(email = null) {
     const r = await sb.from('faturas').delete().eq('id', id)
     if (r.error) throw r.error
   }, ['faturas'])
+
+  // VALOR REAL DE CONTA FIXA VARIÁVEL (por mês): só aquele mês muda. Em mês fechado pede o motivo e audita.
+  const definirValorFixo = async (fixo_id, mes, valor) => {
+    const antes = fixosValores.find((v) => v.fixo_id === fixo_id && v.mes === mes)?.valor ?? null
+    let motivo = null
+    if (mesFechado(fechamentos, mes)) {
+      motivo = window.prompt(`${mesLabel(mes)} já está fechado e esta alteração muda os números dele.\n\nPara continuar, escreva o motivo:`)
+      if (!motivo || motivo.trim().length < 3) return false
+    }
+    const ok = await op(async () => {
+      const r = valor == null
+        ? await sb.from('fixos_valores').delete().eq('fixo_id', fixo_id).eq('mes', mes)
+        : await sb.from('fixos_valores').upsert({ fixo_id, mes, valor }, { onConflict: 'fixo_id,mes' })
+      if (r.error) throw r.error
+    }, ['fixosValores'])
+    if (ok && motivo) {
+      await registrarAuditoria({ entidade: 'fixo_valor', entidade_id: fixo_id, acao: 'editar_em_mes_fechado', antes: { mes, valor: antes }, depois: { mes, valor }, motivo: `${motivo.trim()} (mês fechado: ${mes})` })
+    }
+    return ok
+  }
 
   // PAGAMENTOS DE FIXOS (por mês)
   const marcarFixoPago = (fixo_id, mes, pago) => op(async () => {
@@ -671,12 +696,22 @@ export function useStore(email = null) {
     if (r.error) throw r.error
   })
 
+  // Cada conta fixa leva seus valores reais por mês em `valores` (não enumerável: não vai para backup, spread nem gravação).
+  const fixosComValores = useMemo(() => {
+    const porFixo = new Map()
+    for (const v of fixosValores) {
+      if (!porFixo.has(v.fixo_id)) porFixo.set(v.fixo_id, {})
+      porFixo.get(v.fixo_id)[v.mes] = Number(v.valor)
+    }
+    return fixos.map((f) => (porFixo.has(f.id) ? Object.defineProperty({ ...f }, 'valores', { value: porFixo.get(f.id), enumerable: false }) : f))
+  }, [fixos, fixosValores])
+
   return {
     email,
     integracoesTelegram, gerarPareamento, pausarIntegracao, desconectarIntegracao,
     eventos, regras, aliases, inboxOk,
     confirmarEvento, vincularEvento, ignorarEvento, adicionarEventos, adicionarRegras,
-    cartoes, compras, rendas, fixos, faturas, categorias, fixosPagamentos, comprasPagamentos, comprasPagamentosOk, fechamentos, fechamentosOk, metas, metasMovimentos, metasOk, divisoes, divisoesRepasses, divisoesOk, saldoAjustes, pessoas, orcamentos, orcamentosOk, config, configOk,
+    cartoes, compras, rendas, fixos: fixosComValores, fixosValores, fixosValoresOk, definirValorFixo, faturas, categorias, fixosPagamentos, comprasPagamentos, comprasPagamentosOk, fechamentos, fechamentosOk, metas, metasMovimentos, metasOk, divisoes, divisoesRepasses, divisoesOk, saldoAjustes, pessoas, orcamentos, orcamentosOk, config, configOk,
     loading, syncState, error, loadAll,
     addCartao, updateCartao, delCartao,
     addCompra, updateCompra, salvarDivisao, updateComprasLote, delCompra,
