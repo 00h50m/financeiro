@@ -27,7 +27,11 @@ export function chaveEstabelecimento(texto, indice = new Map()) {
 export function similaridadeEstabelecimento(a, b) {
   if (!a || !b) return 0
   if (a === b) return 1
-  if (a.replace(/ /g, '') === b.replace(/ /g, '')) return 0.95
+  const colA = a.replace(/ /g, '')
+  const colB = b.replace(/ /g, '')
+  if (colA === colB) return 0.95
+  // "mercadolivre produtos" x "mercado livre": um começa igual ao outro quando se juntam as palavras
+  if (Math.min(colA.length, colB.length) >= 6 && (colA.startsWith(colB) || colB.startsWith(colA))) return 0.8
   const ta = a.split(' ')
   const tb = b.split(' ')
   const [menor, maior] = ta.length <= tb.length ? [ta, tb] : [tb, ta]

@@ -149,3 +149,16 @@ describe('nome amigável (Identificação)', () => {
     expect(sugerirNomeLinha('PADARIAJOSE')).toBeNull()
   })
 })
+
+describe('compra dividida em categorias', () => {
+  it('a linha da fatura com a cobrança inteira casa com as partes somadas', () => {
+    const partes = [
+      compra({ grupo_id: 'g', descricao: 'MERCADO LIVRE', valor_total: 100, data_compra: '2026-10-05', categoria: 'Alimentação' }),
+      compra({ grupo_id: 'g', descricao: 'MERCADO LIVRE', valor_total: 200, data_compra: '2026-10-05', categoria: 'Saúde' }),
+    ]
+    expect(tipos([linha({ descricao: 'MERCADO LIVRE', valor: '300', data: '2026-10-05' })], partes)).toEqual(['exata'])
+    // nome da fatura com as palavras coladas e sufixo: reconhece, mas só como "parece já lançada"
+    expect(tipos([linha({ descricao: 'MERCADOLIVRE*3PRODUTOS', valor: '300', data: '2026-10-05' })], partes)).toEqual(['parecida'])
+  })
+})
+

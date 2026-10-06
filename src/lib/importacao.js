@@ -3,6 +3,7 @@ import { construirRegrasDoHistorico, sugerirCategoria, sugerirPorNome, categoria
 import { pontuar } from './reconciliacao.js'
 import { normBasico, normNome, round2 } from './normalizacao.js'
 import { sugerirIdentificacao } from './nomesAmigaveis.js'
+import { comprasComGruposSomados } from './divisaoCompra.js'
 
 // Inteligência da importação de fatura (CSV): reconhecer o que já está lançado, sugerir categoria e nome.
 // Tudo puro e testável; a tela só mostra o resultado.
@@ -38,7 +39,9 @@ export function resolverCartaoPorNome(nome, cartoes) {
 //   parcelamento linha de parcela em andamento cujo parcelamento já está em Compras
 // Cada compra existente só "absorve" UMA linha: duas linhas iguais no arquivo e uma compra lançada
 // = uma já lançada e uma nova (antes, as duas eram marcadas como já lançadas).
-export function analisarLinhas(linhas, { compras = [], aliases = [] } = {}, modo = 'parcela') {
+export function analisarLinhas(linhas, { compras: comprasLancadas = [], aliases = [] } = {}, modo = 'parcela') {
+  // Compra dividida em categorias vale como UMA compra (soma das partes): a fatura traz a cobrança inteira.
+  const compras = comprasComGruposSomados(comprasLancadas)
   const indice = indexarAliases(aliases)
   const usadas = new Set()
   return linhas.map((l) => {

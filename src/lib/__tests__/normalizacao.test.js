@@ -38,5 +38,7 @@ describe('chave do estabelecimento', () => {
     expect(similaridadeEstabelecimento('mercado livre', 'mercadolivre')).toBe(0.95)
     expect(similaridadeEstabelecimento('uber', 'uber trip')).toBe(0.8)
     expect(similaridadeEstabelecimento('ifood', 'drogasil')).toBe(0)
+    expect(similaridadeEstabelecimento('mercadolivre produtos', 'mercado livre')).toBe(0.8)
+    expect(similaridadeEstabelecimento('uber', 'ubereats')).toBe(0) // curto demais para juntar palavras
   })
 })

@@ -3,15 +3,29 @@ import { fmt, corPessoa, tituloCompra, subtituloCompra, valorParcelaBase } from 
 import { parcelasPagas } from '../lib/financeiro'
 import ModalCompra from './ModalCompra'
 import { rotuloOrigem } from '../lib/origem'
+import { partesDoGrupo } from '../lib/divisaoCompra'
 
 export default function Compras({ store }) {
-  const { compras, cartoes, categorias, pessoas, comprasPagamentos, comprasPagamentosOk, addCompra, updateCompra, updateComprasLote, delCompra } = store
+  const { compras, cartoes, categorias, pessoas, comprasPagamentos, comprasPagamentosOk, addCompra, updateCompra, salvarDivisao, updateComprasLote, delCompra } = store
   const [modal, setModal] = useState(false)
+  const [edicao, setEdicao] = useState(null) // { compra } ou { grupo: [partes] }
   const [filtro, setFiltro] = useState('')
   const [filtroPessoa, setFiltroPessoa] = useState('')
   const [marcadas, setMarcadas] = useState([])
   const [novaCat, setNovaCat] = useState('')
   const [novaSub, setNovaSub] = useState('')
+
+  // Sem a coluna grupo_id no banco (inbox/19 não rodou) a divisão funciona, mas as partes ficam soltas.
+  const gruposOk = compras.some((c) => 'grupo_id' in c)
+  const tamanhoGrupo = useMemo(() => {
+    const m = {}
+    compras.forEach((c) => { if (c.grupo_id) m[c.grupo_id] = (m[c.grupo_id] || 0) + 1 })
+    return m
+  }, [compras])
+  function abrirEdicao(c) {
+    const partes = partesDoGrupo(compras, c.grupo_id)
+    setEdicao(partes.length >= 2 ? { grupo: partes } : { compra: c })
+  }
 
   const lista = useMemo(() =>
     compras.filter((c) =>
@@ -42,13 +56,18 @@ export default function Compras({ store }) {
 
   return (
     <div className="page">
-      {modal && (
+      {(modal || edicao) && (
         <ModalCompra
           cartoes={cartoes}
           categorias={categorias}
           pessoas={pessoas}
-          onSave={addCompra}
-          onClose={() => setModal(false)}
+          editar={edicao?.compra || null}
+          grupo={edicao?.grupo || null}
+          gruposOk={gruposOk}
+          avisoPagamentos={!!edicao && (comprasPagamentos || []).some((p) => (edicao.grupo || [edicao.compra]).some((c) => c.id === p.compra_id))}
+          onSave={edicao?.compra ? (dados) => updateCompra(edicao.compra.id, dados) : addCompra}
+          onSaveDivisao={salvarDivisao}
+          onClose={() => { setModal(false); setEdicao(null) }}
         />
       )}
 
@@ -125,6 +144,11 @@ export default function Compras({ store }) {
                         >✎</button>
                       </div>
                       {subtituloCompra(c) && <div style={{ fontSize: 11, color: 'var(--text3)' }}>no cartão: {subtituloCompra(c)}</div>}
+                      {c.grupo_id && tamanhoGrupo[c.grupo_id] > 1 && (
+                        <div style={{ fontSize: 11, color: 'var(--text3)' }}>
+                          <span className="badge badge-blue" style={{ fontSize: 10 }}>dividida em {tamanhoGrupo[c.grupo_id]} categorias</span>
+                        </div>
+                      )}
                       {c.obs && <div style={{ fontSize: 11, color: 'var(--text3)' }}>{c.obs}</div>}
                       {rotuloOrigem(c.origem) && <div style={{ fontSize: 11, color: 'var(--text3)' }}>{rotuloOrigem(c.origem)}</div>}
                     </td>
@@ -170,10 +194,17 @@ export default function Compras({ store }) {
                         <span className="badge badge-gray">à vista</span>
                       )}
                     </td>
-                    <td>
+                    <td style={{ whiteSpace: 'nowrap' }}>
+                      <button className="btn btn-ghost btn-sm" onClick={() => abrirEdicao(c)} style={{ marginRight: 6 }}>Editar</button>
                       <button
                         className="btn btn-danger"
-                        onClick={() => { if (confirm(`Remover "${c.descricao}"?`)) delCompra(c.id) }}
+                        onClick={() => {
+                          const parte = c.grupo_id && tamanhoGrupo[c.grupo_id] > 1
+                          const msg = parte
+                            ? `Remover só esta parte de "${c.descricao}" (${fmt(c.valor_total)})?\n\nAs outras partes da compra dividida continuam.`
+                            : `Remover "${c.descricao}"?`
+                          if (confirm(msg)) delCompra(c.id)
+                        }}
                       >×</button>
                     </td>
                   </tr>
