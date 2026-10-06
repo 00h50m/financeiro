@@ -1,4 +1,6 @@
-import { useState, Fragment } from 'react'
+import { useState, useMemo, Fragment } from 'react'
+import Sparkbars from './Sparkbars'
+import { serieMensal } from '../lib/evolucao'
 import { fmt, fmtK, mesLabel, nowYM, addMonths, gerarParcelas, corPessoa, corPessoaCss, fixosAtivos, gastosPorCategoria, statusTeto, nomeCasa, donoDoFixo, hojeSP } from '../lib/utils'
 import { resumoDoMes, lerUsarSaldoAnterior } from '../lib/financeiro'
 import { comprasLiquidas, fixosLiquidos } from '../lib/divisoes'
@@ -63,6 +65,7 @@ export default function Dashboard({ store, irPara }) {
     }))
     .sort((a, b) => b.total - a.total)
 
+  const serie6 = useMemo(() => serieMensal(store, mes, 6), [store, mes])
   const mesAnterior = addMonths(mes, -1)
   const anteriorPorCategoria = gastosPorCategoria(comprasLiquidas(store), cartoes, fixosLiquidos(store), mesAnterior)
   const riscos = riscosDoMes(store, mes)
@@ -214,6 +217,7 @@ export default function Dashboard({ store, irPara }) {
                 <th>Categoria</th>
                 <th style={{ textAlign: 'right' }}>Valor</th>
                 <th style={{ textAlign: 'right' }}>vs {mesLabel(mesAnterior)}</th>
+                <th title="Gasto da categoria nos últimos 6 meses (o último é o mês atual)">6 meses</th>
                 <th>Participação</th>
               </tr>
             </thead>
@@ -251,6 +255,7 @@ export default function Dashboard({ store, irPara }) {
                           return <span style={{ color: dif > 0 ? 'var(--red)' : 'var(--green)' }} title={`Mês anterior: ${fmt(ant)}`}>{dif > 0 ? '↑' : '↓'} {fmt(Math.abs(dif))} <span style={{ color: 'var(--text3)' }}>({Math.round((Math.abs(dif) / ant) * 100)}%)</span></span>
                         })()}
                       </td>
+                      <td><Sparkbars valores={serie6.map((l) => l.porCategoria?.[categoria] || 0)} rotulos={serie6.map((l) => mesLabel(l.mes))} /></td>
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <div className="prog-bar" style={{ flex: 1 }}>
@@ -262,7 +267,7 @@ export default function Dashboard({ store, irPara }) {
                     </tr>
                     {aberta && (
                       <tr>
-                        <td colSpan={4} style={{ padding: 0, background: 'var(--bg3)' }}>
+                        <td colSpan={5} style={{ padding: 0, background: 'var(--bg3)' }}>
                           <table>
                             <tbody>
                               {itens.map((it, i) => (
