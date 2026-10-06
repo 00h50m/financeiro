@@ -45,3 +45,15 @@ export function versoesRedundantes(grupo) {
     inicioDe(v) === inicioDe(p) || (!v.mes_fim && inicioDe(v) < inicioDe(p))
   ))
 }
+
+// Anexa a cada conta fixa seus valores reais por mês (`valores`, não enumerável: não vai para backup, spread nem gravação).
+// O valor de um mês vale para a conta toda (todas as versões). Usada pela tela e pelo servidor (resumo do Telegram).
+export function anexarValores(fixos, fixosValores = []) {
+  const porFixo = new Map()
+  for (const v of fixosValores) {
+    if (!porFixo.has(v.fixo_id)) porFixo.set(v.fixo_id, {})
+    porFixo.get(v.fixo_id)[v.mes] = Number(v.valor)
+  }
+  const unidos = unirValores(fixos, porFixo)
+  return fixos.map((f) => (unidos.has(f.id) ? Object.defineProperty({ ...f }, 'valores', { value: unidos.get(f.id), enumerable: false }) : f))
+}

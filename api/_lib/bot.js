@@ -4,13 +4,14 @@
 //  - nada vira compra sem o toque em "Confirmar"; o que falta é perguntado, nunca inventado;
 //  - cada update é processado uma única vez (o Telegram reenvia quando a resposta falha).
 import { interpretarMensagem, parseValor, parseData } from '../../src/lib/parserTelegram.js'
+import { textoResumoDoMes } from './resumoMensal.js'
 import { periodoDe, interpretarPergunta, filtroDe, calcularResumo, formatarResumo } from '../../src/lib/resumo.js'
 import { faturasAbertas, filtrarCartoes, formatarFaturas, proximasFaturas, formatarProximas } from '../../src/lib/fatura.js'
 import { avisoTeto } from '../../src/lib/alertaTeto.js'
 import { motivoNaoLancarSozinho } from '../../src/lib/categorizacao.js'
 import { prepararEvento } from '../../src/lib/evento.js'
 import { hashCodigo, normalizarCodigo } from '../../src/lib/pareamento.js'
-import { fmt, hojeSP } from '../../src/lib/utils.js'
+import { fmt, hojeSP, addMonths } from '../../src/lib/utils.js'
 
 const LIMITE_AUTORIZADO = 30 // mensagens por minuto
 const LIMITE_DESCONHECIDO = 5
@@ -39,11 +40,12 @@ Se faltar algo (como o cartão), eu pergunto.
 /pendentes – lançamentos esperando confirmação
 /resumo – quanto você gastou no mês (ou: /resumo semana, /resumo mes passado)
 Pergunte também: "quanto gastei em mercado este mês?"
+/resumomes – resumo completo do mês: renda, despesas, sobra, categorias e avisos (ou: /resumomes passado)
 /ultima – mostra a última compra lançada por aqui (editar ou apagar)
 /faturas – quanto já está nas faturas abertas dos cartões
 /proximas – o que já está comprometido nas faturas dos próximos meses
 /auto on|off – lançar sozinho o que eu reconhecer com certeza (padrão: desligado)
-/avisos on – resumo automático todo domingo à noite (/avisos off para parar)
+/avisos on – resumo automático todo domingo à noite e, no dia 1, o resumo completo do mês que passou (/avisos off para parar)
 /menu – mostra as opções em botões (ou mande "oi")
 /cancelar – descarta o que está em andamento`
 
@@ -140,6 +142,8 @@ async function tratarMensagem(c, msg) {
   if (px) return await responderProximas(c, px[1] || '')
   const fa = texto.match(/^\/faturas?(?:@\w+)?(?:\s+(.*))?$/i)
   if (fa) return await responderFaturas(c, fa[1] || '')
+  const rm = texto.match(/^\/resumomes(?:@\w+)?(?:\s+(.*))?$/i)
+  if (rm) return await responderResumoMes(c, rm[1] || '')
   const rs = texto.match(/^\/resumo(?:@\w+)?(?:\s+(.*))?$/i)
   if (rs) return await responderResumo(c, rs[1] || '')
   if (/^\/ultima(@\w+)?$/i.test(texto)) return await mostrarUltima(c)
@@ -262,6 +266,22 @@ async function responderResumo(c, texto) {
   const compras = await db.comprasPeriodo(periodo.de, periodo.ate)
   await tg.enviar(chat.id, formatarResumo(calcularResumo(compras, { ...periodo, filtro }), { ...periodo, filtro }))
   return { acao: 'resumo' }
+}
+
+// /resumomes: resumo completo (renda, despesas, sobra, categorias, avisos) do mês atual ou do que passou ("/resumomes passado").
+async function responderResumoMes(c, texto) {
+  const { db, tg, chat, hoje } = c
+  const passado = /\bpassad|\banterior|\bultimo/i.test(texto.normalize('NFD').replace(/[̀-ͯ]/g, ''))
+  const mes = passado ? addMonths(hoje.slice(0, 7), -1) : hoje.slice(0, 7)
+  try {
+    const dados = await db.dadosResumoMensal()
+    await tg.enviar(chat.id, textoResumoDoMes(dados, mes, hoje))
+  } catch (e) {
+    console.error('resumomes: erro', e?.message)
+    await tg.enviar(chat.id, 'Não consegui montar o resumo agora. Tente de novo em instantes.')
+    return { acao: 'resumo_mes_erro' }
+  }
+  return { acao: 'resumo_mes' }
 }
 
 // Aviso extra depois de lançar: nunca atrapalha a confirmação (qualquer erro aqui é ignorado).

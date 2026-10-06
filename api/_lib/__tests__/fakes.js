@@ -83,6 +83,13 @@ export function criarFakeDb({ comprasIniciais = [], regras = REGRAS } = {}) {
     },
     async definirResumoSemanal(uid, valor) { s.integracoes.get(uid).resumo_semanal = !!valor },
     async definirAutoLancar(uid, valor) { s.integracoes.get(uid).auto_lancar = !!valor },
+    async dadosResumoMensal() {
+      return {
+        compras: s.compras, cartoes, fixos: [{ id: 'f1', nome: 'Internet', valor: 100, ativo: true, categoria: 'Casa', subcategoria: 'Internet' }], fixosValores: [], faturas: [],
+        rendas: [{ mes: '2026-10', giovanna: 5000 }, { mes: '2026-09', giovanna: 5000 }], fixosPagamentos: [], comprasPagamentos: [], comprasPagamentosOk: false, saldoAjustes: [], pessoas,
+        orcamentos: [], fechamentos: [], divisoes: [], divisoesRepasses: [], metas: [], metasMovimentos: [],
+      }
+    },
     async destinatariosResumo() { return [...s.integracoes.values()].filter((i) => i.ativo && i.resumo_semanal) },
     async dadosTeto(categoria) {
       return { orcamentos: s.orcamentos || [], fixos: s.fixos || [], compras: s.compras.filter((c) => c.categoria === categoria) }

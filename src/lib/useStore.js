@@ -5,7 +5,7 @@ import { mesesFechadosTocados, mesFechado } from './fechamento.js'
 import { mesesAfetadosPelaFatura } from './faturaEdicao.js'
 import { amigavel, explicarErro } from './erros.js'
 import { avisoTeto } from './alertaTeto.js'
-import { unirValores, chaveConta } from './fixosVersoes.js'
+import { anexarValores, chaveConta } from './fixosVersoes.js'
 import { gerarCodigo, hashCodigo } from './pareamento.js'
 
 const POR_PAGINA = 1000 // o Supabase devolve no máximo 1000 linhas por consulta
@@ -809,15 +809,7 @@ export function useStore(email = null) {
   })
 
   // Cada conta fixa leva seus valores reais por mês em `valores` (não enumerável: não vai para backup, spread nem gravação).
-  const fixosComValores = useMemo(() => {
-    const porFixo = new Map()
-    for (const v of fixosValores) {
-      if (!porFixo.has(v.fixo_id)) porFixo.set(v.fixo_id, {})
-      porFixo.get(v.fixo_id)[v.mes] = Number(v.valor)
-    }
-    const unidos = unirValores(fixos, porFixo) // o valor real de um mês vale para a conta toda, mesmo se foi guardado numa versão antiga dela
-    return fixos.map((f) => (unidos.has(f.id) ? Object.defineProperty({ ...f }, 'valores', { value: unidos.get(f.id), enumerable: false }) : f))
-  }, [fixos, fixosValores])
+  const fixosComValores = useMemo(() => anexarValores(fixos, fixosValores), [fixos, fixosValores])
 
   return {
     email,
