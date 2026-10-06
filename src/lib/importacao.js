@@ -5,7 +5,7 @@ import { normBasico, normNome, round2 } from './normalizacao.js'
 import { sugerirIdentificacao } from './nomesAmigaveis.js'
 import { comprasComGruposSomados } from './divisaoCompra.js'
 import { itensDaFatura } from './financeiro.js'
-import { calcMesInicio } from './utils.js'
+import { mesDaFatura } from './utils.js'
 
 // Inteligência da importação de fatura (CSV): reconhecer o que já está lançado, sugerir categoria e nome.
 // Tudo puro e testável; a tela só mostra o resultado.
@@ -204,7 +204,7 @@ export function conferirFatura({ linhas, compras, cartoes, fixos = [], cartaoId,
     .map((l) => {
       const compra = l.correspondencia.compra
       const cartaoDaCompra = cartoes.find((c) => c.id === compra.cartao_id)
-      return { linha: l, compra, valor: valorParcelaLinha(l, modo), mesDaCompra: calcMesInicio(compra.data_compra, cartaoDaCompra), outroCartao: compra.cartao_id !== cartaoId, cartaoNome: cartaoDaCompra?.nome || null }
+      return { linha: l, compra, valor: valorParcelaLinha(l, modo), mesDaCompra: mesDaFatura(compra, cartaoDaCompra), outroCartao: compra.cartao_id !== cartaoId, cartaoNome: cartaoDaCompra?.nome || null }
     })
 
   const soma = (xs, f) => dif(xs.reduce((t, x) => t + f(x), 0), 0)

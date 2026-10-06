@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { fmt, calcMesInicio, mesLabel, hojeSP } from '../lib/utils'
+import { fmt, calcMesInicio, addMonths, mesLabel, hojeSP } from '../lib/utils'
 import { restante, somaPartes, validarDivisao, planoDeDivisao, planoDeUniao } from '../lib/divisaoCompra'
 
 const brl = (v) => fmt(Math.abs(v))
@@ -10,7 +10,7 @@ const brl = (v) => fmt(Math.abs(v))
 //   onSaveDivisao(plano, grupoId) grava uma divisão (partes novas, alteradas e removidas)
 export default function ModalCompra({
   cartoes, categorias, pessoas, onSave, onSaveDivisao, onClose,
-  editar = null, grupo = null, gruposOk = false, avisoPagamentos = false,
+  editar = null, grupo = null, gruposOk = false, faturaMesOk = false, avisoPagamentos = false,
 }) {
   const origem = grupo?.length ? grupo[0] : editar
   const emEdicao = !!origem
@@ -27,6 +27,7 @@ export default function ModalCompra({
     parcelas: String(origem.parcelas || 1),
     obs: origem.obs || '',
     pago: !!origem.pago,
+    fatura_mes: origem.fatura_mes || '',
   } : {
     data_compra: hojeSP(),
     descricao: '',
@@ -39,6 +40,7 @@ export default function ModalCompra({
     parcelas: '1',
     obs: '',
     pago: false,
+    fatura_mes: '',
   })
   const [dividir, setDividir] = useState(!!grupo && grupo.length >= 2)
   const [itens, setItens] = useState(() => grupo?.length >= 2
@@ -50,7 +52,9 @@ export default function ModalCompra({
 
   const subcats = categorias.find((c) => c.nome === f.categoria)?.subcategorias || ['Outros']
   const cartao = cartoes.find((c) => c.id === f.cartao_id)
-  const mesInicio = f.data_compra && cartao ? calcMesInicio(f.data_compra, cartao) : ''
+  const mesAuto = f.data_compra && cartao ? calcMesInicio(f.data_compra, cartao) : ''
+  const mesInicio = f.fatura_mes && cartao ? f.fatura_mes : mesAuto
+  const opcoesFatura = mesAuto ? [...new Set([-2, -1, 0, 1, 2].map((d) => addMonths(mesAuto, d)).concat(f.fatura_mes ? [f.fatura_mes] : []))].sort() : []
   const valorParc = f.valor_total && f.parcelas ? Number(f.valor_total) / Number(f.parcelas) : 0
   const parcelasOk = Number.isInteger(Number(f.parcelas)) && Number(f.parcelas) >= 1 && Number(f.parcelas) <= 60
   const errosDivisao = dividir ? validarDivisao(f.valor_total, itens, categorias) : []
@@ -87,6 +91,7 @@ export default function ModalCompra({
     parcelas: Number(f.parcelas),
     obs: f.obs,
     pago: f.pago,
+    ...(faturaMesOk ? { fatura_mes: cartao && f.fatura_mes ? f.fatura_mes : null } : {}),
     // pago antes e continua pago: mantém a data original do pagamento
     data_pagamento: f.pago ? (origem?.pago && origem.data_pagamento ? origem.data_pagamento : hojeSP()) : null,
   })
@@ -107,9 +112,10 @@ export default function ModalCompra({
         identificacao: f.identificacao, existentes: grupo,
       }), null)
     } else {
-      const { identificacao, ...resto } = f
+      const { identificacao, fatura_mes: _fm, ...resto } = f
       const dados = {
         ...resto,
+        ...(faturaMesOk ? { fatura_mes: cartao && f.fatura_mes ? f.fatura_mes : null } : {}),
         ...(emEdicao ? { identificacao: identificacao.trim() || null } : identificacao.trim() ? { identificacao: identificacao.trim() } : {}),
         valor_total: Number(f.valor_total),
         parcelas: Number(f.parcelas),
@@ -236,6 +242,21 @@ export default function ModalCompra({
             <input type="number" min="1" max="60" value={f.parcelas} onChange={s('parcelas')} />
           </div>
         </div>
+
+        {cartao && mesAuto && (
+          <div className="form-row">
+            <div className="form-group">
+              <label>Fatura em que entra (opcional)</label>
+              <select value={f.fatura_mes} onChange={s('fatura_mes')} disabled={!faturaMesOk}>
+                <option value="">Automático — {mesLabel(mesAuto)} (pelo fechamento do cartão)</option>
+                {opcoesFatura.filter((m) => m !== mesAuto).map((m) => <option key={m} value={m}>{mesLabel(m)}</option>)}
+              </select>
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
+                {faturaMesOk ? 'Use quando o banco colocou a compra em outra fatura (ex.: compra do dia do fechamento).' : <>Para escolher a fatura, rode o arquivo <code>inbox/21_compras_fatura_mes.sql</code> no Supabase e recarregue a página.</>}
+              </div>
+            </div>
+          </div>
+        )}
 
         {mesInicio && valorParc > 0 && (
           <div className="alert alert-blue">

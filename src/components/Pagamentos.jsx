@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { compilar } from '../lib/filtro'
+import { mediaRecente, pendenciasValorVariavel } from '../lib/fixosVariaveis'
 import { CampoBusca, ResumoFiltro } from './FiltroLista'
 import { fmt, fmtK, mesLabel, nowYM, addMonths, totalRenda, tituloCompra, subtituloCompra, hojeSP } from '../lib/utils'
 import { mesFechado } from '../lib/fechamento'
@@ -50,6 +51,7 @@ export default function Pagamentos({ store }) {
   const dinheiroDisponivel = resumo.disponivel
   const saldo = resumo.sobraProjetada
 
+  const pendencias = pendenciasValorVariavel(store.fixos, hojeSP())
   const { combina } = compilar(busca)
   const filtroAtivo = !!(busca.trim() || filtroPago)
   const passaPago = (pago) => !filtroPago || (filtroPago === 'pagas' ? !!pago : !pago)
@@ -70,7 +72,10 @@ export default function Pagamentos({ store }) {
 
   // Conta de valor variável: o valor real é informado por mês (só aquele mês muda).
   async function informarValor(fixo) {
-    const r = window.prompt(`Valor real de "${fixo.nome}" em ${mesLabel(mes)} (R$):`, String(fixo.valor).replace('.', ','))
+    const fixoBruto = store.fixos.find((x) => x.id === fixo.id) || fixo
+    const media = fixo.estimado ? mediaRecente(fixoBruto, mes) : null
+    const sugestao = media ? `\n\nMédia dos últimos ${media.meses} mese${media.meses > 1 ? 's' : ''} informados: ${fmt(media.media)}` : ''
+    const r = window.prompt(`Valor real de "${fixo.nome}" em ${mesLabel(mes)} (R$):${sugestao}`, String(media ? media.media : fixo.valor).replace('.', ','))
     if (r === null) return false
     const v = Number(String(r).trim().replace(/\./g, '').replace(',', '.'))
     if (!r.trim() || Number.isNaN(v) || v < 0) { window.alert('Valor inválido.\n\nDigite só números, com vírgula nos centavos (ex.: 312,40).'); return false }
@@ -102,6 +107,18 @@ export default function Pagamentos({ store }) {
 
   return (
     <div className="page">
+      {pendencias.length > 0 && (
+        <div className="alert alert-amber">
+          <b>{pendencias.length === 1 ? '1 conta de valor variável' : `${pendencias.length} contas de valor variável`} ainda com valor estimado:</b>
+          {pendencias.map((p) => (
+            <div key={p.fixo.id + p.mes} style={{ fontSize: 12, marginTop: 2 }}>
+              · {p.fixo.nome} — {mesLabel(p.mes)}{p.tipo === 'vencida' ? ` (venceu há ${p.diasAtraso} dia${p.diasAtraso > 1 ? 's' : ''})` : ' (mês passado)'}{' '}
+              <button className="link-btn" onClick={() => { setMes(p.mes) }}>abrir o mês</button>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="toolbar">
         <button className="btn btn-ghost btn-sm" onClick={() => setMes(addMonths(mes, -1))}>← Mês anterior</button>
         <span style={{ fontWeight: 500, fontSize: 14 }}>{mesLabel(mes)}</span>

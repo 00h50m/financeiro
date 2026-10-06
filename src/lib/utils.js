@@ -68,9 +68,13 @@ export const calcMesInicio = (dataCompra, cartao) => {
 export const valorParcelaBase = (compra) =>
   Math.round((Number(compra.valor_total) / (Number(compra.parcelas) || 1)) * 100) / 100
 
+// Fatura onde cai a 1ª parcela: a escolhida na compra (fatura_mes), se houver cartão; senão, pelo fechamento do cartão.
+export const mesDaFatura = (compra, cartao) =>
+  cartao && /^\d{4}-(0[1-9]|1[0-2])$/.test(compra.fatura_mes || '') ? compra.fatura_mes : calcMesInicio(compra.data_compra, cartao)
+
 export const gerarParcelas = (compra, cartoes) => {
   const cartao = cartoes.find(c => c.id === compra.cartao_id)
-  const mesInicio = calcMesInicio(compra.data_compra, cartao)
+  const mesInicio = mesDaFatura(compra, cartao)
   const total = Number(compra.parcelas) || 1
   // Centavos: as primeiras parcelas arredondam e a última fecha a conta (100 em 3x = 33,33 + 33,33 + 33,34).
   const valorTotal = Number(compra.valor_total)
