@@ -62,6 +62,18 @@ export function criarDb({ url, serviceKey }) {
       dados(await sb.from('integracoes_telegram').upsert({ ...row, ativo: true, conectado_em: new Date().toISOString() }, { onConflict: 'telegram_user_id' }))
     },
     async tocarIntegracao(uid) { await sb.from('integracoes_telegram').update({ ultimo_uso: new Date().toISOString() }).eq('telegram_user_id', uid) },
+    // ---- celulares Android (notificações do banco); precisa do inbox/04 ----
+    async dispositivoPorHash(hash) {
+      return dados(await sb.from('dispositivos_android').select('id,pessoa_id,apps_permitidos').eq('token_hash', hash).is('revogado_em', null).maybeSingle())
+    },
+    async criarDispositivo({ pessoa_id, nome, token_hash }) { dados(await sb.from('dispositivos_android').insert({ pessoa_id, nome, token_hash })) },
+    async revogarDispositivos(pessoa_id) {
+      dados(await sb.from('dispositivos_android').update({ revogado_em: new Date().toISOString() }).eq('pessoa_id', pessoa_id).is('revogado_em', null))
+    },
+    async tocarDispositivo(id) { await sb.from('dispositivos_android').update({ ultimo_uso: new Date().toISOString() }).eq('id', id) },
+    async integracaoDaPessoa(pessoa_id) {
+      return dados(await sb.from('integracoes_telegram').select('*').eq('pessoa_id', pessoa_id).eq('ativo', true).order('conectado_em', { ascending: false }).limit(1).maybeSingle())
+    },
     // ---- dados de apoio ----
     async carregarContexto() {
       const [categorias, cartoes, pessoas, regras, aliases, compras, eventos] = await Promise.all([
@@ -93,6 +105,7 @@ export function criarDb({ url, serviceKey }) {
       if (r.error.code !== '23505') throw new Error(r.error.message)
       return dados(await sb.from('eventos_financeiros').select('*').eq('origem', row.origem).eq('id_externo', row.id_externo).single())
     },
+    async eventoExterno(origem, id_externo) { return dados(await sb.from('eventos_financeiros').select('id').eq('origem', origem).eq('id_externo', id_externo).maybeSingle()) },
     async buscarEvento(id) { return dados(await sb.from('eventos_financeiros').select('*').eq('id', id).maybeSingle()) },
     async atualizarEvento(id, patch) { return dados(await sb.from('eventos_financeiros').update(patch).eq('id', id).select().single()) },
     async buscarEsperandoTexto(uid) {

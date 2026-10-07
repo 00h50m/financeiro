@@ -60,6 +60,7 @@ export function criarFakeDb({ comprasIniciais = [], regras = REGRAS } = {}) {
       s.eventos.push(ev)
       return ev
     },
+    async eventoExterno(origem, id_externo) { return s.eventos.find((e) => e.origem === origem && e.id_externo === id_externo) || null },
     async buscarEvento(id) { return s.eventos.find((e) => e.id === id) || null },
     async atualizarEvento(id, patch) { const e = s.eventos.find((x) => x.id === id); Object.assign(e, patch); return e },
     async buscarEsperandoTexto(uid) {
@@ -81,6 +82,11 @@ export function criarFakeDb({ comprasIniciais = [], regras = REGRAS } = {}) {
       Object.assign(e, { status: 'vinculado', compra_id: compraId })
       s.vinculos.push({ id, compraId, por })
     },
+    async criarDispositivo(d) { (s.dispositivos ||= []).push({ id: 'dv' + (s.dispositivos?.length || 0), apps_permitidos: [], revogado_em: null, ...d }) },
+    async dispositivoPorHash(hash) { return (s.dispositivos || []).find((d) => d.token_hash === hash && !d.revogado_em) || null },
+    async revogarDispositivos(pessoa_id) { (s.dispositivos || []).filter((d) => d.pessoa_id === pessoa_id).forEach((d) => { d.revogado_em = 'agora' }) },
+    async tocarDispositivo() {},
+    async integracaoDaPessoa(pessoa_id) { return [...s.integracoes.values()].find((i) => i.pessoa_id === pessoa_id && i.ativo) || null },
     async definirResumoSemanal(uid, valor) { s.integracoes.get(uid).resumo_semanal = !!valor },
     async definirAutoLancar(uid, valor) { s.integracoes.get(uid).auto_lancar = !!valor },
     async dadosResumoMensal() {
