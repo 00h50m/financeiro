@@ -6,7 +6,7 @@ import { extrairParcela, limparDescricao, normBasico } from '../lib/normalizacao
 import { chaveEstabelecimento, indexarAliases } from '../lib/estabelecimento'
 import {
   analisarLinhas, prepararRegras, sugerirCategoriaLinha, sugerirNomeLinha, problemasDaLinha, resumirAnalise,
-  resolverCartaoPorNome, valorParcelaLinha, valorTotalLinha, conferirFatura,
+  resolverCartaoPorNome, valorParcelaLinha, valorTotalLinha, conferirFatura, linhaConciliada,
 } from '../lib/importacao'
 import EditarCompra from './EditarCompra'
 import { rotuloOrigem } from '../lib/origem'
@@ -215,6 +215,7 @@ export default function ImportarFatura({ store }) {
   const [mesFatura, setMesFatura] = useState('')
   const [compraEditando, setCompraEditando] = useState(null)
   const [cartaoGlobal, setCartaoGlobal] = useState('')
+  const [filtro, setFiltro] = useState('todas')
 
   const reanalisar = (ls, m = modoValor) => recalcular(ls, compras, aliases, m)
   // Se uma compra for editada/lançada enquanto o arquivo está aberto, refaz a conferência com os dados novos.
@@ -229,6 +230,7 @@ export default function ImportarFatura({ store }) {
     setResultado(null)
     setLinhas([])
     setCartaoGlobal('')
+    setFiltro('todas')
 
     Papa.parse(file, {
       header: true,
@@ -326,8 +328,15 @@ export default function ImportarFatura({ store }) {
 
   function atualizarLinha(id, patch) {
     const reavaliar = ['cartao_id', 'data', 'descricao', 'valor'].some((k) => k in patch)
+    if ('pessoa' in patch) patch = { ...patch, pessoaManual: true }
+    else if ('cartao_id' in patch) patch = { ...patch, _trocouCartao: true }
     setLinhas((ls) => {
-      const novo = ls.map((l) => (l._id === id ? { ...l, ...patch } : l))
+      const novo = ls.map((l) => {
+        if (l._id !== id) return l
+        const { _trocouCartao, ...resto } = patch
+        const titular = _trocouCartao ? cartoes.find((c) => c.id === resto.cartao_id)?.titular : null
+        return { ...l, ...resto, ...(titular && !l.pessoaManual ? { pessoa: titular } : {}) }
+      })
       return reavaliar ? reanalisar(novo) : novo
     })
   }
@@ -341,7 +350,7 @@ export default function ImportarFatura({ store }) {
     setCartaoGlobal(id)
     if (!id) return
     const cartao = cartoes.find((c) => c.id === id)
-    setLinhas((ls) => reanalisar(ls.map((l) => ({ ...l, cartao_id: id, pessoa: cartao?.titular || l.pessoa }))))
+    setLinhas((ls) => reanalisar(ls.map((l) => ({ ...l, cartao_id: id, pessoa: l.pessoaManual ? l.pessoa : cartao?.titular || l.pessoa }))))
   }
 
   function mudarModoValor(m) {
@@ -354,6 +363,9 @@ export default function ImportarFatura({ store }) {
   const prontas = selecionadas.filter((l) => problemasDe(l).length === 0)
   const comProblema = selecionadas.length - prontas.length
   const resumo = resumirAnalise(linhas)
+  const nConciliadas = linhas.filter(linhaConciliada).length
+  const nPendentes = linhas.length - nConciliadas
+  const linhasVisiveis = linhas.filter((l) => filtro === 'todas' || (filtro === 'conciliadas') === linhaConciliada(l))
   const parceladasEmAndamento = linhas.filter((l) => l.incluir && l.parcelaEmAndamento && !l.parcelaEncontrada).length
 
   const conferencia = (() => {
@@ -584,6 +596,15 @@ export default function ImportarFatura({ store }) {
               dados incompletos (categoria, cartão ou mês da fatura não identificados) — corrija ou desmarque antes de confirmar.
             </div>
           )}
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {[['todas', `Todas (${linhas.length})`], ['pendentes', `Pendentes (${nPendentes})`], ['conciliadas', `Conciliados (${nConciliadas})`]].map(([k, rot]) => (
+              <button key={k} className={`btn btn-sm ${filtro === k ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setFiltro(k)}>{rot}</button>
+            ))}
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text3)' }}>
+            Conciliados: já estão em Compras (nada a fazer). Pendentes: ainda precisam ser importadas ou conferidas.
+          </div>
+          {linhasVisiveis.length === 0 && <div className="empty">Nenhuma linha nesta aba.</div>}
           <div className="card" style={{ overflowX: 'auto' }}>
             <table>
               <thead>
@@ -602,7 +623,7 @@ export default function ImportarFatura({ store }) {
                 </tr>
               </thead>
               <tbody>
-                {linhas.map((l) => {
+                {linhasVisiveis.map((l) => {
                   const total = Number(l.parcela_total) || 1
                   const atual = Number(l.parcela_atual) || 1
                   const problemas = l.incluir ? problemasDe(l) : []
