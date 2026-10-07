@@ -17,6 +17,7 @@ import AvisoNovaVersao, { versaoDoApp } from './components/AvisoNovaVersao'
 import Cartoes from './components/Cartoes'
 import Categorias from './components/Categorias'
 import Pessoas from './components/Pessoas'
+import PorPessoa from './components/PorPessoa'
 import Automacoes from './components/Automacoes'
 import Backup from './components/Backup'
 import Orcamento from './components/Orcamento'
@@ -81,6 +82,7 @@ const GRUPOS = [
       { id: 'graficos', label: 'Gráficos', Component: Graficos },
       { id: 'busca', label: 'Buscar', Component: Busca },
       { id: 'calendario', label: 'Calendário', Component: Calendario },
+      { id: 'porpessoa', label: 'Por pessoa', Component: PorPessoa },
     ],
   },
   {

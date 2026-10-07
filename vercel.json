@@ -12,5 +12,10 @@
       "path": "/api/cron-resumo-mensal",
       "schedule": "0 11 1 * *"
     }
-  ]
+  ],
+  "functions": {
+    "api/ler-fatura.js": {
+      "maxDuration": 60
+    }
+  }
 }

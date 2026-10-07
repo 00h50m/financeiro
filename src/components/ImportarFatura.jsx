@@ -11,6 +11,7 @@ import {
 import EditarCompra from './EditarCompra'
 import { rotuloOrigem } from '../lib/origem'
 import { explicarErro } from '../lib/erros'
+import { lerFaturaPdf } from '../lib/automacoes'
 
 const COLUNAS_ESPERADAS = ['data', 'descricao', 'valor', 'categoria', 'parcela_atual', 'parcela_total', 'cartao', 'observacao']
 const ROTULO_FONTE = { historico: 'pelo histórico', nome: 'pelo nome' }
@@ -216,21 +217,27 @@ export default function ImportarFatura({ store }) {
   const [compraEditando, setCompraEditando] = useState(null)
   const [cartaoGlobal, setCartaoGlobal] = useState('')
   const [filtro, setFiltro] = useState('todas')
+  const [lendoPdf, setLendoPdf] = useState(false)
+  const [infoPdf, setInfoPdf] = useState(null) // { totalFatura, descartadas } do último PDF lido
 
   const reanalisar = (ls, m = modoValor) => recalcular(ls, compras, aliases, m)
   // Se uma compra for editada/lançada enquanto o arquivo está aberto, refaz a conferência com os dados novos.
   useEffect(() => { setLinhas((ls) => (ls.length ? recalcular(ls, compras, aliases, modoValor) : ls)) }, [compras])
 
-  function handleFile(e) {
-    const file = e.target.files[0]
-    e.target.value = ''
-    if (!file) return
-
+  function limparTela() {
     setErroArquivo('')
     setResultado(null)
     setLinhas([])
     setCartaoGlobal('')
     setFiltro('todas')
+    setInfoPdf(null)
+  }
+
+  function handleFile(e) {
+    const file = e.target.files[0]
+    e.target.value = ''
+    if (!file) return
+    limparTela()
 
     Papa.parse(file, {
       header: true,
@@ -242,88 +249,117 @@ export default function ImportarFatura({ store }) {
           setErroArquivo(`CSV inválido — faltam colunas: ${faltando.join(', ')}`)
           return
         }
-
-        const indiceAliases = indexarAliases(aliases)
-        const preparadas = prepararRegras({ regras, compras, aliases })
-
-        const base = res.data
-          .filter((r) => Object.values(r).some((v) => (v || '').toString().trim() !== ''))
-          .map((r, i) => {
-            const nomeCategoriaCsv = (r.categoria || '').trim()
-            const catCsvObj = categorias.find((c) => c.nome === nomeCategoriaCsv)
-            const cartaoNome = (r.cartao || '').trim()
-            const cartao = resolverCartaoPorNome(cartaoNome, cartoes)
-            const descricaoBruta = (r.descricao || '').trim()
-            const noTexto = extrairParcela(descricaoBruta)
-            const parcelaAtual = (r.parcela_atual || '').trim() || noTexto?.atual || ''
-            const parcelaTotal = (r.parcela_total || '').trim() || noTexto?.total || ''
-            const descricao = limparDescricao(descricaoBruta)
-
-            const { chave } = chaveEstabelecimento(descricao, indiceAliases)
-            const sugestao = sugerirCategoriaLinha(chave, { categorias, preparadas })
-            let categoria = ''
-            let subcategoria = ''
-            let fonteSugestao = ''
-
-            if (catCsvObj) {
-              categoria = nomeCategoriaCsv
-              if (sugestao && sugestao.categoria === categoria && catCsvObj.subcategorias.includes(sugestao.subcategoria)) {
-                subcategoria = sugestao.subcategoria
-                fonteSugestao = sugestao.fonte
-              } else {
-                subcategoria = catCsvObj.subcategorias[0] || ''
-              }
-            } else if (sugestao) {
-              categoria = sugestao.categoria
-              subcategoria = sugestao.subcategoria
-              fonteSugestao = sugestao.fonte
-            }
-
-            // nome "de gente" sugerido para Identificação (o texto original da fatura continua em "No cartão")
-            const nomeSug = sugerirNomeLinha(descricao, { compras, aliases })
-
-            return {
-              _id: i,
-              data: normalizarData(r.data) || (r.data || '').trim(),
-              descricao,
-              descricaoOriginal: descricaoBruta,
-              identificacao: nomeSug?.nome || '',
-              identificacaoSugerida: !!nomeSug,
-              valor: normalizarValor(r.valor),
-              categoria,
-              subcategoria,
-              sugerida: !!fonteSugestao,
-              fonteSugestao,
-              parcela_atual: parcelaAtual,
-              parcela_total: parcelaTotal,
-              cartaoNome,
-              cartao_id: cartao?.id || '',
-              pessoa: cartao?.titular || pessoas[0]?.nome || '',
-              observacao: (r.observacao || '').trim(),
-            }
-          })
-
-        // Mês da fatura: o mais comum entre as linhas que não são parcela em andamento
-        const contarMeses = (incluirEmAndamento) => {
-          const contagem = {}
-          base.forEach((l) => {
-            if (!l.cartao_id || !l.data) return
-            if (!incluirEmAndamento && Number(l.parcela_atual) > 1) return
-            const m = calcMesInicio(l.data, cartoes.find((c) => c.id === l.cartao_id))
-            contagem[m] = (contagem[m] || 0) + 1
-          })
-          return Object.entries(contagem).sort((a, b) => b[1] - a[1])[0]?.[0]
-        }
-        const inferido = contarMeses(false) || contarMeses(true) || nowYM()
-        setMesFatura(inferido)
-
-        const enriquecidas = reanalisar(base)
-
-        setLinhas(enriquecidas)
-        setNomeArquivo(file.name)
+        carregarRegistros(res.data, file.name)
       },
       error: (err) => setErroArquivo('Erro ao ler CSV: ' + err.message),
     })
+  }
+
+  // PDF da fatura: a leitura é feita no servidor (IA) e devolve as mesmas colunas do CSV; o resto do fluxo é igual.
+  async function handlePdf(e) {
+    const file = e.target.files[0]
+    e.target.value = ''
+    if (!file) return
+    limparTela()
+    if (file.size > 3 * 1024 * 1024) { setErroArquivo('PDF grande demais (limite de uns 3 MB). Tente um PDF menor ou use o CSV.'); return }
+    setLendoPdf(true)
+    try {
+      const base64 = await new Promise((ok, falha) => {
+        const fr = new FileReader()
+        fr.onload = () => ok(String(fr.result).split(',')[1] || '')
+        fr.onerror = () => falha(new Error('Não consegui abrir o arquivo.'))
+        fr.readAsDataURL(file)
+      })
+      const r = await lerFaturaPdf(base64)
+      if (!r.ok) { setErroArquivo(r.erro); return }
+      carregarRegistros(r.linhas.map((l) => ({ ...l, cartao: r.cartao || '' })), file.name)
+      setInfoPdf({ totalFatura: r.totalFatura, descartadas: r.descartadas })
+    } catch (err) {
+      setErroArquivo(err.message)
+    } finally {
+      setLendoPdf(false)
+    }
+  }
+
+  function carregarRegistros(registros, nome) {
+    const indiceAliases = indexarAliases(aliases)
+    const preparadas = prepararRegras({ regras, compras, aliases })
+
+    const base = registros
+      .filter((r) => Object.values(r).some((v) => (v || '').toString().trim() !== ''))
+      .map((r, i) => {
+        const nomeCategoriaCsv = (r.categoria || '').trim()
+        const catCsvObj = categorias.find((c) => c.nome === nomeCategoriaCsv)
+        const cartaoNome = (r.cartao || '').trim()
+        const cartao = resolverCartaoPorNome(cartaoNome, cartoes)
+        const descricaoBruta = (r.descricao || '').trim()
+        const noTexto = extrairParcela(descricaoBruta)
+        const parcelaAtual = (r.parcela_atual || '').trim() || noTexto?.atual || ''
+        const parcelaTotal = (r.parcela_total || '').trim() || noTexto?.total || ''
+        const descricao = limparDescricao(descricaoBruta)
+
+        const { chave } = chaveEstabelecimento(descricao, indiceAliases)
+        const sugestao = sugerirCategoriaLinha(chave, { categorias, preparadas })
+        let categoria = ''
+        let subcategoria = ''
+        let fonteSugestao = ''
+
+        if (catCsvObj) {
+          categoria = nomeCategoriaCsv
+          if (sugestao && sugestao.categoria === categoria && catCsvObj.subcategorias.includes(sugestao.subcategoria)) {
+            subcategoria = sugestao.subcategoria
+            fonteSugestao = sugestao.fonte
+          } else {
+            subcategoria = catCsvObj.subcategorias[0] || ''
+          }
+        } else if (sugestao) {
+          categoria = sugestao.categoria
+          subcategoria = sugestao.subcategoria
+          fonteSugestao = sugestao.fonte
+        }
+
+        // nome "de gente" sugerido para Identificação (o texto original da fatura continua em "No cartão")
+        const nomeSug = sugerirNomeLinha(descricao, { compras, aliases })
+
+        return {
+          _id: i,
+          data: normalizarData(r.data) || (r.data || '').trim(),
+          descricao,
+          descricaoOriginal: descricaoBruta,
+          identificacao: nomeSug?.nome || '',
+          identificacaoSugerida: !!nomeSug,
+          valor: normalizarValor(r.valor),
+          categoria,
+          subcategoria,
+          sugerida: !!fonteSugestao,
+          fonteSugestao,
+          parcela_atual: parcelaAtual,
+          parcela_total: parcelaTotal,
+          cartaoNome,
+          cartao_id: cartao?.id || '',
+          pessoa: cartao?.titular || pessoas[0]?.nome || '',
+          observacao: (r.observacao || '').trim(),
+        }
+      })
+
+    // Mês da fatura: o mais comum entre as linhas que não são parcela em andamento
+    const contarMeses = (incluirEmAndamento) => {
+      const contagem = {}
+      base.forEach((l) => {
+        if (!l.cartao_id || !l.data) return
+        if (!incluirEmAndamento && Number(l.parcela_atual) > 1) return
+        const m = calcMesInicio(l.data, cartoes.find((c) => c.id === l.cartao_id))
+        contagem[m] = (contagem[m] || 0) + 1
+      })
+      return Object.entries(contagem).sort((a, b) => b[1] - a[1])[0]?.[0]
+    }
+    const inferido = contarMeses(false) || contarMeses(true) || nowYM()
+    setMesFatura(inferido)
+
+    const enriquecidas = reanalisar(base)
+
+    setLinhas(enriquecidas)
+    setNomeArquivo(nome)
   }
 
   function atualizarLinha(id, patch) {
@@ -454,7 +490,11 @@ export default function ImportarFatura({ store }) {
       </div>
 
       <div className="toolbar">
-        <input type="file" accept=".csv" onChange={handleFile} />
+        <input type="file" accept=".csv" onChange={handleFile} disabled={lendoPdf} aria-label="Arquivo CSV da fatura" />
+        <label className="btn btn-ghost btn-sm" style={{ cursor: lendoPdf ? 'wait' : 'pointer' }}>
+          {lendoPdf ? 'Lendo o PDF...' : 'Ou subir o PDF da fatura'}
+          <input type="file" accept="application/pdf,.pdf" onChange={handlePdf} disabled={lendoPdf} style={{ display: 'none' }} />
+        </label>
         {nomeArquivo && <span className="badge badge-gray">{nomeArquivo}</span>}
         {linhas.length > 0 && (
           <button
@@ -469,6 +509,19 @@ export default function ImportarFatura({ store }) {
       </div>
 
       {erroArquivo && <div className="alert alert-red">{erroArquivo}</div>}
+      {lendoPdf && <div className="alert alert-blue">Lendo o PDF com IA, isso leva alguns segundos...</div>}
+      {infoPdf && linhas.length > 0 && (() => {
+        const soma = linhas.reduce((t, l) => t + (Number(l.valor) || 0), 0)
+        const dif = infoPdf.totalFatura != null ? Math.round((soma - infoPdf.totalFatura) * 100) / 100 : null
+        return (
+          <div className={`alert ${dif != null && Math.abs(dif) > 0.05 ? 'alert-amber' : 'alert-blue'}`}>
+            PDF lido pela IA: confira cada linha com a fatura antes de confirmar.
+            {infoPdf.totalFatura != null && <> Total impresso no PDF: <b>{fmt(infoPdf.totalFatura)}</b> · soma das linhas lidas: <b>{fmt(soma)}</b>
+              {Math.abs(dif) > 0.05 ? ` (diferença de ${fmt(Math.abs(dif))}: pode ter linha a mais, a menos ou encargo que não é compra)` : ' ✓ bate'}.</>}
+            {infoPdf.descartadas > 0 && ` ${infoPdf.descartadas} linha${infoPdf.descartadas > 1 ? 's' : ''} sem data ou valor válido ficou${infoPdf.descartadas > 1 ? 'ram' : ''} de fora.`}
+          </div>
+        )
+      })()}
 
       {resultado?.ok && (
         <div className="alert alert-green">✓ {resultado.n} transaç{resultado.n === 1 ? 'ão importada' : 'ões importadas'} com sucesso.</div>

@@ -1,6 +1,6 @@
 // Lembrete diário no Telegram: o que vence hoje e amanhã (contas fixas, faturas e parcelas ainda não pagas).
 // Vai para quem ligou os avisos com /avisos on. Só lê o banco e manda mensagem; os dados vêm do mesmo calendário do app.
-import { hojeSP, addMonths, fmt } from '../../src/lib/utils.js'
+import { hojeSP, fmt } from '../../src/lib/utils.js'
 import { anexarValores } from '../../src/lib/fixosVersoes.js'
 import { eventosDoMes } from '../../src/lib/calendario.js'
 
