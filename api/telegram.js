@@ -20,7 +20,7 @@ export default async function handler(req, res) {
     await processarUpdate(update, {
       db: criarDb({ url: amb.url, serviceKey: amb.serviceKey }), tg: criarTelegram(amb.token),
       leitor: amb.anthropicKey ? criarLeitorNota(amb.anthropicKey) : null,
-      transcritor: amb.groqKey ? criarTranscritor(amb.groqKey) : null,
+      transcritor: amb.groqKey ? criarTranscritor(amb.groqKey) : null, appUrl: amb.appUrl,
     })
     return res.status(200).json({ ok: true })
   } catch (e) {

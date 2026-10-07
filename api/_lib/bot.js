@@ -8,6 +8,8 @@ import { textoResumoDoMes } from './resumoMensal.js'
 import { periodoDe, interpretarPergunta, filtroDe, calcularResumo, formatarResumo } from '../../src/lib/resumo.js'
 import { faturasAbertas, filtrarCartoes, formatarFaturas, proximasFaturas, formatarProximas } from '../../src/lib/fatura.js'
 import { avisoTeto } from '../../src/lib/alertaTeto.js'
+import { lerNotificacao, cartaoDaNotificacao } from '../../src/lib/notificacaoCompra.js'
+import { gerarTokenAndroid, hashToken } from './tokenAndroid.js'
 import { motivoNaoLancarSozinho } from '../../src/lib/categorizacao.js'
 import { prepararEvento } from '../../src/lib/evento.js'
 import { hashCodigo, normalizarCodigo } from '../../src/lib/pareamento.js'
@@ -46,6 +48,7 @@ Pergunte também: "quanto gastei em mercado este mês?"
 /proximas – o que já está comprometido nas faturas dos próximos meses
 /auto on|off – lançar sozinho o que eu reconhecer com certeza (padrão: desligado)
 /avisos on – resumo automático todo domingo à noite, lembrete diário do que vence e, no dia 1, o resumo completo do mês que passou (/avisos off para parar)
+/android – conectar o aviso de compras do celular Android (as notificações do banco chegam aqui para você confirmar)
 /menu – mostra as opções em botões (ou mande "oi")
 /cancelar – descarta o que está em andamento`
 
@@ -79,7 +82,7 @@ const audioDe = (msg) => {
 }
 
 export async function processarUpdate(update, deps) {
-  const { db, tg, leitor = null, transcritor = null, agora = () => new Date() } = deps
+  const { db, tg, leitor = null, transcritor = null, agora = () => new Date(), appUrl = null } = deps
   const msg = update.message
   const cb = update.callback_query
   const de = (msg || cb)?.from
@@ -94,7 +97,7 @@ export async function processarUpdate(update, deps) {
     const desde = new Date(agora().getTime() - 60000).toISOString()
     if ((await db.contarUpdates(de.id, desde)) > limite) return { ignorado: 'limite' }
 
-    const c = { db, tg, leitor, transcritor, agora, hoje: hojeSP(agora()), de, chat, integ, update }
+    const c = { db, tg, leitor, transcritor, agora, hoje: hojeSP(agora()), de, chat, integ, update, appUrl }
     if (!integ || !integ.ativo) return await tratarDesconhecido(c, msg)
     db.tocarIntegracao?.(de.id)?.catch?.(() => {})
     return cb ? await tratarCallback(c, cb) : await tratarMensagem(c, msg)
@@ -134,6 +137,8 @@ async function tratarMensagem(c, msg) {
   if (/^\/(start|ajuda|help)(@\w+)?$/i.test(texto)) { await tg.enviar(chat.id, AJUDA); return { acao: 'ajuda' } }
   if (/^\/menu(@\w+)?$/i.test(texto)) return await mostrarMenu(c)
   if (/^\/pendentes(@\w+)?$/i.test(texto)) return await responderPendentes(c)
+  const an = texto.match(/^\/android(?:@\w+)?(?:\s+(\S+))?$/i)
+  if (an) return await tratarAndroid(c, an[1])
   const au = texto.match(/^\/auto(?:@\w+)?(?:\s+(on|off|ligar|desligar))?$/i)
   if (au) return await tratarAuto(c, au[1])
   const av = texto.match(/^\/avisos(?:@\w+)?(?:\s+(on|off|ligar|desligar))?$/i)
@@ -191,6 +196,45 @@ async function tratarAuto(c, arg) {
   }
   await tg.enviar(chat.id, ligar ? 'Ligado! Quando eu tiver certeza de tudo, lanço sozinho e aviso. Para voltar a pedir Confirmar: /auto off.' : 'Desligado: volto a pedir Confirmar em tudo.')
   return { acao: ligar ? 'auto_ligado' : 'auto_desligado' }
+}
+
+// ---------- notificações de compra do Android ----------
+// /android gera um token (aparece uma vez) para o app de automação do celular (MacroDroid) mandar as notificações do banco.
+// /android revogar apaga todos os celulares conectados.
+async function tratarAndroid(c, arg) {
+  const { db, tg, chat, integ } = c
+  if (/^(revogar|desconectar|apagar)$/i.test(arg || '')) {
+    await db.revogarDispositivos(integ.pessoa_id)
+    await tg.enviar(chat.id, 'Pronto, desconectei os celulares. As notificações deixam de chegar até você gerar um novo token com /android.')
+    return { acao: 'android_revogado' }
+  }
+  const token = gerarTokenAndroid()
+  try { await db.criarDispositivo({ pessoa_id: integ.pessoa_id, nome: 'Celular Android', token_hash: await hashToken(token) }) } catch (e) {
+    console.error('bot: não criou dispositivo', e?.message)
+    await tg.enviar(chat.id, 'Não consegui gerar o token agora. Tente de novo em instantes.')
+    return { acao: 'android_erro' }
+  }
+  const url = `${(c.appUrl || 'https://SEU-SITE').replace(/\/$/, '')}/api/notificacao`
+  await tg.enviar(chat.id, `📱 Token do seu celular (aparece só esta vez, não compartilhe):\n\n${token}\n\nEndereço para o MacroDroid enviar: ${url}\nO passo a passo está no guia "Notificação do Android". Para desconectar: /android revogar.`)
+  return { acao: 'android_token' }
+}
+
+// Chamada por api/notificacao.js: transforma a notificação do banco num lançamento esperando o seu Confirmar no Telegram.
+export async function lancarNotificacao({ db, tg, integ, dispositivo, notificacao, quando, agora = () => new Date(), appUrl = null }) {
+  const lida = lerNotificacao(notificacao)
+  if (lida.ignorar) return { ignorado: lida.ignorar }
+  const base = await db.carregarContexto()
+  const pessoa = base.pessoas.find((p) => p.id === integ.pessoa_id)
+  const cartao = cartaoDaNotificacao(lida.app || notificacao.app, base.cartoes, pessoa)
+  const hoje = hojeSP(agora())
+  const chat = { id: integ.chat_id }
+  const c = { db, tg, agora, hoje, de: { id: integ.telegram_user_id }, chat, integ, appUrl }
+  const idExterno = `notif:${await hashToken(`${dispositivo.id}|${notificacao.app}|${notificacao.texto}|${quando}`)}`.slice(0, 48)
+  if (await db.eventoExterno('android_notification', idExterno)) return { ignorado: 'repetida' } // o celular reenviou a mesma notificação
+  const lido = { valor: lida.valor, descricao: lida.estabelecimento, data_evento: hoje, parcelas: 1, cartao_id: cartao?.id, pessoa_id: integ.pessoa_id, obs: lida.final ? `Cartão final ${lida.final}` : undefined }
+  const aviso = `📱 Notificação${lida.app ? ` do ${lida.app}` : ''}: ${lida.estabelecimento} — ${fmt(lida.valor)}${lida.final ? ` (cartão final ${lida.final})` : ''}. Confira abaixo antes de confirmar.`
+  return await registrarLeitura(c, { message_id: idExterno }, `[notificação] ${notificacao.texto}`.slice(0, 500), lido, base,
+    { confianca: 0.8, aviso, origem: 'android_notification', idExterno, appOrigem: lida.app || notificacao.app || null, dispositivoId: dispositivo.id })
 }
 
 // Liga/desliga o resumo de domingo. Antes de rodar o inbox/11 no Supabase o banco não tem a coluna: avisa em vez de falhar.
@@ -330,7 +374,7 @@ async function novoGasto(c, msg, texto, { voz = false } = {}) {
 }
 
 // Parte comum do texto e da foto: confere o que foi lido, cria o evento e faz a próxima pergunta ou mostra o resumo.
-async function registrarLeitura(c, msg, texto, lido, base, { confianca = 0.9, aviso = null, permitirAuto = false } = {}) {
+async function registrarLeitura(c, msg, texto, lido, base, { confianca = 0.9, aviso = null, permitirAuto = false, origem = 'telegram', idExterno = null, appOrigem = null, dispositivoId = null } = {}) {
   const { db, tg, chat, integ, hoje } = c
   const problema = lido.valorAmbiguo ? 'Encontrei mais de um valor. Escreva o valor com R$ (ex.: 2 pizzas R$ 80).'
     : lido.valor == null ? 'Não encontrei o valor. Exemplo: gastei 89,90 no mercado no nubank.'
@@ -341,7 +385,7 @@ async function registrarLeitura(c, msg, texto, lido, base, { confianca = 0.9, av
   if (problema) { await tg.enviar(chat.id, problema); return { acao: 'nao_entendi' } }
 
   const { evento, erros, sugeridos } = prepararEvento({
-    origem: 'telegram', id_externo: `${chat.id}:${msg.message_id}`, valor: lido.valor,
+    origem, id_externo: idExterno || `${chat.id}:${msg.message_id}`, app_origem: appOrigem, dispositivo_id: dispositivoId, valor: lido.valor,
     data_evento: lido.data_evento || hoje, descricao_original: lido.descricao, parcelas: lido.parcelas ?? 1,
     forma_pagamento: lido.forma_pagamento || undefined, cartao_id: lido.cartao_id || undefined,
     pessoa_id: lido.pessoa_id || integ.pessoa_id, obs: lido.obs || undefined, confianca_origem: confianca,

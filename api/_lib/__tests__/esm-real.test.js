@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 // este teste carrega cada função da pasta api/ no Node puro, para pegar o problema antes de publicar.
 const raiz = fileURLToPath(new URL('../../../', import.meta.url))
 describe('funções da API carregam no Node puro (ESM)', () => {
-  for (const arq of ['api/telegram.js', 'api/telegram-admin.js', 'api/cron-resumo.js', 'api/cron-resumo-mensal.js', 'api/cron-vencimentos.js', 'api/ler-fatura.js']) {
+  for (const arq of ['api/telegram.js', 'api/telegram-admin.js', 'api/cron-resumo.js', 'api/cron-resumo-mensal.js', 'api/cron-vencimentos.js', 'api/ler-fatura.js', 'api/notificacao.js']) {
     it(arq, () => {
       const r = spawnSync(process.execPath, ['--input-type=module', '-e', `await import(${JSON.stringify('./' + arq)})`], { cwd: raiz, encoding: 'utf8' })
       expect(r.stderr.split('\n')[0] || '').not.toMatch(/Cannot find module|ERR_MODULE_NOT_FOUND/)
