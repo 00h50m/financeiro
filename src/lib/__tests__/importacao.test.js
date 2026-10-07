@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { analisarLinhas, conferirFatura, prepararRegras, sugerirCategoriaLinha, problemasDaLinha, resumirAnalise, resolverCartaoPorNome, valorTotalLinha, valorParcelaLinha, sugerirNomeLinha } from '../importacao'
+import { analisarLinhas, conferirFatura, prepararRegras, sugerirCategoriaLinha, problemasDaLinha, resumirAnalise, resolverCartaoPorNome, valorTotalLinha, valorParcelaLinha, sugerirNomeLinha, linhaConciliada } from '../importacao'
 import { normalizarData } from '../csvFormato'
 
 const categorias = [
@@ -257,3 +257,13 @@ describe('mesma compra com valor diferente (2ª passada)', () => {
   })
 })
 
+
+describe('linhaConciliada', () => {
+  it('só conta como conciliada o que já existe em Compras', () => {
+    expect(linhaConciliada({ correspondencia: { tipo: 'exata' } })).toBe(true)
+    expect(linhaConciliada({ correspondencia: { tipo: 'parcelamento' } })).toBe(true)
+    expect(linhaConciliada({ correspondencia: { tipo: 'valor_diferente' } })).toBe(false)
+    expect(linhaConciliada({ correspondencia: null })).toBe(false)
+    expect(linhaConciliada({})).toBe(false)
+  })
+})

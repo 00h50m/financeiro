@@ -5,8 +5,17 @@
       "schedule": "0 22 * * 0"
     },
     {
+      "path": "/api/cron-vencimentos",
+      "schedule": "0 11 * * *"
+    },
+    {
       "path": "/api/cron-resumo-mensal",
       "schedule": "0 11 1 * *"
     }
-  ]
+  ],
+  "functions": {
+    "api/ler-fatura.js": {
+      "maxDuration": 60
+    }
+  }
 }

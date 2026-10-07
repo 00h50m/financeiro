@@ -234,3 +234,7 @@ export function conferirFatura({ linhas, compras, cartoes, fixos = [], cartaoId,
   }
 }
 
+
+// Conciliada = a linha do CSV já existe em Compras (exata, parecida ou parcelamento já lançado).
+// "Valor diferente" fica como pendente: ainda precisa de uma decisão.
+export const linhaConciliada = (l) => ['exata', 'parecida', 'parcelamento'].includes(l.correspondencia?.tipo)

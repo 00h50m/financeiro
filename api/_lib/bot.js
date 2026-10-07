@@ -45,7 +45,7 @@ Pergunte também: "quanto gastei em mercado este mês?"
 /faturas – quanto já está nas faturas abertas dos cartões
 /proximas – o que já está comprometido nas faturas dos próximos meses
 /auto on|off – lançar sozinho o que eu reconhecer com certeza (padrão: desligado)
-/avisos on – resumo automático todo domingo à noite e, no dia 1, o resumo completo do mês que passou (/avisos off para parar)
+/avisos on – resumo automático todo domingo à noite, lembrete diário do que vence e, no dia 1, o resumo completo do mês que passou (/avisos off para parar)
 /menu – mostra as opções em botões (ou mande "oi")
 /cancelar – descarta o que está em andamento`
 
@@ -207,7 +207,7 @@ async function tratarAvisos(c, arg) {
     await tg.enviar(chat.id, 'Ainda falta uma configuração no Supabase (SQL inbox/11) para ligar esse aviso. Peça para rodar e tente de novo.')
     return { acao: 'avisos_indisponivel' }
   }
-  await tg.enviar(chat.id, ligar ? 'Pronto! Todo domingo à noite eu mando o resumo da semana. Para parar: /avisos off.' : 'Certo, desliguei o resumo automático.')
+  await tg.enviar(chat.id, ligar ? 'Pronto! Todo domingo à noite eu mando o resumo da semana, e todo dia de manhã aviso o que vence hoje e amanhã. Para parar: /avisos off.' : 'Certo, desliguei o resumo automático.')
   return { acao: ligar ? 'avisos_ligado' : 'avisos_desligado' }
 }
 

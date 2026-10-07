@@ -1,6 +1,7 @@
 // Acesso ao Supabase com a service role (só roda no servidor). Todas as escritas das integrações
 // passam por aqui; o navegador nunca recebe essa chave.
 import { createClient } from '@supabase/supabase-js'
+import { comprasLiquidas, fixosLiquidos } from '../../src/lib/divisoes.js'
 
 const ABERTOS = ['pendente', 'aguardando_dados']
 const POR_PAGINA = 1000 // limite de linhas por requisição do Supabase
@@ -25,6 +26,8 @@ export function criarDb({ url, serviceKey }) {
       return await todas('compras', COLUNAS_CASAR, (q) => q.order('id'))
     }
   }
+  // Divisões (parte de outra pessoa) só existem depois do SQL inbox/18; sem ele tudo segue com o valor cheio.
+  const divisoesOuVazio = async () => { try { return await todas('divisoes', '*') } catch { return [] } }
   const emAndamento = (uid) => sb.from('eventos_financeiros').select('*')
     .eq('origem', 'telegram').in('status', ABERTOS).eq('contexto->>telegram_user_id', String(uid))
     .order('capturado_em', { ascending: false }).limit(1)
@@ -104,20 +107,28 @@ export function criarDb({ url, serviceKey }) {
       dados(await sb.rpc('vincular_evento', { p_evento: id, p_compra: compraId, p_resolvido_por: por }))
     },
     async comprasPeriodo(de, ate) {
-      return todas('compras', 'data_compra,valor_total,categoria,subcategoria,descricao,identificacao,pessoa',
-        (q) => q.gte('data_compra', de).lte('data_compra', ate).order('id'))
+      const [compras, divisoes] = await Promise.all([
+        todas('compras', 'id,data_compra,valor_total,categoria,subcategoria,descricao,identificacao,pessoa',
+          (q) => q.gte('data_compra', de).lte('data_compra', ate).order('id')),
+        divisoesOuVazio(),
+      ])
+      // só a parte de quem usa o app (a parte dos outros fica fora, como no app)
+      return comprasLiquidas({ compras, divisoes })
     },
     // Tetos do Orçamento, contas fixas e compras de uma categoria (4 anos), para o aviso de teto.
     // A tabela orcamentos é criada à mão; se não existir, devolve vazio e o aviso simplesmente não sai.
     async dadosTeto(categoria, desdeISO) {
       const o = await sb.from('orcamentos').select('categoria,valor')
       if (o.error || !(o.data || []).some((x) => x.categoria === categoria)) return { orcamentos: [], fixos: [], compras: [] }
-      const [fixos, compras] = await Promise.all([
+      const [fixosTodos, comprasTodas, divisoes] = await Promise.all([
         todas('fixos', '*'),
-        todas('compras', 'data_compra,valor_total,parcelas,cartao_id,categoria,subcategoria,descricao,identificacao',
+        todas('compras', 'id,data_compra,valor_total,parcelas,cartao_id,categoria,subcategoria,descricao,identificacao',
           (q) => q.eq('categoria', categoria).gte('data_compra', desdeISO).order('id')),
+        divisoesOuVazio(),
       ])
-      return { orcamentos: o.data, fixos, compras }
+      // o teto conta só a parte de quem usa o app
+      const d = { compras: comprasTodas, fixos: fixosTodos, divisoes }
+      return { orcamentos: o.data, fixos: fixosLiquidos(d), compras: comprasLiquidas(d) }
     },
     // Tudo que o resumo mensal precisa (mesmas contas do app). Tabelas opcionais que ainda não existem viram lista vazia.
     async dadosResumoMensal() {
