@@ -210,14 +210,14 @@ export default function Compras({ store }) {
       <div className="toolbar">
         <CampoBusca valor={filtro} onChange={setFiltro} />
         <BotaoFiltros aberto={filtrosAbertos} onToggle={() => setFiltrosAbertos((v) => !v)} ativos={nFiltros} />
-        <button className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto' }} disabled={!lista.length} title="Baixa a lista que está na tela (com os filtros) em CSV, para abrir no Excel"
+        <button className="btn btn-ghost btn-sm tb-sec" style={{ marginLeft: 'auto' }} disabled={!lista.length} title="Baixa a lista que está na tela (com os filtros) em CSV, para abrir no Excel"
           onClick={() => baixarCsv('compras', paraCsv([
             { titulo: 'Data', valor: (c) => String(c.data_compra).slice(0, 10).split('-').reverse().join('/') }, { titulo: 'Descrição', valor: (c) => c.descricao }, { titulo: 'Identificação', valor: (c) => c.identificacao || '' },
             { titulo: 'Pessoa', valor: (c) => c.pessoa }, { titulo: 'Categoria', valor: (c) => c.categoria }, { titulo: 'Subcategoria', valor: (c) => c.subcategoria },
             { titulo: 'Cartão', valor: (c) => cartoes.find((x) => x.id === c.cartao_id)?.nome || 'Sem cartão' }, { titulo: 'Valor total', valor: (c) => Number(c.valor_total) },
             { titulo: 'Parcelas', valor: (c) => Number(c.parcelas) || 1 }, { titulo: 'Valor da parcela', valor: (c) => valorParcelaBase(c) }, { titulo: 'Observação', valor: (c) => c.obs || '' },
           ], lista))}>Exportar CSV</button>
-        <button className="btn btn-primary" onClick={() => setModal(true)}>
+        <button className="btn btn-primary tb-primario" onClick={() => setModal(true)}>
           + Nova compra
         </button>
       </div>
@@ -294,7 +294,7 @@ export default function Compras({ store }) {
                   <span className="grupo-total mono">{fmt(grupo.total)}</span>
                 </button>
                 {aberto && (
-                  <table className="tabela-compacta lista-cartoes">
+                  <table className="tabela-compacta lista-cartoes tabela-fixa tabela-compras">
                     <thead>
                       <tr>
                         <th style={{ width: 28 }}>

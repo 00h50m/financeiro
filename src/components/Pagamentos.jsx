@@ -3,6 +3,7 @@ import { compilar } from '../lib/filtro'
 import { mediaRecente, pendenciasValorVariavel } from '../lib/fixosVariaveis'
 import ValorDoMes from './ValorDoMes'
 import Secao from './Secao'
+import NavMes, { PilulasPago } from './NavMes'
 import { CampoBusca, ResumoFiltro } from './FiltroLista'
 import { fmt, fmtK, mesLabel, nowYM, addMonths, totalRenda, tituloCompra, subtituloCompra, hojeSP } from '../lib/utils'
 import { mesFechado } from '../lib/fechamento'
@@ -139,23 +140,12 @@ export default function Pagamentos({ store }) {
         </div>
       )}
 
-      <div className="toolbar">
-        <button className="btn btn-ghost btn-sm" onClick={() => setMes(addMonths(mes, -1))}>← Mês anterior</button>
-        <span style={{ fontWeight: 500, fontSize: 14 }}>{mesLabel(mes)}</span>
-        <button className="btn btn-ghost btn-sm" onClick={() => setMes(addMonths(mes, 1))}>Próximo mês →</button>
-        {mes !== nowYM() && (
-          <button className="btn btn-ghost btn-sm" onClick={() => setMes(nowYM())} style={{ marginLeft: 'auto' }}>
-            Voltar para hoje
-          </button>
-        )}
+      <div className="pag-topo">
+        <NavMes mes={mes} onChange={setMes} fechado={mesFechado(store.fechamentos, mes)} />
+        <PilulasPago valor={filtroPago} onChange={setFiltroPago} />
       </div>
       <div className="toolbar">
         <CampoBusca valor={busca} onChange={setBusca} />
-        <select value={filtroPago} onChange={(e) => setFiltroPago(e.target.value)} aria-label="Filtrar por situação do pagamento">
-          <option value="">Pagas e a pagar</option>
-          <option value="apagar">Só a pagar</option>
-          <option value="pagas">Só pagas</option>
-        </select>
       </div>
       <ResumoFiltro ativo={filtroAtivo} mostrando={totalVis} total={totalLinhas} onLimpar={() => { setBusca(''); setFiltroPago('') }} />
 
@@ -196,7 +186,7 @@ export default function Pagamentos({ store }) {
         </div>
       )}
 
-      <Secao titulo="De onde vem o dinheiro disponível" info={mesLabel(mes)} destaque={fmt(dinheiroDisponivel)} aberto={extratoAberto} onToggle={() => setExtratoAberto((v) => !v)}>
+      <Secao titulo="Dinheiro disponível" info="de onde vem" destaque={fmt(dinheiroDisponivel)} aberto={extratoAberto} onToggle={() => setExtratoAberto((v) => !v)}>
       <div className="extrato">
         <div className="extrato-linha">
           <div>Renda de {mesLabel(mes)}</div>

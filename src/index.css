@@ -374,9 +374,6 @@ input[type='checkbox'] { width: auto; min-height: 0; accent-color: var(--brand);
   max-width: 1120px;
 }
 .ini-topo { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
-.ini-mes { display: flex; align-items: center; gap: 6px; }
-.ini-mes .icon-btn { font-size: 24px; }
-.ini-mes-nome { font-family: var(--font-marca); font-size: 20px; min-width: 130px; text-align: center; text-transform: capitalize; }
 .ini-grade { display: grid; gap: 12px; grid-template-columns: 1fr; }
 .ini-grade > * { min-width: 0; }
 .ini-acoes.so-desk { display: none; }
@@ -539,3 +536,43 @@ input[type='checkbox'] { width: auto; min-height: 0; accent-color: var(--brand);
 .lp-nota { font-size: 11px; color: var(--text3); margin-top: 10px; line-height: 1.5; }
 @media (min-width: 1000px) { .ini-longo { grid-column: 1 / -1; } }
 .lp-ver { display: block; margin-top: 12px; font-size: 12px; }
+
+/* Navegação de mês e pílulas (telas Início, Pagamentos e Por pessoa) */
+.nav-mes { display: flex; align-items: center; gap: 6px; }
+.nav-mes .icon-btn { font-size: 24px; }
+.nav-mes-nome { font-family: var(--font-marca); font-size: 20px; min-width: 120px; text-align: center; }
+.ini-topo { justify-content: center; }
+@media (min-width: 1000px) { .ini-topo { justify-content: space-between; } }
+.pag-topo { display: flex; align-items: center; justify-content: space-between; gap: 12px 16px; flex-wrap: wrap; margin-bottom: 12px; }
+@media (max-width: 600px) { .pag-topo { flex-direction: column; align-items: stretch; } .pag-topo .nav-mes { justify-content: center; } }
+.pilulas { display: inline-flex; background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 3px; gap: 2px; }
+.pilulas button { background: transparent; color: var(--text2); padding: 7px 14px; border-radius: 9px; font-size: 13px; font-weight: 500; min-height: 34px; }
+.pilulas button.ativo { background: var(--bg4); color: var(--text); }
+@media (max-width: 600px) { .pilulas { display: flex; } .pilulas button { flex: 1; } }
+
+/* Tabelas por mês com colunas alinhadas entre os meses (computador) */
+@media (min-width: 1100px) {
+  .tabela-fixa { table-layout: fixed; width: 100%; }
+  .tabela-faturas th:nth-child(1) { width: 20%; }
+  .tabela-faturas th:nth-child(2), .tabela-faturas th:nth-child(3), .tabela-faturas th:nth-child(4) { width: 13%; }
+  .tabela-faturas th:nth-child(5) { width: 24%; }
+  .tabela-compras th:nth-child(1) { width: 40px; }
+  .tabela-compras th:nth-child(2) { width: 84px; }
+  .tabela-compras th:nth-child(4) { width: 120px; }
+  .tabela-compras th:nth-child(5) { width: 150px; }
+  .tabela-compras th:nth-child(6) { width: 110px; }
+  .tabela-compras th:nth-child(7) { width: 120px; }
+  .tabela-compras th:nth-child(8) { width: 110px; }
+  .tabela-compras th:nth-child(9) { width: 150px; }
+}
+
+/* Barra de ferramentas no celular: busca em cima, ação principal em largura total, secundárias lado a lado */
+@media (max-width: 600px) {
+  .toolbar { gap: 8px; }
+  .toolbar .tb-primario { flex: 1 1 100%; order: 2; justify-content: center; min-height: 44px; }
+  .toolbar .tb-sec { flex: 1 1 calc(50% - 4px); order: 3; justify-content: center; margin-left: 0 !important; }
+  .grupo-info-sec { display: none; }
+}
+@media (max-width: 380px) { .nav-mes-nome { min-width: 96px; font-size: 18px; } }
+/* Último KPI sozinho na linha ocupa a largura toda */
+@media (max-width: 600px) { .metric-grid .metric:last-child:nth-child(odd) { grid-column: 1 / -1; } }
