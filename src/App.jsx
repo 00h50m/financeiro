@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useStore } from './lib/useStore'
 import { ativarAcessibilidadeModais } from './lib/acessibilidadeModais'
 import Dashboard from './components/Dashboard'
+import Inicio from './components/Inicio'
 import Inbox from './components/Inbox'
 import Compras from './components/Compras'
 import Parcelamentos from './components/Parcelamentos'
@@ -34,6 +35,7 @@ import { Marca, Nome } from './components/Marca'
 import { sb } from './lib/supabase'
 
 const ICONES = {
+  inicio: 'M3 11l9-8 9 8 M5 10v10a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V10',
   dashboard: 'M3 3h7v9H3z M14 3h7v5h-7z M14 12h7v9h-7z M3 16h7v5H3z',
   inbox: 'M22 12h-6l-2 3h-4l-2-3H2 M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z',
   compras: 'M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z M3 6h18 M16 10a4 4 0 0 1-8 0',
@@ -78,6 +80,7 @@ const GRUPOS = [
   {
     titulo: 'Visão geral',
     abas: [
+      { id: 'inicio', label: 'Início', Component: Inicio },
       { id: 'dashboard', label: 'Dashboard', Component: Dashboard },
       { id: 'graficos', label: 'Gráficos', Component: Graficos },
       { id: 'busca', label: 'Buscar', Component: Busca },
@@ -158,8 +161,8 @@ export default function App() {
 
 function AppLogado({ email }) {
   const [aba, setAba] = useState(() => {
-    const salva = lerLocal('aba', 'dashboard')
-    return ABAS.some((a) => a.id === salva) ? salva : 'dashboard'
+    const salva = lerLocal('aba', 'inicio')
+    return ABAS.some((a) => a.id === salva) ? salva : 'inicio'
   })
   const [recolhida, setRecolhida] = useState(() => lerLocal('sidebar_recolhida', '0') === '1')
   const [menuAberto, setMenuAberto] = useState(false)
@@ -301,7 +304,7 @@ function AppLogado({ email }) {
       )}
 
       <nav className="bottom-nav" aria-label="Atalhos">
-        {[['dashboard', 'Início'], ['inbox', 'Inbox'], ['compras', 'Compras'], ['pagamentos', 'Pagar']].map(([id, rotulo]) => (
+        {[['inicio', 'Início'], ['inbox', 'Inbox'], ['compras', 'Compras'], ['pagamentos', 'Pagar']].map(([id, rotulo]) => (
           <button key={id} className={aba === id ? 'ativo' : ''} onClick={() => irPara(id)} aria-current={aba === id ? 'page' : undefined}>
             <Icone nome={id} size={20} />
             <span>{rotulo}</span>
