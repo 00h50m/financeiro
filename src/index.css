@@ -363,3 +363,63 @@ input[type='checkbox'] { width: auto; min-height: 0; accent-color: var(--brand);
   .lista-cartoes tr > td[colspan] { grid-column: 1 / -1; }
   .lista-cartoes tr.linha-total { padding: 10px 14px; }
 }
+
+/* TELA INÍCIO: visão amigável do mês (saldo, contas a pagar, categorias), pensada primeiro para o celular */
+.inicio {
+  --ini-1: #c6f24e; --ini-2: #3987e5; --ini-3: #d55181; --ini-4: #f0a030; --ini-5: #9085e9;
+  max-width: 560px;
+}
+.ini-mes .icon-btn { font-size: 24px; }
+.ini-mes { display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 14px; }
+.ini-mes-nome { font-family: var(--font-marca); font-size: 18px; min-width: 150px; text-align: center; text-transform: capitalize; }
+.ini-hero { background: linear-gradient(135deg, #1d2b12, #16200f 60%, var(--bg2)); border: 1px solid #34471c; border-radius: 20px; padding: 22px 20px; margin-bottom: 12px; }
+.ini-hero.neg { background: linear-gradient(135deg, #2c1414, #1d1010 60%, var(--bg2)); border-color: var(--red-border); }
+.ini-hero-rotulo { font-size: 13px; color: var(--text2); }
+.ini-hero-valor { font-size: 34px; font-weight: 600; margin: 4px 0 6px; color: var(--brand); letter-spacing: -.5px; }
+.ini-hero.neg .ini-hero-valor { color: var(--red); }
+.ini-hero-sub { font-size: 12px; color: var(--text2); margin-bottom: 2px; }
+.ini-hero .btn { margin-top: 10px; }
+.ini-duo { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+.ini-mini { background: var(--bg2); border: 1px solid var(--border); border-radius: 16px; padding: 14px; }
+.ini-mini-rotulo { font-size: 12px; color: var(--text2); display: flex; align-items: center; gap: 6px; }
+.ini-mini-valor { font-size: 18px; margin-top: 6px; font-weight: 600; }
+.ini-mini-valor.verde { color: var(--green); }
+.ini-seta { width: 18px; height: 18px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; }
+.ini-seta.up { background: var(--green-bg); color: var(--green); }
+.ini-seta.down { background: var(--amber-bg); color: var(--amber); }
+.ini-acoes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+.ini-btn { padding: 13px 10px; border-radius: 14px; font-size: 15px; font-weight: 600; }
+.ini-btn:disabled { opacity: .5; }
+.ini-btn-gasto { background: var(--brand); color: var(--brand-ink); }
+.ini-btn-entrada { background: var(--bg3); color: var(--text); border: 1px solid var(--border2); }
+.ini-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 18px; padding: 16px; margin-bottom: 14px; }
+.ini-card-topo { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.ini-card-topo h2 { font-size: 16px; font-weight: 600; }
+.ini-card-dica { font-size: 12px; color: var(--text2); }
+.ini-barra { height: 8px; background: var(--bg4); border-radius: 6px; overflow: hidden; margin-bottom: 8px; }
+.ini-barra > div { height: 100%; background: var(--brand); border-radius: 6px; }
+.ini-vazio { font-size: 13px; color: var(--text2); padding: 14px 0; text-align: center; }
+.ini-conta { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-top: 1px solid var(--border); }
+.ini-conta:first-of-type { border-top: none; }
+.ini-conta-ic { width: 38px; height: 38px; border-radius: 12px; background: var(--bg3); display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+.ini-conta-meio { flex: 1; min-width: 0; }
+.ini-conta-nome { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ini-conta-quando { font-size: 12px; color: var(--text2); margin-top: 2px; }
+.ini-conta-quando.perto { color: var(--amber); }
+.ini-conta-quando.atrasada { color: var(--red); font-weight: 500; }
+.ini-conta-valor { font-size: 14px; font-weight: 600; }
+.ini-mais { font-size: 12px; color: var(--text2); padding: 6px 0 2px; }
+.ini-link { background: transparent; color: var(--brand); font-size: 13px; padding: 10px 0 0; display: block; }
+.ini-cats { display: flex; align-items: center; gap: 14px; }
+.ini-rosca { width: 128px; height: 128px; flex-shrink: 0; }
+.ini-rosca-t1 { font-size: 11px; fill: var(--text2); font-family: 'DM Sans', sans-serif; }
+.ini-legenda { list-style: none; flex: 1; min-width: 0; }
+.ini-legenda li { display: grid; grid-template-columns: 10px 1fr auto auto; gap: 8px; align-items: center; font-size: 12px; padding: 5px 0; }
+.ini-ponto { width: 10px; height: 10px; border-radius: 50%; }
+.ini-leg-nome { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ini-leg-pct { color: var(--text2); min-width: 38px; text-align: right; }
+@media (max-width: 420px) {
+  .ini-cats { flex-direction: column; align-items: stretch; }
+  .ini-rosca { align-self: center; }
+}
+@media (min-width: 900px) { .inicio { margin: 0 auto; } }
