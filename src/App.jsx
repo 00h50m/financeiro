@@ -51,10 +51,12 @@ const ICONES = {
   cartoes: 'M1 4h22v16H1z M1 10h22',
   categorias: 'M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z M7 7h.01',
   automacoes: 'M13 2L3 14h9l-1 8 10-12h-9l1-8z',
+  porpessoa: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z M12 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M6.2 19.2a6.5 6.5 0 0 1 11.6 0',
   pessoas: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2 M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M23 21v-2a4 4 0 0 0-3-3.87 M16 3.13a4 4 0 0 1 0 7.75',
   menu: 'M3 12h18 M3 6h18 M3 18h18',
   fechar: 'M18 6L6 18 M6 6l12 12',
   recolher: 'M15 18l-6-6 6-6',
+  seta: 'M6 9l6 6 6-6',
   reserva: 'M12 2l8 3v6c0 5-3.4 9.3-8 11-4.6-1.7-8-6-8-11V5z M9 12l2 2 4-4',
   orcamento: 'M12 2a10 10 0 1 0 10 10H12z M14 2.5V10h7.5A10 10 0 0 0 14 2.5z',
   busca: 'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z M21 21l-4.35-4.35',
@@ -166,9 +168,14 @@ function AppLogado({ email }) {
   })
   const [recolhida, setRecolhida] = useState(() => lerLocal('sidebar_recolhida', '0') === '1')
   const [menuAberto, setMenuAberto] = useState(false)
+  const [gruposFechados, setGruposFechados] = useState(() => {
+    try { const v = JSON.parse(lerLocal('grupos_fechados', '[]')); return Array.isArray(v) ? v : [] } catch { return [] }
+  })
   const store = useStore(email)
 
   useEffect(() => { gravarLocal('aba', aba) }, [aba])
+  useEffect(() => { gravarLocal('grupos_fechados', JSON.stringify(gruposFechados)) }, [gruposFechados])
+  const alternarGrupo = (titulo) => setGruposFechados((f) => (f.includes(titulo) ? f.filter((t) => t !== titulo) : [...f, titulo]))
   useEffect(() => { gravarLocal('sidebar_recolhida', recolhida ? '1' : '0') }, [recolhida])
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') setMenuAberto(false) }
@@ -233,26 +240,39 @@ function AppLogado({ email }) {
         </div>
 
         <nav className="sidebar-nav">
-          {GRUPOS.map((g) => (
-            <div key={g.titulo} className="sidebar-grupo">
-              <div className="sidebar-grupo-titulo">{g.titulo}</div>
-              {g.abas.map((a) => (
+          {GRUPOS.map((g) => {
+            // Grupo recolhido esconde os itens, menos a aba em que você está (para não se perder). Menu só de ícones nunca recolhe.
+            const fechado = !recolhida && gruposFechados.includes(g.titulo)
+            const itens = fechado ? g.abas.filter((a) => a.id === aba) : g.abas
+            return (
+              <div key={g.titulo} className={`sidebar-grupo ${fechado ? 'fechado' : ''}`}>
                 <button
-                  key={a.id}
-                  className={`sidebar-item ${aba === a.id ? 'ativo' : ''}`}
-                  onClick={() => irPara(a.id)}
-                  title={a.label}
-                  aria-current={aba === a.id ? 'page' : undefined}
+                  className="sidebar-grupo-titulo"
+                  onClick={() => alternarGrupo(g.titulo)}
+                  aria-expanded={!fechado}
+                  title={fechado ? `Mostrar ${g.titulo}` : `Recolher ${g.titulo}`}
                 >
-                  <Icone nome={a.id} />
-                  <span className="sidebar-item-label">{a.label}</span>
-                  {a.id === 'inbox' && pendentesInbox > 0 && (
-                    <span className="sidebar-badge" aria-label={`${pendentesInbox} pendentes`}>{pendentesInbox}</span>
-                  )}
+                  <span>{g.titulo}</span>
+                  <span className="sidebar-grupo-seta"><Icone nome="seta" size={12} /></span>
                 </button>
-              ))}
-            </div>
-          ))}
+                {itens.map((a) => (
+                  <button
+                    key={a.id}
+                    className={`sidebar-item ${aba === a.id ? 'ativo' : ''}`}
+                    onClick={() => irPara(a.id)}
+                    title={a.label}
+                    aria-current={aba === a.id ? 'page' : undefined}
+                  >
+                    <Icone nome={a.id} />
+                    <span className="sidebar-item-label">{a.label}</span>
+                    {a.id === 'inbox' && pendentesInbox > 0 && (
+                      <span className="sidebar-badge" aria-label={`${pendentesInbox} pendentes`}>{pendentesInbox}</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )
+          })}
         </nav>
 
         <div className="sidebar-rodape">

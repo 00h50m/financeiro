@@ -74,6 +74,52 @@ export function categoriasDoMes(mapa, max = 5) {
   return { total: soma, itens: itens.map((c) => ({ ...c, pct: Math.round((c.valor / soma) * 1000) / 10 })) }
 }
 
+const soma = (lista) => Math.round(lista.reduce((t, c) => t + c.valor, 0) * 100) / 100
+
+// Dias que faltam no mês, contando hoje. Só existe no mês atual (nos outros não há "por dia").
+export function diasRestantes(mes, hoje = hojeSP()) {
+  if (mes !== hoje.slice(0, 7)) return null
+  return ultimoDia(mes) - Number(hoje.slice(8, 10)) + 1
+}
+
+// "Para onde vai o dinheiro do mês": o que já foi pago, o que ainda falta pagar e o que sobra livre.
+// As três partes somam 100% da barra (se faltar dinheiro, a parte livre some e a barra mostra só as contas).
+export function repartoDoMes(pago, aPagar, podeGastar) {
+  const livre = Math.max(podeGastar, 0)
+  const total = pago + aPagar + livre
+  const parte = (chave, rotulo, valor) => ({ chave, rotulo, valor, pct: total > 0 ? Math.round((valor / total) * 1000) / 10 : 0 })
+  return { total, partes: [parte('pago', 'Já pago', pago), parte('apagar', 'Falta pagar', aPagar), parte('livre', 'Livre', livre)] }
+}
+
+// Linha do mês: uma marca por dia de vencimento (com o que vence nele) e a posição de hoje.
+export function linhaDoMes(contas, mes, hoje = hojeSP()) {
+  const porDia = new Map()
+  let semData = 0
+  for (const c of contas) {
+    if (!c.dia) { if (!c.pago) semData += 1; continue }
+    const dia = Math.min(Number(c.dia), ultimoDia(mes))
+    if (!porDia.has(dia)) porDia.set(dia, [])
+    porDia.get(dia).push(c)
+  }
+  const marcas = [...porDia.entries()].sort((a, b) => a[0] - b[0]).map(([dia, itens]) => ({
+    dia,
+    valor: soma(itens),
+    itens: itens.map((c) => ({ nome: c.nome, valor: c.valor, pago: c.pago })),
+    estado: itens.every((c) => c.pago) ? 'pago' : itens.some((c) => c.atrasada) ? 'atrasada' : 'aberta',
+  }))
+  return { ultimoDia: ultimoDia(mes), hoje: mes === hoje.slice(0, 7) ? Number(hoje.slice(8, 10)) : null, marcas, semData }
+}
+
+// O que pede atenção agora: atrasadas e o que vence em até 7 dias.
+export function atencaoDoMes(abertas) {
+  const atrasadas = abertas.filter((c) => c.atrasada)
+  const proximas = abertas.filter((c) => c.dias != null && c.dias >= 0 && c.dias <= 7)
+  return {
+    atrasadas: { n: atrasadas.length, valor: soma(atrasadas) },
+    proximos7: { n: proximas.length, valor: soma(proximas) },
+  }
+}
+
 // Tudo o que a tela Início mostra, vindo do mesmo motor financeiro da aba Pagamentos (os números batem).
 //  pode gastar = sobraProjetada = renda + saldo anterior + ajuste − comprometido (depois de pagar tudo do mês)
 export function montarInicio(store, mes = nowYM(), hoje = hojeSP()) {
@@ -94,5 +140,10 @@ export function montarInicio(store, mes = nowYM(), hoje = hojeSP()) {
     abertas,
     atrasadas: abertas.filter((c) => c.atrasada).length,
     categorias,
+    diasRestantes: diasRestantes(mes, hoje),
+    porDia: r.sobraProjetada > 0 && diasRestantes(mes, hoje) ? r.sobraProjetada / diasRestantes(mes, hoje) : null,
+    reparto: repartoDoMes(r.pago, r.aPagar, r.sobraProjetada),
+    linha: linhaDoMes(contas, mes, hoje),
+    atencao: atencaoDoMes(abertas),
   }
 }
