@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { compilar } from '../lib/filtro'
 import { mediaRecente, pendenciasValorVariavel } from '../lib/fixosVariaveis'
 import ValorDoMes from './ValorDoMes'
+import Secao from './Secao'
 import { CampoBusca, ResumoFiltro } from './FiltroLista'
 import { fmt, fmtK, mesLabel, nowYM, addMonths, totalRenda, tituloCompra, subtituloCompra, hojeSP } from '../lib/utils'
 import { mesFechado } from '../lib/fechamento'
@@ -23,6 +24,8 @@ export default function Pagamentos({ store }) {
   const [saldoReal, setSaldoReal] = useState('')
   const [busca, setBusca] = useState('')
   const [filtroPago, setFiltroPago] = useState('') // 'pagas' | 'apagar'
+  const [secoes, setSecoes] = useState({}) // seção → aberta; sem valor: abre quando ainda há algo a pagar
+  const [extratoAberto, setExtratoAberto] = useState(false)
 
   const dados = { fixos, fixosPagamentos, cartoes, compras, faturas, rendas, saldoAjustes, comprasPagamentos, comprasPagamentosOk }
   const resumo = resumoDoMes(dados, mes, { usarSaldoAnterior: usarSobra })
@@ -63,6 +66,22 @@ export default function Pagamentos({ store }) {
     && combina({ texto: [tituloCompra(c), subtituloCompra(c), c.obs, c.categoria, c.subcategoria].filter(Boolean).join(' '), valor: Number(c.valorParcela) }))
   const totalLinhas = fixosAtivos.length + linhasCartao.length + outrasContas.length
   const totalVis = fixosVis.length + cartoesVis.length + outrasVis.length
+
+  const somaValor = (lista, f) => lista.reduce((t, x) => t + Number(f(x)), 0)
+  const resumoSecao = (chave, lista, estaPago, valorDe) => {
+    const pagas = lista.filter(estaPago).length
+    const aberta = secoes[chave] ?? (filtroAtivo || pagas < lista.length)
+    return {
+      aberta,
+      onToggle: () => setSecoes((m) => ({ ...m, [chave]: !aberta })),
+      info: lista.length ? `${pagas}/${lista.length} pagas` : 'vazio',
+      destaque: fmt(somaValor(lista, valorDe)),
+    }
+  }
+  const secFixos = resumoSecao('fixos', fixosVis, (f) => fixoPagamento(f.id)?.pago, (f) => f.valor)
+  const secCartoes = resumoSecao('cartoes', cartoesVis, (l) => l.pago, (l) => l.valor)
+  const secOutras = resumoSecao('outras', outrasVis, (c) => c.pago, (c) => c.valorParcela)
+  const pctPago = comprometido > 0 ? Math.min(100, Math.round((pago / comprometido) * 100)) : 0
 
   async function acertar() {
     const real = Number(saldoReal)
@@ -170,8 +189,15 @@ export default function Pagamentos({ store }) {
         </div>
       </div>
 
-      <div className="section-label">de onde vem o dinheiro disponível · {mesLabel(mes)}</div>
-      <div className="card extrato">
+      {comprometido > 0 && (
+        <div className="pag-progresso" aria-label={`${pctPago}% das contas pagas`}>
+          <div className="pag-progresso-barra"><div style={{ width: `${pctPago}%` }} /></div>
+          <span>{pctPago}% pago · falta {fmt(totalDividas)}</span>
+        </div>
+      )}
+
+      <Secao titulo="De onde vem o dinheiro disponível" info={mesLabel(mes)} destaque={fmt(dinheiroDisponivel)} aberto={extratoAberto} onToggle={() => setExtratoAberto((v) => !v)}>
+      <div className="extrato">
         <div className="extrato-linha">
           <div>Renda de {mesLabel(mes)}</div>
           <div className="mono" style={{ color: rendaMes > 0 ? 'var(--green)' : 'var(--text3)' }}>{rendaMes > 0 ? '+ ' + fmt(rendaMes) : 'não cadastrada'}</div>
@@ -216,7 +242,7 @@ export default function Pagamentos({ store }) {
         </div>
       </div>
 
-      <details className="acerto">
+      <details className="acerto" style={{ margin: '0 18px 14px' }}>
         <summary>O valor não bate com o que você tem na conta? Acerte aqui</summary>
         <div className="acerto-corpo">
           <div style={{ fontSize: 12, color: 'var(--text3)', lineHeight: 1.6, marginBottom: 10 }}>
@@ -234,12 +260,13 @@ export default function Pagamentos({ store }) {
           </div>
         </div>
       </details>
+      </Secao>
 
-      <div className="section-label">contas fixas</div>
+      <Secao titulo="Contas fixas" info={secFixos.info} destaque={secFixos.destaque} aberto={secFixos.aberta} onToggle={secFixos.onToggle}>
       {fixosVis.length === 0 ? (
         <div className="empty">{filtroAtivo && fixosAtivos.length > 0 ? 'Nenhuma conta fixa com esses filtros.' : <>Nenhuma conta fixa ativa em {mesLabel(mes)}.{'\n'}Cadastre em "Fixos" para acompanhar aqui.</>}</div>
       ) : (
-        <div className="card">
+        <>
           <table className="tabela-compacta lista-cartoes">
             <thead>
               <tr>
@@ -287,14 +314,15 @@ export default function Pagamentos({ store }) {
               })}
             </tbody>
           </table>
-        </div>
+        </>
       )}
+      </Secao>
 
-      <div className="section-label">faturas dos cartões</div>
+      <Secao titulo="Faturas dos cartões" info={secCartoes.info} destaque={secCartoes.destaque} aberto={secCartoes.aberta} onToggle={secCartoes.onToggle}>
       {cartoesVis.length === 0 ? (
         <div className="empty">{filtroAtivo && linhasCartao.length > 0 ? 'Nenhuma fatura com esses filtros.' : `Nenhum cartão com movimento em ${mesLabel(mes)}.`}</div>
       ) : (
-        <div className="card">
+        <>
           <table className="tabela-compacta lista-cartoes">
             <thead>
               <tr>
@@ -339,14 +367,15 @@ export default function Pagamentos({ store }) {
               lançadas no app. Cadastre o valor real na aba Faturas para maior precisão.
             </div>
           )}
-        </div>
+        </>
       )}
+      </Secao>
 
-      <div className="section-label">outras contas (sem cartão)</div>
+      <Secao titulo="Outras contas (sem cartão)" info={secOutras.info} destaque={secOutras.destaque} aberto={secOutras.aberta} onToggle={secOutras.onToggle}>
       {outrasVis.length === 0 ? (
         <div className="empty">{filtroAtivo && outrasContas.length > 0 ? 'Nenhuma conta com esses filtros.' : <>Nenhuma conta sem cartão em {mesLabel(mes)}.{'\n'}Compras lançadas como "Sem cartão" aparecem aqui.</>}</div>
       ) : (
-        <div className="card">
+        <>
           <table className="tabela-compacta lista-cartoes">
             <thead>
               <tr>
@@ -388,8 +417,9 @@ export default function Pagamentos({ store }) {
               simples; para acompanhar mês a mês, prefira lançar pelo cartão.
             </div>
           )}
-        </div>
+        </>
       )}
+      </Secao>
     </div>
   )
 }

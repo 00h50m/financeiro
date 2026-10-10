@@ -3,6 +3,7 @@ import { montarInicio } from '../lib/inicio'
 import { fmt, mesLabel, nowYM, addMonths } from '../lib/utils'
 import { mesFechado } from '../lib/fechamento'
 import ModalCompra from './ModalCompra'
+import LongoPrazo from './LongoPrazo'
 
 const CORES = ['var(--ini-1)', 'var(--ini-2)', 'var(--ini-3)', 'var(--ini-4)', 'var(--ini-5)']
 const ICONE_TIPO = { fixo: '🏠', fatura: '💳', compra: '🛍️' }
@@ -225,6 +226,8 @@ export default function Inicio({ store, irPara }) {
           )}
           <button className="ini-link" onClick={() => irPara('dashboard')}>Detalhes por categoria →</button>
         </section>
+
+        <div className="ini-longo"><LongoPrazo store={store} irPara={irPara} compacto /></div>
       </div>
     </div>
   )
