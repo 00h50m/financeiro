@@ -69,7 +69,11 @@ input:focus-visible, select:focus-visible { outline: none; }
 .sidebar-fechar { display: none; }
 .sidebar-nav { flex: 1; }
 .sidebar-grupo { margin-bottom: 16px; }
-.sidebar-grupo-titulo { font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text3); padding: 0 10px 6px; white-space: nowrap; }
+.sidebar-grupo-titulo { display: flex; align-items: center; justify-content: space-between; width: 100%; background: transparent; font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text3); padding: 4px 10px 6px; white-space: nowrap; border-radius: 6px; text-align: left; }
+.sidebar-grupo-titulo:hover { color: var(--text2); }
+.sidebar-grupo-seta { display: inline-flex; transition: transform .15s; }
+.sidebar-grupo.fechado .sidebar-grupo-seta { transform: rotate(-90deg); }
+.sidebar-recolhida .sidebar-grupo-seta { display: none; }
 .sidebar-item {
   width: 100%;
   display: flex;
@@ -487,3 +491,9 @@ input[type='checkbox'] { width: auto; min-height: 0; accent-color: var(--brand);
   .ini-acoes { min-width: 280px; }
 }
 @media (prefers-reduced-motion: no-preference) { .ini-seg { transition: width .3s ease; } }
+
+/* Por pessoa: cartão recolhível */
+.pp-cabeca { display: block; width: 100%; background: transparent; color: inherit; text-align: left; padding: 0; }
+.pp-linha { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pp-seta { display: inline-flex; margin-right: 6px; color: var(--text3); transition: transform .15s; vertical-align: middle; }
+.pp-cabeca[aria-expanded="false"] .pp-seta { transform: rotate(-90deg); }
