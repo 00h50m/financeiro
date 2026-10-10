@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { diasAte, textoVencimento, categoriasDoMes, montarInicio } from '../inicio'
+import { diasAte, textoVencimento, categoriasDoMes, montarInicio, diasRestantes, repartoDoMes, linhaDoMes, atencaoDoMes } from '../inicio'
 
 const base = (extra = {}) => ({
   fixos: [], fixosPagamentos: [], cartoes: [{ id: 'c1', nome: 'Nubank', titular: 'Gi', fechamento: 10, vencimento: 17 }],
@@ -70,5 +70,62 @@ describe('montarInicio', () => {
   it('despesa maior que a renda dá "pode gastar" negativo', () => {
     const s = base({ fixos: [fixo({ valor: 500 })], rendas: [{ mes: '2026-10', giovanna: 100, sabrina: 0, extra_sabrina: 0, mesada: 0, outros: 0 }] })
     expect(montarInicio(s, '2026-10', '2026-10-10').podeGastar).toBe(-400)
+  })
+})
+
+describe('diasRestantes / porDia', () => {
+  it('conta hoje e só existe no mês atual', () => {
+    expect(diasRestantes('2026-10', '2026-10-10')).toBe(22)
+    expect(diasRestantes('2026-10', '2026-10-31')).toBe(1)
+    expect(diasRestantes('2026-11', '2026-10-10')).toBeNull()
+  })
+  it('por dia = pode gastar / dias restantes', () => {
+    const s = base({ fixos: [fixo({ valor: 300, dia_vencimento: 20 })], rendas: [{ mes: '2026-10', giovanna: 1000, sabrina: 0, extra_sabrina: 0, mesada: 0, outros: 0 }] })
+    const r = montarInicio(s, '2026-10', '2026-10-10')
+    expect(r.diasRestantes).toBe(22)
+    expect(r.porDia).toBeCloseTo(700 / 22, 5)
+    expect(montarInicio(s, '2026-11', '2026-10-10').porDia).toBeNull()
+  })
+  it('sem sobra não mostra "por dia"', () => {
+    const s = base({ fixos: [fixo({ valor: 900 })], rendas: [{ mes: '2026-10', giovanna: 100, sabrina: 0, extra_sabrina: 0, mesada: 0, outros: 0 }] })
+    expect(montarInicio(s, '2026-10', '2026-10-10').porDia).toBeNull()
+  })
+})
+
+describe('repartoDoMes', () => {
+  it('pago + falta pagar + livre fecham 100%', () => {
+    const r = repartoDoMes(100, 200, 700)
+    expect(r.total).toBe(1000)
+    expect(r.partes.map((p) => p.pct)).toEqual([10, 20, 70])
+  })
+  it('faltando dinheiro a parte livre some', () => {
+    const r = repartoDoMes(100, 600, -200)
+    expect(r.partes[2].valor).toBe(0)
+    expect(r.partes[0].pct + r.partes[1].pct).toBeCloseTo(100, 0)
+  })
+  it('mês vazio não divide por zero', () => {
+    expect(repartoDoMes(0, 0, 0).partes.every((p) => p.pct === 0)).toBe(true)
+  })
+})
+
+describe('linhaDoMes / atencaoDoMes', () => {
+  const contas = [
+    { chave: 'a', nome: 'Aluguel', valor: 1500, dia: 5, pago: false, atrasada: true, dias: -5 },
+    { chave: 'b', nome: 'Luz', valor: 100, dia: 12, pago: false, atrasada: false, dias: 2 },
+    { chave: 'c', nome: 'Gás', valor: 50, dia: 12, pago: true, atrasada: false, dias: null },
+    { chave: 'd', nome: 'Compra', valor: 30, dia: null, pago: false, atrasada: false, dias: null },
+  ]
+  it('agrupa por dia, marca o estado e conta o que não tem data', () => {
+    const l = linhaDoMes(contas, '2026-10', '2026-10-10')
+    expect(l.hoje).toBe(10)
+    expect(l.ultimoDia).toBe(31)
+    expect(l.marcas.map((m) => [m.dia, m.valor, m.estado])).toEqual([[5, 1500, 'atrasada'], [12, 150, 'aberta']])
+    expect(l.semData).toBe(1)
+    expect(linhaDoMes(contas, '2026-11', '2026-10-10').hoje).toBeNull()
+  })
+  it('atenção: atrasadas e vencimentos em 7 dias (só as em aberto)', () => {
+    const a = atencaoDoMes(contas.filter((c) => !c.pago))
+    expect(a.atrasadas).toEqual({ n: 1, valor: 1500 })
+    expect(a.proximos7).toEqual({ n: 1, valor: 100 })
   })
 })
