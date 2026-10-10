@@ -2,10 +2,11 @@ import { useState, Fragment } from 'react'
 import { fmt, mesLabel, nowYM, hojeSP, tituloCompra, subtituloCompra } from '../lib/utils'
 import { lancadoDoCartao, itensDaFatura } from '../lib/financeiro'
 import EditarCompra from './EditarCompra'
+import LongoPrazo from './LongoPrazo'
 import { mesesDeFaturas } from '../lib/faturaMeses'
 import { compilar } from '../lib/filtro'
 import { paraCsv, baixarCsv } from '../lib/csvExport'
-import { CampoBusca, ResumoFiltro } from './FiltroLista'
+import { CampoBusca, ResumoFiltro, BotaoFiltros } from './FiltroLista'
 import { lerValorReal, validarFatura, dadosDaFatura } from '../lib/faturaEdicao'
 
 const CHAVE_REVISADAS = 'faturas_revisadas'
@@ -75,6 +76,8 @@ function ComprasDaFatura({ det, onEditar, irPara }) {
 }
 
 export default function Faturas({ store, irPara }) {
+  const [filtrosAbertos, setFiltrosAbertos] = useState(false)
+  const [mesesAbertos, setMesesAbertos] = useState({}) // mês → aberto; sem valor: abre o mais recente e os que ainda têm diferença
   const { faturas, cartoes, compras, upsertFatura, updateFatura, delFatura } = store
   const [modal, setModal] = useState(false)
   const formVazio = { cartao_id: '', mes: nowYM(), valor_real: '', pago: false, data_pagamento: '' }
@@ -251,18 +254,25 @@ export default function Faturas({ store, irPara }) {
             { titulo: 'Mês', valor: (l) => l.mes.split('-').reverse().join('/') }, { titulo: 'Cartão', valor: (l) => l.cartao }, { titulo: 'Fatura real (banco)', valor: (l) => l.real ?? '' },
             { titulo: 'Lançado no app', valor: (l) => l.lanc }, { titulo: 'Diferença', valor: (l) => l.dif ?? '' }, { titulo: 'Paga', valor: (l) => (l.paga ? 'sim' : 'não') },
           ], linhasExportar))}>Exportar CSV</button>
-        <select value={filtroCartao} onChange={(e) => setFiltroCartao(e.target.value)} aria-label="Filtrar por cartão">
-          <option value="">Todos os cartões</option>
-          {cartoes.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-        </select>
-        <select value={filtroSituacao} onChange={(e) => setFiltroSituacao(e.target.value)} aria-label="Filtrar por situação">
-          <option value="">Todas as situações</option>
-          <option value="diferenca">Com diferença (banco ≠ lançado)</option>
-          <option value="semvalor">Sem valor do banco</option>
-          <option value="nao_paga">Não pagas</option>
-        </select>
+        <BotaoFiltros aberto={filtrosAbertos} onToggle={() => setFiltrosAbertos((v) => !v)} ativos={[filtroCartao, filtroSituacao].filter(Boolean).length} />
       </div>
+      {filtrosAbertos && (
+        <div className="filtros-painel">
+          <select value={filtroCartao} onChange={(e) => setFiltroCartao(e.target.value)} aria-label="Filtrar por cartão">
+            <option value="">Todos os cartões</option>
+            {cartoes.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+        </select>
+          <select value={filtroSituacao} onChange={(e) => setFiltroSituacao(e.target.value)} aria-label="Filtrar por situação">
+            <option value="">Todas as situações</option>
+            <option value="diferenca">Com diferença (banco ≠ lançado)</option>
+            <option value="semvalor">Sem valor do banco</option>
+            <option value="nao_paga">Não pagas</option>
+        </select>
+        </div>
+      )}
       <ResumoFiltro ativo={filtroAtivo} mostrando={mesesComResultado} total={todosMeses.length} onLimpar={limparFiltros} />
+
+      {!filtroAtivo && <LongoPrazo store={store} irPara={irPara} />}
 
       {suspeitas.length > 0 && (
         <div className="alert alert-amber" style={{ marginBottom: 16 }}>
@@ -288,7 +298,7 @@ export default function Faturas({ store, irPara }) {
         <div className="empty">Nenhuma fatura com esses filtros.{'\n'}Tente outro termo ou clique em "Limpar filtros".</div>
       )}
 
-      {meses.map(({ mes, linhas }) => {
+      {meses.map(({ mes, linhas }, idx) => {
         // Cartão com compras no mês mas sem fatura cadastrada vira uma linha "de mentira" (sem id no banco).
         const fatsDoMes = linhas.map((l) => l.fatura || { id: `sem|${l.cartao_id}|${mes}`, cartao_id: l.cartao_id, mes, valor_real: null, pago: false, sintetica: true })
         const vistas = new Map(fatsDoMes.map((f) => [f.id, filtrarFatura(f, mes)]).filter(([, v]) => v))
@@ -299,16 +309,20 @@ export default function Faturas({ store, irPara }) {
         const totalDiff = totalReal - totalLanc
         const semNenhumReal = comReal.length === 0
         const totalLancTodos = fatsDoMes.reduce((s, f) => s + getLancado(f.cartao_id, mes), 0)
+        const pendente = !semNenhumReal && totalDiff >= 1
+        const mesAberto = mesesAbertos[mes] ?? (filtroAtivo || idx === 0 || pendente)
+        const statusCor = semNenhumReal ? 'var(--text3)' : Math.abs(totalDiff) < 1 ? 'var(--green)' : totalDiff > 0 ? 'var(--red)' : 'var(--amber)'
+        const statusTxt = semNenhumReal ? 'sem valor do banco ainda' : Math.abs(totalDiff) < 1 ? '✓ tudo identificado' : totalDiff > 0 ? `⚠ ${fmt(totalDiff)} não identificado` : `excede ${fmt(Math.abs(totalDiff))}`
 
         return (
-          <div key={mes}>
-            <div className="section-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>{mesLabel(mes)}</span>
-              <span style={{ fontSize: 11, fontFamily: 'DM Mono', color: semNenhumReal ? 'var(--text3)' : Math.abs(totalDiff) < 1 ? 'var(--green)' : totalDiff > 0 ? 'var(--red)' : 'var(--amber)' }}>
-                {semNenhumReal ? 'sem valor do banco ainda' : Math.abs(totalDiff) < 1 ? '✓ tudo identificado' : totalDiff > 0 ? `⚠ ${fmt(totalDiff)} não identificado` : `excede ${fmt(Math.abs(totalDiff))}`}
-              </span>
-            </div>
-            <div className="card">
+          <section key={mes} className="card grupo-mes">
+            <button className="grupo-cab" onClick={() => setMesesAbertos((m) => ({ ...m, [mes]: !mesAberto }))} aria-expanded={mesAberto}>
+              <span className="grupo-seta" aria-hidden="true">▾</span>
+              <span className="grupo-nome">{mesLabel(mes)}</span>
+              <span className="grupo-info">{fatsDoMes.length} {fatsDoMes.length === 1 ? 'cartão' : 'cartões'}</span>
+              <span className="grupo-total" style={{ fontSize: 12, color: statusCor }}>{statusTxt}</span>
+            </button>
+            {mesAberto && (
               <table className="tabela-compacta lista-cartoes">
                 <thead>
                   <tr>
@@ -411,8 +425,8 @@ export default function Faturas({ store, irPara }) {
                   )}
                 </tbody>
               </table>
-            </div>
-          </div>
+            )}
+          </section>
         )
       })}
       {!filtroAtivo && todosMeses.length > MESES_VISIVEIS && (

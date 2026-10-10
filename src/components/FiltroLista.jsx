@@ -19,3 +19,12 @@ export function ResumoFiltro({ mostrando, total, ativo, onLimpar, soma = null, f
     </div>
   )
 }
+
+// Botão "Filtros" das listas: os filtros ficam recolhidos e o botão mostra quantos estão ligados.
+export function BotaoFiltros({ aberto, onToggle, ativos = 0 }) {
+  return (
+    <button className={`btn btn-ghost btn-sm filtros-botao ${ativos ? 'ligado' : ''}`} onClick={onToggle} aria-expanded={aberto}>
+      Filtros{ativos > 0 && <span className="filtros-contagem">{ativos}</span>} <span aria-hidden="true">{aberto ? '▴' : '▾'}</span>
+    </button>
+  )
+}

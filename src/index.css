@@ -497,3 +497,45 @@ input[type='checkbox'] { width: auto; min-height: 0; accent-color: var(--brand);
 .pp-linha { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
 .pp-seta { display: inline-flex; margin-right: 6px; color: var(--text3); transition: transform .15s; vertical-align: middle; }
 .pp-cabeca[aria-expanded="false"] .pp-seta { transform: rotate(-90deg); }
+
+/* Listas agrupadas por mês, seções recolhíveis e painel de filtros */
+.filtros-painel { display: flex; flex-wrap: wrap; gap: 8px; margin: -4px 0 14px; padding: 12px; background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; }
+.filtros-painel select { flex: 1 1 150px; max-width: 220px; }
+.filtros-botao.ligado { border-color: var(--brand); color: var(--brand); }
+.filtros-contagem { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; margin-left: 6px; border-radius: 9px; background: var(--brand); color: var(--brand-ink); font-size: 11px; font-weight: 600; }
+.grupos-barra { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--text3); margin: 0 2px 8px; }
+.grupo-mes { padding: 0; overflow: hidden; }
+.grupo-cab { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; width: 100%; padding: 14px 16px; background: transparent; color: var(--text); text-align: left; }
+.grupo-cab:hover { background: var(--bg3); }
+.grupo-seta { color: var(--text3); transition: transform .15s; display: inline-block; }
+.grupo-cab[aria-expanded="false"] .grupo-seta { transform: rotate(-90deg); }
+.grupo-nome { font-weight: 600; }
+.grupo-info { font-size: 12px; color: var(--text3); }
+.grupo-total { margin-left: auto; font-size: 14px; white-space: nowrap; }
+.grupo-mes .tabela-compacta { border-top: 1px solid var(--border); }
+
+.pag-progresso { display: flex; align-items: center; gap: 12px; margin: -4px 0 16px; font-size: 12px; color: var(--text2); flex-wrap: wrap; }
+.pag-progresso-barra { flex: 1 1 200px; height: 8px; background: var(--bg4); border-radius: 6px; overflow: hidden; }
+.pag-progresso-barra > div { height: 100%; background: var(--green); border-radius: 6px; }
+.grupo-mes .extrato { padding: 0 18px; border-top: 1px solid var(--border); }
+.grupo-mes .empty { border-top: 1px solid var(--border); }
+
+/* Compromissos a longo prazo */
+.lp { padding: 4px 16px 16px; }
+.ini-card .lp { padding: 0; }
+.lp-resumo { font-size: 13px; color: var(--text2); line-height: 1.5; margin-bottom: 14px; }
+.lp-resumo b { color: var(--text); }
+.lp-barras { display: flex; align-items: flex-end; gap: 5px; height: 110px; }
+.lp-col { flex: 1; min-width: 0; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: stretch; }
+.lp-pilha { display: flex; flex-direction: column; border-radius: 5px 5px 2px 2px; overflow: hidden; min-height: 3px; }
+.lp-resto { background: var(--bg4); }
+.lp-parc { background: var(--brand); }
+.lp-mes { font-size: 10px; color: var(--text3); text-align: center; margin-top: 4px; text-transform: capitalize; }
+.lp-leg { display: flex; gap: 14px; font-size: 11px; color: var(--text2); margin-top: 8px; }
+.lp-leg i { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 5px; }
+.lp-leg i.parc { background: var(--brand); } .lp-leg i.resto { background: var(--bg4); border: 1px solid var(--border2); }
+.lp-cartoes { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0 4px; }
+.lp-tabela { margin-top: 12px; }
+.lp-nota { font-size: 11px; color: var(--text3); margin-top: 10px; line-height: 1.5; }
+@media (min-width: 1000px) { .ini-longo { grid-column: 1 / -1; } }
+.lp-ver { display: block; margin-top: 12px; font-size: 12px; }
