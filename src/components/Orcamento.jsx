@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react'
 import { historicoPorCategoria, sugerirTetos } from '../lib/orcamentoSugestao'
 import { comprasLiquidas, fixosLiquidos } from '../lib/divisoes'
-import { fmt, fmtK, mesLabel, nowYM, addMonths, totalRenda, gastosPorCategoria, statusTeto } from '../lib/utils'
+import NavMes from './NavMes'
+import { fmt, fmtK, mesLabel, nowYM, totalRenda, gastosPorCategoria, statusTeto } from '../lib/utils'
 
+const ORDEM = { estourou: 0, perto: 1, ok: 2, sem: 3 }
 const STATUS = {
   sem: { badge: 'badge-gray', texto: 'Sem teto', cor: 'var(--text3)' },
   ok: { badge: 'badge-green', texto: 'Dentro', cor: 'var(--green)' },
@@ -79,13 +81,9 @@ export default function Orcamento({ store }) {
 
   return (
     <div className="page">
-      <div className="toolbar">
-        <button className="btn btn-ghost btn-sm" onClick={() => setMes(addMonths(mes, -1))}>← Mês anterior</button>
-        <strong style={{ minWidth: 70, textAlign: 'center' }}>{mesLabel(mes)}</strong>
-        <button className="btn btn-ghost btn-sm" onClick={() => setMes(addMonths(mes, 1))}>Próximo mês →</button>
-        <button className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto' }} onClick={abrirSugestoes}>
-          Sugerir tetos pelo histórico
-        </button>
+      <div className="pag-topo">
+        <NavMes mes={mes} onChange={setMes} />
+        <button className="btn btn-ghost btn-sm" onClick={abrirSugestoes}>Sugerir tetos pelo histórico</button>
       </div>
 
       {painel && (
@@ -95,22 +93,23 @@ export default function Orcamento({ store }) {
             Base: média dos 3 meses anteriores a {mesLabel(mes)} + 10% de folga, arredondada para cima de 10 em 10. Você pode editar cada valor. Por padrão só vêm marcadas as categorias <b>sem teto e com gasto regular</b>;
             as de gasto irregular (aparecem em menos de 2 dos 3 meses) ficam desmarcadas para você decidir.
           </div>
-          <table>
-            <thead><tr><th /><th>Categoria</th><th style={{ textAlign: 'right' }}>Teto atual</th><th style={{ textAlign: 'right' }}>Média 3 meses</th><th style={{ textAlign: 'right' }}>Maior mês (6)</th><th style={{ width: 130 }}>Teto sugerido</th><th>Observação</th></tr></thead>
-            <tbody>
-              {painel.map((s) => (
-                <tr key={s.categoria}>
-                  <td><input type="checkbox" checked={s.marcada} onChange={(e) => mudarSugestao(s.categoria, { marcada: e.target.checked })} aria-label={`Aplicar sugestão para ${s.categoria}`} /></td>
-                  <td style={{ fontWeight: 500 }}>{s.categoria}</td>
-                  <td style={{ textAlign: 'right' }} className="mono">{s.atual ? fmt(s.atual) : '—'}</td>
-                  <td style={{ textAlign: 'right' }} className="mono">{fmt(s.media3)}</td>
-                  <td style={{ textAlign: 'right' }} className="mono">{fmt(s.maximo)}</td>
-                  <td><input type="number" min="0" step="10" value={s.valor} onChange={(e) => mudarSugestao(s.categoria, { valor: e.target.value })} style={{ width: 110 }} /></td>
-                  <td style={{ fontSize: 12, color: s.irregular ? 'var(--amber)' : 'var(--text3)' }}>{s.nota}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="orc-sug">
+            {painel.map((s) => (
+              <div key={s.categoria} className={`orc-sug-item ${s.marcada ? 'marcada' : ''}`}>
+                <label className="orc-sug-topo">
+                  <input type="checkbox" checked={s.marcada} onChange={(e) => mudarSugestao(s.categoria, { marcada: e.target.checked })} aria-label={`Aplicar sugestão para ${s.categoria}`} />
+                  <span className="orc-sug-nome">{s.categoria}</span>
+                  <input type="number" min="0" step="10" value={s.valor} onChange={(e) => mudarSugestao(s.categoria, { valor: e.target.value })} className="orc-sug-valor" aria-label={`Teto sugerido para ${s.categoria}`} />
+                </label>
+                <div className="orc-sug-linha">
+                  <span>Teto atual <b className="mono">{s.atual ? fmt(s.atual) : '—'}</b></span>
+                  <span>Média 3 meses <b className="mono">{fmt(s.media3)}</b></span>
+                  <span>Maior mês <b className="mono">{fmt(s.maximo)}</b></span>
+                </div>
+                {s.nota && <div className="orc-sug-nota" style={{ color: s.irregular ? 'var(--amber)' : 'var(--text3)' }}>{s.nota}</div>}
+              </div>
+            ))}
+          </div>
           {(() => {
             const marcadas = painel.filter((s) => s.marcada && Number(s.valor) > 0)
             const novoTotal = totalTeto - marcadas.reduce((t, s) => t + s.atual, 0) + marcadas.reduce((t, s) => t + Number(s.valor), 0)
@@ -157,62 +156,43 @@ export default function Orcamento({ store }) {
         </div>
       )}
 
-      <div className="card sim-tabela">
-        <table>
-          <thead>
-            <tr>
-              <th>Categoria</th>
-              <th style={{ width: 140 }}>Teto mensal (R$)</th>
-              <th style={{ textAlign: 'right' }}>Gasto</th>
-              <th style={{ textAlign: 'right' }} title="Média de gasto nos 3 meses anteriores ao mês escolhido">Média 3 meses</th>
-              <th style={{ textAlign: 'right' }}>Restante</th>
-              <th style={{ width: 150 }}>Uso do teto</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {linhas.map((l) => {
-              const pct = l.teto > 0 ? Math.round((l.gasto / l.teto) * 100) : 0
-              const st = STATUS[l.status]
-              const valorInput = rascunho[l.categoria] ?? (l.teto > 0 ? String(l.teto) : '')
-              return (
-                <tr key={l.categoria}>
-                  <td style={{ fontWeight: 500 }}>{l.categoria}</td>
-                  <td>
-                    <input
-                      type="number" min="0" step="10" placeholder="sem teto"
-                      value={valorInput}
-                      onChange={(e) => setRascunho((r) => ({ ...r, [l.categoria]: e.target.value }))}
-                      onBlur={() => salvar(l.categoria)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
-                      style={{ width: 120 }}
-                    />
-                  </td>
-                  <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13, color: l.gasto ? 'var(--text)' : 'var(--text3)' }}>
-                    {l.gasto ? fmt(l.gasto) : '—'}
-                  </td>
-                  <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13, color: 'var(--text3)' }}>
-                    {(() => { const h = (historico[l.categoria] || []).slice(-3); const m = h.reduce((t, v) => t + v, 0) / 3; return m >= 1 ? fmt(m) : '—' })()}
-                  </td>
-                  <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13, color: l.teto ? st.cor : 'var(--text3)' }}>
-                    {l.teto ? fmt(l.restante) : '—'}
-                  </td>
-                  <td>
-                    {l.teto > 0 && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div className="prog-bar" style={{ flex: 1 }}>
-                          <div className="prog-fill" style={{ width: Math.min(100, pct) + '%', background: st.cor }} />
-                        </div>
-                        <span style={{ fontSize: 11, color: 'var(--text3)', minWidth: 36 }}>{pct}%</span>
-                      </div>
-                    )}
-                  </td>
-                  <td><span className={`badge ${st.badge}`}>{st.texto}</span></td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+      <div className="orc-grade">
+        {[...linhas].sort((x, y) => ORDEM[x.status] - ORDEM[y.status] || y.gasto - x.gasto).map((l) => {
+          const pct = l.teto > 0 ? Math.round((l.gasto / l.teto) * 100) : 0
+          const st = STATUS[l.status]
+          const valorInput = rascunho[l.categoria] ?? (l.teto > 0 ? String(l.teto) : '')
+          const media = (() => { const h = (historico[l.categoria] || []).slice(-3); const m = h.reduce((t, v) => t + v, 0) / 3; return m >= 1 ? m : 0 })()
+          return (
+            <article key={l.categoria} className={`orc-card ${l.status}`}>
+              <div className="orc-topo">
+                <div className="orc-nome">{l.categoria}</div>
+                <span className={`badge ${st.badge}`}>{st.texto}</span>
+              </div>
+              {l.teto > 0 && (
+                <div className="orc-barra-linha">
+                  <div className="prog-bar" style={{ flex: 1 }}><div className="prog-fill" style={{ width: Math.min(100, pct) + '%', background: st.cor }} /></div>
+                  <span className="orc-pct">{pct}%</span>
+                </div>
+              )}
+              <div className="orc-nums">
+                <span>Gasto <b className="mono">{l.gasto ? fmt(l.gasto) : '—'}</b></span>
+                {l.teto > 0 && <span style={{ color: st.cor }}>{l.restante >= 0 ? 'Restam' : 'Acima'} <b className="mono">{fmt(Math.abs(l.restante))}</b></span>}
+                {media > 0 && <span style={{ color: 'var(--text3)' }}>Média 3 meses <b className="mono">{fmt(media)}</b></span>}
+              </div>
+              <label className="orc-teto">
+                <span>Teto mensal</span>
+                <input
+                  type="number" min="0" step="10" placeholder="sem teto"
+                  value={valorInput}
+                  onChange={(e) => setRascunho((r) => ({ ...r, [l.categoria]: e.target.value }))}
+                  onBlur={() => salvar(l.categoria)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
+                  aria-label={`Teto mensal de ${l.categoria}`}
+                />
+              </label>
+            </article>
+          )
+        })}
       </div>
       <div style={{ fontSize: 12, color: 'var(--text3)', lineHeight: 1.6 }}>
         O teto vale para todos os meses. O gasto soma as parcelas do mês e as contas fixas categorizadas (o mesmo cálculo do Dashboard).

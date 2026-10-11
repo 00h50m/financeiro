@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import Secao from './Secao'
 import { fmt, fmtK, hojeSP, mesLabel } from '../lib/utils'
 import { detalhePagamentos } from '../lib/financeiro'
 import { situacaoDaMeta, saldoMeta, movimentosDaMeta, valorComSinal, deltaParaSaldo, mesesParaAlvo } from '../lib/metas'
@@ -66,7 +67,7 @@ function CartaoMeta({ meta, store, custos, sobraMensal }) {
   const meses = mesesParaAlvo(s.falta, sobraMensal)
 
   return (
-    <div className="card" style={{ padding: 16, marginBottom: 12, opacity: meta.ativa === false ? 0.6 : 1 }}>
+    <div className="card" style={{ padding: 16, marginBottom: 0, opacity: meta.ativa === false ? 0.6 : 1 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         <div>
           <strong>{meta.nome}</strong>{' '}
@@ -126,6 +127,7 @@ export default function Metas({ store }) {
   const [prazo, setPrazo] = useState('')
   const [prio, setPrio] = useState(2)
   const [criando, setCriando] = useState(false)
+  const [novaAberta, setNovaAberta] = useState(false)
 
   if (!metasOk) {
     return (
@@ -158,11 +160,16 @@ export default function Metas({ store }) {
 
   return (
     <div className="page">
-      <div className="section-label">suas metas · custos de {mesLabel(mes)}</div>
-      {ordenadas.map((m) => <CartaoMeta key={m.id} meta={m} store={store} custos={custos} sobraMensal={sobraMensal} />)}
+      <div className="cad-topo">
+        <div className="cad-resumo"><span><b>{ordenadas.filter((m) => m.ativa !== false).length}</b> {ordenadas.filter((m) => m.ativa !== false).length === 1 ? 'meta ativa' : 'metas ativas'}</span><span>Custos de {mesLabel(mes)}</span></div>
+        <button className="btn btn-primary tb-primario" onClick={() => setNovaAberta(true)}>+ Nova meta</button>
+      </div>
+      <div className="metas-grade">
+        {ordenadas.map((m) => <CartaoMeta key={m.id} meta={m} store={store} custos={custos} sobraMensal={sobraMensal} />)}
+      </div>
 
-      <div className="section-label">nova meta</div>
-      <div className="card" style={{ padding: 16 }}>
+      <Secao titulo="Nova meta" aberto={novaAberta} onToggle={() => setNovaAberta((v) => !v)}>
+      <div style={{ padding: '4px 16px 16px', borderTop: '1px solid var(--border)' }}>
         <div className="form-row cols3" style={{ marginBottom: 8 }}>
           <div className="form-group"><label>Nome</label><input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex.: Viagem, Notebook" /></div>
           <div className="form-group"><label>Quanto quer juntar (R$)</label><input type="number" min="0" step="0.01" value={alvo} onChange={(e) => setAlvo(e.target.value)} /></div>
@@ -183,6 +190,7 @@ export default function Metas({ store }) {
           A prioridade decide a ordem da sugestão de destino da sobra no Fechamento. A reserva é sempre prioridade 1.
         </div>
       </div>
+      </Secao>
     </div>
   )
 }

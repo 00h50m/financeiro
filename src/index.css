@@ -639,3 +639,32 @@ input[type='checkbox'] { width: auto; min-height: 0; accent-color: var(--brand);
 .regra-rodape { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .regra-acoes { display: inline-flex; gap: 6px; }
 @media (max-width: 600px) { .cad-novo input { max-width: none; } .cad-novo .btn { flex: 1 1 100%; justify-content: center; min-height: 44px; } .cad-grade, .regras-grade { grid-template-columns: 1fr; } }
+
+/* Orçamento em cartões */
+.orc-grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.orc-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.orc-card.estourou { border-color: var(--red-border); }
+.orc-card.perto { border-color: var(--amber-border); }
+.orc-topo { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.orc-nome { font-weight: 600; font-size: 14px; overflow-wrap: anywhere; }
+.orc-barra-linha { display: flex; align-items: center; gap: 8px; }
+.orc-pct { font-size: 12px; color: var(--text2); min-width: 36px; text-align: right; }
+.orc-nums { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--text2); }
+.orc-nums b { color: var(--text); font-weight: 500; }
+.orc-teto { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 12px; color: var(--text2); }
+.orc-teto input { width: 130px; text-align: right; }
+.orc-sug { display: grid; gap: 8px; margin-top: 10px; }
+.orc-sug-item { background: var(--bg3); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; }
+.orc-sug-item.marcada { border-color: var(--brand); }
+.orc-sug-topo { display: flex; align-items: center; gap: 10px; }
+.orc-sug-topo input[type="checkbox"] { width: 18px; min-height: 0; flex-shrink: 0; }
+.orc-sug-nome { flex: 1; font-weight: 500; font-size: 13px; }
+.orc-sug-valor { width: 110px; text-align: right; }
+.orc-sug-linha { display: flex; flex-wrap: wrap; gap: 2px 14px; font-size: 11px; color: var(--text3); margin-top: 6px; }
+.orc-sug-linha b { color: var(--text2); font-weight: 500; }
+.orc-sug-nota { font-size: 11px; margin-top: 4px; }
+@media (max-width: 600px) { .orc-grade { grid-template-columns: 1fr; } }
+.metas-grade { display: grid; grid-template-columns: 1fr; gap: 12px; margin-bottom: 14px; }
+@media (min-width: 1000px) { .metas-grade { grid-template-columns: 1fr 1fr; } }
+.pag-topo > .badge { align-self: center; }
+.extrato-linha .mono { white-space: nowrap; }
