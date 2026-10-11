@@ -12,6 +12,57 @@ const PASSOS_VARIAVEIS = {
   SUPABASE_URL: 'a mesma URL do Supabase que o app já usa',
 }
 
+function Copiar({ texto, rotulo = 'Copiar' }) {
+  const [ok, setOk] = useState(false)
+  return (
+    <button className="btn btn-ghost btn-sm" onClick={async () => { try { await navigator.clipboard.writeText(texto); setOk(true); setTimeout(() => setOk(false), 1800) } catch { window.alert('Não consegui copiar neste navegador. Selecione o texto e copie à mão.') } }}>
+      {ok ? 'Copiado ✓' : rotulo}
+    </button>
+  )
+}
+
+// Passo a passo da captura de compras pelas notificações do celular (MacroDroid), na ordem que funciona no Android.
+function GuiaAndroid() {
+  const url = `${typeof window !== 'undefined' ? window.location.origin : 'https://SEU-SITE'}/api/notificacao`
+  const corpo = 'token: COLE_O_TOKEN_AQUI\napp: [nome do aplicativo]\ntitulo: [título da notificação]\ntexto: [texto da notificação]'
+  return (
+    <div className="guia-android">
+      <p className="guia-intro">O celular manda o texto das notificações de compra do banco para o Sobrou!, que pergunta no Telegram se você confirma o lançamento. Só notificações de <b>compra</b> viram lançamento; Pix, estorno, fatura e compra recusada são ignorados.</p>
+      <ol>
+        <li>
+          <b>Pegue o token.</b> No Telegram, mande <code>/android</code> para o bot. Ele responde <b>uma vez só</b> com o token (começa com <code>fin_</code>). Copie. Para desligar um celular, mande <code>/android revogar</code>.
+          <div className="guia-aviso">O token é como uma senha do seu celular: não envie em prints nem em conversas.</div>
+        </li>
+        <li>
+          <b>Instale o MacroDroid</b> (Play Store), libere o <b>acesso às notificações</b> quando ele pedir e, em Configurações do Android → Apps → MacroDroid → Bateria, escolha <b>Sem restrições</b>.
+        </li>
+        <li>
+          <b>Crie a macro.</b> Adicionar macro →
+          <ul>
+            <li><b>Gatilho:</b> Eventos do Dispositivo → <b>Notificação</b> → Notificação recebida. Toque no botão da grade e marque só o app do seu banco (Nubank, Inter...). Deixe "Conteúdo do texto" em <i>Qualquer</i>. Se o app do banco não aparecer na lista, use "Contém" e escreva <code>compra</code>.</li>
+            <li><b>Ação:</b> Conectividade → <b>Requisição HTTP</b>. Método <b>POST</b>, URL abaixo e, na aba <i>Corpo da requisição</i>, tipo de conteúdo <code>text/plain</code> com o texto abaixo.</li>
+          </ul>
+          <div className="guia-copiar"><code>{url}</code><Copiar texto={url} rotulo="Copiar endereço" /></div>
+          <pre className="guia-pre">{corpo}</pre>
+          <div className="guia-copiar"><Copiar texto={corpo} rotulo="Copiar modelo do corpo" /></div>
+          <p>Troque <code>COLE_O_TOKEN_AQUI</code> pelo seu token e cada texto entre colchetes pela variável do MacroDroid (botão <b>{'{ }'}</b> ou <b>+</b> no campo: nome do aplicativo, título e texto da notificação; os nomes mudam de versão). Se o corpo for em JSON, também funciona.</p>
+        </li>
+        <li>
+          <b>Teste</b> com uma compra pequena. O gatilho só dispara em notificação <b>nova</b>. Em segundos o bot manda "📱 Notificação do Nubank..." com o botão <b>Confirmar</b>.
+        </li>
+      </ol>
+      <div className="guia-dicas">
+        <b>Se não funcionar:</b>
+        <ul>
+          <li>Triângulo vermelho no gatilho = falta liberar o acesso às notificações (Configurações → Aplicativos → ⋮ → Acesso especial → Acesso a notificações).</li>
+          <li>Erro 401: token errado ou revogado. Erro 409: seu Telegram ainda não está conectado ao app (veja "Conectar uma pessoa", acima).</li>
+          <li>Nada no Telegram e a macro "executada": veja o log do MacroDroid e confira se o endereço termina em <code>/api/notificacao</code>.</li>
+        </ul>
+      </div>
+    </div>
+  )
+}
+
 function ConectarPessoa({ store, bot }) {
   const { pessoas, gerarPareamento } = store
   const [pessoaId, setPessoaId] = useState(pessoas[0]?.id || '')
@@ -173,7 +224,7 @@ export default function Automacoes({ store }) {
       {bot?.ok && <ConectarPessoa store={store} bot={bot} />}
 
       <div className="section-label">Captura de notificações (Android)</div>
-      <div className="card"><div className="empty">Em breve.{'\n'}Depende de um pequeno app Android, que vem depois do Telegram.</div></div>
+      <div className="card"><GuiaAndroid /></div>
     </div>
   )
 }
