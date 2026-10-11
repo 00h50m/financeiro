@@ -1,5 +1,8 @@
 import { useState } from 'react'
-import { fmt, mesLabel, nowYM, addMonths, RENDA_CAMPOS, totalRenda } from '../lib/utils'
+import { fmt, fmtK, mesLabel, nowYM, addMonths, RENDA_CAMPOS, totalRenda } from '../lib/utils'
+
+// Rótulo curto de cada fonte de renda: 'Salário Giovanna' → 'Giovanna' (antes os dois salários viravam 'Salário' repetido).
+const curto = (l) => l.replace(/^Salário /, '')
 
 export default function Renda({ store }) {
   const { rendas, upsertRenda } = store
@@ -7,6 +10,7 @@ export default function Renda({ store }) {
   const [editMes, setEditMes] = useState(null)
   const [form, setForm] = useState({})
   const [saving, setSaving] = useState(false)
+  const [inicio, setInicio] = useState(-3) // primeiro mês da lista, em meses a partir de hoje
   const s = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
 
   function abrir(m) {
@@ -36,7 +40,22 @@ export default function Renda({ store }) {
     if (ok) setEditMes(null) // se deu erro, mantém o formulário
   }
 
-  const meses = Array.from({ length: 8 }, (_, i) => addMonths(mes, -3 + i))
+  const meses = Array.from({ length: 8 }, (_, i) => addMonths(mes, inicio + i))
+  const rendaAtual = rendas.find((r) => r.mes === mes) || null
+  const totalAtual = totalRenda(rendaAtual)
+  const ultimos3 = [-1, -2, -3].map((i) => totalRenda(rendas.find((r) => r.mes === addMonths(mes, i)))).filter((v) => v > 0)
+  const media3 = ultimos3.length ? ultimos3.reduce((a, b) => a + b, 0) / ultimos3.length : 0
+  const semRenda = Array.from({ length: 6 }, (_, i) => addMonths(mes, i + 1)).filter((m) => !(totalRenda(rendas.find((r) => r.mes === m)) > 0))
+
+  // Repete a renda do mês atual nos próximos meses que ainda estão sem renda (só preenche o que está vazio).
+  async function repetir() {
+    if (!rendaAtual || !semRenda.length) return
+    if (!confirm(`Copiar a renda de ${mesLabel(mes)} (${fmt(totalAtual)}) para ${semRenda.length === 1 ? 'o mês' : `os ${semRenda.length} meses`} sem renda: ${semRenda.map(mesLabel).join(', ')}?\n\nMeses que já têm renda não são alterados.`)) return
+    for (const m of semRenda) {
+      const ok = await upsertRenda({ mes: m, giovanna: Number(rendaAtual.giovanna || 0), sabrina: Number(rendaAtual.sabrina || 0), extra_sabrina: Number(rendaAtual.extra_sabrina || 0), mesada: Number(rendaAtual.mesada || 0), outros: Number(rendaAtual.outros || 0) })
+      if (!ok) break
+    }
+  }
 
   return (
     <div className="page">
@@ -80,13 +99,33 @@ export default function Renda({ store }) {
         </div>
       )}
 
+      <section className={`ini-hero renda-hero ${totalAtual > 0 ? '' : 'neg'}`} aria-label="Renda do mês">
+        <div className="ini-hero-rotulo">Renda de {mesLabel(mes)}</div>
+        <div className="ini-hero-valor mono">{totalAtual > 0 ? fmt(totalAtual) : 'Não cadastrada'}</div>
+        <div className="ini-hero-sub">
+          {totalAtual > 0
+            ? (RENDA_CAMPOS.filter(([k]) => rendaAtual?.[k] && Number(rendaAtual[k]) > 0).map(([k, l]) => `${curto(l)} ${fmtK(rendaAtual[k])}`).join(' · '))
+            : 'Sem renda cadastrada, o app não consegue calcular quanto você pode gastar.'}
+        </div>
+        <div className="renda-acoes">
+          <button className="btn btn-primary" onClick={() => abrir(mes)}>{totalAtual > 0 ? 'Editar renda do mês' : 'Cadastrar renda do mês'}</button>
+          {totalAtual > 0 && semRenda.length > 0 && <button className="btn btn-ghost" onClick={repetir} title="Copia esta renda para os próximos meses que estão sem renda">Repetir nos próximos {semRenda.length} {semRenda.length === 1 ? 'mês' : 'meses'}</button>}
+        </div>
+        {media3 > 0 && <div className="ini-hero-sub" style={{ marginTop: 10 }}>Média dos últimos meses cadastrados: <b>{fmtK(media3)}</b></div>}
+      </section>
+
+      <div className="grupos-barra">
+        <button className="link-btn" onClick={() => setInicio((i) => i - 6)}>← meses anteriores</button>
+        {inicio !== -3 && <button className="link-btn" onClick={() => setInicio(-3)}>voltar para hoje</button>}
+        <button className="link-btn" onClick={() => setInicio((i) => i + 6)}>próximos meses →</button>
+      </div>
       <div className="card">
         <table className="tabela-compacta">
           <thead>
             <tr>
               <th>Mês</th>
               {RENDA_CAMPOS.map(([k, l]) => (
-                <th key={k} className="col-opc" style={{ textAlign: 'right' }}>{l.split(' ')[0]}</th>
+                <th key={k} className="col-opc" style={{ textAlign: 'right' }}>{curto(l)}</th>
               ))}
               <th style={{ textAlign: 'right' }}>Total</th>
               <th />
@@ -101,7 +140,7 @@ export default function Renda({ store }) {
                   <td>
                     {mesLabel(m)}
                     {m === mes && <span className="badge badge-green" style={{ marginLeft: 6, fontSize: 10 }}>atual</span>}
-                    <div className="so-mobile">{RENDA_CAMPOS.filter(([k]) => r?.[k] && Number(r[k]) > 0).map(([k, l]) => `${l.split(' ')[0]} ${fmt(r[k])}`).join(' · ') || 'sem renda cadastrada'}</div>
+                    <div className="so-mobile">{RENDA_CAMPOS.filter(([k]) => r?.[k] && Number(r[k]) > 0).map(([k, l]) => `${curto(l)} ${fmt(r[k])}`).join(' · ') || 'sem renda cadastrada'}</div>
                   </td>
                   {RENDA_CAMPOS.map(([k]) => (
                     <td key={k} className="col-opc" style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 12, color: r?.[k] && Number(r[k]) > 0 ? 'var(--text)' : 'var(--text3)' }}>

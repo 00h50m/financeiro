@@ -3,7 +3,7 @@ import { DICA_BUSCA } from '../lib/filtro'
 // Campo de busca padrão das listas (nome, valor, faixa, data).
 export function CampoBusca({ valor, onChange, placeholder = DICA_BUSCA, largura = 280 }) {
   return (
-    <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+    <span className="campo-busca" style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
       <input type="search" placeholder={placeholder} value={valor} onChange={(e) => onChange(e.target.value)} style={{ width: largura, maxWidth: '100%' }} aria-label="Buscar nesta lista" title="Exemplos: mercado · 89,90 · >100 · 100..200 · 05/09" />
     </span>
   )

@@ -569,6 +569,8 @@ input[type='checkbox'] { width: auto; min-height: 0; accent-color: var(--brand);
 /* Barra de ferramentas no celular: busca em cima, ação principal em largura total, secundárias lado a lado */
 @media (max-width: 600px) {
   .toolbar { gap: 8px; }
+  .toolbar .campo-busca { flex: 1 1 100%; order: 1; }
+  .toolbar .campo-busca input { width: 100% !important; }
   .toolbar .tb-primario { flex: 1 1 100%; order: 2; justify-content: center; min-height: 44px; }
   .toolbar .tb-sec { flex: 1 1 calc(50% - 4px); order: 3; justify-content: center; margin-left: 0 !important; }
   .grupo-info-sec { display: none; }
@@ -576,3 +578,15 @@ input[type='checkbox'] { width: auto; min-height: 0; accent-color: var(--brand);
 @media (max-width: 380px) { .nav-mes-nome { min-width: 96px; font-size: 18px; } }
 /* Último KPI sozinho na linha ocupa a largura toda */
 @media (max-width: 600px) { .metric-grid .metric:last-child:nth-child(odd) { grid-column: 1 / -1; } }
+
+.renda-hero { margin-bottom: 14px; }
+.renda-hero.neg .ini-hero-valor { font-size: 26px; color: var(--amber); }
+.renda-acoes { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+@media (max-width: 600px) { .renda-acoes .btn { flex: 1 1 100%; justify-content: center; min-height: 44px; } }
+@media (min-width: 1100px) {
+  .tabela-fixos th:nth-child(2) { width: 130px; }
+  .tabela-fixos th:nth-child(3) { width: 190px; }
+  .tabela-fixos th:nth-child(4) { width: 200px; }
+  .tabela-fixos th:nth-child(5) { width: 100px; }
+  .tabela-fixos th:nth-child(6) { width: 260px; }
+}
