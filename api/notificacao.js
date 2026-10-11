@@ -5,6 +5,10 @@ import { criarDb } from './_lib/db.js'
 import { criarTelegram } from './_lib/telegramApi.js'
 import { lancarNotificacao } from './_lib/bot.js'
 import { hashToken } from './_lib/tokenAndroid.js'
+import { lerCorpo } from './_lib/corpoNotificacao.js'
+
+// Corpo lido aqui (tolerante a aspas no texto da notificação), não pela plataforma.
+export const config = { api: { bodyParser: false } }
 
 const corte = (v, n) => String(v ?? '').slice(0, n)
 
@@ -12,8 +16,7 @@ export default async function handler(req, res, deps = {}) {
   if (req.method !== 'POST') return res.status(405).end()
   const amb = lerAmbiente()
   if (amb.faltando.length) return res.status(503).json({ ok: false })
-  let corpo = req.body
-  if (typeof corpo === 'string') { try { corpo = JSON.parse(corpo) } catch { corpo = null } }
+  const corpo = await lerCorpo(req)
   if (!corpo || typeof corpo !== 'object') return res.status(400).json({ ok: false, erro: 'corpo inválido' })
   // O MacroDroid nem sempre deixa mexer no cabeçalho: o token também pode ir no corpo.
   const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim() || String(req.headers['x-token'] || corpo.token || '').trim()
