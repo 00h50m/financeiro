@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import Secao from './Secao'
 
 export default function Categorias({ store }) {
   const {
@@ -11,6 +12,8 @@ export default function Categorias({ store }) {
   const [novaSub, setNovaSub] = useState({})
   const [saving, setSaving] = useState(false)
   const [migracao, setMigracao] = useState(null)
+  const [busca, setBusca] = useState('')
+  const [abertas, setAbertas] = useState({}) // categoria → aberta (começam recolhidas: visão geral primeiro)
 
   function contarUsoCategoria(nome) {
     return compras.filter((c) => c.categoria === nome).length + fixos.filter((f) => f.categoria === nome).length
@@ -111,6 +114,12 @@ export default function Categorias({ store }) {
     setMigracao(null)
   }
 
+  const termo = busca.trim().toLowerCase()
+  const visiveis = termo
+    ? categorias.filter((c) => c.nome.toLowerCase().includes(termo) || c.subcategorias.some((x) => x.toLowerCase().includes(termo)))
+    : categorias
+  const todasAbertas = visiveis.length > 0 && visiveis.every((c) => abertas[c.id] ?? !!termo)
+
   return (
     <div className="page">
       {migracao && (
@@ -147,67 +156,77 @@ export default function Categorias({ store }) {
         </div>
       )}
 
-      <div className="alert alert-blue">
-        Categorias e subcategorias usadas ao lançar compras, fixos e ao importar faturas. Renomear atualiza
-        automaticamente os registros já lançados com o nome antigo. Remover uma categoria ou subcategoria que já
-        tem movimentações pede para você escolher para onde elas vão antes — nenhum registro fica órfão.
-      </div>
+      <details className="ajuda-rec">
+        <summary>Como funciona</summary>
+        <p>Categorias e subcategorias usadas ao lançar compras, fixos e ao importar faturas. Renomear atualiza automaticamente os registros já lançados com o nome antigo. Remover uma categoria ou subcategoria que já tem movimentações pede para você escolher para onde elas vão antes — nenhum registro fica órfão.</p>
+      </details>
 
-      <div className="toolbar">
+      <div className="cad-novo">
         <input
-          placeholder="Nova categoria..."
+          placeholder="Nome da nova categoria"
           value={novoNome}
           onChange={(e) => setNovoNome(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && criarCategoria()}
-          style={{ maxWidth: 260 }}
         />
-        <button className="btn btn-primary" onClick={criarCategoria} disabled={!novoNome.trim() || saving}>
-          + Nova categoria
-        </button>
+        <button className="btn btn-primary" onClick={criarCategoria} disabled={!novoNome.trim() || saving}>+ Nova categoria</button>
       </div>
+
+      {categorias.length > 0 && (
+        <div className="cad-barra">
+          <input type="search" placeholder="Buscar categoria ou subcategoria" value={busca} onChange={(e) => setBusca(e.target.value)} aria-label="Buscar categoria ou subcategoria" />
+          <button className="link-btn" onClick={() => setAbertas(Object.fromEntries(categorias.map((c) => [c.id, !todasAbertas])))}>{todasAbertas ? 'Recolher todas' : 'Expandir todas'}</button>
+        </div>
+      )}
 
       {categorias.length === 0 ? (
         <div className="empty">
           Nenhuma categoria cadastrada.{'\n'}Crie a primeira categoria acima para poder lançar compras.
         </div>
+      ) : visiveis.length === 0 ? (
+        <div className="empty">Nenhuma categoria com esse termo.</div>
       ) : (
-        categorias.map((cat) => (
-          <div key={cat.id} className="card" style={{ padding: 16 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-              <span style={{ fontWeight: 500, fontSize: 14 }}>{cat.nome}</span>
-              <button className="btn btn-ghost btn-sm" onClick={() => renomear(cat)}>renomear</button>
-              <button className="btn btn-danger" style={{ marginLeft: 'auto' }} onClick={() => remover(cat)}>×</button>
-            </div>
+        visiveis.map((cat) => {
+          const uso = contarUsoCategoria(cat.nome)
+          const aberta = abertas[cat.id] ?? !!busca.trim()
+          return (
+            <Secao key={cat.id} titulo={cat.nome} infoSempre info={`${cat.subcategorias.length} ${cat.subcategorias.length === 1 ? 'subcategoria' : 'subcategorias'} · ${uso} ${uso === 1 ? 'uso' : 'usos'}`} aberto={aberta} onToggle={() => setAbertas((m) => ({ ...m, [cat.id]: !aberta }))}>
+              <div style={{ padding: '4px 16px 16px', borderTop: '1px solid var(--border)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '12px 0' }}>
+                  <button className="btn btn-ghost btn-sm" onClick={() => renomear(cat)}>Renomear categoria</button>
+                  <button className="btn btn-danger" style={{ marginLeft: 'auto' }} onClick={() => remover(cat)} aria-label={`Remover ${cat.nome}`}>×</button>
+                </div>
 
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
-              {cat.subcategorias.length === 0 && (
-                <span style={{ fontSize: 12, color: 'var(--text3)' }}>Nenhuma subcategoria ainda.</span>
-              )}
-              {cat.subcategorias.map((sub) => (
-                <span key={sub} className="badge badge-gray" style={{ paddingRight: 6 }}>
-                  <span style={{ cursor: 'pointer' }} onClick={() => renomearSub(cat, sub)} title="Clique para renomear">
-                    {sub}
-                  </span>
-                  <button
-                    onClick={() => removerSub(cat, sub)}
-                    title="Remover subcategoria"
-                    style={{ background: 'transparent', color: 'var(--text3)', padding: '0 0 0 6px', marginLeft: 2, fontSize: 13, lineHeight: 1 }}
-                  >×</button>
-                </span>
-              ))}
-            </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+                  {cat.subcategorias.length === 0 && (
+                    <span style={{ fontSize: 12, color: 'var(--text3)' }}>Nenhuma subcategoria ainda.</span>
+                  )}
+                  {cat.subcategorias.map((sub) => (
+                    <span key={sub} className="badge badge-gray" style={{ paddingRight: 6 }}>
+                      <span style={{ cursor: 'pointer' }} onClick={() => renomearSub(cat, sub)} title="Clique para renomear">
+                        {sub}
+                      </span>
+                      <button
+                        onClick={() => removerSub(cat, sub)}
+                        title="Remover subcategoria"
+                        style={{ background: 'transparent', color: 'var(--text3)', padding: '0 0 0 6px', marginLeft: 2, fontSize: 13, lineHeight: 1 }}
+                      >×</button>
+                    </span>
+                  ))}
+                </div>
 
-            <div style={{ display: 'flex', gap: 8, maxWidth: 320 }}>
-              <input
-                placeholder="Nova subcategoria..."
-                value={novaSub[cat.id] || ''}
-                onChange={(e) => setNovaSub((p) => ({ ...p, [cat.id]: e.target.value }))}
-                onKeyDown={(e) => e.key === 'Enter' && adicionarSub(cat)}
-              />
-              <button className="btn btn-ghost btn-sm" onClick={() => adicionarSub(cat)}>+ Adicionar</button>
-            </div>
-          </div>
-        ))
+                <div className="cad-novo" style={{ margin: 0 }}>
+                  <input
+                    placeholder="Nova subcategoria"
+                    value={novaSub[cat.id] || ''}
+                    onChange={(e) => setNovaSub((p) => ({ ...p, [cat.id]: e.target.value }))}
+                    onKeyDown={(e) => e.key === 'Enter' && adicionarSub(cat)}
+                  />
+                  <button className="btn btn-ghost btn-sm" onClick={() => adicionarSub(cat)}>+ Adicionar</button>
+                </div>
+              </div>
+            </Secao>
+          )
+        })
       )}
     </div>
   )

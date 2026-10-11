@@ -44,6 +44,10 @@ export default function Cartoes({ store }) {
     if (confirm(`Remover "${c.nome}"?${aviso}`)) delCartao(c.id)
   }
 
+  const comLimite = cartoes.filter((c) => Number(c.limite) > 0)
+  const limiteTotal = comLimite.reduce((t, c) => t + Number(c.limite), 0)
+  const usadoTotal = comLimite.reduce((t, c) => t + limiteUsado(c.id, compras, cartoes, faturas, mes, store.fixos).usado, 0)
+
   function renderLimite(c) {
     const limite = Number(c.limite) || 0
     if (!limite) return <span style={{ fontSize: 12, color: 'var(--text3)' }}>não informado</span>
@@ -118,55 +122,41 @@ export default function Cartoes({ store }) {
         </div>
       )}
 
-      <div style={{ marginBottom: 16 }}>
-        <button className="btn btn-primary" onClick={() => abrir(null)}>+ Novo cartão</button>
+      <div className="cad-topo">
+        <div className="cad-resumo">
+          {cartoes.length > 0 && <span><b>{cartoes.length}</b> {cartoes.length === 1 ? 'cartão' : 'cartões'}</span>}
+          {limiteTotal > 0 && <span>Limite total <b className="mono">{fmtK(limiteTotal)}</b> · em uso <b className="mono">{fmtK(usadoTotal)}</b></span>}
+        </div>
+        <button className="btn btn-primary tb-primario" onClick={() => abrir(null)}>+ Novo cartão</button>
       </div>
 
-      <div className="card">
-        {cartoes.length === 0 ? (
+      {cartoes.length === 0 ? (
+        <div className="card">
           <div className="empty">
             Nenhum cartão cadastrado.{'\n'}Comece adicionando seus cartões — eles são necessários para registrar compras.
           </div>
-        ) : (
-          <table className="tabela-compacta">
-            <thead>
-              <tr>
-                <th>Nome</th>
-                <th className="col-opc">Titular</th>
-                <th className="col-opc" style={{ textAlign: 'center' }}>Fechamento</th>
-                <th className="col-opc" style={{ textAlign: 'center' }}>Vencimento</th>
-                <th style={{ minWidth: 160 }}>Limite</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {cartoes.map((c) => (
-                <tr key={c.id}>
-                  <td className="nome-cel" style={{ fontWeight: 500 }}>
-                    {c.nome}
-                    <div className="so-mobile">{c.titular} · fecha {c.fechamento ? `dia ${c.fechamento}` : '—'} · vence {c.vencimento ? `dia ${c.vencimento}` : '—'}</div>
-                  </td>
-                  <td className="col-opc">
-                    <span className={`badge badge-${corPessoa(pessoas, c.titular)}`}>
-                      {c.titular}
-                    </span>
-                  </td>
-                  <td className="col-opc" style={{ textAlign: 'center', fontFamily: 'DM Mono' }}>{c.fechamento ? `dia ${c.fechamento}` : '—'}</td>
-                  <td className="col-opc" style={{ textAlign: 'center', fontFamily: 'DM Mono' }}>{c.vencimento ? `dia ${c.vencimento}` : '—'}</td>
-                  <td>{renderLimite(c)}</td>
-                  <td className="acoes-cel" style={{ display: 'flex', gap: 6 }}>
-                    <button className="btn btn-ghost btn-sm" onClick={() => abrir(c)}>Editar</button>
-                    <button
-                      className="btn btn-danger"
-                      onClick={() => remover(c)}
-                    >×</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+        </div>
+      ) : (
+        <div className="cad-grade">
+          {cartoes.map((c) => (
+            <article key={c.id} className="cad-tile">
+              <div className="cad-tile-topo">
+                <div className="cad-tile-nome">{c.nome}</div>
+                <span className={`badge badge-${corPessoa(pessoas, c.titular)}`}>{c.titular}</span>
+              </div>
+              <div className="cad-tile-datas">
+                <span>Fecha <b>{c.fechamento ? `dia ${c.fechamento}` : '—'}</b></span>
+                <span>Vence <b>{c.vencimento ? `dia ${c.vencimento}` : '—'}</b></span>
+              </div>
+              <div className="cad-tile-limite">{renderLimite(c)}</div>
+              <div className="cad-tile-acoes">
+                <button className="btn btn-ghost btn-sm" onClick={() => abrir(c)}>Editar</button>
+                <button className="btn btn-danger" onClick={() => remover(c)} aria-label={`Remover ${c.nome}`}>×</button>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

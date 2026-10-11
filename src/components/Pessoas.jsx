@@ -40,65 +40,59 @@ export default function Pessoas({ store }) {
     }
   }
 
+  const usoDe = (p) => ({
+    compras: compras.filter((c) => c.pessoa === p.nome).length,
+    fixos: fixos.filter((f) => f.pessoa === p.nome).length,
+    telegram: (integracoesTelegram || []).some((i) => i.pessoa_id === p.id),
+  })
+
   return (
     <div className="page">
-      <div className="alert alert-blue">
-        Pessoas usadas em Compras, Fixos e Cartões (titular). Renomear atualiza automaticamente os registros já
-        lançados com o nome antigo; remover só tira da lista de opções — registros antigos mantêm o texto que já
-        tinham.
-      </div>
+      <details className="ajuda-rec">
+        <summary>Como funciona</summary>
+        <p>Pessoas usadas em Compras, Fixos e Cartões (titular). Renomear atualiza automaticamente os registros já lançados com o nome antigo; remover só tira da lista de opções — registros antigos mantêm o texto que já tinham.</p>
+      </details>
 
-      <div className="toolbar">
+      <div className="cad-novo">
         <input
-          placeholder="Nova pessoa..."
+          placeholder="Nome da nova pessoa"
           value={novoNome}
           onChange={(e) => setNovoNome(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && criar()}
-          style={{ maxWidth: 260 }}
         />
-        <button className="btn btn-primary" onClick={criar} disabled={!novoNome.trim() || saving}>
-          + Nova pessoa
-        </button>
+        <button className="btn btn-primary" onClick={criar} disabled={!novoNome.trim() || saving}>+ Nova pessoa</button>
       </div>
 
-      <div className="card">
-        {pessoas.length === 0 ? (
-          <div className="empty">Nenhuma pessoa cadastrada.{'\n'}Crie a primeira acima para poder lançar compras e fixos.</div>
-        ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>Nome</th>
-                <th>Cor</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {pessoas.map((p) => (
-                <tr key={p.id}>
-                  <td>
-                    <span className={`badge badge-${p.cor}`} style={{ cursor: 'pointer' }} onClick={() => renomear(p)} title="Clique para renomear">
-                      {p.nome}
-                    </span>
-                  </td>
-                  <td>
-                    <select
-                      value={p.cor}
-                      onChange={(e) => mudarCorPessoa(p.id, e.target.value)}
-                      style={{ width: 120 }}
-                    >
-                      {CORES_PESSOA.map((c) => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                  </td>
-                  <td>
-                    <button className="btn btn-danger" onClick={() => remover(p)}>×</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      {pessoas.length === 0 ? (
+        <div className="card"><div className="empty">Nenhuma pessoa cadastrada.{'\n'}Crie a primeira acima para poder lançar compras e fixos.</div></div>
+      ) : (
+        <div className="cad-grade">
+          {pessoas.map((p) => {
+            const u = usoDe(p)
+            return (
+              <article key={p.id} className="cad-tile">
+                <div className="cad-tile-topo">
+                  <span className={`cad-avatar badge-${p.cor}`} aria-hidden="true">{p.nome.trim().slice(0, 1).toUpperCase()}</span>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div className="cad-tile-nome">{p.nome}</div>
+                    <div className="cad-sub">{u.compras} {u.compras === 1 ? 'compra' : 'compras'} · {u.fixos} {u.fixos === 1 ? 'conta fixa' : 'contas fixas'}</div>
+                  </div>
+                  {u.telegram && <span className="badge badge-blue" title="Esta pessoa conversa com o bot no Telegram">Telegram</span>}
+                </div>
+                <div className="cad-cores" role="group" aria-label={`Cor de ${p.nome}`}>
+                  {CORES_PESSOA.map((c) => (
+                    <button key={c} className={`cad-cor badge-${c} ${p.cor === c ? 'sel' : ''}`} onClick={() => mudarCorPessoa(p.id, c)} aria-label={`Cor ${c}`} aria-pressed={p.cor === c} />
+                  ))}
+                </div>
+                <div className="cad-tile-acoes">
+                  <button className="btn btn-ghost btn-sm" onClick={() => renomear(p)}>Renomear</button>
+                  <button className="btn btn-danger" onClick={() => remover(p)} aria-label={`Remover ${p.nome}`}>×</button>
+                </div>
+              </article>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
