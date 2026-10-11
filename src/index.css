@@ -590,3 +590,38 @@ input[type='checkbox'] { width: auto; min-height: 0; accent-color: var(--brand);
   .tabela-fixos th:nth-child(5) { width: 100px; }
   .tabela-fixos th:nth-child(6) { width: 260px; }
 }
+
+/* Renda sazonal */
+.rs { margin-top: 18px; }
+.rs-corpo { padding: 4px 16px 16px; }
+.rs-ajuda { font-size: 12px; color: var(--text2); line-height: 1.6; margin-bottom: 12px; }
+.rs-ajuda b { color: var(--text); font-weight: 500; }
+.rs-fonte { margin-bottom: 14px; }
+.rs-fonte-nome { font-size: 13px; font-weight: 500; margin-bottom: 6px; }
+.rs-chips { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+@media (min-width: 700px) { .rs-chips { grid-template-columns: repeat(12, 1fr); } }
+.rs-chip { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 7px 2px; border-radius: 10px; font-size: 11px; background: var(--bg3); border: 1px solid var(--border); color: var(--text2); min-height: 48px; }
+.rs-chip b { font-size: 12px; font-weight: 600; color: var(--text); }
+.rs-chip.menos { background: var(--amber-bg); border-color: var(--amber-border); }
+.rs-chip.fraco { background: #3a2a0c; border-color: var(--amber); }
+.rs-chip.zero { background: var(--red-bg); border-color: var(--red-border); }
+.rs-chip.zero b { color: var(--red); }
+.rs-chip:disabled { opacity: .5; }
+.rs-barras { display: flex; align-items: flex-end; gap: 5px; height: 130px; }
+.rs-mes { flex: 1; min-width: 0; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; border-radius: 8px; padding: 0 1px; }
+.rs-mes.neg { background: var(--red-bg); }
+.rs-par { flex: 1; display: flex; align-items: flex-end; gap: 2px; min-height: 0; }
+.rs-b { flex: 1; border-radius: 3px 3px 0 0; min-height: 2px; }
+.rs-b.renda { background: var(--green); }
+.rs-b.comp { background: var(--amber); }
+.rs-mes-nome { font-size: 10px; color: var(--text3); text-align: center; margin-top: 4px; }
+.rs-lg { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 5px; }
+.rs-lg.renda { background: var(--green); } .rs-lg.comp { background: var(--amber); } .rs-lg.neg { background: var(--red-bg); border: 1px solid var(--red-border); }
+.rs-prev { font-size: 10px; color: var(--text3); }
+.rs-plano p { font-size: 13px; color: var(--text2); line-height: 1.6; margin-bottom: 10px; }
+.rs-plano b { color: var(--text); }
+.rs-destaque { background: var(--bg3); border: 1px solid var(--border2); border-radius: 12px; padding: 12px 14px; color: var(--text) !important; }
+.rs-destaque.ruim, .rs-aviso { color: var(--amber) !important; }
+.rs-janela { border-top: 1px solid var(--border); padding-top: 12px; margin-top: 12px; }
+.rs-janela-tit { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+.rs-janela-tit span { font-weight: 400; color: var(--text2); }
