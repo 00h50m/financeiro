@@ -1,7 +1,7 @@
 // Renda que muda ao longo do ano (professora que não recebe nas férias, aulas particulares fracas em certos meses...).
 // Cada fonte de renda (campo da tabela rendas) tem um fator por mês do ano: 1 = normal, 0,4 = fraco, 0 = não recebe.
 import { RENDA_CAMPOS, totalRenda, addMonths } from './utils.js'
-import { detalhePagamentos } from './financeiro.js'
+import { detalhePagamentos, rendaDoMes } from './financeiro.js'
 
 // Valores que o toque na tela alterna: normal → um pouco menos → fraco → nada.
 export const FATORES = [1, 0.7, 0.4, 0]
@@ -106,4 +106,24 @@ export function planoDeReserva(meses, reservaAtual = 0) {
     sobraAntes: primeira.sobraAntes,
     cobreComSobras: primeira.cobreComSobras,
   }
+}
+
+// Renda de um mês para simulações. Sem meses fracos marcados, mantém o comportamento antigo (repete a última renda
+// cadastrada); com meses fracos, usa a renda prevista de cada fonte.
+export function rendaProjetada(rendas, perfil, mes) {
+  if (!temPerfil(perfil)) return rendaDoMes(rendas, mes, { estimar: true })
+  const r = rendaPrevista(rendas, perfil, mes)
+  return { valor: r.valor, estimada: r.estimada }
+}
+
+// Em quantos meses (a partir do primeiro de `meses`) o que sobra junta `falta`. Mês no vermelho conta como retirada.
+// Devolve null se não chega dentro dos meses projetados.
+export function mesesParaJuntar(meses, falta) {
+  if (!(falta > 0)) return 0
+  let acum = 0
+  for (let i = 0; i < meses.length; i++) {
+    acum += meses[i].sobra
+    if (acum + 0.005 >= falta) return i + 1
+  }
+  return null
 }

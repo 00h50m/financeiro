@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import Secao from './Secao'
+import { useProjecaoSazonal } from './RendaSazonal'
+import { mesesParaJuntar } from '../lib/rendaSazonal'
 import { fmt, fmtK, hojeSP, mesLabel } from '../lib/utils'
 import { detalhePagamentos } from '../lib/financeiro'
 import { situacaoDaMeta, saldoMeta, movimentosDaMeta, valorComSinal, deltaParaSaldo, mesesParaAlvo } from '../lib/metas'
@@ -57,14 +59,14 @@ function Movimento({ meta, store, onFechar }) {
   )
 }
 
-function CartaoMeta({ meta, store, custos, sobraMensal }) {
+function CartaoMeta({ meta, store, custos, sobraMensal, sazonal }) {
   const { metasMovimentos, updateMeta, delMovimentoMeta } = store
   const [abrir, setAbrir] = useState(false)
   const [historico, setHistorico] = useState(false)
   const hoje = hojeSP()
   const s = situacaoDaMeta(meta, metasMovimentos, custos, hoje)
   const movs = movimentosDaMeta(metasMovimentos, meta.id)
-  const meses = mesesParaAlvo(s.falta, sobraMensal)
+  const meses = sazonal?.ativo ? mesesParaJuntar(sazonal.meses, s.falta) : mesesParaAlvo(s.falta, sobraMensal)
 
   return (
     <div className="card" style={{ padding: 16, marginBottom: 0, opacity: meta.ativa === false ? 0.6 : 1 }}>
@@ -85,7 +87,7 @@ function CartaoMeta({ meta, store, custos, sobraMensal }) {
         {s.alvo > 0 && !s.atingida && <>Faltam <strong>{fmt(s.falta)}</strong>.</>}
         {meta.prazo && !s.atingida && !s.prazoVencido && s.porMesNecessario != null && <> Para chegar até {dataFmt(meta.prazo)}, guarde cerca de <strong>{fmt(s.porMesNecessario)}</strong> por mês.</>}
         {s.prazoVencido && <> O prazo ({dataFmt(meta.prazo)}) já passou.</>}
-        {!meta.prazo && s.falta > 0 && meses != null && <> Guardando toda a sobra mensal ({fmtK(sobraMensal)}), chega em cerca de {meses} {meses === 1 ? 'mês' : 'meses'}.</>}
+        {!meta.prazo && s.falta > 0 && meses != null && <> {sazonal?.ativo ? <>Guardando toda a sobra, considerando os meses fracos da renda, chega em cerca de {meses} {meses === 1 ? 'mês' : 'meses'}.</> : <>Guardando toda a sobra mensal ({fmtK(sobraMensal)}), chega em cerca de {meses} {meses === 1 ? 'mês' : 'meses'}.</>}</>}
         {s.atingida && ' Meta batida. 🎉'}
       </div>
       <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
@@ -128,6 +130,7 @@ export default function Metas({ store }) {
   const [prio, setPrio] = useState(2)
   const [criando, setCriando] = useState(false)
   const [novaAberta, setNovaAberta] = useState(false)
+  const sazonal = useProjecaoSazonal(store, 36)
 
   if (!metasOk) {
     return (
@@ -165,7 +168,7 @@ export default function Metas({ store }) {
         <button className="btn btn-primary tb-primario" onClick={() => setNovaAberta(true)}>+ Nova meta</button>
       </div>
       <div className="metas-grade">
-        {ordenadas.map((m) => <CartaoMeta key={m.id} meta={m} store={store} custos={custos} sobraMensal={sobraMensal} />)}
+        {ordenadas.map((m) => <CartaoMeta key={m.id} meta={m} store={store} custos={custos} sobraMensal={sobraMensal} sazonal={sazonal} />)}
       </div>
 
       <Secao titulo="Nova meta" aberto={novaAberta} onToggle={() => setNovaAberta((v) => !v)}>

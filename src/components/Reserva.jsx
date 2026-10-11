@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import Secao from './Secao'
+import { useProjecaoSazonal } from './RendaSazonal'
+import { mesesParaJuntar } from '../lib/rendaSazonal'
 import { fmt, fmtK, nowYM, hojeSP } from '../lib/utils'
 import { detalhePagamentos, rendaDoMes } from '../lib/financeiro'
 import { saldoMeta, deltaParaSaldo } from '../lib/metas'
@@ -26,6 +28,7 @@ export default function Reserva({ store }) {
   const [salvando, setSalvando] = useState(false)
   const [sec, setSec] = useState({ prog: true, atual: true })
   const alt = (k) => () => setSec((m) => ({ ...m, [k]: !m[k] }))
+  const sazonal = useProjecaoSazonal(store, 36) // antes do return antecipado (regra dos hooks)
 
   if (!configOk && !metaReserva) {
     return (
@@ -55,6 +58,8 @@ export default function Reserva({ store }) {
   const rendaRef = rendaDoMes(rendas, mes, { estimar: true }).valor
   const sobraMensal = rendaRef - custoTotal
   const mesesParaMeta = falta > 0 && sobraMensal > 0 ? Math.ceil(falta / sobraMensal) : 0
+  // Com meses fracos marcados na Renda, o ritmo real muda ao longo do ano: junta mês a mês, e o mês no vermelho conta como retirada.
+  const mesesSazonal = sazonal.ativo && falta > 0 ? mesesParaJuntar(sazonal.meses, falta) : null
 
   let status = { badge: 'badge-gray', texto: 'Sem reserva informada' }
   if (guardado > 0) {
@@ -122,9 +127,13 @@ export default function Reserva({ store }) {
           {meta > 0 && guardado < meta && (
             <>
               Faltam <strong>{fmt(falta)}</strong> para cobrir {metaMeses} meses ({BASES[base].toLowerCase()}).
-              {sobraMensal > 0
-                ? <> Com a sobra de <strong>{fmtK(sobraMensal)}</strong> por mês (renda − compromisso), você chega lá em cerca de <strong>{mesesParaMeta} {mesesParaMeta === 1 ? 'mês' : 'meses'}</strong> se guardar toda a sobra.</>
-                : ' Neste momento não há sobra mensal para guardar — revise o orçamento para abrir espaço.'}
+              {sazonal.ativo && mesesSazonal != null
+                ? <> Guardando toda a sobra e <strong>considerando os meses fracos da renda</strong> (férias, aulas fracas), você chega lá em cerca de <strong>{mesesSazonal} {mesesSazonal === 1 ? 'mês' : 'meses'}</strong>. Mês no vermelho conta como retirada da reserva.</>
+                : sazonal.ativo
+                  ? <> Considerando os meses fracos da renda, só guardando a sobra não dá para chegar lá nos próximos 3 anos — vale rever gastos ou aumentar a renda.</>
+                  : sobraMensal > 0
+                    ? <> Com a sobra de <strong>{fmtK(sobraMensal)}</strong> por mês (renda − compromisso), você chega lá em cerca de <strong>{mesesParaMeta} {mesesParaMeta === 1 ? 'mês' : 'meses'}</strong> se guardar toda a sobra.</>
+                    : ' Neste momento não há sobra mensal para guardar — revise o orçamento para abrir espaço.'}
             </>
           )}
         </div>
