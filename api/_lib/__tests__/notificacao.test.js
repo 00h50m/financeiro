@@ -108,3 +108,48 @@ describe('/android e a rota de notificação', () => {
     expect((await chamar(token, { app: 'Nubank' })).code).toBe(400)
   })
 })
+
+import { lerCorpoTexto, lerCorpo } from '../corpoNotificacao.js'
+
+describe('corpo tolerante', () => {
+  it('JSON válido segue igual', () => {
+    expect(lerCorpoTexto('{"token":"fin_a","app":"Nubank","titulo":"T","texto":"Compra de R$ 10,00"}')).toMatchObject({ token: 'fin_a', app: 'Nubank', texto: 'Compra de R$ 10,00' })
+  })
+  it('aspas dentro do texto não derrubam a leitura', () => {
+    const r = lerCorpoTexto(String.raw`{"token":"fin_a","app":"Nubank","titulo":"Compra \"aprovada\"","texto":"Compra de R$ 19,90 em "BAR DO ZE" aprovada"}`)
+    expect(r.token).toBe('fin_a')
+    expect(r.app).toBe('Nubank')
+    expect(r.texto).toBe('Compra de R$ 19,90 em "BAR DO ZE" aprovada')
+  })
+  it('aspas não escapadas também no título', () => {
+    const r = lerCorpoTexto('{"token":"fin_a","app":"Nubank","titulo":"Compra "aprovada"","texto":"Compra de R$ 5,00 em LOJA"}')
+    expect(r.titulo).toBe('Compra "aprovada"')
+    expect(r.texto).toBe('Compra de R$ 5,00 em LOJA')
+  })
+  it('texto simples chave: valor, com várias linhas no texto', () => {
+    const r = lerCorpoTexto('token: fin_a\napp: Nubank\ntitulo: Compra aprovada\ntexto: Compra de R$ 19,90 em LOJA\npara o cartão final 9017')
+    expect(r).toMatchObject({ token: 'fin_a', app: 'Nubank' })
+    expect(r.texto).toBe('Compra de R$ 19,90 em LOJA\npara o cartão final 9017')
+  })
+  it('lixo sem campos devolve null', () => {
+    expect(lerCorpoTexto('olá')).toBeNull()
+    expect(lerCorpoTexto('')).toBeNull()
+  })
+  it('lê do fluxo quando a plataforma não interpretou o corpo', async () => {
+    const handlers = {}
+    const req = { on: (ev, f) => { handlers[ev] = f } }
+    const p = lerCorpo(req)
+    handlers.data('{"token":"fin_a","app":"Nubank","texto":"Compra de R$ 3,00 em "X""}')
+    handlers.end()
+    expect(await p).toMatchObject({ token: 'fin_a', texto: 'Compra de R$ 3,00 em "X"' })
+  })
+  it('a rota aceita o corpo com aspas soltas (token no corpo)', async () => {
+    const db = criarFakeDb(); const tg = criarFakeTg()
+    const token = 'fin_tolerante'
+    await db.criarDispositivo({ pessoa_id: pessoas[0].id, nome: 'Celular', token_hash: await hashToken(token) })
+    const resp = { status(c) { this.code = c; return this }, json(b) { this.body = b; return this }, end() { return this } }
+    await handler({ method: 'POST', headers: {}, body: `{"token":"${token}","app":"Nubank","titulo":"Compra","texto":"Compra de R$ 19,90 APROVADA em "BAR DO ZE" para o cartão com final 9017."}` }, resp, { db, tg })
+    expect(resp.code).not.toBe(400)
+    expect(resp.code).not.toBe(401)
+  })
+})

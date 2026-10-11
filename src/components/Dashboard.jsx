@@ -6,10 +6,15 @@ import { comprasLiquidas, fixosLiquidos } from '../lib/divisoes'
 import { riscosDoMes, mesFechado } from '../lib/fechamento'
 import { pendenciasValorVariavel } from '../lib/fixosVariaveis'
 import { montarResumoMensal, textoDoResumo } from '../lib/resumoMensal'
+import Secao from './Secao'
+import NavMes from './NavMes'
 
 export default function Dashboard({ store, irPara }) {
   const { compras, cartoes, fixos, pessoas, orcamentos } = store
-  const mes = nowYM()
+  const [mes, setMes] = useState(nowYM())
+  const [secoes, setSecoes] = useState({ pessoa: false, proj: false }) // seção → aberta (sem valor: aberta)
+  const aberta = (k) => secoes[k] !== false && (secoes[k] === true || !(k in { pessoa: 1, proj: 1 }))
+  const alt = (k) => () => setSecoes((m) => ({ ...m, [k]: !aberta(k) }))
   const [abertas, setAbertas] = useState({})
   const [resumo, setResumo] = useState(null) // resumo do mês (modal): dados estruturados
   const [copiado, setCopiado] = useState(false)
@@ -117,9 +122,9 @@ export default function Dashboard({ store, irPara }) {
         </div>
       )}
 
-      <div className="section-label" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <span>{mesLabel(mes)} · central do mês{fechadoAtual ? ' · fechado' : ''}</span>
-        <button className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto', textTransform: 'none', letterSpacing: 0 }} onClick={() => setResumo(montarResumoMensal(store, mes, hojeSP()))}>Resumo do mês</button>
+      <div className="pag-topo">
+        <NavMes mes={mes} onChange={setMes} fechado={fechadoAtual} />
+        <button className="btn btn-ghost btn-sm" onClick={() => setResumo(montarResumoMensal(store, mes, hojeSP()))}>Resumo do mês</button>
       </div>
 
       <div className="metric-grid">
@@ -166,9 +171,8 @@ export default function Dashboard({ store, irPara }) {
       </div>
 
       {riscos.length > 0 && (
-        <>
-          <div className="section-label">atenção neste mês</div>
-          <div className="card" style={{ padding: '4px 14px' }}>
+        <Secao titulo="Atenção neste mês" info={`${riscos.length} ${riscos.length === 1 ? 'ponto' : 'pontos'}`} aberto={aberta('riscos')} onToggle={alt('riscos')}>
+          <div style={{ padding: '4px 14px', borderTop: '1px solid var(--border)' }}>
             {riscos.map((r) => (
               <div key={r.texto} style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
                 <span className={`badge ${r.nivel === 'alto' ? 'badge-red' : 'badge-amber'}`}>{r.nivel === 'alto' ? 'Alto' : 'Médio'}</span>
@@ -177,11 +181,10 @@ export default function Dashboard({ store, irPara }) {
               </div>
             ))}
           </div>
-        </>
+        </Secao>
       )}
 
-      <div className="section-label">distribuição por pessoa · {mesLabel(mes)}</div>
-      <div className="card">
+      <Secao titulo="Distribuição por pessoa" info={mesLabel(mes)} destaque={fmt(totalParc + totalFixos)} aberto={aberta('pessoa')} onToggle={alt('pessoa')}>
         <table className="tabela-compacta">
           <thead>
             <tr>
@@ -226,7 +229,7 @@ export default function Dashboard({ store, irPara }) {
             </tr>
           </tbody>
         </table>
-      </div>
+      </Secao>
 
       {pendenciasVariaveis.length > 0 && (
         <div className="alert alert-amber" style={{ marginTop: 20 }}>
@@ -251,8 +254,7 @@ export default function Dashboard({ store, irPara }) {
         </div>
       )}
 
-      <div className="section-label">gastos por categoria · {mesLabel(mes)}</div>
-      <div className="card">
+      <Secao titulo="Gastos por categoria" info={mesLabel(mes)} destaque={fmt(totalMes)} aberto={aberta('cat')} onToggle={alt('cat')}>
         {porCategoria.length === 0 ? (
           <div className="empty">Nenhum gasto categorizado em {mesLabel(mes)} ainda.</div>
         ) : (
@@ -291,7 +293,7 @@ export default function Dashboard({ store, irPara }) {
                           </div>
                         </div>
                       </td>
-                      <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(total)}</td>
+                      <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13, whiteSpace: 'nowrap' }}>{fmt(total)}</td>
                       <td style={{ textAlign: 'right', fontSize: 12, whiteSpace: 'nowrap' }}>
                         {(() => {
                           const ant = anteriorPorCategoria[categoria]?.total || 0
@@ -357,10 +359,9 @@ export default function Dashboard({ store, irPara }) {
             </tbody>
           </table>
         )}
-      </div>
+      </Secao>
 
-      <div className="section-label">projeção · próximos 6 meses</div>
-      <div className="card">
+      <Secao titulo="Projeção" info="próximos 6 meses" aberto={aberta('proj')} onToggle={alt('proj')}>
         <table className="tabela-compacta">
           <thead>
             <tr>
@@ -400,7 +401,7 @@ export default function Dashboard({ store, irPara }) {
             ))}
           </tbody>
         </table>
-      </div>
+      </Secao>
     </div>
   )
 }

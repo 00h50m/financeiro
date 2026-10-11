@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react'
-import { fmt, fmtK, mesLabel, nowYM, addMonths } from '../lib/utils'
+import Secao from './Secao'
+import NavMes, { Pilulas } from './NavMes'
+import { fmt, fmtK, mesLabel, nowYM } from '../lib/utils'
 import { serieMensal, comparativos, insights, evolucaoPorCategoria } from '../lib/evolucao'
 
 const Var = ({ v, inverter }) => {
@@ -19,6 +21,9 @@ const ROTULO = { atencao: 'Atenção', bom: 'Bom sinal', info: 'Info' }
 export default function Evolucao({ store }) {
   const [mes, setMes] = useState(nowYM())
   const [campo, setCampo] = useState('despesas')
+  const [sec, setSec] = useState({ doze: false, cats: false}) // seção → aberta (sem valor: aberta)
+  const ab = (k) => sec[k] !== false && (sec[k] === true || !(k in { doze: 1, cats: 1 }))
+  const alt = (k) => () => setSec((m) => ({ ...m, [k]: !ab(k) }))
   const serie = useMemo(() => serieMensal(store, mes, 12), [store, mes])
   const comp = useMemo(() => comparativos(store, mes, campo), [store, mes, campo])
   const obs = useMemo(() => insights(store, mes), [store, mes])
@@ -27,35 +32,32 @@ export default function Evolucao({ store }) {
 
   return (
     <div className="page">
-      <div className="toolbar">
-        <button className="btn btn-ghost btn-sm" onClick={() => setMes(addMonths(mes, -1))}>← Mês anterior</button>
-        <span style={{ fontWeight: 500, fontSize: 14 }}>{mesLabel(mes)}</span>
-        <button className="btn btn-ghost btn-sm" onClick={() => setMes(addMonths(mes, 1))}>Próximo mês →</button>
+      <div className="pag-topo">
+        <NavMes mes={mes} onChange={setMes} />
       </div>
 
-      <div className="section-label">o que observamos · cada item mostra a conta</div>
-      {obs.length === 0 ? (
-        <div className="card" style={{ padding: 16, fontSize: 13, color: 'var(--text3)' }}>Ainda não há dados suficientes para observações neste mês.</div>
-      ) : (
-        <div className="card" style={{ padding: '4px 14px' }}>
-          {obs.map((o) => (
-            <div key={o.id} style={{ padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <span className={`badge ${NIVEL[o.nivel]}`}>{ROTULO[o.nivel]}</span>
-                <span style={{ fontSize: 13 }}>{o.texto}</span>
+      <Secao titulo="O que observamos" info="cada item mostra a conta" aberto={ab('obs')} onToggle={alt('obs')}>
+        {obs.length === 0 ? (
+          <div className="empty">Ainda não há dados suficientes para observações neste mês.</div>
+        ) : (
+          <div style={{ padding: '4px 14px', borderTop: '1px solid var(--border)' }}>
+            {obs.map((o) => (
+              <div key={o.id} style={{ padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <span className={`badge ${NIVEL[o.nivel]}`}>{ROTULO[o.nivel]}</span>
+                  <span style={{ fontSize: 13 }}>{o.texto}</span>
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 4 }}>Por quê: {o.porque}</div>
               </div>
-              <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 4 }}>Por quê: {o.porque}</div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
+      </Secao>
 
-      <div className="section-label">comparação</div>
-      <div className="card" style={{ padding: 16 }}>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
-          {[['despesas', 'Despesas'], ['renda', 'Renda'], ['sobra', 'Sobra']].map(([k, n]) => (
-            <button key={k} className={`btn btn-sm ${campo === k ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setCampo(k)}>{n}</button>
-          ))}
+      <Secao titulo="Comparação" info={mesLabel(mes)} aberto={ab('comp')} onToggle={alt('comp')}>
+      <div style={{ padding: '4px 16px 16px', borderTop: '1px solid var(--border)' }}>
+        <div style={{ margin: '12px 0' }}>
+          <Pilulas rotulo="Comparar" valor={campo} onChange={setCampo} opcoes={[['despesas', 'Despesas'], ['renda', 'Renda'], ['sobra', 'Sobra']]} />
         </div>
         <div style={{ fontSize: 13, marginBottom: 8 }}>{mesLabel(mes)}: <strong className="mono">{fmt(comp.atual)}</strong></div>
         <table>
@@ -71,9 +73,10 @@ export default function Evolucao({ store }) {
         </table>
         <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 8 }}>Percentual só aparece quando a referência é maior que zero. Meses sem dados ficam de fora das médias.</div>
       </div>
+      </Secao>
 
-      <div className="section-label">últimos 12 meses</div>
-      <div className="card" style={{ padding: 16 }}>
+      <Secao titulo="Últimos 12 meses" aberto={ab('doze')} onToggle={alt('doze')}>
+      <div style={{ padding: '4px 16px 16px', borderTop: '1px solid var(--border)' }}>
         <table className="tabela-compacta">
           <thead><tr><th>Mês</th><th style={{ textAlign: 'right' }}>Renda</th><th style={{ textAlign: 'right' }}>Despesas</th><th style={{ textAlign: 'right' }}>Sobra</th><th className="col-opc" style={{ textAlign: 'right' }}>% guardado</th><th className="col-opc">Origem</th></tr></thead>
           <tbody>
@@ -102,9 +105,10 @@ export default function Evolucao({ store }) {
           <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>Verde = renda · Âmbar = despesas</div>
         </div>
       </div>
+      </Secao>
 
-      <div className="section-label">por categoria · {mesLabel(mes)} contra o mês anterior</div>
-      <div className="card" style={{ padding: 16 }}>
+      <Secao titulo="Por categoria" info={`${mesLabel(mes)} contra o mês anterior`} aberto={ab('cats')} onToggle={alt('cats')}>
+      <div style={{ padding: '4px 16px 16px', borderTop: '1px solid var(--border)', overflowX: 'auto' }}>
         <table>
           <thead><tr><th>Categoria</th><th style={{ textAlign: 'right' }}>Este mês</th><th style={{ textAlign: 'right' }}>Anterior</th><th style={{ textAlign: 'right' }}>Variação</th></tr></thead>
           <tbody>
@@ -119,6 +123,7 @@ export default function Evolucao({ store }) {
           </tbody>
         </table>
       </div>
+      </Secao>
     </div>
   )
 }

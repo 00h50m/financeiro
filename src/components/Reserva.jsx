@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import Secao from './Secao'
 import { fmt, fmtK, nowYM, hojeSP } from '../lib/utils'
 import { detalhePagamentos, rendaDoMes } from '../lib/financeiro'
 import { saldoMeta, deltaParaSaldo } from '../lib/metas'
@@ -23,6 +24,8 @@ export default function Reserva({ store }) {
 
   const [valor, setValor] = useState('')
   const [salvando, setSalvando] = useState(false)
+  const [sec, setSec] = useState({ prog: true, atual: true })
+  const alt = (k) => () => setSec((m) => ({ ...m, [k]: !m[k] }))
 
   if (!configOk && !metaReserva) {
     return (
@@ -104,8 +107,8 @@ export default function Reserva({ store }) {
         </div>
       </div>
 
-      <div className="section-label">progresso até a meta</div>
-      <div className="card" style={{ padding: 18 }}>
+      <Secao titulo="Progresso até a meta" info={status.texto} destaque={`${pct}%`} aberto={sec.prog} onToggle={alt('prog')}>
+      <div style={{ padding: '4px 18px 18px', borderTop: '1px solid var(--border)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
           <span className={`badge ${status.badge}`}>{status.texto}</span>
           <span className="mono" style={{ fontSize: 13, color: 'var(--text2)' }}>{fmt(guardado)} de {fmt(meta)} · {pct}%</span>
@@ -126,9 +129,10 @@ export default function Reserva({ store }) {
           )}
         </div>
       </div>
+      </Secao>
 
-      <div className="section-label">atualizar</div>
-      <div className="card" style={{ padding: 18 }}>
+      <Secao titulo="Atualizar" info="valor guardado e meta" aberto={sec.atual} onToggle={alt('atual')}>
+      <div style={{ padding: '4px 18px 18px', borderTop: '1px solid var(--border)' }}>
         <div className="form-row cols3" style={{ marginBottom: 0 }}>
           <div className="form-group">
             <label>Quanto você tem guardado hoje (R$)</label>
@@ -161,6 +165,7 @@ export default function Reserva({ store }) {
           de vida; quanto menos estável a renda, mais meses vale ter. O custo mensal é o de {mes.split('-').reverse().join('/')} (contas fixas ativas e parcelas do mês).
         </div>
       </div>
+      </Secao>
     </div>
   )
 }

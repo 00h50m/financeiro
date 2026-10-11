@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
+import Secao from './Secao'
+import NavMes from './NavMes'
 import { fmt, fmtK, mesLabel, nowYM, addMonths, hojeSP } from '../lib/utils'
 import { fechamentoDe, montarFoto, validarFechamento } from '../lib/fechamento'
 import { sugerirDestinoSobra } from '../lib/metas'
@@ -27,25 +29,24 @@ function Linha({ rotulo, valor, destaque, sub }) {
   )
 }
 
-function Tabela({ titulo, mapa }) {
+function Tabela({ titulo, mapa, abertoInicial = false }) {
+  const [aberto, setAberto] = useState(abertoInicial)
   const itens = Object.entries(mapa || {}).sort((a, b) => b[1] - a[1])
   if (!itens.length) return null
+  const total = itens.reduce((t, [, v]) => t + Number(v), 0)
   return (
-    <div>
-      <div className="section-label">{titulo}</div>
-      <div className="card">
-        <table>
-          <tbody>
-            {itens.map(([nome, v]) => (
-              <tr key={nome}>
-                <td>{nome}</td>
-                <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(v)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <Secao titulo={titulo} info={`${itens.length} ${itens.length === 1 ? 'item' : 'itens'}`} destaque={fmt(total)} aberto={aberto} onToggle={() => setAberto((v) => !v)}>
+      <table style={{ borderTop: '1px solid var(--border)' }}>
+        <tbody>
+          {itens.map(([nome, v]) => (
+            <tr key={nome}>
+              <td>{nome}</td>
+              <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(v)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </Secao>
   )
 }
 
@@ -56,6 +57,8 @@ export default function Fechamento({ store }) {
   const [confirmou, setConfirmou] = useState(false)
   const [ocupado, setOcupado] = useState(false)
   const [historico, setHistorico] = useState([])
+  const [sec, setSec] = useState({ saldo: true, faturas: false, hist: false })
+  const alt = (k) => () => setSec((m) => ({ ...m, [k]: !m[k] }))
 
   const atual = fechamentoDe(fechamentos, mes)
   const fechado = atual?.status === 'fechado'
@@ -115,11 +118,9 @@ export default function Fechamento({ store }) {
 
   return (
     <div className="page">
-      <div className="toolbar">
-        <button className="btn btn-ghost btn-sm" onClick={() => setMes(addMonths(mes, -1))}>← Mês anterior</button>
-        <span style={{ fontWeight: 500, fontSize: 14 }}>{mesLabel(mes)}</span>
-        <button className="btn btn-ghost btn-sm" onClick={() => setMes(addMonths(mes, 1))}>Próximo mês →</button>
-        <span className={`badge ${fechado ? 'badge-green' : atual ? 'badge-amber' : 'badge-gray'}`} style={{ marginLeft: 'auto' }}>
+      <div className="pag-topo">
+        <NavMes mes={mes} onChange={setMes} />
+        <span className={`badge ${fechado ? 'badge-green' : atual ? 'badge-amber' : 'badge-gray'}`}>
           {fechado ? 'Fechado' : atual ? 'Reaberto' : 'Aberto'}
         </span>
       </div>
@@ -158,8 +159,8 @@ export default function Fechamento({ store }) {
             <div className="metric"><div className="metric-label">Saldo transportado</div><div className={`metric-val ${Number(f.saldo_transportado) >= 0 ? 'blue' : 'red'}`}>{fmtK(f.saldo_transportado)}</div></div>
           </div>
 
-          <div className="section-label">como chegamos ao saldo · {mesLabel(mes)}</div>
-          <div className="card extrato">
+          <Secao titulo="Como chegamos ao saldo" info={mesLabel(mes)} destaque={fmt(Number(f.saldo_transportado))} aberto={sec.saldo} onToggle={alt('saldo')}>
+          <div className="extrato">
             <Linha rotulo="Receita realizada" valor={Number(f.renda)} />
             <Linha rotulo="Despesas realizadas" valor={-Number(f.despesas)} sub={`${fmt(f.pago)} pago · ${fmt(f.pendente)} pendente`} />
             <Linha rotulo="Saldo que veio do mês anterior" valor={Number(f.saldo_anterior)} />
@@ -178,6 +179,7 @@ export default function Fechamento({ store }) {
             </div>
             <Linha rotulo={`Saldo transportado para ${mesLabel(addMonths(mes, 1))}`} valor={Number(f.saldo_transportado)} destaque />
           </div>
+          </Secao>
 
           {sugestao && sugestao.linhas.length > 0 && (
             <div className="alert alert-blue" style={{ marginTop: 12 }}>
@@ -205,14 +207,12 @@ export default function Fechamento({ store }) {
             </div>
           )}
 
-          <Tabela titulo="despesas por categoria" mapa={f.por_categoria} />
-          <Tabela titulo="despesas por pessoa" mapa={f.por_pessoa} />
+          <Tabela titulo="Despesas por categoria" mapa={f.por_categoria} abertoInicial />
+          <Tabela titulo="Despesas por pessoa" mapa={f.por_pessoa} />
 
           {fechado && (f.detalhes?.faturas?.length > 0) && (
-            <div>
-              <div className="section-label">faturas no fechamento</div>
-              <div className="card">
-                <table>
+            <Secao titulo="Faturas no fechamento" info={`${f.detalhes.faturas.length} ${f.detalhes.faturas.length === 1 ? 'fatura' : 'faturas'}`} aberto={sec.faturas} onToggle={alt('faturas')}>
+                <table style={{ borderTop: '1px solid var(--border)' }}>
                   <thead><tr><th>Cartão</th><th style={{ textAlign: 'right' }}>Valor</th><th>Situação</th></tr></thead>
                   <tbody>
                     {f.detalhes.faturas.map((l) => (
@@ -224,8 +224,7 @@ export default function Fechamento({ store }) {
                     ))}
                   </tbody>
                 </table>
-              </div>
-            </div>
+            </Secao>
           )}
 
           {fechado && (
@@ -240,10 +239,8 @@ export default function Fechamento({ store }) {
       )}
 
       {historico.length > 0 && (
-        <div>
-          <div className="section-label">histórico de {mesLabel(mes)}</div>
-          <div className="card">
-            <table>
+        <Secao titulo="Histórico" info={mesLabel(mes)} aberto={sec.hist} onToggle={alt('hist')}>
+            <table style={{ borderTop: '1px solid var(--border)' }}>
               <tbody>
                 {historico.map((h) => (
                   <tr key={h.id}>
@@ -253,8 +250,7 @@ export default function Fechamento({ store }) {
                 ))}
               </tbody>
             </table>
-          </div>
-        </div>
+        </Secao>
       )}
     </div>
   )
