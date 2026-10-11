@@ -21,6 +21,12 @@ describe('contas variáveis', () => {
     const semSet = com({ id: 1, nome: 'Energia', valor: 280, ativo: true, variavel: true }, { '2026-08': 320 })
     expect(pendenciasValorVariavel([semSet], '2026-10-05', { voltar: 2 }).map((x) => [x.mes, x.tipo])).toEqual([['2026-09', 'passado']])
   })
+  it('meses antes do início do uso não geram pendência', () => {
+    const semSet = com({ id: 1, nome: 'Energia', valor: 280, ativo: true, variavel: true }, { '2026-07': 300 })
+    expect(pendenciasValorVariavel([semSet], '2026-10-05', { voltar: 3 }).map((x) => x.mes)).toEqual(['2026-09', '2026-08'])
+    expect(pendenciasValorVariavel([semSet], '2026-10-05', { voltar: 3, inicio: '2026-10' })).toEqual([])
+    expect(pendenciasValorVariavel([semSet], '2026-10-05', { voltar: 3, inicio: '2026-09' }).map((x) => x.mes)).toEqual(['2026-09'])
+  })
   it('conta fixa comum nunca gera pendência', () => {
     expect(pendenciasValorVariavel([{ id: 3, nome: 'Internet', valor: 100, ativo: true, dia_vencimento: 1 }], '2026-10-20')).toEqual([])
   })

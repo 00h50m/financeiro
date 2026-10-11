@@ -61,7 +61,7 @@ export default function Dashboard({ store, irPara }) {
   })
   const totalGeralPessoas = gastoPessoa.reduce((t, g) => t + g.total, 0)
 
-  const pendenciasVariaveis = pendenciasValorVariavel(fixos, hojeSP())
+  const pendenciasVariaveis = pendenciasValorVariavel(fixos, hojeSP(), { inicio: store.inicioApp })
   const porCategoriaMap = gastosPorCategoria(comprasLiquidas(store), cartoes, fixosLiquidos(store), mes)
   const porCategoria = Object.entries(porCategoriaMap)
     .map(([categoria, { total, itens }]) => ({

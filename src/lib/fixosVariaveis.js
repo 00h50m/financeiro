@@ -14,12 +14,13 @@ export function mediaRecente(fixo, mes, n = 3) {
 //  - 'vencida': é este mês e o dia de vencimento já passou;
 //  - 'passado': mês anterior (até `voltar` meses) sem valor real — o número daquele mês é só um palpite.
 // hoje = 'YYYY-MM-DD'. -> [{ fixo, mes, tipo, diasAtraso }]
-export function pendenciasValorVariavel(fixos, hoje, { voltar = 3 } = {}) {
+export function pendenciasValorVariavel(fixos, hoje, { voltar = 3, inicio = null } = {}) {
   const mesAtual = hoje.slice(0, 7)
   const dia = Number(hoje.slice(8, 10))
   const saida = []
   for (let i = 0; i <= voltar; i++) {
     const m = addMonths(mesAtual, -i)
+    if (inicio && m < inicio) break // meses antes do início do uso não geram pendência
     for (const f of fixosAtivos(fixos, m)) {
       if (!f.variavel || !f.estimado) continue
       if (i === 0) {

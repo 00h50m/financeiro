@@ -56,7 +56,7 @@ export default function Pagamentos({ store }) {
   const dinheiroDisponivel = resumo.disponivel
   const saldo = resumo.sobraProjetada
 
-  const pendencias = pendenciasValorVariavel(store.fixos, hojeSP())
+  const pendencias = pendenciasValorVariavel(store.fixos, hojeSP(), { inicio: store.inicioApp })
   const { combina } = compilar(busca)
   const filtroAtivo = !!(busca.trim() || filtroPago)
   const passaPago = (pago) => !filtroPago || (filtroPago === 'pagas' ? !!pago : !pago)

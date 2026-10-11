@@ -1,3 +1,4 @@
+import { inicioDoApp } from './inicioApp.js'
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { sb } from './supabase.js'
 import { hojeSP, mesLabel, addMonths, nowYM } from './utils.js'
@@ -823,13 +824,14 @@ export function useStore(email = null) {
 
   // Cada conta fixa leva seus valores reais por mês em `valores` (não enumerável: não vai para backup, spread nem gravação).
   const fixosComValores = useMemo(() => anexarValores(fixos, fixosValores), [fixos, fixosValores])
+  const inicioApp = inicioDoApp(config)
 
   return {
     email,
     integracoesTelegram, gerarPareamento, pausarIntegracao, desconectarIntegracao,
     eventos, regras, aliases, inboxOk,
     confirmarEvento, vincularEvento, ignorarEvento, adicionarEventos, adicionarRegras,
-    cartoes, compras, rendas, fixos: fixosComValores, fixosValores, fixosValoresOk, definirValorFixo, faturas, categorias, fixosPagamentos, comprasPagamentos, comprasPagamentosOk, fechamentos, fechamentosOk, metas, metasMovimentos, metasOk, rendaSazonal, rendaSazonalOk, divisoes, divisoesRepasses, divisoesOk, saldoAjustes, pessoas, orcamentos, orcamentosOk, config, configOk,
+    inicioApp, cartoes, compras, rendas, fixos: fixosComValores, fixosValores, fixosValoresOk, definirValorFixo, faturas, categorias, fixosPagamentos, comprasPagamentos, comprasPagamentosOk, fechamentos, fechamentosOk, metas, metasMovimentos, metasOk, rendaSazonal, rendaSazonalOk, divisoes, divisoesRepasses, divisoesOk, saldoAjustes, pessoas, orcamentos, orcamentosOk, config, configOk,
     loading, syncState, error, loadAll,
     addCartao, updateCartao, delCartao,
     addCompra, updateCompra, salvarDivisao, updateComprasLote, delCompra,
