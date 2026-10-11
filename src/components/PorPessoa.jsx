@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { addMonths, fmt, mesLabel, nowYM, corPessoa, corPessoaCss } from '../lib/utils'
+import { fmt, nowYM, corPessoa, corPessoaCss } from '../lib/utils'
 import { visaoPorPessoa } from '../lib/porPessoa'
+import NavMes from './NavMes'
 
 const Seta = () => (
   <svg className="pp-seta" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
@@ -18,9 +19,7 @@ export default function PorPessoa({ store }) {
   return (
     <div className="page">
       <div className="toolbar">
-        <button className="btn btn-ghost btn-sm" onClick={() => setMes(addMonths(mes, -1))} aria-label="Mês anterior">←</button>
-        <b>{mesLabel(mes)}</b>
-        <button className="btn btn-ghost btn-sm" onClick={() => setMes(addMonths(mes, 1))} aria-label="Próximo mês">→</button>
+        <NavMes mes={mes} onChange={setMes} />
         {visao.length > 0 && <button className="btn btn-ghost btn-sm" onClick={alternarTodos}>{todosAbertos ? 'Recolher tudo' : 'Expandir tudo'}</button>}
         <span style={{ marginLeft: 'auto', fontSize: 13, color: 'var(--text2)' }}>Total do mês: <b className="mono">{fmt(totalGeral)}</b></span>
       </div>

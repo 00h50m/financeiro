@@ -1,9 +1,10 @@
 import { useState, useMemo } from 'react'
 import { montarInicio } from '../lib/inicio'
-import { fmt, mesLabel, nowYM, addMonths } from '../lib/utils'
+import { fmt, nowYM } from '../lib/utils'
 import { mesFechado } from '../lib/fechamento'
 import ModalCompra from './ModalCompra'
 import LongoPrazo from './LongoPrazo'
+import NavMes from './NavMes'
 
 const CORES = ['var(--ini-1)', 'var(--ini-2)', 'var(--ini-3)', 'var(--ini-4)', 'var(--ini-5)']
 const ICONE_TIPO = { fixo: '🏠', fatura: '💳', compra: '🛍️' }
@@ -115,12 +116,7 @@ export default function Inicio({ store, irPara }) {
       )}
 
       <div className="ini-topo">
-        <div className="ini-mes">
-          <button className="icon-btn" onClick={() => trocarMes(addMonths(mes, -1))} aria-label="Mês anterior">‹</button>
-          <div className="ini-mes-nome">{mesLabel(mes)}{fechado && <span className="badge badge-gray" style={{ marginLeft: 8 }}>fechado</span>}</div>
-          <button className="icon-btn" onClick={() => trocarMes(addMonths(mes, 1))} aria-label="Próximo mês">›</button>
-          {mes !== hojeMes && <button className="btn btn-ghost btn-sm" onClick={() => trocarMes(hojeMes)}>Hoje</button>}
-        </div>
+        <NavMes mes={mes} onChange={trocarMes} fechado={fechado} />
         {acoes('so-desk')}
       </div>
 

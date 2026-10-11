@@ -5,7 +5,7 @@ export default function Secao({ titulo, info, destaque, aberto, onToggle, childr
       <button className="grupo-cab" onClick={onToggle} aria-expanded={aberto}>
         <span className="grupo-seta" aria-hidden="true">▾</span>
         <span className="grupo-nome">{titulo}</span>
-        {info && <span className="grupo-info">{info}</span>}
+        {info && <span className="grupo-info grupo-info-sec">{info}</span>}
         {destaque != null && <span className="grupo-total mono">{destaque}</span>}
       </button>
       {aberto && children}

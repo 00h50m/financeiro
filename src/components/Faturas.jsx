@@ -23,7 +23,7 @@ function ComprasDaFatura({ det, onEditar, irPara }) {
   }
   return (
     <div style={{ padding: '4px 14px 12px' }}>
-      <table className="tabela-compacta lista-cartoes">
+      <table className="tabela-compacta lista-cartoes tabela-fixa tabela-faturas">
         <thead>
           <tr>
             <th className="col-opc">Data</th>
@@ -245,7 +245,7 @@ export default function Faturas({ store, irPara }) {
       {compraEditando && <EditarCompra store={store} compra={compraEditando} onClose={() => setCompraEditando(null)} />}
 
       <div className="toolbar">
-        <button className="btn btn-primary" onClick={() => abrirNova()}>
+        <button className="btn btn-primary tb-primario" onClick={() => abrirNova()}>
           + Lançar fatura
         </button>
         <CampoBusca valor={busca} onChange={setBusca} placeholder="Buscar compra, cartão, mês ou valor (ex.: shellbox, 136,30, 10/2026)" />
@@ -323,7 +323,7 @@ export default function Faturas({ store, irPara }) {
               <span className="grupo-total" style={{ fontSize: 12, color: statusCor }}>{statusTxt}</span>
             </button>
             {mesAberto && (
-              <table className="tabela-compacta lista-cartoes">
+              <table className="tabela-compacta lista-cartoes tabela-fixa tabela-faturas">
                 <thead>
                   <tr>
                     <th>Cartão</th>
