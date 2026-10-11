@@ -12,14 +12,17 @@ export default function NavMes({ mes, onChange, fechado = false }) {
   )
 }
 
-// Seletor de situação em "pílulas" (substitui o select de 3 opções): Todas · A pagar · Pagas.
-export function PilulasPago({ valor, onChange }) {
-  const opcoes = [['', 'Todas'], ['apagar', 'A pagar'], ['pagas', 'Pagas']]
+// Seletor de opções em "pílulas" (substitui selects de poucas opções).
+export function Pilulas({ opcoes, valor, onChange, rotulo }) {
   return (
-    <div className="pilulas" role="group" aria-label="Filtrar por situação do pagamento">
+    <div className="pilulas" role="group" aria-label={rotulo}>
       {opcoes.map(([v, r]) => (
         <button key={v} className={valor === v ? 'ativo' : ''} onClick={() => onChange(v)} aria-pressed={valor === v}>{r}</button>
       ))}
     </div>
   )
 }
+
+export const PilulasPago = ({ valor, onChange }) => (
+  <Pilulas rotulo="Filtrar por situação do pagamento" valor={valor} onChange={onChange} opcoes={[['', 'Todas'], ['apagar', 'A pagar'], ['pagas', 'Pagas']]} />
+)
