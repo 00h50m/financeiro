@@ -603,3 +603,39 @@ input[type='checkbox'] { width: auto; min-height: 0; accent-color: var(--brand);
 .guia-copiar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
 .guia-pre { background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font-size: 12px; color: var(--text); white-space: pre-wrap; word-break: break-word; margin: 8px 0 0; }
 .guia-dicas { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); }
+
+/* Cadastros: cartões, pessoas, categorias e regras */
+.ajuda-rec { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; margin-bottom: 14px; font-size: 12px; color: var(--text2); }
+.ajuda-rec summary { cursor: pointer; color: var(--text2); }
+.ajuda-rec p { margin-top: 8px; line-height: 1.6; }
+.cad-topo { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.cad-resumo { display: flex; gap: 6px 18px; flex-wrap: wrap; font-size: 13px; color: var(--text2); }
+.cad-resumo b { color: var(--text); font-weight: 600; }
+.cad-novo { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+.cad-novo input { flex: 1 1 200px; max-width: 360px; }
+.cad-barra { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+.cad-barra input { flex: 1 1 220px; max-width: 360px; }
+.cad-sub { font-size: 12px; color: var(--text3); }
+.cad-grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 12px; }
+.cad-tile { background: var(--bg2); border: 1px solid var(--border); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.cad-tile-topo { display: flex; align-items: center; gap: 10px; }
+.cad-tile-nome { font-weight: 600; font-size: 15px; flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.cad-tile-datas { display: flex; gap: 18px; font-size: 12px; color: var(--text2); }
+.cad-tile-datas b { color: var(--text); font-weight: 500; font-family: 'DM Mono', monospace; }
+.cad-tile-acoes { display: flex; gap: 8px; align-items: center; margin-top: auto; }
+.cad-tile-acoes .btn-danger { margin-left: auto; }
+.cad-avatar { width: 40px; height: 40px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 600; font-size: 16px; flex-shrink: 0; }
+.cad-cores { display: flex; gap: 8px; flex-wrap: wrap; }
+.cad-cor { width: 26px; height: 26px; border-radius: 50%; padding: 0; border-width: 2px; }
+.cad-cor.sel { outline: 2px solid var(--text); outline-offset: 2px; }
+.regras-grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 10px; }
+.regra-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+.regra-topo { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+.regra-nome { font-weight: 600; font-size: 14px; overflow-wrap: anywhere; }
+.regra-conf { font-size: 12px; padding: 2px 8px; border-radius: 10px; background: var(--bg3); color: var(--text2); flex-shrink: 0; }
+.regra-cat { font-size: 13px; color: var(--text); }
+.regra-edit { display: flex; gap: 6px; flex-wrap: wrap; }
+.regra-edit select { flex: 1 1 140px; }
+.regra-rodape { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.regra-acoes { display: inline-flex; gap: 6px; }
+@media (max-width: 600px) { .cad-novo input { max-width: none; } .cad-novo .btn { flex: 1 1 100%; justify-content: center; min-height: 44px; } .cad-grade, .regras-grade { grid-template-columns: 1fr; } }
