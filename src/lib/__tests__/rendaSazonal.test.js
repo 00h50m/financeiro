@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { proximoFator, perfilDeLinhas, fatorDe, temPerfil, rendaPrevista, projecaoRenda, planoDeReserva } from '../rendaSazonal'
+import { proximoFator, perfilDeLinhas, fatorDe, temPerfil, rendaPrevista, projecaoRenda, planoDeReserva, rendaProjetada, mesesParaJuntar } from '../rendaSazonal'
 
 const renda = (mes, o = {}) => ({ mes, giovanna: 0, sabrina: 0, extra_sabrina: 0, mesada: 0, outros: 0, ...o })
 
@@ -105,5 +105,29 @@ describe('projecaoRenda + planoDeReserva', () => {
     expect(plano.mesesAntes).toBe(0)
     expect(plano.porMes).toBeNull()
     expect(plano.cobreComSobras).toBe(false)
+  })
+})
+
+describe('rendaProjetada', () => {
+  const rendas = [renda('2026-10', { giovanna: 5000, sabrina: 3000 })]
+  it('sem meses fracos repete a última renda, como antes', () => {
+    expect(rendaProjetada(rendas, {}, '2027-01')).toEqual({ valor: 8000, estimada: true })
+    expect(rendaProjetada(rendas, {}, '2026-10')).toEqual({ valor: 8000, estimada: false })
+  })
+  it('com meses fracos aplica o fator do mês', () => {
+    const p = perfilDeLinhas([{ campo: 'sabrina', mes_do_ano: 1, fator: 0 }])
+    expect(rendaProjetada(rendas, p, '2027-01').valor).toBe(5000)
+    expect(rendaProjetada(rendas, p, '2027-02').valor).toBe(8000)
+  })
+})
+
+describe('mesesParaJuntar', () => {
+  it('soma a sobra mês a mês e conta o mês no vermelho como retirada', () => {
+    const meses = [{ sobra: 1000 }, { sobra: 1000 }, { sobra: -500 }, { sobra: 1000 }, { sobra: 1000 }]
+    expect(mesesParaJuntar(meses, 2000)).toBe(2)
+    expect(mesesParaJuntar(meses, 2500)).toBe(4) // 1000 + 1000 − 500 + 1000
+    expect(mesesParaJuntar(meses, 3000)).toBe(5)
+    expect(mesesParaJuntar(meses, 9999)).toBeNull()
+    expect(mesesParaJuntar(meses, 0)).toBe(0)
   })
 })

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { fmt, fmtK, mesLabel, nowYM, addMonths, calcMesInicio, limiteUsado, totalRenda, hojeSP } from '../lib/utils'
-import { detalhePagamentos, rendaDoMes } from '../lib/financeiro'
+import { detalhePagamentos } from '../lib/financeiro'
+import { perfilDeLinhas, temPerfil, rendaProjetada } from '../lib/rendaSazonal'
 
 const MAX_PARCELAS = 48
 const CENARIOS = [1, 2, 3, 4, 5, 6, 10, 12, 18, 24]
@@ -61,7 +62,8 @@ export default function Simulador({ store }) {
   )
 
   // Mês sem renda cadastrada repete a última renda informada antes dele.
-  const rendaDe = (m) => rendaDoMes(rendas, m, { estimar: true })
+  const perfil = useMemo(() => perfilDeLinhas(store.rendaSazonal), [store.rendaSazonal])
+  const rendaDe = (m) => rendaProjetada(rendas, perfil, m)
   const folgaDe = (m) => {
     const r = rendaDe(m).valor
     // "Com folga" = respeitar a margem E não passar de 70% da renda (mesma regra do veredito).
@@ -85,7 +87,7 @@ export default function Simulador({ store }) {
       if (valorParcela(v, k, taxa) <= Math.max(0, menorFolga(inicio, k))) return k
     }
     return 0
-  }, [modo, v, taxa, inicio, margemPct, baseDe, rendas])
+  }, [modo, v, taxa, inicio, margemPct, baseDe, rendas, perfil])
 
   // Linha mês a mês
   const ultimoMes = addMonths(inicio, n - 1)
@@ -283,7 +285,7 @@ export default function Simulador({ store }) {
                   {mesLabel(l.mes)}
                   {l.mes === hoje && <span className="badge badge-green" style={{ marginLeft: 6, fontSize: 10 }}>hoje</span>}
                 </td>
-                <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 12, color: 'var(--text2)' }} title={l.estimada && l.renda > 0 ? 'Renda deste mês não cadastrada: repetindo a última informada' : undefined}>
+                <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 12, color: 'var(--text2)' }} title={l.estimada && l.renda > 0 ? (temPerfil(perfil) ? 'Renda deste mês não cadastrada: prevista pelos meses fracos que você marcou na tela Renda' : 'Renda deste mês não cadastrada: repetindo a última informada') : undefined}>
                   {l.renda > 0 ? fmtK(l.renda) + (l.estimada ? '*' : '') : '—'}
                 </td>
                 <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 12, color: 'var(--text2)' }}>{fmtK(l.base)}</td>
@@ -311,7 +313,7 @@ export default function Simulador({ store }) {
         </table>
       </div>
       <div style={{ fontSize: 12, color: 'var(--text3)', lineHeight: 1.6, marginBottom: 16 }}>
-        * mês sem renda cadastrada: repete a última renda informada. O cálculo usa a renda, as contas fixas ativas
+        * mês sem renda cadastrada: {temPerfil(perfil) ? 'prevista com os meses fracos marcados na tela Renda (férias, aulas fracas).' : 'repete a última renda informada.'} O cálculo usa a renda, as contas fixas ativas
         (respeitando o mês de término) e as parcelas já lançadas; gastos variáveis que você ainda não lançou não entram.
         {meses.length >= 24 && ' Mostrando os próximos 24 meses.'}
       </div>
