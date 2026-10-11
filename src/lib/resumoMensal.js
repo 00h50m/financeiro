@@ -29,7 +29,7 @@ export function montarResumoMensal(d, mes, hoje) {
   if (r.aPagar > 0.005) base.avisos.push({ tom: 'info', texto: `Ainda a pagar neste mês: ${fmt(r.aPagar)}` })
   const acabam = terminandoLogo(d.compras, d.cartoes, mes, 0)
   if (acabam.length) base.avisos.push({ tom: 'bom', texto: `Última parcela este mês: ${acabam.map((a) => a.compra.identificacao || a.compra.descricao).join(', ')} (libera ${fmt(acabam.reduce((t, a) => t + a.libera, 0))}/mês)` })
-  const pend = pendenciasValorVariavel(d.fixos, hoje).filter((p) => p.mes === mes)
+  const pend = pendenciasValorVariavel(d.fixos, hoje, { inicio: d.inicioApp }).filter((p) => p.mes === mes)
   if (pend.length) base.avisos.push({ tom: 'atencao', texto: `Contas variáveis ainda com valor estimado: ${[...new Set(pend.map((p) => p.fixo.nome))].join(', ')}` })
   return base
 }

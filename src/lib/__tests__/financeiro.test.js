@@ -136,6 +136,12 @@ describe('sobraAnterior', () => {
     expect(sobraAnterior(d, '2026-10')).toBe(ref(d, '2026-10'))
     expect(sobraAnterior(d, '2026-10')).toBe(2000 + 2000 - 150 + 2000)
   })
+  it('o início do uso corta o encadeamento: não traz saldo de antes dele', () => {
+    const d = base({ fixos, rendas, saldoAjustes: [{ mes: '2026-08', ajuste: -150 }], inicioApp: '2026-09' })
+    expect(sobraAnterior(d, '2026-10')).toBe(2000) // só setembro (5000 − 3000)
+    expect(sobraAnterior({ ...d, inicioApp: '2026-10' }, '2026-10')).toBe(0) // setembro é anterior ao início
+    expect(sobraAnterior({ ...d, inicioApp: null }, '2026-10')).toBe(2000 + 2000 - 150 + 2000)
+  })
   it('um buraco de renda interrompe o encadeamento', () => {
     const d = base({ fixos, rendas: [renda('2026-07', 5000), renda('2026-09', 5000)] })
     expect(sobraAnterior(d, '2026-10')).toBe(2000)

@@ -21,6 +21,7 @@ import Pessoas from './components/Pessoas'
 import PorPessoa from './components/PorPessoa'
 import Automacoes from './components/Automacoes'
 import Backup from './components/Backup'
+import Configuracoes from './components/Configuracoes'
 import Orcamento from './components/Orcamento'
 import Divididos from './components/Divididos'
 import Reserva from './components/Reserva'
@@ -33,6 +34,7 @@ import Fechamento from './components/Fechamento'
 import Login from './components/Login'
 import { Marca, Nome } from './components/Marca'
 import { sb } from './lib/supabase'
+import { InicioContext } from './lib/InicioContext'
 
 const ICONES = {
   inicio: 'M3 11l9-8 9 8 M5 10v10a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V10',
@@ -66,6 +68,7 @@ const ICONES = {
   metas: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z M12 18a6 6 0 1 0 0-12 6 6 0 0 0 0 12z M12 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4z',
   fechamento: 'M19 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z M16 2v4 M8 2v4 M3 10h18 M9 16l2 2 4-4',
   divididos: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2 M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M20 8v6 M23 11h-6',
+  config: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z',
   backup: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M12 15V3',
   sair: 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4 M16 17l5-5-5-5 M21 12H9',
 }
@@ -124,6 +127,7 @@ const GRUPOS = [
       { id: 'pessoas', label: 'Pessoas', Component: Pessoas },
       { id: 'regras', label: 'Regras aprendidas', Component: Regras },
       { id: 'automacoes', label: 'Automações', Component: Automacoes },
+      { id: 'config', label: 'Configurações', Component: Configuracoes },
       { id: 'backup', label: 'Backup', Component: Backup },
     ],
   },
@@ -228,6 +232,7 @@ function AppLogado({ email }) {
   const syncTexto = store.syncState === 'ok' ? 'Sincronizado' : store.syncState === 'syncing' ? 'Salvando...' : 'Erro ao sincronizar'
 
   return (
+    <InicioContext.Provider value={store.inicioApp}>
     <div className={`app ${recolhida ? 'sidebar-recolhida' : ''}`}>
       {menuAberto && <div className="sidebar-backdrop" onClick={() => setMenuAberto(false)} />}
 
@@ -337,5 +342,6 @@ function AppLogado({ email }) {
         </button>
       </nav>
     </div>
+    </InicioContext.Provider>
   )
 }

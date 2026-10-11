@@ -203,6 +203,7 @@ export function sobraAnterior(d, mes, cacheDetalhes) {
   let base = 0
   let m = addMonths(mes, -1)
   while (cadeia.length < MAX_MESES_SALDO) {
+    if (d.inicioApp && m < d.inicioApp) break // antes do início do uso o app não tem dados confiáveis: não traz saldo de lá
     const fechado = fechados.get(m)
     if (fechado) { base = Number(fechado.saldo_transportado) || 0; break }
     if (!(totalRenda((d.rendas || []).find((r) => r.mes === m)) > 0)) break
