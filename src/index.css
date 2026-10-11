@@ -590,3 +590,4 @@ input[type='checkbox'] { width: auto; min-height: 0; accent-color: var(--brand);
   .tabela-fixos th:nth-child(5) { width: 100px; }
   .tabela-fixos th:nth-child(6) { width: 260px; }
 }
+.gr-nota { font-size: 11px; color: var(--text3); margin: -2px 2px 14px; }
