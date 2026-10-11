@@ -1,10 +1,11 @@
 import { useState, useMemo } from 'react'
 import { montarInicio } from '../lib/inicio'
-import { fmt, nowYM } from '../lib/utils'
+import { fmt, mesLabel, nowYM } from '../lib/utils'
 import { mesFechado } from '../lib/fechamento'
 import ModalCompra from './ModalCompra'
 import LongoPrazo from './LongoPrazo'
 import NavMes from './NavMes'
+import { useProjecaoSazonal } from './RendaSazonal'
 
 const CORES = ['var(--ini-1)', 'var(--ini-2)', 'var(--ini-3)', 'var(--ini-4)', 'var(--ini-5)']
 const ICONE_TIPO = { fixo: '🏠', fatura: '💳', compra: '🛍️' }
@@ -85,6 +86,7 @@ export default function Inicio({ store, irPara }) {
   const [novaCompra, setNovaCompra] = useState(false)
   const [diaAberto, setDiaAberto] = useState(null)
   const d = useMemo(() => montarInicio(store, mes), [store, mes])
+  const sazonal = useProjecaoSazonal(store, 12)
   const fechado = mesFechado(store.fechamentos, mes)
   const negativo = d.podeGastar < 0
   const semRenda = d.entrada === 0 && d.saldoAnterior === 0
@@ -174,6 +176,17 @@ export default function Inicio({ store, irPara }) {
             <>✓ Nada vencendo nos próximos 7 dias</>
           )}
         </section>
+
+        {sazonal.ativo && sazonal.plano.tem && (() => {
+          const w = sazonal.plano.janelas[0]
+          return (
+            <section className="ini-atencao aviso" aria-live="polite">
+              🗓 <b>{mesLabel(w.primeiroMes)}</b> deve ficar no vermelho (faltam {fmt(w.buraco)}).{' '}
+              {w.precisa > 0 && w.mesesAntes > 0 ? <>Guarde <b>{fmt(w.porMes)}</b> por mês até lá. </> : null}
+              <button className="link-btn" onClick={() => irPara('renda')}>Ver o plano</button>
+            </section>
+          )
+        })()}
 
         {d.linha.marcas.length > 0 && (
           <section className="ini-card ini-linha">

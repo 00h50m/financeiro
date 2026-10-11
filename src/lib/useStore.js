@@ -58,6 +58,8 @@ export function useStore(email = null) {
   const [metas, setMetas] = useState([])
   const [metasMovimentos, setMetasMovimentos] = useState([])
   const [metasOk, setMetasOk] = useState(false) // false = migration 16 ainda não rodada
+  const [rendaSazonal, setRendaSazonal] = useState([])
+  const [rendaSazonalOk, setRendaSazonalOk] = useState(false) // false = inbox/22_renda_sazonal.sql ainda não rodado
   const [divisoes, setDivisoes] = useState([])
   const [divisoesRepasses, setDivisoesRepasses] = useState([])
   const [divisoesOk, setDivisoesOk] = useState(false) // false = migration 18 ainda não rodada
@@ -86,7 +88,7 @@ export function useStore(email = null) {
     if (!silent) setLoading(true)
     if (!silent) setError(null)
     try {
-      const [c, co, r, fx, fa, cat, fxp, fxv, sa, ps, orc, cfg, ev, rg, al, it, cp, fe, me, mm, dv, dr] = await Promise.all([
+      const [c, co, r, fx, fa, cat, fxp, fxv, sa, ps, orc, cfg, ev, rg, al, it, cp, fe, me, mm, dv, dr, rsz] = await Promise.all([
         quer('cartoes') ? sb.from('cartoes').select('*').order('created_at') : nada,
         quer('compras') ? lerTudo('compras', (q) => q.order('data_compra', { ascending: false }).order('id')) : nada,
         quer('rendas') ? sb.from('rendas').select('*').order('mes', { ascending: false }) : nada,
@@ -109,6 +111,7 @@ export function useStore(email = null) {
         quer('metas') ? lerTudo('metas_movimentos', (q) => q.order('data', { ascending: false }).order('criado_em', { ascending: false })) : nada,
         quer('divisoes') ? sb.from('divisoes').select('*').order('criada_em') : nada,
         quer('divisoes') ? lerTudo('divisoes_repasses', (q) => q.order('mes', { ascending: false }).order('id')) : nada,
+        quer('rendaSazonal') ? sb.from('renda_sazonal').select('*') : nada,
       ])
       if (minha !== ultimaCarga.current) { if (!silent) setLoading(false); return true } // chegou uma recarga mais nova: ela cobre os grupos desta
       pendentes.current = new Set()
@@ -141,6 +144,8 @@ export function useStore(email = null) {
         setDivisoes(dv.error || dr.error ? [] : dv.data || [])
         setDivisoesRepasses(dv.error || dr.error ? [] : dr.data || [])
       }
+      // Renda sazonal é opcional: sem o inbox/22 o app segue funcionando, só sem a projeção por mês do ano.
+      if (rsz) { setRendaSazonalOk(!rsz.error); setRendaSazonal(rsz.error ? [] : rsz.data || []) }
       // Orçamentos são opcionais: se a tabela ainda não existe, o resto do app continua funcionando.
       if (orc) { setOrcamentosOk(!orc.error); setOrcamentos(orc.error ? [] : orc.data || []) }
       if (cfg) {
@@ -496,6 +501,14 @@ export function useStore(email = null) {
     return ok
   }
 
+  // RENDA SAZONAL: fator de uma fonte de renda num mês do ano (1 = normal). Fator 1 apaga a linha (é o padrão).
+  const definirFatorSazonal = (campo, mesDoAno, fator) => op(async () => {
+    const r = Math.abs(fator - 1) < 0.005
+      ? await sb.from('renda_sazonal').delete().eq('campo', campo).eq('mes_do_ano', mesDoAno)
+      : await sb.from('renda_sazonal').upsert({ campo, mes_do_ano: mesDoAno, fator, atualizado_em: new Date().toISOString() }, { onConflict: 'campo,mes_do_ano' })
+    if (r.error) throw r.error
+  }, ['rendaSazonal'], 'salvar a renda sazonal')
+
   // METAS (reserva e objetivos). O saldo é a soma dos movimentos; tudo que muda dinheiro vai para a auditoria.
   const addMeta = (m) => op(async () => {
     const r = await sb.from('metas').insert(m)
@@ -816,7 +829,7 @@ export function useStore(email = null) {
     integracoesTelegram, gerarPareamento, pausarIntegracao, desconectarIntegracao,
     eventos, regras, aliases, inboxOk,
     confirmarEvento, vincularEvento, ignorarEvento, adicionarEventos, adicionarRegras,
-    cartoes, compras, rendas, fixos: fixosComValores, fixosValores, fixosValoresOk, definirValorFixo, faturas, categorias, fixosPagamentos, comprasPagamentos, comprasPagamentosOk, fechamentos, fechamentosOk, metas, metasMovimentos, metasOk, divisoes, divisoesRepasses, divisoesOk, saldoAjustes, pessoas, orcamentos, orcamentosOk, config, configOk,
+    cartoes, compras, rendas, fixos: fixosComValores, fixosValores, fixosValoresOk, definirValorFixo, faturas, categorias, fixosPagamentos, comprasPagamentos, comprasPagamentosOk, fechamentos, fechamentosOk, metas, metasMovimentos, metasOk, rendaSazonal, rendaSazonalOk, divisoes, divisoesRepasses, divisoesOk, saldoAjustes, pessoas, orcamentos, orcamentosOk, config, configOk,
     loading, syncState, error, loadAll,
     addCartao, updateCartao, delCartao,
     addCompra, updateCompra, salvarDivisao, updateComprasLote, delCompra,
@@ -826,7 +839,7 @@ export function useStore(email = null) {
     marcarFixoPago, marcarParcelaPaga,
     juntarVersoes, apagarVersaoFixo, aviso, mostrarAviso, desfazivel, desfazerExclusao, dispensarDesfazer,
     fecharMes, reabrirMes, listarAuditoria, registrarAuditoria,
-    definirAjusteSaldo,
+    definirAjusteSaldo, definirFatorSazonal,
     atualizarRegra, esquecerRegra,
     addDivisao, delDivisao, marcarRepasse, desmarcarRepasse,
     addMeta, updateMeta, registrarMovimentoMeta, delMovimentoMeta,

@@ -1,10 +1,11 @@
 import { useState } from 'react'
+import RendaSazonal from './RendaSazonal'
 import { fmt, fmtK, mesLabel, nowYM, addMonths, RENDA_CAMPOS, totalRenda } from '../lib/utils'
 
 // Rótulo curto de cada fonte de renda: 'Salário Giovanna' → 'Giovanna' (antes os dois salários viravam 'Salário' repetido).
 const curto = (l) => l.replace(/^Salário /, '')
 
-export default function Renda({ store }) {
+export default function Renda({ store, irPara }) {
   const { rendas, upsertRenda } = store
   const mes = nowYM()
   const [editMes, setEditMes] = useState(null)
@@ -159,6 +160,8 @@ export default function Renda({ store }) {
           </tbody>
         </table>
       </div>
+
+      <RendaSazonal store={{ ...store, irPara }} />
     </div>
   )
 }
