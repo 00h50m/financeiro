@@ -7,6 +7,7 @@ import { riscosDoMes, mesFechado } from '../lib/fechamento'
 import { pendenciasValorVariavel } from '../lib/fixosVariaveis'
 import { montarResumoMensal, textoDoResumo } from '../lib/resumoMensal'
 import Secao from './Secao'
+import { contasDoMes } from '../lib/inicio'
 import NavMes from './NavMes'
 
 export default function Dashboard({ store, irPara }) {
@@ -60,6 +61,12 @@ export default function Dashboard({ store, irPara }) {
     return { pessoa, parc, fix, total: parc + fix }
   })
   const totalGeralPessoas = gastoPessoa.reduce((t, g) => t + g.total, 0)
+
+  // Contas do mês em aberto e atrasadas (mesma lista da tela Início), para os cartões de resumo.
+  const contasMes = contasDoMes(resumoMes.detalhe, cartoes, mes, hojeSP())
+  const abertasMes = contasMes.filter((c) => !c.pago)
+  const atrasadasMes = abertasMes.filter((c) => c.atrasada).length
+  const pctPago = totalMes > 0 ? Math.min(100, Math.round((resumoMes.pago / totalMes) * 100)) : 0
 
   const pendenciasVariaveis = pendenciasValorVariavel(fixos, hojeSP(), { inicio: store.inicioApp })
   const porCategoriaMap = gastosPorCategoria(comprasLiquidas(store), cartoes, fixosLiquidos(store), mes)
@@ -127,46 +134,40 @@ export default function Dashboard({ store, irPara }) {
         <button className="btn btn-ghost btn-sm" onClick={() => setResumo(montarResumoMensal(store, mes, hojeSP()))}>Resumo do mês</button>
       </div>
 
-      <div className="metric-grid">
-        <div className="metric">
-          <div className="metric-label">Renda do mês</div>
-          <div className={`metric-val ${renda > 0 ? 'green' : 'amber'}`}>
-            {renda > 0 ? fmtK(renda) : 'Não informada'}
+      <div className="kpi-faixa" aria-label={`Resumo de ${mesLabel(mes)}`}>
+        <div className="kpi">
+          <div className="kpi-rotulo">Renda do mês</div>
+          <div className={`kpi-valor ${renda > 0 ? 'verde' : 'ambar'}`}>{renda > 0 ? fmtK(renda) : 'Não informada'}</div>
+          <div className="kpi-sub">{renda > 0 ? (resumoMes.repasses > 0 ? `inclui ${fmtK(resumoMes.repasses)} de Divididos` : 'renda cadastrada') : 'cadastre na aba Renda'}</div>
+        </div>
+        <div className="kpi">
+          <div className="kpi-rotulo">Comprometido</div>
+          <div className={`kpi-valor ${pct > 100 ? 'vermelho' : 'ambar'}`}>{fmtK(totalMes)}</div>
+          <div className={`kpi-sub ${pct > 90 ? 'ruim' : ''}`}>{renda > 0 ? `${pct}% da renda` : 'sem renda para comparar'}</div>
+          {renda > 0 && <div className="kpi-barra"><div className={pct > 90 ? 'ruim' : pct > 70 ? 'aviso' : 'ok'} style={{ width: Math.min(100, pct) + '%' }} /></div>}
+        </div>
+        <div className="kpi">
+          <div className="kpi-rotulo">Sobra projetada</div>
+          <div className={`kpi-valor ${renda === 0 ? 'azul' : saldo >= 0 ? 'verde' : 'vermelho'}`}>{renda > 0 ? fmtK(saldo) : '—'}</div>
+          <div className="kpi-sub">{renda > 0 && resumoMes.saldoAnterior !== 0 ? `inclui ${resumoMes.saldoAnterior > 0 ? '+' : '−'}${fmtK(Math.abs(resumoMes.saldoAnterior))} do mês anterior` : 'renda − comprometido'}</div>
+        </div>
+        <div className="kpi">
+          <div className="kpi-rotulo">Já pago</div>
+          <div className="kpi-valor verde">{fmtK(resumoMes.pago)}</div>
+          <div className="kpi-sub">{totalMes > 0 ? `${pctPago}% das contas` : 'nada a pagar'}</div>
+          {totalMes > 0 && <div className="kpi-barra"><div className="ok" style={{ width: pctPago + '%' }} /></div>}
+        </div>
+        <div className="kpi">
+          <div className="kpi-rotulo">Falta pagar</div>
+          <div className={`kpi-valor ${atrasadasMes ? 'vermelho' : 'ambar'}`}>{fmtK(resumoMes.aPagar)}</div>
+          <div className={`kpi-sub ${atrasadasMes ? 'ruim' : ''}`}>
+            {abertasMes.length === 0 ? 'tudo pago' : `${abertasMes.length} ${abertasMes.length === 1 ? 'conta' : 'contas'} em aberto${atrasadasMes ? ` · ${atrasadasMes} ${atrasadasMes === 1 ? 'vencida' : 'vencidas'}` : ''}`}
           </div>
         </div>
-        <div className="metric">
-          <div className="metric-label">Comprometido</div>
-          <div className="metric-val amber">{fmtK(totalMes)}</div>
-        </div>
-        <div className="metric">
-          <div className="metric-label">Sobra projetada</div>
-          <div className={`metric-val ${renda === 0 ? 'blue' : saldo >= 0 ? 'green' : 'red'}`}>
-            {renda > 0 ? fmtK(saldo) : '—'}
-          </div>
-          {renda > 0 && resumoMes.saldoAnterior !== 0 && (
-            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
-              inclui {resumoMes.saldoAnterior > 0 ? '+' : '−'}{fmtK(Math.abs(resumoMes.saldoAnterior))} do mês anterior
-            </div>
-          )}
-        </div>
-        <div className="metric">
-          <div className="metric-label">Já pago</div>
-          <div className="metric-val green">{fmtK(resumoMes.pago)}</div>
-        </div>
-        <div className="metric">
-          <div className="metric-label">Falta pagar</div>
-          <div className="metric-val amber">{fmtK(resumoMes.aPagar)}</div>
-        </div>
-        <div className="metric">
-          <div className="metric-label">Disponível hoje</div>
-          <div className={`metric-val ${resumoMes.disponivel >= 0 ? 'blue' : 'red'}`}>{renda > 0 ? fmtK(resumoMes.disponivel) : '—'}</div>
-          <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>dinheiro que existe agora</div>
-        </div>
-        <div className="metric">
-          <div className="metric-label">% da renda</div>
-          <div className={`metric-val ${pct > 90 ? 'red' : pct > 70 ? 'amber' : 'green'}`}>
-            {renda > 0 ? pct + '%' : '—'}
-          </div>
+        <div className="kpi">
+          <div className="kpi-rotulo">Disponível hoje</div>
+          <div className={`kpi-valor ${resumoMes.disponivel >= 0 ? 'azul' : 'vermelho'}`}>{renda > 0 ? fmtK(resumoMes.disponivel) : '—'}</div>
+          <div className="kpi-sub">dinheiro que existe agora</div>
         </div>
       </div>
 
