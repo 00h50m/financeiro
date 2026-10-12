@@ -94,6 +94,14 @@ Código do bot: `api/telegram.js` (webhook), `api/telegram-admin.js` (tela Autom
 sem rede). Segurança: segredo do webhook conferido em tempo constante, `update_id` processado uma vez, limite de
 mensagens por minuto, só conversa privada.
 
+## Resumo para o Ninho (opcional)
+
+O app da casa (Ninho) mostra no Início um cartão com os números do mês: renda, comprometido, pago, a pagar, sobra projetada,
+o que vence nos próximos 7 dias e avisos de teto. **Só números** — nenhuma compra, cartão ou pessoa sai daqui.
+Rota: `api/resumo-ninho.js` (só leitura, `GET`). Para ligar, cadastre na Vercel do Sobrou `NINHO_RESUMO_TOKEN`
+(texto secreto longo, 24+ caracteres; o mesmo valor vai na Vercel do Ninho como `SOBROU_RESUMO_TOKEN`) e faça um novo deploy.
+Sem a variável, a rota responde 503; com o segredo errado, 401.
+
 ## Regras financeiras
 
 A definição oficial de cada número (comprometido, pago, a pagar, disponível, sobra...) está em [`docs/conceitos-financeiros.md`](docs/conceitos-financeiros.md); o cálculo mora em `src/lib/financeiro.js`.
