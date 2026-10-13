@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { aulasPorMes, rendasComAulas, aulasAReceberPorMes, valorAlunoMes, pendenciasDoMes, montarFechamento, diferencaRecebimento, mensagemFechamento } from '../aulasFechamento.js'
-import { resumoDoMes } from '../financeiro.js'
+import { resumoDoMes, rendaDoMes } from '../financeiro.js'
+import { rendaPrevista } from '../rendaSazonal.js'
 
 const al = { id: 'a1', nome: 'Lucas', responsavel: 'Marta Silva' }
 const aula = (id, data, status, extra = {}) => ({ id, aluno_id: 'a1', data, data_original: data, horario: null, duracao_min: 60, duracao_real_min: status === 'realizada' ? 60 : null, valor_hora_centavos: 8000, valor_centavos: status === 'realizada' ? 8000 : null, status, origem: 'recorrente', historico: [], ...extra })
@@ -77,5 +78,38 @@ describe('mensagem', () => {
     const m = mensagemFechamento(al, '2026-10', f.itens, f.valor_centavos, { resumo: true, aulasMes: aulas })
     expect(m).toContain('sem cobrança): 20/10')
     expect(m).toContain('Reposições realizadas: 27/10')
+  })
+})
+
+describe('projeção das aulas nos meses à frente', () => {
+  const aluno = { id: 'a1', nome: 'Lucas', ativo: true, inicio: '2026-09-01', valor_hora_centavos: 10000 }
+  const prog = [{ id: 'p1', aluno_id: 'a1', dia_semana: 2, duracao_min: 60, vigencia_inicio: '2026-09-01' }] // terças
+  it('mês sem aulas geradas vem da programação semanal e é marcado como projetado', () => {
+    const m = aulasPorMes([aluno], [], [], { programacoes: prog, desde: '2026-11', meses: 3 })
+    expect(m['2026-11']).toMatchObject({ valor: 400, projetada: true }) // 4 terças em nov/26
+    expect(m['2026-12'].valor).toBe(500) // 5 terças em dez/26
+    expect(m['2026-10']).toBeUndefined() // antes de `desde` nada é projetado
+  })
+  it('mês com aulas geradas usa o que existe, não a projeção', () => {
+    const real = [{ id: 'x', aluno_id: 'a1', data: '2026-11-03', data_original: '2026-11-03', duracao_min: 60, valor_hora_centavos: 10000, status: 'prevista' }]
+    const m = aulasPorMes([aluno], real, [], { programacoes: prog, desde: '2026-11', meses: 2 })
+    expect(m['2026-11']).toMatchObject({ valor: 100, projetada: false })
+  })
+  it('sem `desde` não projeta (comportamento do passo 2)', () => {
+    expect(aulasPorMes([aluno], [], [], { programacoes: prog })).toEqual({})
+  })
+  it('aulas projetadas não fazem o mês parecer cadastrado: salário continua estimado', () => {
+    const manual = [{ mes: '2026-10', giovanna: 4000, sabrina: 0, extra_sabrina: 0, mesada: 0, outros: 0 }]
+    const m = aulasPorMes([aluno], [], [], { programacoes: prog, desde: '2026-11', meses: 2 })
+    const rs = rendasComAulas(manual, m)
+    const nov = rendaDoMes(rs, '2026-11', { estimar: true })
+    expect(nov).toEqual({ valor: 4400, estimada: true })
+    expect(rendaPrevista(rs, {}, '2026-11')).toMatchObject({ valor: 4400, estimada: true })
+    expect(rendaDoMes(rs, '2026-11').valor).toBe(400) // sem estimar: só as aulas
+  })
+  it('mês com renda digitada soma as aulas por cima', () => {
+    const manual = [{ mes: '2026-11', giovanna: 4000, extra_sabrina: 100, mesada: 0, outros: 0, sabrina: 0 }]
+    const rs = rendasComAulas(manual, aulasPorMes([aluno], [], [], { programacoes: prog, desde: '2026-11', meses: 1 }))
+    expect(rendaDoMes(rs, '2026-11')).toEqual({ valor: 4500, estimada: false })
   })
 })

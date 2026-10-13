@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { RENDA_CAMPOS, fmt, fmtK, mesLabel, nowYM, totalRenda } from '../lib/utils'
+import { RENDA_CAMPOS, fmt, fmtK, mesLabel, nowYM, rendaDigitada } from '../lib/utils'
 import { perfilDeLinhas, fatorDe, proximoFator, projecaoRenda, planoDeReserva, temPerfil } from '../lib/rendaSazonal'
 import { saldoMeta } from '../lib/metas'
 import Secao from './Secao'
@@ -84,7 +84,7 @@ export default function RendaSazonal({ store }) {
               {meses.map((m) => (
                 <tr key={m.mes}>
                   <td>{mesLabel(m.mes)}{m.mes === hoje && <span className="badge badge-green" style={{ marginLeft: 6, fontSize: 10 }}>atual</span>}</td>
-                  <td className="mono" style={{ textAlign: 'right' }}>{fmtK(m.renda)}{m.estimada && totalRenda(rendas.find((r) => r.mes === m.mes)) === 0 && <span className="rs-prev" title="Renda prevista pelos meses fracos que você marcou"> prev.</span>}</td>
+                  <td className="mono" style={{ textAlign: 'right' }}>{fmtK(m.renda)}{m.estimada && rendaDigitada(rendas.find((r) => r.mes === m.mes)) === 0 && <span className="rs-prev" title="Renda prevista pelos meses fracos que você marcou"> prev.</span>}</td>
                   <td className="mono col-opc" style={{ textAlign: 'right' }}>{fmtK(m.comprometido)}</td>
                   <td className="mono" style={{ textAlign: 'right', color: m.sobra < -0.005 ? 'var(--red)' : 'var(--green)' }}>{m.sobra < 0 ? '−' : '+'}{fmtK(Math.abs(m.sobra))}</td>
                 </tr>

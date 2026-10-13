@@ -4,7 +4,7 @@
 //
 // Todas as funções são puras (sem React, sem rede). `d` = os dados do app:
 // { fixos, fixosPagamentos, cartoes, compras, faturas, rendas, saldoAjustes, comprasPagamentos, comprasPagamentosOk, fechamentos }.
-import { addMonths, fixosAtivos, gerarParcelas, totalRenda } from './utils.js'
+import { addMonths, fixosAtivos, gerarParcelas, totalRenda, rendaDigitada } from './utils.js'
 
 const POR_DIA = (a, b) => (a.dia_vencimento || 99) - (b.dia_vencimento || 99)
 
@@ -12,14 +12,16 @@ const POR_DIA = (a, b) => (a.dia_vencimento || 99) - (b.dia_vencimento || 99)
 
 // Renda de um mês. Sem `estimar`, mês sem renda cadastrada vale 0 (renda realizada).
 // Com `estimar`, repete a última renda cadastrada antes do mês e marca como estimada (renda prevista).
+// Aulas particulares (extra_aulas) são somadas à renda pelo app: contam sempre, mas não fazem o mês parecer "cadastrado".
 export function rendaDoMes(rendas, mes, { estimar = false } = {}) {
-  const exata = totalRenda((rendas || []).find((r) => r.mes === mes))
-  if (exata > 0) return { valor: exata, estimada: false }
-  if (!estimar) return { valor: 0, estimada: false }
+  const linha = (rendas || []).find((r) => r.mes === mes)
+  const aulas = Number(linha?.extra_aulas) || 0
+  if (rendaDigitada(linha) > 0) return { valor: totalRenda(linha), estimada: false }
+  if (!estimar) return { valor: aulas, estimada: false }
   const anterior = (rendas || [])
-    .filter((r) => r.mes < mes && totalRenda(r) > 0)
+    .filter((r) => r.mes < mes && rendaDigitada(r) > 0)
     .sort((a, b) => b.mes.localeCompare(a.mes))[0]
-  return { valor: anterior ? totalRenda(anterior) : 0, estimada: true }
+  return { valor: (anterior ? rendaDigitada(anterior) : 0) + aulas, estimada: true }
 }
 
 // ---------- Faturas ----------

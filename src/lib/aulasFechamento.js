@@ -1,6 +1,6 @@
 // Fechamento das aulas por aluno e ligação com a Renda. Tudo em centavos (aulas) — a conversão para reais acontece só em
 // `aulasPorMes`/`rendasComAulas`, que alimentam o resto do app (que trabalha em reais).
-import { aulasDoMes, contaNaPrevisao, duracaoEfetiva, mesDe, valorDaAula, diaDaSemana, DIAS, textoDuracao } from './aulas.js'
+import { aulasDoMes, contaNaPrevisao, duracaoEfetiva, mesDe, valorDaAula, diaDaSemana, DIAS, textoDuracao, gerarOcorrencias, valorAula } from './aulas.js'
 
 export const fechadoStatus = (f) => !!f && (f.status === 'fechado' || f.status === 'sem_cobranca')
 export const achaFechamento = (fechamentos, alunoId, mes) => (fechamentos || []).find((f) => f.aluno_id === alunoId && f.mes === mes) || null
@@ -28,19 +28,31 @@ export function valorAlunoMes(aulas, fechamentos, alunoId, mes) {
   return { valor, recebido, aReceber: valor - recebido, fechamento: f }
 }
 
-// { 'AAAA-MM': { valor, recebido, aReceber (em reais), porAluno: [{alunoId, valor, recebido, aReceber, fechado}] } }
-export function aulasPorMes(alunos, aulas, fechamentos) {
+const somaMes = (mes, n) => { const t = Number(mes.slice(0, 4)) * 12 + Number(mes.slice(5, 7)) - 1 + n; return `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, '0')}` }
+
+// { 'AAAA-MM': { valor, recebido, aReceber (em reais), projetada, porAluno: [{alunoId, valor, recebido, aReceber, fechado, projetada}] } }
+// Com `desde` (AAAA-MM), os `meses` seguintes em que o aluno ainda não tem aulas geradas entram PROJETADOS pela programação semanal
+// (o que a agenda indica, sem nenhuma aula registrada); assim a renda dos meses à frente já enxerga as aulas.
+export function aulasPorMes(alunos, aulas, fechamentos, { programacoes = [], desde = null, meses: qtd = 12 } = {}) {
   const meses = new Set([...(aulas || []).map((a) => mesDe(a.data)), ...(fechamentos || []).map((f) => f.mes)])
+  if (desde) for (let i = 0; i < qtd; i++) meses.add(somaMes(desde, i))
   const out = {}
   for (const mes of meses) {
     const porAluno = []
     for (const al of alunos || []) {
+      const temAulas = (aulas || []).some((a) => a.aluno_id === al.id && mesDe(a.data) === mes) || !!achaFechamento(fechamentos, al.id, mes)
+      if (!temAulas) {
+        if (!desde || mes < desde) continue
+        const prev = gerarOcorrencias(al, programacoes.filter((p) => p.aluno_id === al.id), mes).reduce((t, o) => t + valorAula(al.valor_hora_centavos, o.duracao_min), 0)
+        if (prev) porAluno.push({ alunoId: al.id, nome: al.nome, valor: prev / 100, recebido: 0, aReceber: prev / 100, fechado: false, projetada: true })
+        continue
+      }
       const v = valorAlunoMes(aulas || [], fechamentos || [], al.id, mes)
-      if (v.valor || v.recebido) porAluno.push({ alunoId: al.id, nome: al.nome, valor: v.valor / 100, recebido: v.recebido / 100, aReceber: v.aReceber / 100, fechado: fechadoStatus(v.fechamento) })
+      if (v.valor || v.recebido) porAluno.push({ alunoId: al.id, nome: al.nome, valor: v.valor / 100, recebido: v.recebido / 100, aReceber: v.aReceber / 100, fechado: fechadoStatus(v.fechamento), projetada: false })
     }
     if (!porAluno.length) continue
     const soma = (k) => Math.round(porAluno.reduce((t, p) => t + p[k], 0) * 100) / 100
-    out[mes] = { valor: soma('valor'), recebido: soma('recebido'), aReceber: soma('aReceber'), porAluno }
+    out[mes] = { valor: soma('valor'), recebido: soma('recebido'), aReceber: soma('aReceber'), projetada: porAluno.some((p) => p.projetada), porAluno }
   }
   return out
 }
@@ -50,8 +62,8 @@ export function rendasComAulas(rendas, porMes) {
   const meses = Object.keys(porMes || {})
   if (!meses.length) return rendas
   const existentes = new Set(rendas.map((r) => r.mes))
-  const somada = rendas.map((r) => (porMes[r.mes] ? { ...r, extra_sabrina: (Number(r.extra_sabrina) || 0) + porMes[r.mes].valor, extra_aulas: porMes[r.mes].valor } : r))
-  const sinteticas = meses.filter((m) => !existentes.has(m)).map((m) => ({ id: `aulas-${m}`, mes: m, giovanna: 0, sabrina: 0, extra_sabrina: porMes[m].valor, extra_aulas: porMes[m].valor, mesada: 0, outros: 0, sintetica: true }))
+  const somada = rendas.map((r) => (porMes[r.mes] ? { ...r, extra_sabrina: (Number(r.extra_sabrina) || 0) + porMes[r.mes].valor, extra_aulas: porMes[r.mes].valor, aulas_projetadas: porMes[r.mes].projetada } : r))
+  const sinteticas = meses.filter((m) => !existentes.has(m)).map((m) => ({ id: `aulas-${m}`, mes: m, giovanna: 0, sabrina: 0, extra_sabrina: porMes[m].valor, extra_aulas: porMes[m].valor, aulas_projetadas: porMes[m].projetada, mesada: 0, outros: 0, sintetica: true }))
   return [...somada, ...sinteticas].sort((a, b) => b.mes.localeCompare(a.mes))
 }
 

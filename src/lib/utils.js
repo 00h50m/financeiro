@@ -90,6 +90,8 @@ export const gerarParcelas = (compra, cartoes) => {
 
 export const totalRenda = (r) =>
   RENDA_CAMPOS.reduce((s, [k]) => s + Number(r?.[k] || 0), 0)
+// Só o que foi digitado em Renda (sem as aulas particulares, que o app soma sozinho em extra_sabrina).
+export const rendaDigitada = (r) => totalRenda(r) - Number(r?.extra_aulas || 0)
 
 // Contas fixas que contam como ativas em um mês (respeita o mês de início e o de término).
 // Conta de valor variável: usa o valor real informado para aquele mês (f.valores[mes]); sem ele, a estimativa (f.valor)
