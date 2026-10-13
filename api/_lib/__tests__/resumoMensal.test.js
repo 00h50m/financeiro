@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { processarUpdate } from '../bot.js'
 import { enviarResumosMensais, textoResumoDoMes } from '../resumoMensal.js'
 import cron from '../../cron-resumo-mensal.js'
+import { aulasPorMes, rendasComAulas, aulasAReceberPorMes } from '../../../src/lib/aulasFechamento.js'
 import { criarFakeDb, criarFakeTg, msg, GI } from './fakes.js'
 
 const DIA_1 = new Date('2026-11-01T11:00:00Z') // 08h em São Paulo, dia 1
@@ -16,6 +17,14 @@ describe('resumo mensal no Telegram', () => {
     expect(t).toContain('Renda: R$ 5.000,00')
     expect(t).toContain('Onde foi o dinheiro:')
     expect(t).toContain('Alimentação')
+  })
+  it('aulas particulares entram na renda e o a receber aparece como aviso', async () => {
+    const aulas = [{ id: 'a1', aluno_id: 'al', data: '2026-10-06', data_original: '2026-10-06', duracao_min: 60, duracao_real_min: 60, valor_hora_centavos: 10000, valor_centavos: 10000, status: 'realizada', origem: 'recorrente' }]
+    const porMes = aulasPorMes([{ id: 'al', nome: 'Lucas' }], aulas, [])
+    const d = await db.dadosResumoMensal()
+    const t = textoResumoDoMes({ ...d, rendas: rendasComAulas(d.rendas, porMes), aulasAReceber: aulasAReceberPorMes(porMes) }, '2026-10', '2026-11-01')
+    expect(t).toContain('Renda: R$ 5.100,00')
+    expect(t).toContain('Aulas particulares a receber: R$ 100,00')
   })
   it('no dia 1 manda o resumo do mês que passou só para quem ligou /avisos on', async () => {
     await processarUpdate(msg(GI, '/avisos on'), { db, tg, agora: () => DIA_1 })

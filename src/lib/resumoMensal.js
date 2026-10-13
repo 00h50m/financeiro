@@ -27,6 +27,8 @@ export function montarResumoMensal(d, mes, hoje) {
   tetos.filter((t) => t.teto > 0 && statusTeto(t.gasto, t.teto) === 'perto').forEach((t) => base.avisos.push({ tom: 'atencao', texto: `${t.cat} perto do teto: ${fmt(t.gasto)} de ${fmt(t.teto)}` }))
   const r = resumoDoMes(d, mes, { usarSaldoAnterior: false })
   if (r.aPagar > 0.005) base.avisos.push({ tom: 'info', texto: `Ainda a pagar neste mês: ${fmt(r.aPagar)}` })
+  const aReceberAulas = Number((d.aulasAReceber || {})[mes]) || 0
+  if (aReceberAulas > 0.005) base.avisos.push({ tom: 'info', texto: `Aulas particulares a receber: ${fmt(aReceberAulas)} (já contam na renda do mês)` })
   const acabam = terminandoLogo(d.compras, d.cartoes, mes, 0)
   if (acabam.length) base.avisos.push({ tom: 'bom', texto: `Última parcela este mês: ${acabam.map((a) => a.compra.identificacao || a.compra.descricao).join(', ')} (libera ${fmt(acabam.reduce((t, a) => t + a.libera, 0))}/mês)` })
   const pend = pendenciasValorVariavel(d.fixos, hoje, { inicio: d.inicioApp }).filter((p) => p.mes === mes)
