@@ -26,6 +26,15 @@ describe('resumo mensal no Telegram', () => {
     expect(t).toContain('Renda: R$ 5.100,00')
     expect(t).toContain('Aulas particulares a receber: R$ 100,00')
   })
+  it('não manda o resumo de um mês anterior ao início do app', async () => {
+    const dados = await db.dadosResumoMensal()
+    db.dadosResumoMensal = async () => ({ ...dados, inicioApp: '2026-11' })
+    await processarUpdate(msg(GI, '/avisos on'), { db, tg, agora: () => DIA_1 })
+    tg.enviadas.length = 0
+    const r = await enviarResumosMensais({ db, tg, agora: () => DIA_1 })
+    expect(r).toMatchObject({ enviados: 0, motivo: 'antes_do_inicio' })
+    expect(tg.enviadas).toHaveLength(0)
+  })
   it('no dia 1 manda o resumo do mês que passou só para quem ligou /avisos on', async () => {
     await processarUpdate(msg(GI, '/avisos on'), { db, tg, agora: () => DIA_1 })
     tg.enviadas.length = 0

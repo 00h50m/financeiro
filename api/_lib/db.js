@@ -2,6 +2,7 @@
 // passam por aqui; o navegador nunca recebe essa chave.
 import { createClient } from '@supabase/supabase-js'
 import { comprasLiquidas, fixosLiquidos } from '../../src/lib/divisoes.js'
+import { inicioDoApp } from '../../src/lib/inicioApp.js'
 import { hojeSP } from '../../src/lib/utils.js'
 import { aulasPorMes, rendasComAulas, aulasAReceberPorMes } from '../../src/lib/aulasFechamento.js'
 
@@ -145,6 +146,11 @@ export function criarDb({ url, serviceKey }) {
       const d = { compras: comprasTodas, fixos: fixosTodos, divisoes }
       return { orcamentos: o.data, fixos: fixosLiquidos(d), compras: comprasLiquidas(d) }
     },
+    // Mês em que o app começou a valer (tabela config, chave inicio_app). Sem a tabela ou sem registro, vale o padrão.
+    async inicioApp() {
+      const r = await sb.from('config').select('chave,valor')
+      return inicioDoApp(Object.fromEntries((r.error ? [] : r.data || []).map((l) => [l.chave, l.valor])))
+    },
     // Tudo que o resumo mensal precisa (mesmas contas do app). Tabelas opcionais que ainda não existem viram lista vazia.
     async dadosResumoMensal() {
       const opcional = async (tabela, colunas = '*') => { try { return await todas(tabela, colunas) } catch { return null } }
@@ -154,11 +160,12 @@ export function criarDb({ url, serviceKey }) {
         opcional('orcamentos'), opcional('fechamentos'), opcional('divisoes'), opcional('divisoes_repasses'),
       ])
       // Aulas particulares (tabelas opcionais): somam na renda e o "a receber" sai do disponível, igual ao app.
+      const inicioApp = await this.inicioApp()
       const [alunos, aulas, aulasFech, aulasProg] = await Promise.all([opcional('alunos'), opcional('aulas', '*'), opcional('aulas_fechamentos'), opcional('aulas_programacao')])
       const porMes = alunos && aulas && aulasFech ? aulasPorMes(alunos, aulas, aulasFech, { programacoes: aulasProg || [], desde: hojeSP().slice(0, 7) }) : {}
       return {
         compras, cartoes, fixos, fixosValores: fixosValores || [], faturas, rendas: rendasComAulas(rendas, porMes), aulasAReceber: aulasAReceberPorMes(porMes), fixosPagamentos, comprasPagamentos: comprasPagamentos || [], comprasPagamentosOk: comprasPagamentos != null,
-        saldoAjustes, pessoas, orcamentos: orcamentos || [], fechamentos: fechamentos || [], divisoes: divisoes || [], divisoesRepasses: divisoesRepasses || [], metas: [], metasMovimentos: [],
+        saldoAjustes, pessoas, inicioApp, orcamentos: orcamentos || [], fechamentos: fechamentos || [], divisoes: divisoes || [], divisoesRepasses: divisoesRepasses || [], metas: [], metasMovimentos: [],
       }
     },
     // ---- resumo semanal (precisa do inbox/11) ----

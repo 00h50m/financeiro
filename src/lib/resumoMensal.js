@@ -3,6 +3,7 @@ import { fmt, mesLabel, addMonths, statusTeto } from './utils.js'
 import { serieMensal } from './evolucao.js'
 import { categoriasDoMes } from './graficos.js'
 import { resumoDoMes } from './financeiro.js'
+import { antesDoInicio } from './inicioApp.js'
 import { terminandoLogo } from './parcelamentos.js'
 import { pendenciasValorVariavel } from './fixosVariaveis.js'
 
@@ -10,6 +11,7 @@ import { pendenciasValorVariavel } from './fixosVariaveis.js'
 export function montarResumoMensal(d, mes, hoje) {
   const [ant, atual] = serieMensal(d, mes, 2)
   const base = { mes, titulo: `Resumo de ${mesLabel(mes)}`, vazio: !atual.temDados, kpis: [], comparativo: null, categorias: [], avisos: [] }
+  if (antesDoInicio(mes, d.inicioApp)) return { ...base, vazio: true, antesDoInicio: d.inicioApp }
   if (base.vazio) return base
   const pctSobra = atual.renda > 0 ? Math.round((atual.sobra / atual.renda) * 100) : null
   base.kpis = [
@@ -38,6 +40,7 @@ export function montarResumoMensal(d, mes, hoje) {
 
 export function textoDoResumo(r) {
   const linhas = [`📊 ${r.titulo}`]
+  if (r.antesDoInicio) return [...linhas, `O app só considera os dados a partir de ${mesLabel(r.antesDoInicio)}; meses anteriores não têm resumo.`].join('\n')
   if (r.vazio) return [...linhas, 'Ainda não há renda nem gastos neste mês.'].join('\n')
   linhas.push('', ...r.kpis.map((k) => `${k.rotulo}: ${k.valor}${k.nota ? ` (${k.nota})` : ''}`))
   if (r.comparativo) linhas.push(r.comparativo.texto)

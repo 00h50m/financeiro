@@ -2,8 +2,9 @@
 import { hojeSP, fmt } from '../../src/lib/utils.js'
 import { periodoDe, calcularResumo, formatarResumo } from '../../src/lib/resumo.js'
 
-export function montarResumoSemanal({ compras, hoje }) {
-  const semana = periodoDe('semana', hoje)
+export function montarResumoSemanal({ compras, hoje, inicio = null }) {
+  const noInicio = (p) => (inicio && p.de < `${inicio}-01` ? { ...p, de: `${inicio}-01` } : p)
+  const semana = noInicio(periodoDe('semana', hoje))
   const mes = periodoDe('', hoje)
   const s = calcularResumo(compras, semana)
   const m = calcularResumo(compras, mes)
@@ -17,8 +18,10 @@ export async function enviarResumosSemanais({ db, tg, agora = () => new Date() }
   const destinatarios = await db.destinatariosResumo()
   if (!destinatarios.length) return { enviados: 0, falhas: 0 }
   const hoje = hojeSP(agora())
-  const de = periodoDe('', hoje).de < periodoDe('semana', hoje).de ? periodoDe('', hoje).de : periodoDe('semana', hoje).de
-  const texto = montarResumoSemanal({ compras: await db.comprasPeriodo(de, hoje), hoje })
+  const inicio = db.inicioApp ? await db.inicioApp() : null
+  const antes = periodoDe('', hoje).de < periodoDe('semana', hoje).de ? periodoDe('', hoje).de : periodoDe('semana', hoje).de
+  const de = inicio && antes < `${inicio}-01` ? `${inicio}-01` : antes // não conta compras de antes do início do app
+  const texto = montarResumoSemanal({ compras: await db.comprasPeriodo(de, hoje), hoje, inicio })
   let enviados = 0, falhas = 0
   for (const d of destinatarios) {
     try { await tg.enviar(d.chat_id, texto); enviados++ } catch (e) { falhas++; console.error('resumo semanal: falha ao enviar', e?.message) }

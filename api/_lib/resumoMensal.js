@@ -15,7 +15,9 @@ export async function enviarResumosMensais({ db, tg, agora = () => new Date() })
   if (!destinatarios.length) return { enviados: 0, falhas: 0 }
   const hoje = hojeSP(agora())
   const mes = addMonths(hoje.slice(0, 7), -1) // o mês que acabou de fechar
-  const texto = textoResumoDoMes(await db.dadosResumoMensal(), mes, hoje, { rodape: 'Para parar de receber os resumos: /avisos off' })
+  const dados = await db.dadosResumoMensal()
+  if (dados.inicioApp && mes < dados.inicioApp) return { enviados: 0, falhas: 0, motivo: 'antes_do_inicio' } // mês anterior ao início do app: nada confiável para resumir
+  const texto = textoResumoDoMes(dados, mes, hoje, { rodape: 'Para parar de receber os resumos: /avisos off' })
   let enviados = 0, falhas = 0
   for (const d of destinatarios) {
     try { await tg.enviar(d.chat_id, texto); enviados++ } catch (e) { falhas++; console.error('resumo mensal: falha ao enviar', e?.message) }
