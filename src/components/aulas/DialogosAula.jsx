@@ -10,12 +10,12 @@ const dataBr = (d) => d.split('-').reverse().join('/')
 export const rotuloData = (d) => `${DIAS_CURTOS[diaDaSemana(d)]} ${dataBr(d).slice(0, 5)}`
 
 // Um único diálogo para as ações de uma aula: editar, remarcar, cancelar / não realizada, reposição e aula avulsa.
-export default function DialogosAula({ store, tipo, aula, aluno, alunos, onClose, bloqueado }) {
+export default function DialogosAula({ store, tipo, aula, aluno, alunos, onClose, bloqueado, dataInicial }) {
   const { atualizarAula, inserirAula } = store
   const agoraISO = () => new Date().toISOString()
   const [f, setF] = useState(() => ({
     alunoId: aluno?.id || alunos?.[0]?.id || '',
-    data: tipo === 'reposicao' || tipo === 'avulsa' ? hojeSP() : aula?.data || hojeSP(),
+    data: tipo === 'reposicao' || tipo === 'avulsa' ? dataInicial || hojeSP() : aula?.data || hojeSP(),
     horario: aula?.horario || '',
     duracao: aula?.duracao_min || 60,
     duracaoReal: aula?.duracao_real_min || aula?.duracao_min || 60,
