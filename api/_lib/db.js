@@ -2,6 +2,7 @@
 // passam por aqui; o navegador nunca recebe essa chave.
 import { createClient } from '@supabase/supabase-js'
 import { comprasLiquidas, fixosLiquidos } from '../../src/lib/divisoes.js'
+import { hojeSP } from '../../src/lib/utils.js'
 import { aulasPorMes, rendasComAulas, aulasAReceberPorMes } from '../../src/lib/aulasFechamento.js'
 
 const ABERTOS = ['pendente', 'aguardando_dados']
@@ -153,8 +154,8 @@ export function criarDb({ url, serviceKey }) {
         opcional('orcamentos'), opcional('fechamentos'), opcional('divisoes'), opcional('divisoes_repasses'),
       ])
       // Aulas particulares (tabelas opcionais): somam na renda e o "a receber" sai do disponível, igual ao app.
-      const [alunos, aulas, aulasFech] = await Promise.all([opcional('alunos'), opcional('aulas', '*'), opcional('aulas_fechamentos')])
-      const porMes = alunos && aulas && aulasFech ? aulasPorMes(alunos, aulas, aulasFech) : {}
+      const [alunos, aulas, aulasFech, aulasProg] = await Promise.all([opcional('alunos'), opcional('aulas', '*'), opcional('aulas_fechamentos'), opcional('aulas_programacao')])
+      const porMes = alunos && aulas && aulasFech ? aulasPorMes(alunos, aulas, aulasFech, { programacoes: aulasProg || [], desde: hojeSP().slice(0, 7) }) : {}
       return {
         compras, cartoes, fixos, fixosValores: fixosValores || [], faturas, rendas: rendasComAulas(rendas, porMes), aulasAReceber: aulasAReceberPorMes(porMes), fixosPagamentos, comprasPagamentos: comprasPagamentos || [], comprasPagamentosOk: comprasPagamentos != null,
         saldoAjustes, pessoas, orcamentos: orcamentos || [], fechamentos: fechamentos || [], divisoes: divisoes || [], divisoesRepasses: divisoesRepasses || [], metas: [], metasMovimentos: [],

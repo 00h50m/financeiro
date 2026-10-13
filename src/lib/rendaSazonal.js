@@ -1,6 +1,6 @@
 // Renda que muda ao longo do ano (professora que não recebe nas férias, aulas particulares fracas em certos meses...).
 // Cada fonte de renda (campo da tabela rendas) tem um fator por mês do ano: 1 = normal, 0,4 = fraco, 0 = não recebe.
-import { RENDA_CAMPOS, totalRenda, addMonths } from './utils.js'
+import { RENDA_CAMPOS, totalRenda, rendaDigitada, addMonths } from './utils.js'
 import { detalhePagamentos, rendaDoMes } from './financeiro.js'
 
 // Valores que o toque na tela alterna: normal → um pouco menos → fraco → nada.
@@ -29,14 +29,15 @@ export const temPerfil = (perfil) => Object.values(perfil || {}).some((m) => Obj
 // fonte (último mês cadastrado antes dele, desfeito o fator daquele mês) vezes o fator do mês.
 export function rendaPrevista(rendas, perfil, mes) {
   const cadastrada = (rendas || []).find((r) => r.mes === mes)
-  if (totalRenda(cadastrada) > 0) return { valor: totalRenda(cadastrada), estimada: false }
-  const anteriores = (rendas || []).filter((r) => r.mes < mes && totalRenda(r) > 0).sort((a, b) => b.mes.localeCompare(a.mes))
-  let valor = 0
+  const aulas = Number(cadastrada?.extra_aulas) || 0 // aulas particulares: já refletem a agenda real do mês, sem fator
+  if (rendaDigitada(cadastrada) > 0) return { valor: totalRenda(cadastrada), estimada: false }
+  const anteriores = (rendas || []).filter((r) => r.mes < mes && rendaDigitada(r) > 0).sort((a, b) => b.mes.localeCompare(a.mes))
+  let valor = aulas
   const porCampo = {}
   for (const [campo] of RENDA_CAMPOS) {
     let base = 0
     for (const r of anteriores) {
-      const v = Number(r[campo]) || 0
+      const v = (Number(r[campo]) || 0) - (campo === 'extra_sabrina' ? Number(r.extra_aulas) || 0 : 0)
       const f = fatorDe(perfil, campo, r.mes)
       if (v > 0 && f > 0) { base = v / f; break }
     }
@@ -44,6 +45,7 @@ export function rendaPrevista(rendas, perfil, mes) {
     porCampo[campo] = previsto
     valor += previsto
   }
+  if (aulas) porCampo.extra_sabrina = r2((porCampo.extra_sabrina || 0) + aulas)
   return { valor: r2(valor), estimada: true, porCampo }
 }
 

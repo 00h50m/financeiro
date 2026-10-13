@@ -955,7 +955,7 @@ export function useStore(email = null) {
   const fixosComValores = useMemo(() => anexarValores(fixos, fixosValores), [fixos, fixosValores])
   const inicioApp = inicioDoApp(config)
   // Renda efetiva = o que foi digitado + aulas particulares (somadas em extra_sabrina). `rendasManuais` é só o digitado (tela Renda, backup).
-  const aulasMes = useMemo(() => (aulasOk ? aulasPorMes(alunos, aulas, aulasFech) : {}), [aulasOk, alunos, aulas, aulasFech])
+  const aulasMes = useMemo(() => (aulasOk ? aulasPorMes(alunos, aulas, aulasFech, { programacoes: aulasProg, desde: nowYM() }) : {}), [aulasOk, alunos, aulas, aulasFech, aulasProg])
   const rendas = useMemo(() => rendasComAulas(rendasManuais, aulasMes), [rendasManuais, aulasMes])
   const aulasAReceber = useMemo(() => aulasAReceberPorMes(aulasMes), [aulasMes])
 
