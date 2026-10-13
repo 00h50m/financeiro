@@ -9,6 +9,8 @@ import Secao from './Secao'
 import ModalAluno from './aulas/ModalAluno'
 import DialogosAula, { rotuloData } from './aulas/DialogosAula'
 import SeletorDuracao from './aulas/SeletorDuracao'
+import Calendario from './aulas/Calendario'
+import ModalLote from './aulas/ModalLote'
 import ModalFechamento from './aulas/ModalFechamento'
 import { achaFechamento, fechadoStatus, valorAlunoMes } from '../lib/aulasFechamento'
 
@@ -23,6 +25,12 @@ export default function Aulas({ store }) {
   const [modalAluno, setModalAluno] = useState(null) // { aluno } | {}
   const [dialogo, setDialogo] = useState(null) // { tipo, aula? }
   const [menu, setMenu] = useState(null)
+  const [visao, setVisao] = useState('lista') // 'lista' | 'calendario'
+  const [dia, setDia] = useState(null)
+  const [modoSel, setModoSel] = useState(false)
+  const [sel, setSel] = useState(() => new Set())
+  const [lote, setLote] = useState(false)
+  const [compAberto, setCompAberto] = useState(false)
   const [fechando, setFechando] = useState(null) // aluno cujo fechamento está aberto
   const tentadas = useRef(new Set())
 
@@ -97,16 +105,66 @@ export default function Aulas({ store }) {
     setDialogo({ tipo, aula })
   }
 
+  const alternar = (id) => setSel((x) => { const n = new Set(x); if (n.has(id)) n.delete(id); else n.add(id); return n })
+  const selecionaveis = doMes.filter((a) => a.status === 'prevista' && !fechado(a.aluno_id, mesDe(a.data)))
+  const selAulas = selecionaveis.filter((a) => sel.has(a.id))
+  const sairSel = () => { setModoSel(false); setSel(new Set()) }
+  const cardAula = (a) => {
+    const al = alunoPorId.get(a.aluno_id)
+    const pendente = pendenteDeAtualizacao(a, hoje)
+    const original = a.data_original !== a.data && a.origem === 'recorrente' ? a.data_original : null
+    const repo = (a.status === 'cancelada' || a.status === 'nao_realizada') ? reposicaoAtiva(a, aulas) : null
+    return (
+      <article key={a.id} className={`aula-card ${a.status} ${sel.has(a.id) ? 'marcada' : ''}`}>
+        {modoSel && (a.status === 'prevista' && !fechado(a.aluno_id, mesDe(a.data))
+          ? <input type="checkbox" className="aula-check" checked={sel.has(a.id)} onChange={() => alternar(a.id)} aria-label="Selecionar aula" />
+          : <span className="aula-check" />)}
+        <div className="aula-data"><b>{DIAS_CURTOS[diaDaSemana(a.data)]}</b><span>{dataBr(a.data).slice(0, 5)}</span>{a.horario && <em>{a.horario}</em>}</div>
+        <div className="aula-corpo">
+          <div className="aula-linha1">
+            {!filtro && <strong>{al?.nome}</strong>}
+            <span className={`badge ${COR_STATUS[a.status]}`}>{STATUS[a.status]}</span>
+            {a.origem === 'avulsa' && <span className="badge badge-purple">Avulsa</span>}
+            {a.origem === 'reposicao' && <span className="badge badge-purple">Reposição</span>}
+            {original && <span className="badge badge-gray" title="Data original da aula">remarcada de {dataBr(original).slice(0, 5)}</span>}
+            {a.data === hoje && <span className="badge badge-green">hoje</span>}
+            {pendente && <span className="badge badge-amber" title="A data já passou: confirme se a aula aconteceu">atualizar</span>}
+          </div>
+          <div className="aula-linha2">
+            {a.status === 'realizada' || a.status === 'prevista' ? (
+              <>
+                <SeletorDuracao valor={duracaoEfetiva(a)} onChange={(m) => mudarDuracao(a, m)} rotulo={a.status === 'realizada' ? 'Duração efetiva' : 'Duração prevista'} className="aula-dur" />
+                <span className="mono aula-valor">{fmt(centavosParaReais(valorDaAula(a)))}</span>
+                {a.status === 'realizada' && a.duracao_real_min !== a.duracao_min && <span className="cad-sub">prevista {textoDuracao(a.duracao_min)}</span>}
+              </>
+            ) : (
+              <span className="cad-sub">{a.status === 'cancelada' ? 'Cancelada' : 'Não realizada'}{a.quem ? ` por ${a.quem === 'aluno' ? 'aluno/responsável' : 'professora'}` : ''}{a.motivo ? ` · ${a.motivo}` : ''} · sem cobrança</span>
+            )}
+            {repo && <span className="cad-sub">· reposição em {dataBr(repo.data).slice(0, 5)}</span>}
+            {a.reposicao_de && <span className="cad-sub">· repõe aula de {dataBr(aulas.find((x) => x.id === a.reposicao_de)?.data || a.data).slice(0, 5)}</span>}
+          </div>
+          {a.observacao && <div className="cad-sub">{a.observacao}</div>}
+        </div>
+        <div className="aula-acoes">
+          {a.status === 'prevista' && <button className="btn btn-primary btn-sm" onClick={() => realizar(a, a.duracao_min)}>✓ Realizada</button>}
+          {(a.status === 'cancelada' || a.status === 'nao_realizada') && !repo && <button className="btn btn-ghost btn-sm" onClick={() => abrirDialogo('reposicao', a)}>Repor</button>}
+          <button className="btn btn-ghost btn-sm" onClick={() => setMenu(a)} aria-label="Mais ações da aula">⋯</button>
+        </div>
+      </article>
+    )
+  }
+
   const alunoFiltrado = filtro ? alunoPorId.get(filtro) : null
 
   return (
     <div className="page aulas-pg">
       {modalAluno && <ModalAluno store={store} aluno={modalAluno.aluno} onClose={() => setModalAluno(null)} />}
+      {lote && <ModalLote store={store} aulas={selAulas} alunoPorId={alunoPorId} onClose={(ok) => { setLote(false); if (ok) sairSel() }} />}
       {fechando && <ModalFechamento store={store} aluno={fechando} mes={mes} onClose={() => setFechando(null)} />}
       {dialogo && (
         <DialogosAula
           store={store} tipo={dialogo.tipo} aula={dialogo.aula} aluno={dialogo.aula ? alunoPorId.get(dialogo.aula.aluno_id) : alunoFiltrado || ativos[0]}
-          alunos={ativos} onClose={() => setDialogo(null)}
+          alunos={ativos} dataInicial={dialogo.data} onClose={() => setDialogo(null)}
           bloqueado={(tipo, f) => (tipo === 'remarcar' || tipo === 'editar' ? bloqueia(dialogo.aula.aluno_id, mesDe(f.data)) : (tipo === 'reposicao' || tipo === 'avulsa') ? bloqueia(dialogo.aula?.aluno_id || f.alunoId, mesDe(f.data)) : false)}
         />
       )}
@@ -163,6 +221,17 @@ export default function Aulas({ store }) {
           </div>
           {frasePrevistoRealizado(r) && <div className="aulas-frase">{frasePrevistoRealizado(r)}</div>}
 
+          {r.inicial.qtd > 0 && (
+            <Secao titulo="Previsto × realizado" info="planejamento do início do mês" aberto={compAberto} onToggle={() => setCompAberto((x) => !x)}>
+              <div className="aulas-comp">
+                <div className="aulas-comp-l cab"><span /><span>Início do mês</span><span>Agora</span><span>Apurado</span></div>
+                <div className="aulas-comp-l"><span>Aulas</span><b>{r.inicial.qtd}</b><b>{r.realizadas + r.previstas}</b><b>{r.realizadas}</b></div>
+                <div className="aulas-comp-l"><span>Horas</span><b>{textoDuracao(r.inicial.minutos)}</b><b>{textoDuracao(r.minutosRealizados + doMes.filter((a) => a.status === 'prevista').reduce((t, a) => t + a.duracao_min, 0))}</b><b>{textoDuracao(r.minutosRealizados)}</b></div>
+                <div className="aulas-comp-l"><span>Valor</span><b className="mono">{fmtK(centavosParaReais(r.inicial.valor))}</b><b className="mono">{fmtK(centavosParaReais(r.previsto))}</b><b className="mono">{fmtK(centavosParaReais(r.apurado))}</b></div>
+                <div className="cad-sub" style={{ marginTop: 6 }}>{r.canceladas + r.naoRealizadas} sem cobrança · {r.reposicoes} reposição(ões) · {r.avulsas} avulsa(s) · {r.remarcacoes} remarcação(ões)</div>
+              </div>
+            </Secao>
+          )}
           {!filtro && (
             <Secao titulo="Alunos" info={`${ativos.length} ativo${ativos.length === 1 ? '' : 's'}`} aberto onToggle={() => {}}>
               <div className="aulas-alunos">
@@ -205,50 +274,36 @@ export default function Aulas({ store }) {
             <div className="grupos-barra"><span>{alunoFiltrado?.nome} · {alunoFiltrado?.responsavel}</span><span>{alunoFiltrado && <button className="link-btn" onClick={() => setFechando(alunoFiltrado)}>{achaFechamento(aulasFech, alunoFiltrado.id, mes) && fechadoStatus(achaFechamento(aulasFech, alunoFiltrado.id, mes)) ? 'Ver fechamento' : 'Fechar mês'}</button>} · <button className="link-btn" onClick={() => setModalAluno({ aluno: alunoFiltrado })}>Editar aluno</button> · <button className="link-btn" onClick={() => setFiltro('')}>Ver todos</button></span></div>
           )}
 
+          {doMes.length > 0 && (
+            <div className="aulas-barra">
+              <div className="aulas-visao" role="group" aria-label="Visão">
+                <button className={visao === 'lista' ? 'ativo' : ''} onClick={() => setVisao('lista')}>Lista</button>
+                <button className={visao === 'calendario' ? 'ativo' : ''} onClick={() => setVisao('calendario')}>Calendário</button>
+              </div>
+              {selecionaveis.length > 0 && (modoSel
+                ? <div className="aulas-sel">
+                    <button className="link-btn" onClick={() => setSel(new Set(selecionaveis.filter((a) => a.data <= hoje).map((a) => a.id)))}>Já passaram</button>
+                    <button className="link-btn" onClick={() => setSel(new Set(selecionaveis.map((a) => a.id)))}>Todas</button>
+                    <button className="link-btn" onClick={sairSel}>Cancelar</button>
+                    <button className="btn btn-primary btn-sm" disabled={!selAulas.length} onClick={() => setLote(true)}>Marcar {selAulas.length} como realizada{selAulas.length === 1 ? '' : 's'}</button>
+                  </div>
+                : <button className="btn btn-ghost btn-sm" onClick={() => { setModoSel(true); setVisao('lista') }}>Selecionar várias</button>)}
+            </div>
+          )}
+
+          {visao === 'calendario' && doMes.length > 0 && (
+            <>
+              <Calendario mes={mes} aulas={doMes} alunoPorId={alunoPorId} hoje={hoje} dia={dia} onDia={setDia} mostrarAluno={!filtro} />
+              <div className="aulas-lista">
+                {dia ? (doMes.filter((a) => a.data === dia).length ? doMes.filter((a) => a.data === dia).map((a) => cardAula(a)) : <div className="card"><div className="empty" style={{ padding: 14 }}>Sem aulas em {rotuloData(dia)}.{ativos.length > 0 && <> <button className="link-btn" onClick={() => setDialogo({ tipo: 'avulsa', data: dia })}>Criar aula avulsa neste dia</button></>}</div></div>) : <div className="cad-sub" style={{ textAlign: 'center' }}>Toque em um dia para ver as aulas.</div>}
+              </div>
+            </>
+          )}
+
           <div className="aulas-lista">
-            {doMes.length === 0 ? (
+            {visao === 'calendario' && doMes.length > 0 ? null : doMes.length === 0 ? (
               <div className="card"><div className="empty">Nenhuma aula em {mesLabel(mes)}{filtro ? ' para este aluno' : ''}.{'\n'}As aulas aparecem sozinhas pela programação semanal; use "+ Aula avulsa" para uma aula fora dela.</div></div>
-            ) : doMes.map((a) => {
-              const al = alunoPorId.get(a.aluno_id)
-              const pendente = pendenteDeAtualizacao(a, hoje)
-              const original = a.data_original !== a.data && a.origem === 'recorrente' ? a.data_original : null
-              const repo = (a.status === 'cancelada' || a.status === 'nao_realizada') ? reposicaoAtiva(a, aulas) : null
-              return (
-                <article key={a.id} className={`aula-card ${a.status}`}>
-                  <div className="aula-data"><b>{DIAS_CURTOS[diaDaSemana(a.data)]}</b><span>{dataBr(a.data).slice(0, 5)}</span>{a.horario && <em>{a.horario}</em>}</div>
-                  <div className="aula-corpo">
-                    <div className="aula-linha1">
-                      {!filtro && <strong>{al?.nome}</strong>}
-                      <span className={`badge ${COR_STATUS[a.status]}`}>{STATUS[a.status]}</span>
-                      {a.origem === 'avulsa' && <span className="badge badge-purple">Avulsa</span>}
-                      {a.origem === 'reposicao' && <span className="badge badge-purple">Reposição</span>}
-                      {original && <span className="badge badge-gray" title="Data original da aula">remarcada de {dataBr(original).slice(0, 5)}</span>}
-                      {a.data === hoje && <span className="badge badge-green">hoje</span>}
-                      {pendente && <span className="badge badge-amber" title="A data já passou: confirme se a aula aconteceu">atualizar</span>}
-                    </div>
-                    <div className="aula-linha2">
-                      {a.status === 'realizada' || a.status === 'prevista' ? (
-                        <>
-                          <SeletorDuracao valor={duracaoEfetiva(a)} onChange={(m) => mudarDuracao(a, m)} rotulo={a.status === 'realizada' ? 'Duração efetiva' : 'Duração prevista'} className="aula-dur" />
-                          <span className="mono aula-valor">{fmt(centavosParaReais(valorDaAula(a)))}</span>
-                          {a.status === 'realizada' && a.duracao_real_min !== a.duracao_min && <span className="cad-sub">prevista {textoDuracao(a.duracao_min)}</span>}
-                        </>
-                      ) : (
-                        <span className="cad-sub">{a.status === 'cancelada' ? 'Cancelada' : 'Não realizada'}{a.quem ? ` por ${a.quem === 'aluno' ? 'aluno/responsável' : 'professora'}` : ''}{a.motivo ? ` · ${a.motivo}` : ''} · sem cobrança</span>
-                      )}
-                      {repo && <span className="cad-sub">· reposição em {dataBr(repo.data).slice(0, 5)}</span>}
-                      {a.reposicao_de && <span className="cad-sub">· repõe aula de {dataBr(aulas.find((x) => x.id === a.reposicao_de)?.data || a.data).slice(0, 5)}</span>}
-                    </div>
-                    {a.observacao && <div className="cad-sub">{a.observacao}</div>}
-                  </div>
-                  <div className="aula-acoes">
-                    {a.status === 'prevista' && <button className="btn btn-primary btn-sm" onClick={() => realizar(a, a.duracao_min)}>✓ Realizada</button>}
-                    {(a.status === 'cancelada' || a.status === 'nao_realizada') && !repo && <button className="btn btn-ghost btn-sm" onClick={() => abrirDialogo('reposicao', a)}>Repor</button>}
-                    <button className="btn btn-ghost btn-sm" onClick={() => setMenu(a)} aria-label="Mais ações da aula">⋯</button>
-                  </div>
-                </article>
-              )
-            })}
+            ) : visao === 'calendario' ? null : doMes.map((a) => cardAula(a))}
           </div>
         </>
       )}

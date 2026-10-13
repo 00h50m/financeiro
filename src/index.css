@@ -775,3 +775,35 @@ input[type='checkbox'] { width: auto; min-height: 0; accent-color: var(--brand);
 .check-linha { display: flex; align-items: center; gap: 8px; font-size: 13px; margin-top: 8px; font-weight: 400; }
 .check-linha input { width: auto; }
 @media (min-width: 900px) { .aulas-pg .kpi-faixa { grid-template-columns: repeat(4, 1fr); } }
+
+/* aulas: calendário, visão e seleção em lote */
+.aulas-barra { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin: 4px 0 10px; }
+.aulas-visao { display: inline-flex; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.aulas-visao button { background: transparent; border: 0; color: var(--text2); padding: 7px 14px; font-size: 13px; cursor: pointer; }
+.aulas-visao button.ativo { background: var(--bg3, var(--bg2)); color: var(--text); font-weight: 600; }
+.aulas-sel { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.aula-check { width: 20px; height: 20px; flex: none; accent-color: var(--green); }
+.aula-card.marcada { border-color: var(--green); }
+.cal-aulas { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; margin-bottom: 12px; }
+.cal-cab { text-align: center; font-size: 11px; color: var(--text3); padding: 4px 0; }
+.cal-dia { min-height: 78px; background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 5px; text-align: left; color: var(--text); cursor: pointer; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.cal-dia.hoje { border-color: var(--green); }
+.cal-dia.sel { background: rgba(34, 197, 94, .1); border-color: var(--green); }
+.cal-num { font-size: 12px; color: var(--text2); }
+.cal-aulas-dia { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cal-chip { display: flex; align-items: center; gap: 4px; font-size: 11px; min-width: 0; }
+.cal-chip-txt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-ponto { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--text3); }
+.cal-chip.azul .cal-ponto { background: #3b82f6; }
+.cal-chip.verde .cal-ponto { background: var(--green); }
+.cal-chip.ambar .cal-ponto { background: #f59e0b; }
+.cal-mais { font-size: 10px; color: var(--text3); }
+@media (max-width: 640px) {
+  .cal-dia { min-height: 52px; padding: 4px; }
+  .cal-aulas-dia { flex-direction: row; flex-wrap: wrap; gap: 3px; }
+  .cal-chip-txt { display: none; }
+}
+.aulas-comp { padding: 4px 14px 12px; }
+.aulas-comp-l { display: grid; grid-template-columns: 1.1fr 1fr 1fr 1fr; gap: 8px; padding: 6px 0; font-size: 13px; border-bottom: 1px solid var(--border); text-align: right; }
+.aulas-comp-l > :first-child { text-align: left; color: var(--text2); }
+.aulas-comp-l.cab { font-size: 11px; color: var(--text3); }

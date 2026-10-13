@@ -628,6 +628,12 @@ export function useStore(email = null) {
     const r = await sb.from('aulas').update(patch).eq('id', id)
     if (r.error) throw r.error
   }, ['aulas'], 'salvar a aula')
+  // Várias aulas de uma vez (ex.: marcar como realizadas): tudo ou nada na tela, uma recarga só.
+  const atualizarAulasLote = (itens) => op(async () => {
+    const rs = await Promise.all(itens.map((i) => sb.from('aulas').update(i.patch).eq('id', i.id)))
+    const erro = rs.find((r) => r.error)
+    if (erro) throw erro.error
+  }, ['aulas'], 'salvar as aulas')
   const excluirAula = (id) => op(async () => {
     const r = await sb.from('aulas').delete().eq('id', id).eq('origem', 'avulsa').eq('status', 'prevista')
     if (r.error) throw r.error
@@ -970,7 +976,7 @@ export function useStore(email = null) {
     fecharMes, reabrirMes, listarAuditoria, registrarAuditoria,
     definirAjusteSaldo, definirFatorSazonal,
     fecharAluno, reabrirAluno, registrarRecebimento, desfazerRecebimento, historicoFechamento,
-    criarAluno, atualizarAluno, mudarProgramacao, gerarAulas, inserirAula, atualizarAula, excluirAula,
+    criarAluno, atualizarAluno, mudarProgramacao, gerarAulas, inserirAula, atualizarAula, atualizarAulasLote, excluirAula,
     atualizarRegra, esquecerRegra,
     addDivisao, delDivisao, marcarRepasse, desmarcarRepasse,
     addMeta, updateMeta, registrarMovimentoMeta, delMovimentoMeta,
