@@ -256,7 +256,7 @@ export default function Backup({ store }) {
 
   const contagem = {
     compras: store.compras.length, cartoes: store.cartoes.length, faturas: store.faturas.length,
-    fixos: store.fixos.length, fixos_pagamentos: store.fixosPagamentos.length, fixos_valores: store.fixosValores.length, rendas: store.rendas.length,
+    fixos: store.fixos.length, fixos_pagamentos: store.fixosPagamentos.length, fixos_valores: store.fixosValores.length, rendas: store.rendasManuais.length,
     categorias: store.categorias.length, pessoas: store.pessoas.length, saldo_ajustes: store.saldoAjustes.length,
     orcamentos: store.orcamentos.length, config: Object.keys(store.config).length,
     compras_pagamentos: store.comprasPagamentos.length,

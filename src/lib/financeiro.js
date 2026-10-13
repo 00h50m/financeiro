@@ -243,7 +243,7 @@ export function gravarUsarSaldoAnterior(v) {
 //  saldoAnterior    o que veio do mês anterior (0 se desligado)
 //  ajuste           acerto manual com o saldo real da conta
 //  disponivel       renda + saldoAnterior − pago + ajuste (dinheiro que existe agora)
-//  sobraProjetada   disponivel − aPagar = renda + saldoAnterior + ajuste − comprometido
+//  sobraProjetada   disponivel − aPagar (+ aulas a receber, que contam pela competência) = renda + saldoAnterior + ajuste − comprometido
 //  sobraDoMes       renda − comprometido (só o mês, sem saldo anterior)
 export function resumoDoMes(d, mes, { usarSaldoAnterior = true, cacheDetalhes } = {}) {
   const det = detalhePagamentos(d, mes)
@@ -254,11 +254,13 @@ export function resumoDoMes(d, mes, { usarSaldoAnterior = true, cacheDetalhes } 
   const ajuste = Number((d.saldoAjustes || []).find((a) => a.mes === mes)?.ajuste) || 0
   const aPagar = det.comprometido - det.pago
   const base = renda + saldoAnterior - det.pago
-  const disponivel = base + ajuste
+  // Aulas particulares: a renda do mês conta pela competência, mas o que ainda não foi recebido não está na conta hoje.
+  const aulasAReceber = Number((d.aulasAReceber || {})[mes]) || 0
+  const disponivel = base + ajuste - aulasAReceber
   return {
     mes, renda, rendaSalario, repasses, comprometido: det.comprometido, pago: det.pago, aPagar,
     saldoAnterior, ajuste, baseCalculada: base,
-    disponivel, sobraProjetada: disponivel - aPagar, sobraDoMes: renda - det.comprometido,
+    disponivel, aulasAReceber, sobraProjetada: disponivel + aulasAReceber - aPagar, sobraDoMes: renda - det.comprometido,
     detalhe: det,
   }
 }

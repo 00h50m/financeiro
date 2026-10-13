@@ -9,6 +9,8 @@ import Secao from './Secao'
 import ModalAluno from './aulas/ModalAluno'
 import DialogosAula, { rotuloData } from './aulas/DialogosAula'
 import SeletorDuracao from './aulas/SeletorDuracao'
+import ModalFechamento from './aulas/ModalFechamento'
+import { achaFechamento, fechadoStatus, valorAlunoMes } from '../lib/aulasFechamento'
 
 const dataBr = (d) => d.split('-').reverse().join('/')
 const COR_STATUS = { prevista: 'badge-blue', realizada: 'badge-green', cancelada: 'badge-gray', nao_realizada: 'badge-amber' }
@@ -21,6 +23,7 @@ export default function Aulas({ store }) {
   const [modalAluno, setModalAluno] = useState(null) // { aluno } | {}
   const [dialogo, setDialogo] = useState(null) // { tipo, aula? }
   const [menu, setMenu] = useState(null)
+  const [fechando, setFechando] = useState(null) // aluno cujo fechamento está aberto
   const tentadas = useRef(new Set())
 
   // Gera as aulas previstas do mês de cada aluno ao abrir/navegar. Idempotente: só cria o que falta (e o banco impede duplicata).
@@ -47,6 +50,13 @@ export default function Aulas({ store }) {
   const doMes = aulasDoMes(aulas, mes, filtro || null)
   const previsoesMes = aulasPrevInicial.filter((p) => p.mes === mes && (!filtro || p.aluno_id === filtro))
   const r = resumoMes(doMes, previsoesMes)
+  const alunosVisiveis = alunos.filter((a) => (!filtro || a.id === filtro) && (a.ativo !== false || aulasDoMes(aulas, mes, a.id).length))
+  const valores = alunosVisiveis.map((a) => ({ al: a, ...valorAlunoMes(aulas, aulasFech, a.id, mes) }))
+  const nFechados = valores.filter((v) => fechadoStatus(v.fechamento)).length
+  const fechadoValor = valores.filter((v) => fechadoStatus(v.fechamento)).reduce((t, v) => t + v.valor, 0)
+  const aReceber = valores.reduce((t, v) => t + (fechadoStatus(v.fechamento) ? v.aReceber : 0), 0)
+  const recebidoTotal = valores.reduce((t, v) => t + v.recebido, 0)
+  const rotuloPag = !nFechados ? 'nada fechado' : aReceber <= 0 && recebidoTotal > 0 ? 'tudo recebido' : recebidoTotal > 0 ? 'recebimento parcial' : 'aguardando pagamento'
   const fechado = (alunoId, m) => aulasFech.some((f) => f.aluno_id === alunoId && f.mes === m && (f.status === 'fechado' || f.status === 'sem_cobranca'))
   const bloqueia = (alunoId, ...meses) => {
     const m = meses.find((x) => fechado(alunoId, x))
@@ -92,6 +102,7 @@ export default function Aulas({ store }) {
   return (
     <div className="page aulas-pg">
       {modalAluno && <ModalAluno store={store} aluno={modalAluno.aluno} onClose={() => setModalAluno(null)} />}
+      {fechando && <ModalFechamento store={store} aluno={fechando} mes={mes} onClose={() => setFechando(null)} />}
       {dialogo && (
         <DialogosAula
           store={store} tipo={dialogo.tipo} aula={dialogo.aula} aluno={dialogo.aula ? alunoPorId.get(dialogo.aula.aluno_id) : alunoFiltrado || ativos[0]}
@@ -147,6 +158,8 @@ export default function Aulas({ store }) {
             <div className="kpi"><div className="kpi-rotulo">Horas realizadas</div><div className="kpi-valor">{textoDuracao(r.minutosRealizados)}</div><div className="kpi-sub">{r.reposicoes ? `${r.reposicoes} reposição(ões)` : 'no mês'}</div></div>
             <div className="kpi"><div className="kpi-rotulo">Valor previsto</div><div className="kpi-valor ambar">{fmtK(centavosParaReais(r.previsto))}</div><div className="kpi-sub">{r.inicial.qtd ? `inicial ${fmtK(centavosParaReais(r.inicial.valor))}` : 'realizadas + previstas'}</div></div>
             <div className="kpi"><div className="kpi-rotulo">Valor apurado</div><div className="kpi-valor verde">{fmtK(centavosParaReais(r.apurado))}</div><div className="kpi-sub">aulas realizadas</div></div>
+            <div className="kpi"><div className="kpi-rotulo">Fechado</div><div className="kpi-valor">{nFechados ? fmtK(centavosParaReais(fechadoValor)) : '—'}</div><div className="kpi-sub">{nFechados}/{valores.length} aluno{valores.length === 1 ? '' : 's'} fechado{nFechados === 1 ? '' : 's'}</div></div>
+            <div className="kpi"><div className="kpi-rotulo">Pagamento</div><div className={`kpi-valor ${aReceber > 0 ? 'ambar' : recebidoTotal > 0 ? 'verde' : ''}`}>{nFechados ? fmtK(centavosParaReais(aReceber > 0 ? aReceber : recebidoTotal)) : '—'}</div><div className="kpi-sub">{rotuloPag}{aReceber > 0 && recebidoTotal > 0 ? ' · a receber' : aReceber > 0 ? ' · a receber' : ''}</div></div>
           </div>
           {frasePrevistoRealizado(r) && <div className="aulas-frase">{frasePrevistoRealizado(r)}</div>}
 
@@ -170,6 +183,17 @@ export default function Aulas({ store }) {
                         <span>previsto <b className="mono">{fmtK(centavosParaReais(rr.previsto))}</b></span>
                         <span>apurado <b className="mono">{fmtK(centavosParaReais(rr.apurado))}</b></span>
                       </div>
+                      {(() => {
+                        const v = valorAlunoMes(aulas, aulasFech, al.id, mes)
+                        const f = v.fechamento
+                        const txt = !f ? 'Mês aberto' : f.status === 'sem_cobranca' ? 'Fechado sem cobrança' : f.status === 'reaberto' ? 'Fechamento reaberto' : f.recebido && v.aReceber <= 0 ? 'Fechado · recebido' : f.recebido ? 'Fechado · recebido em parte' : 'Fechado · a receber'
+                        return (
+                          <div className="aulas-aluno-fech">
+                            <span className={`badge ${f && f.status === 'fechado' ? (f.recebido && v.aReceber <= 0 ? 'badge-green' : 'badge-amber') : f?.status === 'reaberto' ? 'badge-amber' : 'badge-gray'}`}>{txt}</span>
+                            <button className="btn btn-ghost btn-sm" onClick={() => setFechando(al)}>{f && fechadoStatus(f) ? 'Ver fechamento' : 'Fechar mês'}</button>
+                          </div>
+                        )
+                      })()}
                       <button className="link-btn" onClick={() => setFiltro(al.id)}>Ver as aulas de {al.nome} →</button>
                     </article>
                   )
@@ -178,7 +202,7 @@ export default function Aulas({ store }) {
             </Secao>
           )}
           {filtro && (
-            <div className="grupos-barra"><span>{alunoFiltrado?.nome} · {alunoFiltrado?.responsavel}</span><span><button className="link-btn" onClick={() => setModalAluno({ aluno: alunoFiltrado })}>Editar aluno</button> · <button className="link-btn" onClick={() => setFiltro('')}>Ver todos</button></span></div>
+            <div className="grupos-barra"><span>{alunoFiltrado?.nome} · {alunoFiltrado?.responsavel}</span><span>{alunoFiltrado && <button className="link-btn" onClick={() => setFechando(alunoFiltrado)}>{achaFechamento(aulasFech, alunoFiltrado.id, mes) && fechadoStatus(achaFechamento(aulasFech, alunoFiltrado.id, mes)) ? 'Ver fechamento' : 'Fechar mês'}</button>} · <button className="link-btn" onClick={() => setModalAluno({ aluno: alunoFiltrado })}>Editar aluno</button> · <button className="link-btn" onClick={() => setFiltro('')}>Ver todos</button></span></div>
           )}
 
           <div className="aulas-lista">
