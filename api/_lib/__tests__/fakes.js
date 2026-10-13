@@ -96,6 +96,7 @@ export function criarFakeDb({ comprasIniciais = [], regras = REGRAS } = {}) {
         orcamentos: [], fechamentos: [], divisoes: [], divisoesRepasses: [], metas: [], metasMovimentos: [],
       }
     },
+    async dadosAulas() { return s.dadosAulas || null },
     async destinatariosResumo() { return [...s.integracoes.values()].filter((i) => i.ativo && i.resumo_semanal) },
     async dadosTeto(categoria) {
       return { orcamentos: s.orcamentos || [], fixos: s.fixos || [], compras: s.compras.filter((c) => c.categoria === categoria) }

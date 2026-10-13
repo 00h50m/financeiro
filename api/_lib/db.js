@@ -151,6 +151,10 @@ export function criarDb({ url, serviceKey }) {
       const r = await sb.from('config').select('chave,valor')
       return inicioDoApp(Object.fromEntries((r.error ? [] : r.data || []).map((l) => [l.chave, l.valor])))
     },
+    // Alunos, aulas e fechamentos (tabelas opcionais: sem elas, null e nenhum lembrete).
+    async dadosAulas() {
+      try { return { alunos: await todas('alunos', '*'), aulas: await todas('aulas', '*', (q) => q.order('id')), aulasFech: await todas('aulas_fechamentos', '*'), inicioApp: await this.inicioApp() } } catch { return null }
+    },
     // Tudo que o resumo mensal precisa (mesmas contas do app). Tabelas opcionais que ainda não existem viram lista vazia.
     async dadosResumoMensal() {
       const opcional = async (tabela, colunas = '*') => { try { return await todas(tabela, colunas) } catch { return null } }
