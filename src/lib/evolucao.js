@@ -1,5 +1,6 @@
 // EVOLUÇÃO E INSIGHTS: séries, comparações e observações explicáveis, só com contas do motor financeiro.
 // Mês fechado usa a foto gravada (nunca muda); mês aberto usa o cálculo ao vivo.
+import { antesDoInicio } from './inicioApp.js'
 import { addMonths, gastosPorCategoria, gerarParcelas, mesLabel } from './utils.js'
 import { resumoDoMes } from './financeiro.js'
 import { comprasLiquidas, fixosLiquidos } from './divisoes.js'
@@ -15,6 +16,8 @@ export function variacao(atual, referencia, { baseMinima = 1 } = {}) {
 }
 
 export function resumoParaSerie(d, mes, cacheDetalhes) {
+  // Antes do início do uso o app não tem dados confiáveis: o mês aparece vazio nas séries, comparativos e gráficos.
+  if (antesDoInicio(mes, d.inicioApp)) return { mes, renda: 0, despesas: 0, sobra: 0, fonte: 'antes do início', porCategoria: {} }
   const fech = fechamentoDe(d.fechamentos, mes)
   if (fech?.status === 'fechado') {
     return { mes, renda: Number(fech.renda), despesas: Number(fech.despesas), sobra: Number(fech.sobra), fonte: 'fechado', porCategoria: fech.por_categoria || {} }
