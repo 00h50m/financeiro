@@ -8,6 +8,7 @@ import { amigavel, explicarErro } from './erros.js'
 import { avisoTeto } from './alertaTeto.js'
 import { anexarValores, chaveConta } from './fixosVersoes.js'
 import { gerarCodigo, hashCodigo } from './pareamento.js'
+import { aulasPorMes, rendasComAulas, aulasAReceberPorMes, montarFechamento } from './aulasFechamento.js'
 
 const POR_PAGINA = 1000 // o Supabase devolve no máximo 1000 linhas por consulta
 
@@ -26,7 +27,7 @@ async function lerTudo(tabela, ordenar) {
 export function useStore(email = null) {
   const [cartoes, setCartoes] = useState([])
   const [compras, setCompras] = useState([])
-  const [rendas, setRendas] = useState([])
+  const [rendasManuais, setRendas] = useState([])
   const [fixos, setFixos] = useState([])
   const [faturas, setFaturas] = useState([])
   const [categorias, setCategorias] = useState([])
@@ -584,6 +585,41 @@ export function useStore(email = null) {
       if (r.error) throw r.error
     }
   }, ['aulas'], 'gerar as aulas do mês')
+
+  // FECHAMENTO DAS AULAS POR ALUNO (independente do fechamento do mês da casa)
+  const fotoHist = (alunoId, mes, revisao, acao, valor, itens, motivo) => ({ aluno_id: alunoId, mes, revisao, acao, valor_centavos: valor, itens, motivo: motivo || null, usuario: email })
+  // semCobranca: fecha o mês sem cobrar nada. Mantém o recebimento anterior (se houver) para o cálculo da diferença.
+  const fecharAluno = (alunoId, mes, { semCobranca = false, mensagem = null } = {}) => op(async () => {
+    const atual = aulasFech.find((f) => f.aluno_id === alunoId && f.mes === mes)
+    const foto = semCobranca ? { qtd_aulas: 0, minutos: 0, valor_centavos: 0, itens: [] } : montarFechamento(aulas, alunoId, mes)
+    const revisao = atual ? (atual.status === 'reaberto' ? atual.revisao + 1 : atual.revisao) : 1
+    const linha = { aluno_id: alunoId, mes, status: semCobranca ? 'sem_cobranca' : 'fechado', ...foto, mensagem, revisao, fechado_por: email, fechado_em: new Date().toISOString() }
+    const r = await sb.from('aulas_fechamentos').upsert(linha, { onConflict: 'aluno_id,mes' })
+    if (r.error) throw r.error
+    const h = await sb.from('aulas_fechamentos_hist').insert(fotoHist(alunoId, mes, revisao, semCobranca ? 'sem_cobranca' : 'fechado', foto.valor_centavos, foto.itens))
+    if (h.error) throw h.error
+  }, ['aulas'], 'fechar o mês do aluno')
+  const reabrirAluno = (alunoId, mes, motivo) => op(async () => {
+    const atual = aulasFech.find((f) => f.aluno_id === alunoId && f.mes === mes)
+    if (!atual) return
+    const r = await sb.from('aulas_fechamentos').update({ status: 'reaberto' }).eq('id', atual.id)
+    if (r.error) throw r.error
+    const h = await sb.from('aulas_fechamentos_hist').insert(fotoHist(alunoId, mes, atual.revisao, 'reaberto', atual.valor_centavos, atual.itens || [], motivo))
+    if (h.error) throw h.error
+  }, ['aulas'], 'reabrir o mês do aluno')
+  // Recebimento é separado da renda: não gera outra renda, só tira o valor de "a receber".
+  const registrarRecebimento = (alunoId, mes, { data, valorCentavos }) => op(async () => {
+    const r = await sb.from('aulas_fechamentos').update({ recebido: true, recebido_em: data, recebido_centavos: valorCentavos }).eq('aluno_id', alunoId).eq('mes', mes)
+    if (r.error) throw r.error
+  }, ['aulas'], 'registrar o recebimento')
+  const desfazerRecebimento = (alunoId, mes) => op(async () => {
+    const r = await sb.from('aulas_fechamentos').update({ recebido: false, recebido_em: null, recebido_centavos: null }).eq('aluno_id', alunoId).eq('mes', mes)
+    if (r.error) throw r.error
+  }, ['aulas'], 'desfazer o recebimento')
+  const historicoFechamento = async (alunoId, mes) => {
+    const r = await sb.from('aulas_fechamentos_hist').select('*').eq('aluno_id', alunoId).eq('mes', mes).order('quando')
+    return r.error ? [] : r.data || []
+  }
   const inserirAula = (aula) => op(async () => {
     const r = await sb.from('aulas').insert(aula)
     if (r.error) throw r.error
@@ -912,13 +948,17 @@ export function useStore(email = null) {
   // Cada conta fixa leva seus valores reais por mês em `valores` (não enumerável: não vai para backup, spread nem gravação).
   const fixosComValores = useMemo(() => anexarValores(fixos, fixosValores), [fixos, fixosValores])
   const inicioApp = inicioDoApp(config)
+  // Renda efetiva = o que foi digitado + aulas particulares (somadas em extra_sabrina). `rendasManuais` é só o digitado (tela Renda, backup).
+  const aulasMes = useMemo(() => (aulasOk ? aulasPorMes(alunos, aulas, aulasFech) : {}), [aulasOk, alunos, aulas, aulasFech])
+  const rendas = useMemo(() => rendasComAulas(rendasManuais, aulasMes), [rendasManuais, aulasMes])
+  const aulasAReceber = useMemo(() => aulasAReceberPorMes(aulasMes), [aulasMes])
 
   return {
     email,
     integracoesTelegram, gerarPareamento, pausarIntegracao, desconectarIntegracao,
     eventos, regras, aliases, inboxOk,
     confirmarEvento, vincularEvento, ignorarEvento, adicionarEventos, adicionarRegras,
-    inicioApp, cartoes, compras, rendas, fixos: fixosComValores, fixosValores, fixosValoresOk, definirValorFixo, faturas, categorias, fixosPagamentos, comprasPagamentos, comprasPagamentosOk, fechamentos, fechamentosOk, metas, metasMovimentos, metasOk, rendaSazonal, rendaSazonalOk, alunos, aulasProg, aulas, aulasPrevInicial, aulasFech, aulasOk, divisoes, divisoesRepasses, divisoesOk, saldoAjustes, pessoas, orcamentos, orcamentosOk, config, configOk,
+    inicioApp, cartoes, compras, rendas, rendasManuais, aulasMes, aulasAReceber, fixos: fixosComValores, fixosValores, fixosValoresOk, definirValorFixo, faturas, categorias, fixosPagamentos, comprasPagamentos, comprasPagamentosOk, fechamentos, fechamentosOk, metas, metasMovimentos, metasOk, rendaSazonal, rendaSazonalOk, alunos, aulasProg, aulas, aulasPrevInicial, aulasFech, aulasOk, divisoes, divisoesRepasses, divisoesOk, saldoAjustes, pessoas, orcamentos, orcamentosOk, config, configOk,
     loading, syncState, error, loadAll,
     addCartao, updateCartao, delCartao,
     addCompra, updateCompra, salvarDivisao, updateComprasLote, delCompra,
@@ -929,6 +969,7 @@ export function useStore(email = null) {
     juntarVersoes, apagarVersaoFixo, aviso, mostrarAviso, desfazivel, desfazerExclusao, dispensarDesfazer,
     fecharMes, reabrirMes, listarAuditoria, registrarAuditoria,
     definirAjusteSaldo, definirFatorSazonal,
+    fecharAluno, reabrirAluno, registrarRecebimento, desfazerRecebimento, historicoFechamento,
     criarAluno, atualizarAluno, mudarProgramacao, gerarAulas, inserirAula, atualizarAula, excluirAula,
     atualizarRegra, esquecerRegra,
     addDivisao, delDivisao, marcarRepasse, desmarcarRepasse,

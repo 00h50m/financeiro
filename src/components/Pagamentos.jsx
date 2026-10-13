@@ -11,7 +11,7 @@ import { resumoDoMes, sobraAnterior, lerUsarSaldoAnterior, gravarUsarSaldoAnteri
 
 export default function Pagamentos({ store }) {
   const {
-    fixos, fixosPagamentos, cartoes, compras, faturas, rendas, saldoAjustes, comprasPagamentos, comprasPagamentosOk,
+    fixos, fixosPagamentos, cartoes, compras, faturas, rendas, saldoAjustes, comprasPagamentos, comprasPagamentosOk, aulasAReceber,
     marcarFixoPago, marcarParcelaPaga, definirValorFixo, upsertFatura, updateCompra, definirAjusteSaldo,
   } = store
   const [mes, setMes] = useState(nowYM())
@@ -28,7 +28,7 @@ export default function Pagamentos({ store }) {
   const [secoes, setSecoes] = useState({}) // seção → aberta; sem valor: abre quando ainda há algo a pagar
   const [extratoAberto, setExtratoAberto] = useState(false)
 
-  const dados = { fixos, fixosPagamentos, cartoes, compras, faturas, rendas, saldoAjustes, comprasPagamentos, comprasPagamentosOk }
+  const dados = { fixos, fixosPagamentos, cartoes, compras, faturas, rendas, saldoAjustes, comprasPagamentos, comprasPagamentosOk, aulasAReceber }
   const resumo = resumoDoMes(dados, mes, { usarSaldoAnterior: usarSobra })
   const {
     fixosLista: fixosAtivos, fixoPagamento, linhasCartao, outrasContas,
