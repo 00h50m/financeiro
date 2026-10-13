@@ -60,6 +60,12 @@ export function useStore(email = null) {
   const [metasMovimentos, setMetasMovimentos] = useState([])
   const [metasOk, setMetasOk] = useState(false) // false = migration 16 ainda não rodada
   const [rendaSazonal, setRendaSazonal] = useState([])
+  const [alunos, setAlunos] = useState([])
+  const [aulasProg, setAulasProg] = useState([])
+  const [aulas, setAulas] = useState([])
+  const [aulasPrevInicial, setAulasPrevInicial] = useState([])
+  const [aulasFech, setAulasFech] = useState([])
+  const [aulasOk, setAulasOk] = useState(false) // false = inbox/23_aulas_particulares.sql ainda não rodado
   const [rendaSazonalOk, setRendaSazonalOk] = useState(false) // false = inbox/22_renda_sazonal.sql ainda não rodado
   const [divisoes, setDivisoes] = useState([])
   const [divisoesRepasses, setDivisoesRepasses] = useState([])
@@ -89,7 +95,7 @@ export function useStore(email = null) {
     if (!silent) setLoading(true)
     if (!silent) setError(null)
     try {
-      const [c, co, r, fx, fa, cat, fxp, fxv, sa, ps, orc, cfg, ev, rg, al, it, cp, fe, me, mm, dv, dr, rsz] = await Promise.all([
+      const [c, co, r, fx, fa, cat, fxp, fxv, sa, ps, orc, cfg, ev, rg, al, it, cp, fe, me, mm, dv, dr, rsz, al1, al2, al3, al4, al5] = await Promise.all([
         quer('cartoes') ? sb.from('cartoes').select('*').order('created_at') : nada,
         quer('compras') ? lerTudo('compras', (q) => q.order('data_compra', { ascending: false }).order('id')) : nada,
         quer('rendas') ? sb.from('rendas').select('*').order('mes', { ascending: false }) : nada,
@@ -113,6 +119,11 @@ export function useStore(email = null) {
         quer('divisoes') ? sb.from('divisoes').select('*').order('criada_em') : nada,
         quer('divisoes') ? lerTudo('divisoes_repasses', (q) => q.order('mes', { ascending: false }).order('id')) : nada,
         quer('rendaSazonal') ? sb.from('renda_sazonal').select('*') : nada,
+        quer('aulas') ? sb.from('alunos').select('*').order('nome') : nada,
+        quer('aulas') ? sb.from('aulas_programacao').select('*').order('vigencia_inicio') : nada,
+        quer('aulas') ? lerTudo('aulas', (q) => q.order('data').order('id')) : nada,
+        quer('aulas') ? sb.from('aulas_previsao_inicial').select('*') : nada,
+        quer('aulas') ? sb.from('aulas_fechamentos').select('*') : nada,
       ])
       if (minha !== ultimaCarga.current) { if (!silent) setLoading(false); return true } // chegou uma recarga mais nova: ela cobre os grupos desta
       pendentes.current = new Set()
@@ -144,6 +155,16 @@ export function useStore(email = null) {
         setDivisoesOk(!dv.error && !dr.error)
         setDivisoes(dv.error || dr.error ? [] : dv.data || [])
         setDivisoesRepasses(dv.error || dr.error ? [] : dr.data || [])
+      }
+      // Aulas particulares são opcionais: sem o inbox/23 o app segue funcionando sem a aba.
+      if (al1 && al2 && al3 && al4 && al5) {
+        const ruim = [al1, al2, al3, al4, al5].some((x) => x.error)
+        setAulasOk(!ruim)
+        setAlunos(ruim ? [] : al1.data || [])
+        setAulasProg(ruim ? [] : al2.data || [])
+        setAulas(ruim ? [] : al3.data || [])
+        setAulasPrevInicial(ruim ? [] : al4.data || [])
+        setAulasFech(ruim ? [] : al5.data || [])
       }
       // Renda sazonal é opcional: sem o inbox/22 o app segue funcionando, só sem a projeção por mês do ano.
       if (rsz) { setRendaSazonalOk(!rsz.error); setRendaSazonal(rsz.error ? [] : rsz.data || []) }
@@ -510,6 +531,72 @@ export function useStore(email = null) {
     if (r.error) throw r.error
   }, ['rendaSazonal'], 'salvar a renda sazonal')
 
+  // AULAS PARTICULARES. Valores em centavos, duração em minutos, datas AAAA-MM-DD. Tudo grava e recarrega só o grupo 'aulas'.
+  const criarAluno = async (aluno, programacao) => {
+    let novoId = null
+    const ok = await op(async () => {
+      const r = await sb.from('alunos').insert(aluno).select('id').single()
+      if (r.error) throw r.error
+      novoId = r.data.id
+      if (programacao.length) {
+        const p = await sb.from('aulas_programacao').insert(programacao.map((l) => ({ ...l, aluno_id: novoId })))
+        if (p.error) throw p.error
+      }
+    }, ['aulas'], 'salvar o aluno')
+    return ok ? novoId : null
+  }
+  const atualizarAluno = (id, patch) => op(async () => {
+    const r = await sb.from('alunos').update(patch).eq('id', id)
+    if (r.error) throw r.error
+  }, ['aulas'], 'salvar o aluno')
+  // Muda a programação a partir de `desde`: encerra as linhas que saem, cria as novas e apaga as previstas intactas que deixam de valer.
+  const mudarProgramacao = ({ alunoId, desde, encerrarIds, novas, apagarAulaIds, novoValorHora = null, aulasNovoValorIds = [] }) => op(async () => {
+    const dia = (() => { const d = new Date(`${desde}T00:00:00Z`); d.setUTCDate(d.getUTCDate() - 1); return d.toISOString().slice(0, 10) })()
+    if (encerrarIds.length) {
+      const r = await sb.from('aulas_programacao').update({ vigencia_fim: dia }).in('id', encerrarIds)
+      if (r.error) throw r.error
+    }
+    if (apagarAulaIds.length) {
+      const r = await sb.from('aulas').delete().in('id', apagarAulaIds).eq('status', 'prevista')
+      if (r.error) throw r.error
+    }
+    if (novas.length) {
+      const r = await sb.from('aulas_programacao').insert(novas.map((l) => ({ ...l, aluno_id: alunoId, vigencia_inicio: desde })))
+      if (r.error) throw r.error
+    }
+    if (novoValorHora != null) {
+      const a = await sb.from('alunos').update({ valor_hora_centavos: novoValorHora }).eq('id', alunoId)
+      if (a.error) throw a.error
+      if (aulasNovoValorIds.length) {
+        const r = await sb.from('aulas').update({ valor_hora_centavos: novoValorHora }).in('id', aulasNovoValorIds).eq('status', 'prevista')
+        if (r.error) throw r.error
+      }
+    }
+  }, ['aulas'], 'mudar a programação')
+  // Gera as aulas previstas que faltam (sem duplicar: a unicidade é garantida no banco) e grava a previsão inicial uma única vez.
+  const gerarAulas = (novas, previsoes) => op(async () => {
+    if (novas.length) {
+      const r = await sb.from('aulas').upsert(novas, { onConflict: 'programacao_id,data_original', ignoreDuplicates: true })
+      if (r.error) throw r.error
+    }
+    if (previsoes.length) {
+      const r = await sb.from('aulas_previsao_inicial').upsert(previsoes, { onConflict: 'aluno_id,mes', ignoreDuplicates: true })
+      if (r.error) throw r.error
+    }
+  }, ['aulas'], 'gerar as aulas do mês')
+  const inserirAula = (aula) => op(async () => {
+    const r = await sb.from('aulas').insert(aula)
+    if (r.error) throw r.error
+  }, ['aulas'], 'salvar a aula')
+  const atualizarAula = (id, patch) => op(async () => {
+    const r = await sb.from('aulas').update(patch).eq('id', id)
+    if (r.error) throw r.error
+  }, ['aulas'], 'salvar a aula')
+  const excluirAula = (id) => op(async () => {
+    const r = await sb.from('aulas').delete().eq('id', id).eq('origem', 'avulsa').eq('status', 'prevista')
+    if (r.error) throw r.error
+  }, ['aulas'], 'excluir a aula')
+
   // METAS (reserva e objetivos). O saldo é a soma dos movimentos; tudo que muda dinheiro vai para a auditoria.
   const addMeta = (m) => op(async () => {
     const r = await sb.from('metas').insert(m)
@@ -831,7 +918,7 @@ export function useStore(email = null) {
     integracoesTelegram, gerarPareamento, pausarIntegracao, desconectarIntegracao,
     eventos, regras, aliases, inboxOk,
     confirmarEvento, vincularEvento, ignorarEvento, adicionarEventos, adicionarRegras,
-    inicioApp, cartoes, compras, rendas, fixos: fixosComValores, fixosValores, fixosValoresOk, definirValorFixo, faturas, categorias, fixosPagamentos, comprasPagamentos, comprasPagamentosOk, fechamentos, fechamentosOk, metas, metasMovimentos, metasOk, rendaSazonal, rendaSazonalOk, divisoes, divisoesRepasses, divisoesOk, saldoAjustes, pessoas, orcamentos, orcamentosOk, config, configOk,
+    inicioApp, cartoes, compras, rendas, fixos: fixosComValores, fixosValores, fixosValoresOk, definirValorFixo, faturas, categorias, fixosPagamentos, comprasPagamentos, comprasPagamentosOk, fechamentos, fechamentosOk, metas, metasMovimentos, metasOk, rendaSazonal, rendaSazonalOk, alunos, aulasProg, aulas, aulasPrevInicial, aulasFech, aulasOk, divisoes, divisoesRepasses, divisoesOk, saldoAjustes, pessoas, orcamentos, orcamentosOk, config, configOk,
     loading, syncState, error, loadAll,
     addCartao, updateCartao, delCartao,
     addCompra, updateCompra, salvarDivisao, updateComprasLote, delCompra,
@@ -842,6 +929,7 @@ export function useStore(email = null) {
     juntarVersoes, apagarVersaoFixo, aviso, mostrarAviso, desfazivel, desfazerExclusao, dispensarDesfazer,
     fecharMes, reabrirMes, listarAuditoria, registrarAuditoria,
     definirAjusteSaldo, definirFatorSazonal,
+    criarAluno, atualizarAluno, mudarProgramacao, gerarAulas, inserirAula, atualizarAula, excluirAula,
     atualizarRegra, esquecerRegra,
     addDivisao, delDivisao, marcarRepasse, desmarcarRepasse,
     addMeta, updateMeta, registrarMovimentoMeta, delMovimentoMeta,

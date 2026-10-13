@@ -729,3 +729,39 @@ input[type='checkbox'] { width: auto; min-height: 0; accent-color: var(--brand);
 .kpi-barra { height: 5px; background: var(--bg4); border-radius: 4px; overflow: hidden; margin-top: 4px; }
 .kpi-barra > div { height: 100%; border-radius: 4px; }
 .kpi-barra .ok { background: var(--green); } .kpi-barra .aviso { background: var(--amber); } .kpi-barra .ruim { background: var(--red); }
+
+/* Aulas particulares */
+.aulas-acoes { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.aulas-acoes select { width: auto; min-width: 170px; }
+.aulas-frase { font-size: 13px; color: var(--text2); line-height: 1.6; margin: -4px 2px 14px; }
+.aulas-alunos { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; padding: 0 16px 16px; border-top: 1px solid var(--border); padding-top: 14px; }
+.aulas-aluno { background: var(--bg3); border: 1px solid var(--border); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.aulas-aluno.inativo { opacity: .65; }
+.aulas-aluno-topo { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; }
+.aulas-aluno-nums { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--text2); }
+.aulas-aluno-nums b { color: var(--text); font-weight: 500; }
+.aulas-lista { display: grid; gap: 8px; margin-top: 4px; }
+.aula-card { display: flex; gap: 12px; align-items: center; background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 10px 12px; }
+.aula-card.cancelada, .aula-card.nao_realizada { opacity: .7; }
+.aula-card.realizada { border-color: var(--green-border); }
+.aula-data { display: flex; flex-direction: column; align-items: center; min-width: 52px; line-height: 1.25; font-size: 12px; color: var(--text2); }
+.aula-data b { font-size: 12px; text-transform: uppercase; color: var(--text); }
+.aula-data span { font-family: 'DM Mono', monospace; font-size: 15px; color: var(--text); }
+.aula-data em { font-style: normal; font-size: 11px; color: var(--text3); }
+.aula-corpo { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.aula-linha1, .aula-linha2 { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; }
+.aula-dur { width: auto; min-width: 90px; min-height: 34px; padding: 6px 10px; font-size: 13px; }
+.aula-valor { font-size: 14px; font-weight: 500; }
+.aula-acoes { display: flex; gap: 6px; flex-shrink: 0; }
+.aula-menu { display: grid; gap: 8px; }
+.aula-menu .btn { justify-content: center; }
+.aula-hist { font-size: 12px; color: var(--text2); line-height: 1.6; margin-top: 4px; }
+.aluno-prog { display: grid; gap: 8px; }
+.aluno-prog-linha { display: grid; grid-template-columns: minmax(110px, 1.2fr) minmax(100px, 1fr) minmax(90px, 1fr) auto; gap: 8px; align-items: center; }
+@media (max-width: 600px) {
+  .aula-card { flex-wrap: wrap; }
+  .aula-acoes { width: 100%; justify-content: flex-end; }
+  .aula-acoes .btn-primary { flex: 1; justify-content: center; min-height: 44px; }
+  .aluno-prog-linha { grid-template-columns: 1fr 1fr; }
+  .aulas-acoes select, .aulas-acoes .btn { flex: 1 1 100%; justify-content: center; }
+}
