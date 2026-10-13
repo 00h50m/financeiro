@@ -1,0 +1,233 @@
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { fmt, fmtK, mesLabel, nowYM, hojeSP } from '../lib/utils'
+import {
+  aulasDoMes, centavosParaReais, diaDaSemana, frasePrevistoRealizado, gerarOcorrencias, mesDe, patchDesfazer, patchRealizar, pendenteDeAtualizacao,
+  planejarGeracao, reposicaoAtiva, resumoMes, textoDuracao, valorAula, valorDaAula, duracaoEfetiva, STATUS, DIAS_CURTOS,
+} from '../lib/aulas'
+import NavMes from './NavMes'
+import Secao from './Secao'
+import ModalAluno from './aulas/ModalAluno'
+import DialogosAula, { rotuloData } from './aulas/DialogosAula'
+import SeletorDuracao from './aulas/SeletorDuracao'
+
+const dataBr = (d) => d.split('-').reverse().join('/')
+const COR_STATUS = { prevista: 'badge-blue', realizada: 'badge-green', cancelada: 'badge-gray', nao_realizada: 'badge-amber' }
+
+export default function Aulas({ store }) {
+  const { alunos, aulasProg, aulas, aulasPrevInicial, aulasFech, aulasOk, loading, gerarAulas, atualizarAula, excluirAula } = store
+  const hoje = hojeSP()
+  const [mes, setMes] = useState(nowYM())
+  const [filtro, setFiltro] = useState('')
+  const [modalAluno, setModalAluno] = useState(null) // { aluno } | {}
+  const [dialogo, setDialogo] = useState(null) // { tipo, aula? }
+  const [menu, setMenu] = useState(null)
+  const tentadas = useRef(new Set())
+
+  // Gera as aulas previstas do mês de cada aluno ao abrir/navegar. Idempotente: só cria o que falta (e o banco impede duplicata).
+  useEffect(() => {
+    if (!aulasOk || loading) return
+    const novas = []
+    const previsoes = []
+    for (const al of alunos) {
+      const progs = aulasProg.filter((p) => p.aluno_id === al.id)
+      const chave = [mes, al.id, al.ativo, al.inicio, al.fim || '', al.inativado_em || '', al.valor_hora_centavos, ...progs.map((p) => `${p.id}:${p.vigencia_fim || ''}`)].join('|')
+      if (tentadas.current.has(chave)) continue
+      tentadas.current.add(chave)
+      novas.push(...planejarGeracao(al, progs, aulas.filter((a) => a.aluno_id === al.id), mes))
+      if (!aulasPrevInicial.some((p) => p.aluno_id === al.id && p.mes === mes)) {
+        const oc = gerarOcorrencias(al, progs, mes)
+        if (oc.length) previsoes.push({ aluno_id: al.id, mes, qtd: oc.length, minutos: oc.reduce((t, o) => t + o.duracao_min, 0), valor_centavos: oc.reduce((t, o) => t + valorAula(al.valor_hora_centavos, o.duracao_min), 0) })
+      }
+    }
+    if (novas.length || previsoes.length) gerarAulas(novas, previsoes)
+  }, [aulasOk, loading, alunos, aulasProg, aulas, aulasPrevInicial, mes, gerarAulas])
+
+  const alunoPorId = useMemo(() => new Map(alunos.map((a) => [a.id, a])), [alunos])
+  const ativos = alunos.filter((a) => a.ativo !== false)
+  const doMes = aulasDoMes(aulas, mes, filtro || null)
+  const previsoesMes = aulasPrevInicial.filter((p) => p.mes === mes && (!filtro || p.aluno_id === filtro))
+  const r = resumoMes(doMes, previsoesMes)
+  const fechado = (alunoId, m) => aulasFech.some((f) => f.aluno_id === alunoId && f.mes === m && (f.status === 'fechado' || f.status === 'sem_cobranca'))
+  const bloqueia = (alunoId, ...meses) => {
+    const m = meses.find((x) => fechado(alunoId, x))
+    if (!m) return false
+    window.alert(`O mês de ${mesLabel(m)} deste aluno está fechado. Para alterar a aula, reabra o fechamento do aluno primeiro.`)
+    return true
+  }
+
+  if (!aulasOk) {
+    return (
+      <div className="page">
+        <div className="alert alert-amber"><strong>Falta criar as tabelas das aulas particulares no banco.</strong> Rode o arquivo <code>inbox/23_aulas_particulares.sql</code> no SQL Editor do Supabase e recarregue esta página.</div>
+      </div>
+    )
+  }
+
+  async function realizar(a, minutos) {
+    if (bloqueia(a.aluno_id, mesDe(a.data))) return
+    await atualizarAula(a.id, patchRealizar(a, minutos, new Date().toISOString()))
+  }
+  async function mudarDuracao(a, minutos) {
+    if (bloqueia(a.aluno_id, mesDe(a.data))) return
+    const campo = a.status === 'realizada' ? { duracao_real_min: minutos, valor_centavos: valorAula(a.valor_hora_centavos, minutos) } : { duracao_min: minutos }
+    await atualizarAula(a.id, { ...campo, historico: [...(a.historico || []), { em: new Date().toISOString(), tipo: 'editada', campos: [a.status === 'realizada' ? 'duracao_real' : 'duracao'] }] })
+  }
+  async function desfazer(a) {
+    if (bloqueia(a.aluno_id, mesDe(a.data))) return
+    if (!window.confirm('Voltar esta aula para "Prevista"? O valor registrado nela será desfeito.')) return
+    await atualizarAula(a.id, patchDesfazer(a, new Date().toISOString()))
+  }
+  async function excluir(a) {
+    if (!window.confirm('Excluir esta aula avulsa? Ela ainda não foi realizada.')) return
+    await excluirAula(a.id)
+  }
+  const abrirDialogo = (tipo, aula) => {
+    if (aula && bloqueia(aula.aluno_id, mesDe(aula.data))) return
+    setMenu(null)
+    setDialogo({ tipo, aula })
+  }
+
+  const alunoFiltrado = filtro ? alunoPorId.get(filtro) : null
+
+  return (
+    <div className="page aulas-pg">
+      {modalAluno && <ModalAluno store={store} aluno={modalAluno.aluno} onClose={() => setModalAluno(null)} />}
+      {dialogo && (
+        <DialogosAula
+          store={store} tipo={dialogo.tipo} aula={dialogo.aula} aluno={dialogo.aula ? alunoPorId.get(dialogo.aula.aluno_id) : alunoFiltrado || ativos[0]}
+          alunos={ativos} onClose={() => setDialogo(null)}
+          bloqueado={(tipo, f) => (tipo === 'remarcar' || tipo === 'editar' ? bloqueia(dialogo.aula.aluno_id, mesDe(f.data)) : (tipo === 'reposicao' || tipo === 'avulsa') ? bloqueia(dialogo.aula?.aluno_id || f.alunoId, mesDe(f.data)) : false)}
+        />
+      )}
+      {menu && (
+        <div className="overlay" onClick={(e) => { if (e.target.className === 'overlay') setMenu(null) }}>
+          <div className="modal" style={{ maxWidth: 380 }}>
+            <div className="modal-title">{alunoPorId.get(menu.aluno_id)?.nome} · {rotuloData(menu.data)}</div>
+            <div className="aula-menu">
+              <button className="btn btn-ghost" onClick={() => abrirDialogo('editar', menu)}>Editar data, horário, duração ou valor</button>
+              {menu.status === 'prevista' && <button className="btn btn-ghost" onClick={() => abrirDialogo('remarcar', menu)}>Remarcar</button>}
+              {menu.status === 'prevista' && <button className="btn btn-ghost" onClick={() => abrirDialogo('cancelada', menu)}>Cancelar a aula</button>}
+              {menu.status === 'prevista' && <button className="btn btn-ghost" onClick={() => abrirDialogo('nao_realizada', menu)}>Marcar como não realizada</button>}
+              {(menu.status === 'cancelada' || menu.status === 'nao_realizada') && !reposicaoAtiva(menu, aulas) && <button className="btn btn-ghost" onClick={() => abrirDialogo('reposicao', menu)}>Criar reposição</button>}
+              {menu.status !== 'prevista' && <button className="btn btn-ghost" onClick={() => { const a = menu; setMenu(null); desfazer(a) }}>Voltar para prevista</button>}
+              {menu.origem === 'avulsa' && menu.status === 'prevista' && <button className="btn btn-danger" style={{ padding: '10px 16px', fontSize: 13 }} onClick={() => { const a = menu; setMenu(null); excluir(a) }}>Excluir aula avulsa</button>}
+              {(menu.historico || []).length > 0 && (
+                <details className="aula-hist"><summary>Histórico ({menu.historico.length})</summary>
+                  {menu.historico.map((h, i) => (
+                    <div key={i}>{new Date(h.em).toLocaleDateString('pt-BR')} · {h.tipo === 'remarcada' ? `remarcada de ${dataBr(h.de)} para ${dataBr(h.para)}${h.motivo ? ` (${h.motivo})` : ''}` : h.tipo === 'editada' ? `editada (${(h.campos || []).join(', ')})` : h.tipo === 'realizada' ? `realizada (${textoDuracao(h.minutos)})` : h.tipo === 'reaberta' ? 'voltou para prevista' : `${STATUS[h.tipo] || h.tipo}${h.quem ? ` por ${h.quem === 'aluno' ? 'aluno/responsável' : 'professora'}` : ''}${h.motivo ? ` (${h.motivo})` : ''}`}</div>
+                  ))}
+                </details>
+              )}
+            </div>
+            <div className="modal-footer"><button className="btn btn-ghost" onClick={() => setMenu(null)}>Fechar</button></div>
+          </div>
+        </div>
+      )}
+
+      <div className="pag-topo">
+        <NavMes mes={mes} onChange={setMes} />
+        <div className="aulas-acoes">
+          <select value={filtro} onChange={(e) => setFiltro(e.target.value)} aria-label="Filtrar por aluno">
+            <option value="">Todos os alunos</option>
+            {alunos.map((a) => <option key={a.id} value={a.id}>{a.nome}{a.ativo === false ? ' (inativo)' : ''}</option>)}
+          </select>
+          {ativos.length > 0 && <button className="btn btn-ghost" onClick={() => setDialogo({ tipo: 'avulsa' })}>+ Aula avulsa</button>}
+          <button className="btn btn-primary" onClick={() => setModalAluno({})}>+ Aluno</button>
+        </div>
+      </div>
+
+      {alunos.length === 0 ? (
+        <div className="card"><div className="empty">Nenhum aluno cadastrado ainda.{'\n'}Cadastre o primeiro aluno e a programação semanal: as aulas do mês são criadas sozinhas.</div></div>
+      ) : (
+        <>
+          <div className="kpi-faixa" aria-label={`Resumo de ${mesLabel(mes)}`}>
+            <div className="kpi"><div className="kpi-rotulo">Previstas</div><div className="kpi-valor azul">{r.previstas}</div><div className="kpi-sub">{r.previstas ? 'aguardando definição' : 'nenhuma pendente'}</div></div>
+            <div className="kpi"><div className="kpi-rotulo">Realizadas</div><div className="kpi-valor verde">{r.realizadas}</div><div className="kpi-sub">{textoDuracao(r.minutosRealizados)} efetivas</div></div>
+            <div className="kpi"><div className="kpi-rotulo">Canceladas</div><div className="kpi-valor">{r.canceladas + r.naoRealizadas}</div><div className="kpi-sub">{r.canceladas} cancelada{r.canceladas === 1 ? '' : 's'} · {r.naoRealizadas} não realizada{r.naoRealizadas === 1 ? '' : 's'}</div></div>
+            <div className="kpi"><div className="kpi-rotulo">Horas realizadas</div><div className="kpi-valor">{textoDuracao(r.minutosRealizados)}</div><div className="kpi-sub">{r.reposicoes ? `${r.reposicoes} reposição(ões)` : 'no mês'}</div></div>
+            <div className="kpi"><div className="kpi-rotulo">Valor previsto</div><div className="kpi-valor ambar">{fmtK(centavosParaReais(r.previsto))}</div><div className="kpi-sub">{r.inicial.qtd ? `inicial ${fmtK(centavosParaReais(r.inicial.valor))}` : 'realizadas + previstas'}</div></div>
+            <div className="kpi"><div className="kpi-rotulo">Valor apurado</div><div className="kpi-valor verde">{fmtK(centavosParaReais(r.apurado))}</div><div className="kpi-sub">aulas realizadas</div></div>
+          </div>
+          {frasePrevistoRealizado(r) && <div className="aulas-frase">{frasePrevistoRealizado(r)}</div>}
+
+          {!filtro && (
+            <Secao titulo="Alunos" info={`${ativos.length} ativo${ativos.length === 1 ? '' : 's'}`} aberto onToggle={() => {}}>
+              <div className="aulas-alunos">
+                {alunos.map((al) => {
+                  const rr = resumoMes(aulasDoMes(aulas, mes, al.id), aulasPrevInicial.filter((p) => p.aluno_id === al.id && p.mes === mes))
+                  return (
+                    <article key={al.id} className={`aulas-aluno ${al.ativo === false ? 'inativo' : ''}`}>
+                      <div className="aulas-aluno-topo">
+                        <div style={{ minWidth: 0 }}>
+                          <div className="cad-tile-nome">{al.nome}{al.ativo === false && <span className="badge badge-gray" style={{ marginLeft: 6 }}>inativo</span>}</div>
+                          <div className="cad-sub">{al.responsavel} · {fmt(centavosParaReais(al.valor_hora_centavos))}/h</div>
+                        </div>
+                        <button className="btn btn-ghost btn-sm" onClick={() => setModalAluno({ aluno: al })}>Editar</button>
+                      </div>
+                      <div className="aulas-aluno-nums">
+                        <span><b>{rr.realizadas}</b>/{rr.realizadas + rr.previstas} aulas</span>
+                        <span>{textoDuracao(rr.minutosRealizados)} realizadas</span>
+                        <span>previsto <b className="mono">{fmtK(centavosParaReais(rr.previsto))}</b></span>
+                        <span>apurado <b className="mono">{fmtK(centavosParaReais(rr.apurado))}</b></span>
+                      </div>
+                      <button className="link-btn" onClick={() => setFiltro(al.id)}>Ver as aulas de {al.nome} →</button>
+                    </article>
+                  )
+                })}
+              </div>
+            </Secao>
+          )}
+          {filtro && (
+            <div className="grupos-barra"><span>{alunoFiltrado?.nome} · {alunoFiltrado?.responsavel}</span><span><button className="link-btn" onClick={() => setModalAluno({ aluno: alunoFiltrado })}>Editar aluno</button> · <button className="link-btn" onClick={() => setFiltro('')}>Ver todos</button></span></div>
+          )}
+
+          <div className="aulas-lista">
+            {doMes.length === 0 ? (
+              <div className="card"><div className="empty">Nenhuma aula em {mesLabel(mes)}{filtro ? ' para este aluno' : ''}.{'\n'}As aulas aparecem sozinhas pela programação semanal; use "+ Aula avulsa" para uma aula fora dela.</div></div>
+            ) : doMes.map((a) => {
+              const al = alunoPorId.get(a.aluno_id)
+              const pendente = pendenteDeAtualizacao(a, hoje)
+              const original = a.data_original !== a.data && a.origem === 'recorrente' ? a.data_original : null
+              const repo = (a.status === 'cancelada' || a.status === 'nao_realizada') ? reposicaoAtiva(a, aulas) : null
+              return (
+                <article key={a.id} className={`aula-card ${a.status}`}>
+                  <div className="aula-data"><b>{DIAS_CURTOS[diaDaSemana(a.data)]}</b><span>{dataBr(a.data).slice(0, 5)}</span>{a.horario && <em>{a.horario}</em>}</div>
+                  <div className="aula-corpo">
+                    <div className="aula-linha1">
+                      {!filtro && <strong>{al?.nome}</strong>}
+                      <span className={`badge ${COR_STATUS[a.status]}`}>{STATUS[a.status]}</span>
+                      {a.origem === 'avulsa' && <span className="badge badge-purple">Avulsa</span>}
+                      {a.origem === 'reposicao' && <span className="badge badge-purple">Reposição</span>}
+                      {original && <span className="badge badge-gray" title="Data original da aula">remarcada de {dataBr(original).slice(0, 5)}</span>}
+                      {a.data === hoje && <span className="badge badge-green">hoje</span>}
+                      {pendente && <span className="badge badge-amber" title="A data já passou: confirme se a aula aconteceu">atualizar</span>}
+                    </div>
+                    <div className="aula-linha2">
+                      {a.status === 'realizada' || a.status === 'prevista' ? (
+                        <>
+                          <SeletorDuracao valor={duracaoEfetiva(a)} onChange={(m) => mudarDuracao(a, m)} rotulo={a.status === 'realizada' ? 'Duração efetiva' : 'Duração prevista'} className="aula-dur" />
+                          <span className="mono aula-valor">{fmt(centavosParaReais(valorDaAula(a)))}</span>
+                          {a.status === 'realizada' && a.duracao_real_min !== a.duracao_min && <span className="cad-sub">prevista {textoDuracao(a.duracao_min)}</span>}
+                        </>
+                      ) : (
+                        <span className="cad-sub">{a.status === 'cancelada' ? 'Cancelada' : 'Não realizada'}{a.quem ? ` por ${a.quem === 'aluno' ? 'aluno/responsável' : 'professora'}` : ''}{a.motivo ? ` · ${a.motivo}` : ''} · sem cobrança</span>
+                      )}
+                      {repo && <span className="cad-sub">· reposição em {dataBr(repo.data).slice(0, 5)}</span>}
+                      {a.reposicao_de && <span className="cad-sub">· repõe aula de {dataBr(aulas.find((x) => x.id === a.reposicao_de)?.data || a.data).slice(0, 5)}</span>}
+                    </div>
+                    {a.observacao && <div className="cad-sub">{a.observacao}</div>}
+                  </div>
+                  <div className="aula-acoes">
+                    {a.status === 'prevista' && <button className="btn btn-primary btn-sm" onClick={() => realizar(a, a.duracao_min)}>✓ Realizada</button>}
+                    {(a.status === 'cancelada' || a.status === 'nao_realizada') && !repo && <button className="btn btn-ghost btn-sm" onClick={() => abrirDialogo('reposicao', a)}>Repor</button>}
+                    <button className="btn btn-ghost btn-sm" onClick={() => setMenu(a)} aria-label="Mais ações da aula">⋯</button>
+                  </div>
+                </article>
+              )
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
