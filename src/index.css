@@ -840,3 +840,12 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; justif
 html { -webkit-text-size-adjust: 100%; }
 body { overflow-x: clip; } /* clip (e não hidden) para não quebrar o menu lateral fixo */
 @media (max-width: 860px) { input, select, textarea { font-size: 16px; } }
+
+/* telas muito estreitas (320px): nada pode passar da largura */
+.ini-mini { min-width: 0; }
+.ini-mini-valor { overflow: hidden; text-overflow: ellipsis; }
+.pilulas { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.pilulas::-webkit-scrollbar { display: none; }
+input[type="file"] { max-width: 100%; }
+input, select, textarea { min-width: 0; }
+input[type="month"], input[type="date"] { max-width: 100%; }
