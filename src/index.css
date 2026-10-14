@@ -758,12 +758,13 @@ input[type='checkbox'] { width: auto; min-height: 0; accent-color: var(--brand);
 .aula-menu .btn { justify-content: center; }
 .aula-hist { font-size: 12px; color: var(--text2); line-height: 1.6; margin-top: 4px; }
 .aluno-prog { display: grid; gap: 8px; }
-.aluno-prog-linha { display: grid; grid-template-columns: minmax(110px, 1.1fr) minmax(170px, 1.5fr) minmax(90px, 1fr) auto; gap: 8px; align-items: center; }
+.aluno-prog-linha { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 8px 10px; align-items: end; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg2); }
 @media (max-width: 600px) {
   .aula-card { flex-wrap: wrap; }
   .aula-acoes { width: 100%; justify-content: flex-end; }
   .aula-acoes .btn-primary { flex: 1; justify-content: center; min-height: 44px; }
   .aluno-prog-linha { grid-template-columns: 1fr 1fr; }
+  .aluno-prog-linha .prog-dia { grid-column: 1 / -1; }
   .aulas-acoes select { flex: 1 1 100%; }
   .aulas-acoes .btn { flex: 1 1 calc(50% - 8px); justify-content: center; white-space: nowrap; }
   .aulas-acoes .btn-primary { order: -1; }
@@ -850,7 +851,7 @@ input, select, textarea { min-width: 0; }
 input[type="month"], input[type="date"] { max-width: 100%; }
 
 /* programação do aluno: botão de remover compacto */
-.aluno-prog-linha > .btn { width: 44px; min-width: 44px; height: 44px; padding: 0; justify-content: center; justify-self: start; }
+
 
 /* Início no celular: os três resumos viram linhas (rótulo à esquerda, valor à direita) em vez de cortar os valores */
 @media (max-width: 520px) {
@@ -866,3 +867,8 @@ input[type="month"], input[type="date"] { max-width: 100%; }
 /* horário em dois seletores */
 .campo-horario { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; min-width: 0; }
 .campo-horario select { min-width: 0; width: 100%; }
+
+/* programação do aluno: cada dia em um cartão com rótulos */
+.prog-campo { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text2); min-width: 0; }
+.prog-campo select { width: 100%; }
+.prog-remover { grid-column: 1 / -1; justify-self: end; font-size: 12px; color: var(--red); }

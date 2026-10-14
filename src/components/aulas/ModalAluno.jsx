@@ -81,7 +81,7 @@ export default function ModalAluno({ store, aluno, onClose, inicialAvulso = fals
       <div className="modal" style={{ maxWidth: 620 }}>
         <div className="modal-title">{edicao ? `Editar ${aluno.nome}` : 'Novo aluno'}</div>
 
-        <div className="form-group">
+        <div className="form-group" style={{ marginBottom: 14 }}>
           <label>Como são as aulas?</label>
           <Pilulas rotulo="Tipo de aluno" valor={tipo} onChange={setTipo} opcoes={[['fixo', 'Fixo (dia da semana)'], ['avulso', 'Avulso (quando combinar)']]} />
           {tipo === 'avulso' && <div className="cad-sub" style={{ margin: '6px 0 14px' }}>Nenhuma aula é criada sozinha. Quando der uma aula, use "+ Aula avulsa" e escolha este aluno; o valor/hora vale para todas.</div>}
@@ -102,12 +102,14 @@ export default function ModalAluno({ store, aluno, onClose, inicialAvulso = fals
         {tipo === 'fixo' && <div className="aluno-prog">
           {linhas.map((l, i) => (
             <div key={i} className="aluno-prog-linha">
-              <select aria-label="Dia da semana" value={l.dia_semana} onChange={(e) => setLinha(i, { dia_semana: Number(e.target.value) })}>
-                {DIAS.map((d, n) => <option key={n} value={n}>{d.charAt(0).toUpperCase() + d.slice(1)}</option>)}
-              </select>
-              <CampoHorario valor={l.horario} onChange={(h) => setLinha(i, { horario: h })} />
-              <SeletorDuracao valor={l.duracao_min} onChange={(m) => setLinha(i, { duracao_min: m })} />
-              <button className="btn btn-ghost btn-sm" onClick={() => setLinhas((x) => x.filter((_, j) => j !== i))} disabled={linhas.length === 1} aria-label="Remover este dia">×</button>
+              <label className="prog-campo prog-dia">Dia
+                <select aria-label="Dia da semana" value={l.dia_semana} onChange={(e) => setLinha(i, { dia_semana: Number(e.target.value) })}>
+                  {DIAS.map((d, n) => <option key={n} value={n}>{d.charAt(0).toUpperCase() + d.slice(1)}</option>)}
+                </select>
+              </label>
+              <label className="prog-campo">Horário<CampoHorario valor={l.horario} onChange={(h) => setLinha(i, { horario: h })} /></label>
+              <label className="prog-campo">Duração<SeletorDuracao valor={l.duracao_min} onChange={(m) => setLinha(i, { duracao_min: m })} /></label>
+              {linhas.length > 1 && <button type="button" className="link-btn prog-remover" onClick={() => setLinhas((x) => x.filter((_, j) => j !== i))}>Remover este dia</button>}
             </div>
           ))}
           <button className="btn btn-ghost btn-sm" onClick={() => setLinhas((l) => [...l, linhaVazia()])}>+ Adicionar dia ou horário</button>
