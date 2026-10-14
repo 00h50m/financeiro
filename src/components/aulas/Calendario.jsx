@@ -3,7 +3,7 @@ import { DIAS_CURTOS, diaDaSemana, somarDias, ultimoDiaDoMes } from '../../lib/a
 const COR = { prevista: 'azul', realizada: 'verde', cancelada: 'cinza', nao_realizada: 'ambar' }
 
 // Grade do mês (domingo a sábado). Cada dia mostra suas aulas; tocar no dia seleciona; o detalhe aparece embaixo.
-export default function Calendario({ mes, aulas, alunoPorId, hoje, dia, onDia, mostrarAluno }) {
+export default function Calendario({ mes, aulas, pausas = [], alunoPorId, hoje, dia, onDia, mostrarAluno }) {
   const primeiro = `${mes}-01`
   const vazios = diaDaSemana(primeiro)
   const n = ultimoDiaDoMes(mes)
@@ -16,9 +16,10 @@ export default function Calendario({ mes, aulas, alunoPorId, hoje, dia, onDia, m
       {celulas.map((d, i) => {
         if (!d) return <div key={`v${i}`} className="cal-vazio" />
         const lista = porDia.get(d) || []
+        const pausa = pausas.find((p) => d >= p.inicio && d <= p.fim)
         return (
-          <button key={d} type="button" className={`cal-dia ${d === hoje ? 'hoje' : ''} ${d === dia ? 'sel' : ''}`} onClick={() => onDia(d === dia ? null : d)} aria-label={`${d.slice(8)}: ${lista.length} aula(s)`}>
-            <span className="cal-num">{Number(d.slice(8))}</span>
+          <button key={d} type="button" className={`cal-dia ${d === hoje ? 'hoje' : ''} ${d === dia ? 'sel' : ''} ${pausa ? 'pausa' : ''}`} title={pausa ? `Sem aulas${pausa.motivo ? `: ${pausa.motivo}` : ''}` : undefined} onClick={() => onDia(d === dia ? null : d)} aria-label={`${d.slice(8)}: ${lista.length} aula(s)`}>
+            <span className="cal-num">{Number(d.slice(8))}{pausa && <em className="cal-pausa"> sem aula</em>}</span>
             <span className="cal-aulas-dia">
               {lista.slice(0, 3).map((a) => (
                 <span key={a.id} className={`cal-chip ${COR[a.status]}`}>

@@ -3,7 +3,7 @@ import {
   datasDaSemanaNoMes, diaDaSemana, somarDias, valorAula, lerDuracao, textoDuracao, reaisParaCentavos, gerarOcorrencias, planejarGeracao,
   aulasDoMes, valorDaAula, duracaoEfetiva, patchRealizar, patchEncerrar, patchDesfazer, patchRemarcar, patchEditar, novaReposicao,
   novaAvulsa, reposicaoAtiva, pendenteDeAtualizacao, aulasParaNovoValor, afetadasPorMudanca, diferencaProgramacao, programacaoVigente,
-  resumoMes, frasePrevistoRealizado,
+  resumoMes, frasePrevistoRealizado, previstasNaPausa,
 } from '../aulas'
 
 const aluno = (o = {}) => ({ id: 'a1', nome: 'Ana', valor_hora_centavos: 12000, inicio: '2026-11-01', fim: null, ativo: true, inativado_em: null, ...o })
@@ -258,5 +258,29 @@ describe('resumo do mês (previsto inicial, apurado, comparação)', () => {
     expect(f).toContain('Foram realizadas 2, cancelada 1, não realizada 1, ainda prevista 1.')
     expect(f).toContain('inicialmente previsto era')
     expect(frasePrevistoRealizado(resumoMes([], []))).toBe('')
+  })
+})
+
+describe('períodos sem aula (férias e feriados)', () => {
+  const al = { id: 'a1', nome: 'Lucas', ativo: true, inicio: '2026-09-01', valor_hora_centavos: 10000 }
+  const prog = [{ id: 'p1', aluno_id: 'a1', dia_semana: 2, duracao_min: 60, vigencia_inicio: '2026-09-01' }] // terças de dezembro/26: 1, 8, 15, 22, 29
+  it('não gera aulas dentro do período (todos ou só o aluno)', () => {
+    const datas = (pausas) => gerarOcorrencias(al, prog, '2026-12', pausas).map((o) => o.data)
+    expect(datas([])).toEqual(['2026-12-01', '2026-12-08', '2026-12-15', '2026-12-22', '2026-12-29'])
+    expect(datas([{ aluno_id: null, inicio: '2026-12-15', fim: '2027-01-10' }])).toEqual(['2026-12-01', '2026-12-08'])
+    expect(datas([{ aluno_id: 'outro', inicio: '2026-12-15', fim: '2027-01-10' }])).toHaveLength(5)
+    expect(datas([{ aluno_id: 'a1', inicio: '2026-12-08', fim: '2026-12-08' }])).not.toContain('2026-12-08')
+  })
+  it('planejarGeracao respeita a pausa e ainda é idempotente', () => {
+    const pausas = [{ aluno_id: null, inicio: '2026-12-15', fim: '2026-12-31' }]
+    const novas = planejarGeracao(al, prog, [], '2026-12', pausas)
+    expect(novas).toHaveLength(2)
+    expect(planejarGeracao(al, prog, novas.map((n, i) => ({ ...n, id: String(i) })), '2026-12', pausas)).toHaveLength(0)
+  })
+  it('previstasNaPausa só pega previstas do escopo dentro do período', () => {
+    const mk = (id, aluno, data, status = 'prevista') => ({ id, aluno_id: aluno, data, status })
+    const aulas = [mk('1', 'a1', '2026-12-15'), mk('2', 'a2', '2026-12-16'), mk('3', 'a1', '2026-12-17', 'realizada'), mk('4', 'a1', '2027-01-20')]
+    expect(previstasNaPausa(aulas, { aluno_id: null, inicio: '2026-12-10', fim: '2027-01-10' }).map((a) => a.id)).toEqual(['1', '2'])
+    expect(previstasNaPausa(aulas, { aluno_id: 'a1', inicio: '2026-12-10', fim: '2027-01-10' }).map((a) => a.id)).toEqual(['1'])
   })
 })

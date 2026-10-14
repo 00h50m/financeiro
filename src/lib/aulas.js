@@ -73,7 +73,12 @@ function limiteDoAluno(aluno) {
 }
 
 // Ocorrências recorrentes de um aluno num mês, conforme programação, vigências, início e término. Ordenadas por data/horário.
-export function gerarOcorrencias(aluno, programacoes, mes) {
+// Períodos sem aula (férias, feriados). `pausas`: { inicio, fim, aluno_id (null = todos os alunos), motivo }.
+export const emPausa = (pausas, alunoId, data) => (pausas || []).some((p) => (!p.aluno_id || p.aluno_id === alunoId) && data >= p.inicio && data <= p.fim)
+// Aulas ainda previstas que caem num período sem aula (para cancelar quando o período é criado).
+export const previstasNaPausa = (aulas, pausa) => aulas.filter((a) => a.status === 'prevista' && (!pausa.aluno_id || a.aluno_id === pausa.aluno_id) && a.data >= pausa.inicio && a.data <= pausa.fim)
+
+export function gerarOcorrencias(aluno, programacoes, mes, pausas = []) {
   const limite = limiteDoAluno(aluno)
   const out = []
   for (const p of programacoes) {
@@ -81,6 +86,7 @@ export function gerarOcorrencias(aluno, programacoes, mes) {
       if (data < aluno.inicio || data < p.vigencia_inicio) continue
       if (p.vigencia_fim && data > p.vigencia_fim) continue
       if (limite && data > limite) continue
+      if (emPausa(pausas, aluno.id, data)) continue
       out.push({ programacao_id: p.id, data, data_original: data, horario: p.horario || null, duracao_min: Number(p.duracao_min) })
     }
   }
@@ -89,9 +95,9 @@ export function gerarOcorrencias(aluno, programacoes, mes) {
 
 // O que falta criar: ocorrências do mês que ainda não existem (por programação + data original). Uma aula remarcada
 // continua "ocupando" a data original, então não é recriada. Nunca mexe no que já existe.
-export function planejarGeracao(aluno, programacoes, aulasExistentes, mes) {
+export function planejarGeracao(aluno, programacoes, aulasExistentes, mes, pausas = []) {
   const feitas = new Set(aulasExistentes.filter((a) => a.programacao_id).map((a) => `${a.programacao_id}|${a.data_original}`))
-  return gerarOcorrencias(aluno, programacoes, mes)
+  return gerarOcorrencias(aluno, programacoes, mes, pausas)
     .filter((o) => !feitas.has(`${o.programacao_id}|${o.data_original}`))
     .map((o) => ({
       aluno_id: aluno.id, ...o, valor_hora_centavos: Number(aluno.valor_hora_centavos), valor_hora_manual: false,

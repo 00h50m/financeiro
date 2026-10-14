@@ -113,3 +113,13 @@ describe('projeção das aulas nos meses à frente', () => {
     expect(rendaDoMes(rs, '2026-11')).toEqual({ valor: 4500, estimada: false })
   })
 })
+
+describe('projeção respeita períodos sem aula', () => {
+  it('férias tiram as aulas do mês projetado', () => {
+    const al = { id: 'a1', nome: 'Lucas', ativo: true, inicio: '2026-09-01', valor_hora_centavos: 10000 }
+    const prog = [{ id: 'p1', aluno_id: 'a1', dia_semana: 2, duracao_min: 60, vigencia_inicio: '2026-09-01' }]
+    const pausas = [{ aluno_id: null, inicio: '2027-01-01', fim: '2027-01-31' }]
+    expect(aulasPorMes([al], [], [], { programacoes: prog, pausas, desde: '2026-12', meses: 3 })['2027-01']).toBeUndefined()
+    expect(aulasPorMes([al], [], [], { programacoes: prog, pausas, desde: '2026-12', meses: 3 })['2027-02'].valor).toBe(400)
+  })
+})

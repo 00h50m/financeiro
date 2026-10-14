@@ -33,7 +33,7 @@ const somaMes = (mes, n) => { const t = Number(mes.slice(0, 4)) * 12 + Number(me
 // { 'AAAA-MM': { valor, recebido, aReceber (em reais), projetada, porAluno: [{alunoId, valor, recebido, aReceber, fechado, projetada}] } }
 // Com `desde` (AAAA-MM), os `meses` seguintes em que o aluno ainda não tem aulas geradas entram PROJETADOS pela programação semanal
 // (o que a agenda indica, sem nenhuma aula registrada); assim a renda dos meses à frente já enxerga as aulas.
-export function aulasPorMes(alunos, aulas, fechamentos, { programacoes = [], desde = null, meses: qtd = 12 } = {}) {
+export function aulasPorMes(alunos, aulas, fechamentos, { programacoes = [], pausas = [], desde = null, meses: qtd = 12 } = {}) {
   const meses = new Set([...(aulas || []).map((a) => mesDe(a.data)), ...(fechamentos || []).map((f) => f.mes)])
   if (desde) for (let i = 0; i < qtd; i++) meses.add(somaMes(desde, i))
   const out = {}
@@ -43,7 +43,7 @@ export function aulasPorMes(alunos, aulas, fechamentos, { programacoes = [], des
       const temAulas = (aulas || []).some((a) => a.aluno_id === al.id && mesDe(a.data) === mes) || !!achaFechamento(fechamentos, al.id, mes)
       if (!temAulas) {
         if (!desde || mes < desde) continue
-        const prev = gerarOcorrencias(al, programacoes.filter((p) => p.aluno_id === al.id), mes).reduce((t, o) => t + valorAula(al.valor_hora_centavos, o.duracao_min), 0)
+        const prev = gerarOcorrencias(al, programacoes.filter((p) => p.aluno_id === al.id), mes, pausas).reduce((t, o) => t + valorAula(al.valor_hora_centavos, o.duracao_min), 0)
         if (prev) porAluno.push({ alunoId: al.id, nome: al.nome, valor: prev / 100, recebido: 0, aReceber: prev / 100, fechado: false, projetada: true })
         continue
       }
