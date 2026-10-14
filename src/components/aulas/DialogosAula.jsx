@@ -4,6 +4,7 @@ import {
   DIAS_CURTOS, centavosParaReais, diaDaSemana, novaAvulsa, novaReposicao, patchEditar, patchEncerrar, patchRemarcar, reaisParaCentavos, textoDuracao,
   valorAula,
 } from '../../lib/aulas'
+import CampoHorario from './CampoHorario'
 import SeletorDuracao from './SeletorDuracao'
 
 const dataBr = (d) => d.split('-').reverse().join('/')
@@ -92,7 +93,7 @@ export default function DialogosAula({ store, tipo, aula, aluno, alunos, onClose
         {(tipo === 'editar' || tipo === 'remarcar' || tipo === 'reposicao' || tipo === 'avulsa') && (
           <div className="form-row cols2">
             <div className="form-group"><label>{tipo === 'remarcar' ? 'Nova data' : 'Data'}</label><input type="date" value={f.data} onChange={set('data')} /></div>
-            <div className="form-group"><label>Horário (opcional)</label><input type="time" value={f.horario} onChange={set('horario')} /></div>
+            <div className="form-group"><label>Horário (opcional)</label><CampoHorario valor={f.horario} onChange={(h) => setF((x) => ({ ...x, horario: h }))} /></div>
           </div>
         )}
 
