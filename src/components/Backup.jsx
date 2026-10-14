@@ -29,6 +29,14 @@ const TABELAS = [
   ['divisoes', 'Divididos (parte de outras pessoas)', 'id', true],
   ['divisoes_repasses', 'Recebimentos dos Divididos', 'id', true],
   ['auditoria_financeira', 'Histórico de auditoria', 'id', true],
+  ['renda_sazonal', 'Renda sazonal (meses fracos)', 'id', true],
+  ['alunos', 'Aulas: alunos', 'id', true],
+  ['aulas_programacao', 'Aulas: programação semanal', 'id', true],
+  ['aulas', 'Aulas', 'id', true],
+  ['aulas_previsao_inicial', 'Aulas: previsão inicial do mês', 'id', true],
+  ['aulas_fechamentos', 'Aulas: fechamentos por aluno', 'id', true],
+  ['aulas_fechamentos_hist', 'Aulas: histórico dos fechamentos', 'id', true],
+  ['aulas_pausas', 'Aulas: períodos sem aula', 'id', true],
 ]
 const ORDEM = Object.fromEntries(TABELAS.map(([t, , o]) => [t, o]))
 
@@ -134,7 +142,8 @@ function Restaurar({ store }) {
     setOcupado('mesclando'); setMsg(null)
     try {
       for (const [t] of ORDEM_RESTAURACAO) {
-        const novas = comparacao.novasPorTabela[t] || []
+        // aulas de reposição apontam para a aula original: as originais entram primeiro
+        const novas = t === 'aulas' ? [...(comparacao.novasPorTabela[t] || [])].sort((a, b) => (a.reposicao_de ? 1 : 0) - (b.reposicao_de ? 1 : 0)) : comparacao.novasPorTabela[t] || []
         for (let i = 0; i < novas.length; i += 500) {
           const colunasGeradas = t === 'regras_categorizacao' ? ['confianca'] : []
           const lote = novas.slice(i, i + 500).map((l) => Object.fromEntries(Object.entries(l).filter(([k]) => !colunasGeradas.includes(k))))
@@ -262,6 +271,8 @@ export default function Backup({ store }) {
     compras_pagamentos: store.comprasPagamentos.length,
     fechamentos: store.fechamentos.length, metas: store.metas.length, metas_movimentos: store.metasMovimentos.length,
     regras_categorizacao: store.regras.length, estabelecimento_aliases: store.aliases.length, eventos_financeiros: store.eventos.length,
+    renda_sazonal: store.rendaSazonal.length, alunos: store.alunos.length, aulas_programacao: store.aulasProg.length, aulas: store.aulas.length,
+    aulas_previsao_inicial: store.aulasPrevInicial.length, aulas_fechamentos: store.aulasFech.length, aulas_pausas: store.aulasPausas.length,
   }
 
   function registrar() {
