@@ -45,7 +45,7 @@ export default function DialogosAula({ store, tipo, aula, aluno, alunos, onClose
       }, agora)
       ok = patch ? await atualizarAula(aula.id, patch) : true
     } else if (tipo === 'remarcar') {
-      ok = await atualizarAula(aula.id, patchRemarcar(aula, f.data, { horario: f.horario, motivo: f.motivo.trim() }, agora))
+      ok = await atualizarAula(aula.id, patchRemarcar(aula, f.data, { horario: f.horario, motivo: f.motivo.trim(), duracao_min: f.duracao }, agora))
     } else if (tipo === 'cancelada' || tipo === 'nao_realizada') {
       const patch = patchEncerrar(aula, tipo, { quem: f.quem, motivo: f.motivo.trim() }, agora)
       if (f.observacao.trim()) patch.observacao = f.observacao.trim()
@@ -103,9 +103,9 @@ export default function DialogosAula({ store, tipo, aula, aluno, alunos, onClose
           </div>
         )}
 
-        {(tipo === 'editar' || tipo === 'reposicao' || tipo === 'avulsa') && (
+        {(tipo === 'editar' || tipo === 'reposicao' || tipo === 'avulsa' || tipo === 'remarcar') && (
           <div className="form-row cols2">
-            <div className="form-group"><label>Duração{tipo === 'editar' ? ' prevista' : ''}</label><SeletorDuracao valor={f.duracao} onChange={(m) => setF((x) => ({ ...x, duracao: m }))} /></div>
+            <div className="form-group"><label>{tipo === 'remarcar' ? 'Nova duração' : `Duração${tipo === 'editar' ? ' prevista' : ''}`}</label><SeletorDuracao valor={f.duracao} onChange={(m) => setF((x) => ({ ...x, duracao: m }))} /></div>
             {tipo === 'editar' && aula.status === 'realizada' && (
               <div className="form-group"><label>Duração efetiva</label><SeletorDuracao valor={f.duracaoReal} onChange={(m) => setF((x) => ({ ...x, duracaoReal: m }))} /></div>
             )}
@@ -131,7 +131,7 @@ export default function DialogosAula({ store, tipo, aula, aluno, alunos, onClose
           <div className="form-row"><div className="form-group"><label>Observação (opcional)</label><input value={f.observacao} onChange={set('observacao')} /></div></div>
         )}
 
-        {tipo === 'remarcar' && <div className="cad-sub">É a mesma aula: a data original fica no histórico e ela não é cobrada duas vezes.</div>}
+        {tipo === 'remarcar' && <div className="cad-sub">É a mesma aula: a data original fica no histórico e ela não é cobrada duas vezes. Se a duração mudar, o valor previsto acompanha{aula && Number(f.duracao) !== Number(aula.duracao_min) ? ` (de ${fmt(centavosParaReais(valorAula(aula.valor_hora_centavos, aula.duracao_min)))} para ${fmt(centavosParaReais(valorAula(aula.valor_hora_centavos, f.duracao)))})` : ''}.</div>}
         {previa != null && <div className="cad-sub">Valor previsto: <b>{fmt(centavosParaReais(previa))}</b> ({textoDuracao(f.duracao)}).{tipo === 'reposicao' ? ' Só a reposição é cobrada, quando for realizada.' : ''}</div>}
 
         <div className="modal-footer">

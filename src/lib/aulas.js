@@ -149,9 +149,11 @@ export function patchDesfazer(a, agora) {
 }
 
 // Remarcar mantém a mesma aula (e a data original), só muda a data/horário; nunca cria outra cobrança.
-export function patchRemarcar(a, novaData, { horario, motivo } = {}, agora) {
+export function patchRemarcar(a, novaData, { horario, motivo, duracao_min } = {}, agora) {
   if (a.status !== 'prevista') throw new Error('só aula prevista pode ser remarcada')
-  const patch = { data: novaData, historico: registro(a, 'remarcada', { de: a.data, para: novaData, motivo: motivo || null }, agora) }
+  const novaDuracao = duracao_min != null && Number(duracao_min) > 0 && Number(duracao_min) !== Number(a.duracao_min) ? Number(duracao_min) : null
+  const patch = { data: novaData, historico: registro(a, 'remarcada', { de: a.data, para: novaData, motivo: motivo || null, ...(novaDuracao ? { duracao_de: Number(a.duracao_min), duracao_para: novaDuracao } : {}) }, agora) }
+  if (novaDuracao) patch.duracao_min = novaDuracao // a data original continua guardada; o valor da aula prevista acompanha a nova duração
   if (horario !== undefined) patch.horario = horario || null
   return patch
 }
