@@ -91,3 +91,40 @@ describe('compararComAtual e mesclagem', () => {
     expect(r.problemas.join()).toMatch(/sem cartões correspondente/)
   })
 })
+
+describe('backup inclui renda sazonal e aulas', () => {
+  const comAulas = () => {
+    const p = pacoteOk()
+    p.tabelas.alunos = [{ id: 'al1', nome: 'Lucas' }]
+    p.tabelas.aulas_programacao = [{ id: 'pg1', aluno_id: 'al1' }]
+    p.tabelas.aulas = [{ id: 'au1', aluno_id: 'al1', programacao_id: 'pg1' }, { id: 'au2', aluno_id: 'al1', reposicao_de: 'au1' }]
+    p.tabelas.aulas_fechamentos = [{ id: 'fe1', aluno_id: 'al1', mes: '2026-10' }]
+    p.tabelas.aulas_pausas = [{ id: 'pa1', aluno_id: null, inicio: '2026-12-15', fim: '2027-01-10' }]
+    p.tabelas.renda_sazonal = [{ id: 'rs1', campo: 'sabrina', mes_do_ano: 1, fator: 0 }]
+    return p
+  }
+  it('aceita e resume as tabelas novas', () => {
+    const v = validarBackup(comAulas())
+    expect(v.ok).toBe(true)
+    expect(v.resumo.map((r) => r.tabela)).toEqual(expect.arrayContaining(['alunos', 'aulas', 'aulas_fechamentos', 'aulas_pausas', 'renda_sazonal']))
+  })
+  it('aula apontando para aluno ou programação inexistente é erro (arquivo incompleto)', () => {
+    const p = comAulas(); p.tabelas.alunos = []
+    expect(validarBackup(p).erros.join()).toMatch(/Aulas: .*aluno/i)
+    const q = comAulas(); q.tabelas.aulas_programacao = []
+    expect(validarBackup(q).erros.join()).toMatch(/programação/i)
+  })
+  it('pausa para todos (sem aluno) e reposição válida passam; reposição órfã não', () => {
+    const q = comAulas(); q.tabelas.aulas[1].reposicao_de = 'inexistente'
+    expect(validarBackup(q).erros.join()).toMatch(/Aulas: 1 registro aponta para aulas/)
+  })
+  it('mesclar traz só o que falta e bloqueia aula sem aluno', () => {
+    const p = comAulas()
+    const atual = { alunos: [], aulas: [] }
+    const c = compararComAtual(p, atual)
+    expect(c.novasPorTabela.aulas).toHaveLength(2)
+    expect(mesclagemSegura(p, atual, c.novasPorTabela).segura).toBe(true) // alunos também são novos
+    const so = compararComAtual({ ...p, tabelas: { ...p.tabelas, alunos: [] } }, { alunos: [] })
+    expect(mesclagemSegura(p, { alunos: [] }, so.novasPorTabela).segura).toBe(false)
+  })
+})

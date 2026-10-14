@@ -10,6 +10,9 @@ export const ORDEM_RESTAURACAO = [
   ['compras_pagamentos', 'id', 'Pagamentos das parcelas'], ['eventos_financeiros', 'id', 'Inbox'], ['fechamentos', 'mes', 'Fechamentos'],
   ['metas', 'id', 'Metas'], ['metas_movimentos', 'id', 'Movimentos das metas'],
   ['divisoes', 'id', 'Divididos'], ['divisoes_repasses', 'id', 'Recebimentos dos Divididos'],
+  ['renda_sazonal', 'id', 'Renda sazonal'], ['alunos', 'id', 'Alunos (aulas)'], ['aulas_programacao', 'id', 'Programação das aulas'], ['aulas', 'id', 'Aulas'],
+  ['aulas_previsao_inicial', 'id', 'Previsão inicial das aulas'], ['aulas_fechamentos', 'id', 'Fechamentos das aulas'], ['aulas_fechamentos_hist', 'id', 'Histórico dos fechamentos das aulas'],
+  ['aulas_pausas', 'id', 'Períodos sem aula'],
 ]
 export const OBRIGATORIAS = ['compras', 'cartoes', 'faturas', 'fixos', 'fixos_pagamentos', 'rendas', 'categorias', 'pessoas', 'saldo_ajustes']
 
@@ -17,6 +20,8 @@ export const OBRIGATORIAS = ['compras', 'cartoes', 'faturas', 'fixos', 'fixos_pa
 const RELACOES = [
   ['compras', 'cartao_id', 'cartoes'], ['faturas', 'cartao_id', 'cartoes'], ['fixos_pagamentos', 'fixo_id', 'fixos'], ['fixos_valores', 'fixo_id', 'fixos'],
   ['compras_pagamentos', 'compra_id', 'compras'], ['metas_movimentos', 'meta_id', 'metas'], ['divisoes_repasses', 'divisao_id', 'divisoes'],
+  ['aulas_programacao', 'aluno_id', 'alunos'], ['aulas', 'aluno_id', 'alunos'], ['aulas_previsao_inicial', 'aluno_id', 'alunos'], ['aulas_fechamentos', 'aluno_id', 'alunos'],
+  ['aulas_fechamentos_hist', 'aluno_id', 'alunos'], ['aulas_pausas', 'aluno_id', 'alunos'], ['aulas', 'programacao_id', 'aulas_programacao'], ['aulas', 'reposicao_de', 'aulas'],
 ]
 
 const chaveDe = (tabela) => ORDEM_RESTAURACAO.find((o) => o[0] === tabela)?.[1] || 'id'
