@@ -66,6 +66,8 @@ export function useStore(email = null) {
   const [aulas, setAulas] = useState([])
   const [aulasPrevInicial, setAulasPrevInicial] = useState([])
   const [aulasFech, setAulasFech] = useState([])
+  const [aulasPausas, setAulasPausas] = useState([])
+  const [aulasPausasOk, setAulasPausasOk] = useState(true) // tabela do SQL 24; sem ela as pausas ficam indisponíveis, mas as aulas funcionam
   const [aulasOk, setAulasOk] = useState(false) // false = inbox/23_aulas_particulares.sql ainda não rodado
   const [rendaSazonalOk, setRendaSazonalOk] = useState(false) // false = inbox/22_renda_sazonal.sql ainda não rodado
   const [divisoes, setDivisoes] = useState([])
@@ -96,7 +98,7 @@ export function useStore(email = null) {
     if (!silent) setLoading(true)
     if (!silent) setError(null)
     try {
-      const [c, co, r, fx, fa, cat, fxp, fxv, sa, ps, orc, cfg, ev, rg, al, it, cp, fe, me, mm, dv, dr, rsz, al1, al2, al3, al4, al5] = await Promise.all([
+      const [c, co, r, fx, fa, cat, fxp, fxv, sa, ps, orc, cfg, ev, rg, al, it, cp, fe, me, mm, dv, dr, rsz, al1, al2, al3, al4, al5, al6] = await Promise.all([
         quer('cartoes') ? sb.from('cartoes').select('*').order('created_at') : nada,
         quer('compras') ? lerTudo('compras', (q) => q.order('data_compra', { ascending: false }).order('id')) : nada,
         quer('rendas') ? sb.from('rendas').select('*').order('mes', { ascending: false }) : nada,
@@ -125,6 +127,7 @@ export function useStore(email = null) {
         quer('aulas') ? lerTudo('aulas', (q) => q.order('data').order('id')) : nada,
         quer('aulas') ? sb.from('aulas_previsao_inicial').select('*') : nada,
         quer('aulas') ? sb.from('aulas_fechamentos').select('*') : nada,
+        quer('aulas') ? sb.from('aulas_pausas').select('*').order('inicio') : nada,
       ])
       if (minha !== ultimaCarga.current) { if (!silent) setLoading(false); return true } // chegou uma recarga mais nova: ela cobre os grupos desta
       pendentes.current = new Set()
@@ -166,6 +169,8 @@ export function useStore(email = null) {
         setAulas(ruim ? [] : al3.data || [])
         setAulasPrevInicial(ruim ? [] : al4.data || [])
         setAulasFech(ruim ? [] : al5.data || [])
+        setAulasPausasOk(!!al6 && !al6.error)
+        setAulasPausas(al6 && !al6.error ? al6.data || [] : [])
       }
       // Renda sazonal é opcional: sem o inbox/22 o app segue funcionando, só sem a projeção por mês do ano.
       if (rsz) { setRendaSazonalOk(!rsz.error); setRendaSazonal(rsz.error ? [] : rsz.data || []) }
@@ -620,6 +625,18 @@ export function useStore(email = null) {
     const r = await sb.from('aulas_fechamentos_hist').select('*').eq('aluno_id', alunoId).eq('mes', mes).order('quando')
     return r.error ? [] : r.data || []
   }
+  // Período sem aula: grava a pausa e cancela (sem cobrança) as aulas previstas que caem nele. `cancelamentos`: [{ id, patch }].
+  const criarPausa = (pausa, cancelamentos = []) => op(async () => {
+    const r = await sb.from('aulas_pausas').insert(pausa)
+    if (r.error) throw r.error
+    const rs = await Promise.all(cancelamentos.map((c) => sb.from('aulas').update(c.patch).eq('id', c.id)))
+    const erro = rs.find((x) => x.error)
+    if (erro) throw erro.error
+  }, ['aulas'], 'salvar o período sem aulas')
+  const removerPausa = (id) => op(async () => {
+    const r = await sb.from('aulas_pausas').delete().eq('id', id)
+    if (r.error) throw r.error
+  }, ['aulas'], 'remover o período sem aulas')
   const inserirAula = (aula) => op(async () => {
     const r = await sb.from('aulas').insert(aula)
     if (r.error) throw r.error
@@ -955,7 +972,7 @@ export function useStore(email = null) {
   const fixosComValores = useMemo(() => anexarValores(fixos, fixosValores), [fixos, fixosValores])
   const inicioApp = inicioDoApp(config)
   // Renda efetiva = o que foi digitado + aulas particulares (somadas em extra_sabrina). `rendasManuais` é só o digitado (tela Renda, backup).
-  const aulasMes = useMemo(() => (aulasOk ? aulasPorMes(alunos, aulas, aulasFech, { programacoes: aulasProg, desde: nowYM() }) : {}), [aulasOk, alunos, aulas, aulasFech, aulasProg])
+  const aulasMes = useMemo(() => (aulasOk ? aulasPorMes(alunos, aulas, aulasFech, { programacoes: aulasProg, pausas: aulasPausas, desde: nowYM() }) : {}), [aulasOk, alunos, aulas, aulasFech, aulasProg, aulasPausas])
   const rendas = useMemo(() => rendasComAulas(rendasManuais, aulasMes), [rendasManuais, aulasMes])
   const aulasAReceber = useMemo(() => aulasAReceberPorMes(aulasMes), [aulasMes])
 
@@ -964,7 +981,7 @@ export function useStore(email = null) {
     integracoesTelegram, gerarPareamento, pausarIntegracao, desconectarIntegracao,
     eventos, regras, aliases, inboxOk,
     confirmarEvento, vincularEvento, ignorarEvento, adicionarEventos, adicionarRegras,
-    inicioApp, cartoes, compras, rendas, rendasManuais, aulasMes, aulasAReceber, fixos: fixosComValores, fixosValores, fixosValoresOk, definirValorFixo, faturas, categorias, fixosPagamentos, comprasPagamentos, comprasPagamentosOk, fechamentos, fechamentosOk, metas, metasMovimentos, metasOk, rendaSazonal, rendaSazonalOk, alunos, aulasProg, aulas, aulasPrevInicial, aulasFech, aulasOk, divisoes, divisoesRepasses, divisoesOk, saldoAjustes, pessoas, orcamentos, orcamentosOk, config, configOk,
+    inicioApp, cartoes, compras, rendas, rendasManuais, aulasMes, aulasAReceber, fixos: fixosComValores, fixosValores, fixosValoresOk, definirValorFixo, faturas, categorias, fixosPagamentos, comprasPagamentos, comprasPagamentosOk, fechamentos, fechamentosOk, metas, metasMovimentos, metasOk, rendaSazonal, rendaSazonalOk, alunos, aulasProg, aulas, aulasPrevInicial, aulasFech, aulasPausas, aulasPausasOk, aulasOk, divisoes, divisoesRepasses, divisoesOk, saldoAjustes, pessoas, orcamentos, orcamentosOk, config, configOk,
     loading, syncState, error, loadAll,
     addCartao, updateCartao, delCartao,
     addCompra, updateCompra, salvarDivisao, updateComprasLote, delCompra,
@@ -976,6 +993,7 @@ export function useStore(email = null) {
     fecharMes, reabrirMes, listarAuditoria, registrarAuditoria,
     definirAjusteSaldo, definirFatorSazonal,
     fecharAluno, reabrirAluno, registrarRecebimento, desfazerRecebimento, historicoFechamento,
+    criarPausa, removerPausa,
     criarAluno, atualizarAluno, mudarProgramacao, gerarAulas, inserirAula, atualizarAula, atualizarAulasLote, excluirAula,
     atualizarRegra, esquecerRegra,
     addDivisao, delDivisao, marcarRepasse, desmarcarRepasse,

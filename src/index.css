@@ -807,3 +807,7 @@ input[type='checkbox'] { width: auto; min-height: 0; accent-color: var(--brand);
 .aulas-comp-l { display: grid; grid-template-columns: 1.1fr 1fr 1fr 1fr; gap: 8px; padding: 6px 0; font-size: 13px; border-bottom: 1px solid var(--border); text-align: right; }
 .aulas-comp-l > :first-child { text-align: left; color: var(--text2); }
 .aulas-comp-l.cab { font-size: 11px; color: var(--text3); }
+
+.cal-dia.pausa { background: repeating-linear-gradient(45deg, var(--bg2), var(--bg2) 6px, rgba(148,163,184,.08) 6px, rgba(148,163,184,.08) 12px); }
+.cal-pausa { font-size: 9px; color: var(--text3); font-style: normal; }
+@media (max-width: 640px) { .cal-pausa { display: none; } }

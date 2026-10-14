@@ -165,8 +165,8 @@ export function criarDb({ url, serviceKey }) {
       ])
       // Aulas particulares (tabelas opcionais): somam na renda e o "a receber" sai do disponível, igual ao app.
       const inicioApp = await this.inicioApp()
-      const [alunos, aulas, aulasFech, aulasProg] = await Promise.all([opcional('alunos'), opcional('aulas', '*'), opcional('aulas_fechamentos'), opcional('aulas_programacao')])
-      const porMes = alunos && aulas && aulasFech ? aulasPorMes(alunos, aulas, aulasFech, { programacoes: aulasProg || [], desde: hojeSP().slice(0, 7) }) : {}
+      const [alunos, aulas, aulasFech, aulasProg, aulasPausas] = await Promise.all([opcional('alunos'), opcional('aulas', '*'), opcional('aulas_fechamentos'), opcional('aulas_programacao'), opcional('aulas_pausas')])
+      const porMes = alunos && aulas && aulasFech ? aulasPorMes(alunos, aulas, aulasFech, { programacoes: aulasProg || [], pausas: aulasPausas || [], desde: hojeSP().slice(0, 7) }) : {}
       return {
         compras, cartoes, fixos, fixosValores: fixosValores || [], faturas, rendas: rendasComAulas(rendas, porMes), aulasAReceber: aulasAReceberPorMes(porMes), fixosPagamentos, comprasPagamentos: comprasPagamentos || [], comprasPagamentosOk: comprasPagamentos != null,
         saldoAjustes, pessoas, inicioApp, orcamentos: orcamentos || [], fechamentos: fechamentos || [], divisoes: divisoes || [], divisoesRepasses: divisoesRepasses || [], metas: [], metasMovimentos: [],

@@ -11,6 +11,7 @@ import DialogosAula, { rotuloData } from './aulas/DialogosAula'
 import SeletorDuracao from './aulas/SeletorDuracao'
 import Calendario from './aulas/Calendario'
 import ModalLote from './aulas/ModalLote'
+import ModalPausas from './aulas/ModalPausas'
 import ModalFechamento from './aulas/ModalFechamento'
 import { achaFechamento, fechadoStatus, valorAlunoMes } from '../lib/aulasFechamento'
 
@@ -18,7 +19,7 @@ const dataBr = (d) => d.split('-').reverse().join('/')
 const COR_STATUS = { prevista: 'badge-blue', realizada: 'badge-green', cancelada: 'badge-gray', nao_realizada: 'badge-amber' }
 
 export default function Aulas({ store }) {
-  const { alunos, aulasProg, aulas, aulasPrevInicial, aulasFech, aulasOk, loading, gerarAulas, atualizarAula, excluirAula } = store
+  const { alunos, aulasProg, aulas, aulasPrevInicial, aulasFech, aulasPausas, aulasOk, loading, gerarAulas, atualizarAula, excluirAula } = store
   const hoje = hojeSP()
   const [mes, setMes] = useState(nowYM())
   const [filtro, setFiltro] = useState('')
@@ -31,6 +32,7 @@ export default function Aulas({ store }) {
   const [sel, setSel] = useState(() => new Set())
   const [lote, setLote] = useState(false)
   const [compAberto, setCompAberto] = useState(false)
+  const [pausasAberto, setPausasAberto] = useState(false)
   const [fechando, setFechando] = useState(null) // aluno cujo fechamento está aberto
   const tentadas = useRef(new Set())
 
@@ -41,17 +43,17 @@ export default function Aulas({ store }) {
     const previsoes = []
     for (const al of alunos) {
       const progs = aulasProg.filter((p) => p.aluno_id === al.id)
-      const chave = [mes, al.id, al.ativo, al.inicio, al.fim || '', al.inativado_em || '', al.valor_hora_centavos, ...progs.map((p) => `${p.id}:${p.vigencia_fim || ''}`)].join('|')
+      const chave = [mes, al.id, al.ativo, al.inicio, al.fim || '', al.inativado_em || '', al.valor_hora_centavos, ...progs.map((p) => `${p.id}:${p.vigencia_fim || ''}`), ...aulasPausas.filter((x) => !x.aluno_id || x.aluno_id === al.id).map((x) => `${x.id}`)].join('|')
       if (tentadas.current.has(chave)) continue
       tentadas.current.add(chave)
-      novas.push(...planejarGeracao(al, progs, aulas.filter((a) => a.aluno_id === al.id), mes))
+      novas.push(...planejarGeracao(al, progs, aulas.filter((a) => a.aluno_id === al.id), mes, aulasPausas))
       if (!aulasPrevInicial.some((p) => p.aluno_id === al.id && p.mes === mes)) {
-        const oc = gerarOcorrencias(al, progs, mes)
+        const oc = gerarOcorrencias(al, progs, mes, aulasPausas)
         if (oc.length) previsoes.push({ aluno_id: al.id, mes, qtd: oc.length, minutos: oc.reduce((t, o) => t + o.duracao_min, 0), valor_centavos: oc.reduce((t, o) => t + valorAula(al.valor_hora_centavos, o.duracao_min), 0) })
       }
     }
     if (novas.length || previsoes.length) gerarAulas(novas, previsoes)
-  }, [aulasOk, loading, alunos, aulasProg, aulas, aulasPrevInicial, mes, gerarAulas])
+  }, [aulasOk, loading, alunos, aulasProg, aulas, aulasPrevInicial, aulasPausas, mes, gerarAulas])
 
   const alunoPorId = useMemo(() => new Map(alunos.map((a) => [a.id, a])), [alunos])
   const ativos = alunos.filter((a) => a.ativo !== false)
@@ -160,6 +162,7 @@ export default function Aulas({ store }) {
     <div className="page aulas-pg">
       {modalAluno && <ModalAluno store={store} aluno={modalAluno.aluno} onClose={() => setModalAluno(null)} />}
       {lote && <ModalLote store={store} aulas={selAulas} alunoPorId={alunoPorId} onClose={(ok) => { setLote(false); if (ok) sairSel() }} />}
+      {pausasAberto && <ModalPausas store={store} alunos={alunos} onClose={() => setPausasAberto(false)} />}
       {fechando && <ModalFechamento store={store} aluno={fechando} mes={mes} onClose={() => setFechando(null)} />}
       {dialogo && (
         <DialogosAula
@@ -201,6 +204,7 @@ export default function Aulas({ store }) {
             {alunos.map((a) => <option key={a.id} value={a.id}>{a.nome}{a.ativo === false ? ' (inativo)' : ''}</option>)}
           </select>
           {ativos.length > 0 && <button className="btn btn-ghost" onClick={() => setDialogo({ tipo: 'avulsa' })}>+ Aula avulsa</button>}
+          {alunos.length > 0 && <button className="btn btn-ghost" onClick={() => setPausasAberto(true)}>Férias / sem aulas</button>}
           <button className="btn btn-primary" onClick={() => setModalAluno({})}>+ Aluno</button>
         </div>
       </div>
@@ -293,7 +297,7 @@ export default function Aulas({ store }) {
 
           {visao === 'calendario' && doMes.length > 0 && (
             <>
-              <Calendario mes={mes} aulas={doMes} alunoPorId={alunoPorId} hoje={hoje} dia={dia} onDia={setDia} mostrarAluno={!filtro} />
+              <Calendario mes={mes} aulas={doMes} pausas={aulasPausas.filter((x) => !filtro || !x.aluno_id || x.aluno_id === filtro)} alunoPorId={alunoPorId} hoje={hoje} dia={dia} onDia={setDia} mostrarAluno={!filtro} />
               <div className="aulas-lista">
                 {dia ? (doMes.filter((a) => a.data === dia).length ? doMes.filter((a) => a.data === dia).map((a) => cardAula(a)) : <div className="card"><div className="empty" style={{ padding: 14 }}>Sem aulas em {rotuloData(dia)}.{ativos.length > 0 && <> <button className="link-btn" onClick={() => setDialogo({ tipo: 'avulsa', data: dia })}>Criar aula avulsa neste dia</button></>}</div></div>) : <div className="cad-sub" style={{ textAlign: 'center' }}>Toque em um dia para ver as aulas.</div>}
               </div>
