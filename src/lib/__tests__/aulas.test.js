@@ -315,3 +315,18 @@ describe('aluno avulso e aula avulsa com valor próprio', () => {
     expect(feita).toMatchObject({ origem: 'avulsa', status: 'realizada', valor_hora_manual: true, duracao_real_min: 90, valor_centavos: 12000 })
   })
 })
+
+describe('remarcar com nova duração', () => {
+  const a = { id: 'x', data: '2026-10-13', data_original: '2026-10-13', duracao_min: 60, valor_hora_centavos: 10000, status: 'prevista', historico: [] }
+  it('muda data e duração, guarda a original e registra no histórico', () => {
+    const p = patchRemarcar(a, '2026-10-15', { horario: '16:00', duracao_min: 120 }, AGORA)
+    expect(p).toMatchObject({ data: '2026-10-15', duracao_min: 120, horario: '16:00' })
+    expect(p.data_original).toBeUndefined() // a data original nunca é alterada
+    expect(p.historico[0]).toMatchObject({ tipo: 'remarcada', de: '2026-10-13', para: '2026-10-15', duracao_de: 60, duracao_para: 120 })
+    expect(valorDaAula({ ...a, ...p })).toBe(20000)
+  })
+  it('mesma duração ou sem duração não mexe no valor', () => {
+    expect(patchRemarcar(a, '2026-10-15', { duracao_min: 60 }, AGORA).duracao_min).toBeUndefined()
+    expect(patchRemarcar(a, '2026-10-15', {}, AGORA).duracao_min).toBeUndefined()
+  })
+})

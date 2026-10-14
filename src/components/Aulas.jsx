@@ -198,7 +198,7 @@ export default function Aulas({ store }) {
               {(menu.historico || []).length > 0 && (
                 <details className="aula-hist"><summary>Histórico ({menu.historico.length})</summary>
                   {menu.historico.map((h, i) => (
-                    <div key={i}>{new Date(h.em).toLocaleDateString('pt-BR')} · {h.tipo === 'remarcada' ? `remarcada de ${dataBr(h.de)} para ${dataBr(h.para)}${h.motivo ? ` (${h.motivo})` : ''}` : h.tipo === 'editada' ? `editada (${(h.campos || []).join(', ')})` : h.tipo === 'realizada' ? `realizada (${textoDuracao(h.minutos)})` : h.tipo === 'reaberta' ? 'voltou para prevista' : `${STATUS[h.tipo] || h.tipo}${h.quem ? ` por ${h.quem === 'aluno' ? 'aluno/responsável' : 'professora'}` : ''}${h.motivo ? ` (${h.motivo})` : ''}`}</div>
+                    <div key={i}>{new Date(h.em).toLocaleDateString('pt-BR')} · {h.tipo === 'remarcada' ? `remarcada de ${dataBr(h.de)} para ${dataBr(h.para)}${h.duracao_para ? `, duração de ${textoDuracao(h.duracao_de)} para ${textoDuracao(h.duracao_para)}` : ''}${h.motivo ? ` (${h.motivo})` : ''}` : h.tipo === 'editada' ? `editada (${(h.campos || []).join(', ')})` : h.tipo === 'realizada' ? `realizada (${textoDuracao(h.minutos)})` : h.tipo === 'reaberta' ? 'voltou para prevista' : `${STATUS[h.tipo] || h.tipo}${h.quem ? ` por ${h.quem === 'aluno' ? 'aluno/responsável' : 'professora'}` : ''}${h.motivo ? ` (${h.motivo})` : ''}`}</div>
                   ))}
                 </details>
               )}
