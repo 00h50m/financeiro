@@ -87,6 +87,7 @@ function NovaDivisao({ store, onFeito }) {
 export default function Divididos({ store }) {
   const { divisoes, divisoesOk, marcarRepasse, desmarcarRepasse, delDivisao } = store
   const [mes, setMes] = useState(nowYM())
+  const noInicio = !!store.inicioApp && mes <= store.inicioApp
 
   if (!divisoesOk) {
     return (
@@ -121,7 +122,7 @@ export default function Divididos({ store }) {
       <NovaDivisao store={store} />
 
       <div className="toolbar" style={{ marginBottom: 12 }}>
-        <button className="btn btn-ghost btn-sm" onClick={() => setMes(addMonths(mes, -1))} aria-label="Mês anterior">←</button>
+        <button className="btn btn-ghost btn-sm" onClick={() => setMes(addMonths(mes, -1))} disabled={noInicio} title={noInicio ? `O app começou em ${mesLabel(store.inicioApp)}` : undefined} aria-label="Mês anterior">←</button>
         <strong style={{ minWidth: 110, textAlign: 'center' }}>{mesLabel(mes)}</strong>
         <button className="btn btn-ghost btn-sm" onClick={() => setMes(addMonths(mes, 1))} aria-label="Próximo mês">→</button>
       </div>

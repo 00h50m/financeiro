@@ -7,6 +7,7 @@ const COR = { fixo: 'badge-blue', fatura: 'badge-amber', parcela: 'badge-gray' }
 
 export default function Calendario({ store, irPara }) {
   const [mes, setMes] = useState(nowYM())
+  const noInicio = !!store.inicioApp && mes <= store.inicioApp // antes do início do uso o app não tem dados confiáveis
   const { eventos, semDia } = useMemo(() => eventosDoMes(store, mes), [store, mes])
   const dias = porDia(eventos)
   const hoje = hojeSP()
@@ -18,7 +19,7 @@ export default function Calendario({ store, irPara }) {
   return (
     <div className="page">
       <div className="toolbar">
-        <button className="btn btn-ghost btn-sm" onClick={() => setMes(addMonths(mes, -1))}>← Mês anterior</button>
+        <button className="btn btn-ghost btn-sm" onClick={() => setMes(addMonths(mes, -1))} disabled={noInicio} title={noInicio ? `O app começou em ${mesLabel(store.inicioApp)}` : undefined}>← Mês anterior</button>
         <span style={{ fontWeight: 500, fontSize: 14 }}>{mesLabel(mes)}</span>
         <button className="btn btn-ghost btn-sm" onClick={() => setMes(addMonths(mes, 1))}>Próximo mês →</button>
       </div>

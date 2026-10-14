@@ -3,6 +3,7 @@
 // fixosPagamentos, comprasPagamentos(+Ok), fechamentos, eventos, orcamentos.
 import { addMonths, gastosPorCategoria, gerarParcelas, hojeSP, mesLabel, nowYM, statusTeto } from './utils.js'
 import { resumoDoMes } from './financeiro.js'
+import { antesDoInicio } from './inicioApp.js'
 import { comprasLiquidas, fixosLiquidos, parteDosOutrosNoMes, resumoRepasses } from './divisoes.js'
 
 export const VERSAO_MOTOR = 1 // sobe quando a definição de algum número do fechamento mudar
@@ -102,7 +103,7 @@ export function validarFechamento(d, mes, { hoje = nowYM() } = {}) {
   if (fechadosAntes.length > 0 && !mesFechado(fechamentos, ant)) {
     bloqueantes.push(`${mesLabel(ant)} ainda não está fechado. Feche os meses em ordem, para o saldo transportado fazer sentido.`)
   }
-  if (fechadosAntes.length === 0 && !mesFechado(fechamentos, ant)) {
+  if (fechadosAntes.length === 0 && !mesFechado(fechamentos, ant) && !antesDoInicio(ant, d.inicioApp)) {
     alertas.push(`Este é o primeiro fechamento: o saldo anterior vem da conta automática dos meses passados, não de um fechamento.`)
   }
 
@@ -157,7 +158,7 @@ export function riscosDoMes(d, mes, { hoje = nowYM(), diaHoje = Number(hojeSP().
   const pend = (d.eventos || []).filter((e) => ['pendente', 'aguardando_dados'].includes(e.status)).length
   if (pend) riscos.push({ nivel: 'medio', texto: `${pend} ${pend === 1 ? 'item' : 'itens'} no Inbox esperando confirmação.`, aba: 'inbox' })
   const ant = addMonths(mes, -1)
-  if (d.fechamentosOk && mes === hoje && !mesFechado(d.fechamentos, ant) && (d.fechamentos || []).some((f) => f.status === 'fechado')) {
+  if (d.fechamentosOk && mes === hoje && !antesDoInicio(ant, d.inicioApp) && !mesFechado(d.fechamentos, ant) && (d.fechamentos || []).some((f) => f.status === 'fechado')) {
     riscos.push({ nivel: 'medio', texto: `${mesLabel(ant)} ainda não foi fechado.`, aba: 'fechamento' })
   }
   return riscos

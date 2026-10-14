@@ -9,6 +9,7 @@ import { montarResumoMensal, textoDoResumo } from '../lib/resumoMensal'
 import Secao from './Secao'
 import { contasDoMes } from '../lib/inicio'
 import NavMes from './NavMes'
+import { antesDoInicio } from '../lib/inicioApp'
 
 export default function Dashboard({ store, irPara }) {
   const { compras, cartoes, fixos, pessoas, orcamentos } = store
@@ -81,7 +82,7 @@ export default function Dashboard({ store, irPara }) {
 
   const serie6 = useMemo(() => serieMensal(store, mes, 6), [store, mes])
   const mesAnterior = addMonths(mes, -1)
-  const anteriorPorCategoria = gastosPorCategoria(comprasLiquidas(store), cartoes, fixosLiquidos(store), mesAnterior)
+  const anteriorPorCategoria = antesDoInicio(mesAnterior, store.inicioApp) ? {} : gastosPorCategoria(comprasLiquidas(store), cartoes, fixosLiquidos(store), mesAnterior)
   const riscos = riscosDoMes(store, mes)
   const fechadoAtual = mesFechado(store.fechamentos, mes)
 

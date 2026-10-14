@@ -29,3 +29,25 @@ describe('início do app nos gráficos e resumos', () => {
     expect(textoDoResumo(r)).toContain('só considera os dados a partir de')
   })
 })
+
+import { validarFechamento, riscosDoMes } from '../fechamento.js'
+import { projecao } from '../graficos.js'
+
+describe('início do app: fechamento e projeção', () => {
+  const d = { ...base, fechamentosOk: true, eventos: [], inicioApp: '2026-10' }
+  it('primeiro fechamento no mês de início não fala em "meses passados" nem cobra mês anterior', () => {
+    const v = validarFechamento(d, '2026-10', { hoje: '2026-10' })
+    expect(v.alertas.join(' ')).not.toContain('primeiro fechamento')
+    expect(riscosDoMes(d, '2026-10', '2026-10').some((r) => String(r.texto).includes('Set/26'))).toBe(false)
+  })
+  it('sem data de início o alerta antigo continua', () => {
+    const v = validarFechamento({ ...d, inicioApp: null }, '2026-10', { hoje: '2026-10' })
+    expect(v.alertas.join(' ')).toContain('primeiro fechamento')
+  })
+  it('projeção não usa o à vista de meses anteriores ao início', () => {
+    const comCompra = { ...d, compras: [{ id: 'c', data_compra: '2026-09-10', valor_total: 900, parcelas: 1, categoria: 'Diversos', subcategoria: 'Outros', pessoa: 'Giovanna' }] }
+    const p = projecao(comCompra, '2026-10', 1)
+    expect(p[0].aVistaEstimado).toBe(0) // setembro está antes do início: não vira "gasto médio" estimado
+    expect(projecao({ ...comCompra, inicioApp: null }, '2026-10', 1)[0].aVistaEstimado).toBeGreaterThan(0)
+  })
+})
