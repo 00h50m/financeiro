@@ -3,6 +3,7 @@ import { fmt, hojeSP } from '../../lib/utils'
 import {
   DIAS, afetadasPorMudanca, aulasParaNovoValor, centavosParaReais, diferencaProgramacao, reaisParaCentavos, textoDuracao, DIAS_CURTOS,
 } from '../../lib/aulas'
+import { Pilulas } from '../NavMes'
 import CampoHorario from './CampoHorario'
 import SeletorDuracao from './SeletorDuracao'
 
@@ -11,7 +12,7 @@ const dataBr = (d) => d.split('-').reverse().join('/')
 
 // Cadastro enxuto do aluno + programação semanal. Ao editar, mudanças de programação e de valor/hora valem a partir de uma data,
 // com a lista do que será afetado antes de aplicar.
-export default function ModalAluno({ store, aluno, onClose }) {
+export default function ModalAluno({ store, aluno, onClose, inicialAvulso = false }) {
   const { criarAluno, atualizarAluno, mudarProgramacao, aulas, aulasProg } = store
   const edicao = !!aluno
   const hoje = hojeSP()
@@ -21,6 +22,7 @@ export default function ModalAluno({ store, aluno, onClose }) {
     inicio: aluno?.inicio || hoje, telefone: aluno?.telefone || '', fim: aluno?.fim || '', observacoes: aluno?.observacoes || '',
   }))
   const [linhas, setLinhas] = useState(() => (atuais.length ? atuais.map((p) => ({ id: p.id, dia_semana: p.dia_semana, horario: p.horario || '', duracao_min: p.duracao_min })) : [linhaVazia()]))
+  const [tipo, setTipo] = useState(() => (inicialAvulso || (aluno && atuais.length === 0) ? 'avulso' : 'fixo')) // fixo = tem dia da semana · avulso = aulas quando combinar
   const [desde, setDesde] = useState(hoje)
   const [detalhes, setDetalhes] = useState(!!(aluno?.fim || aluno?.observacoes))
   const [salvando, setSalvando] = useState(false)
@@ -28,8 +30,8 @@ export default function ModalAluno({ store, aluno, onClose }) {
   const setLinha = (i, patch) => setLinhas((l) => l.map((x, j) => (j === i ? { ...x, ...patch } : x)))
 
   const valorCent = reaisParaCentavos(f.valor)
-  const limpas = linhas.map((l) => ({ dia_semana: Number(l.dia_semana), horario: l.horario || null, duracao_min: Number(l.duracao_min) }))
-  const valido = f.nome.trim() && f.responsavel.trim() && valorCent != null && valorCent >= 0 && f.inicio && limpas.length > 0
+  const limpas = tipo === 'avulso' ? [] : linhas.map((l) => ({ dia_semana: Number(l.dia_semana), horario: l.horario || null, duracao_min: Number(l.duracao_min) }))
+  const valido = f.nome.trim() && valorCent != null && valorCent >= 0 && f.inicio && (tipo === 'avulso' || limpas.length > 0)
 
   // Impacto de mudanças (só em edição)
   const dif = edicao ? diferencaProgramacao(atuais, limpas) : { sai: [], entra: [], fica: [] }
@@ -79,9 +81,14 @@ export default function ModalAluno({ store, aluno, onClose }) {
       <div className="modal" style={{ maxWidth: 620 }}>
         <div className="modal-title">{edicao ? `Editar ${aluno.nome}` : 'Novo aluno'}</div>
 
+        <div className="form-group">
+          <label>Como são as aulas?</label>
+          <Pilulas rotulo="Tipo de aluno" valor={tipo} onChange={setTipo} opcoes={[['fixo', 'Fixo (dia da semana)'], ['avulso', 'Avulso (quando combinar)']]} />
+          {tipo === 'avulso' && <div className="cad-sub" style={{ margin: '6px 0 14px' }}>Nenhuma aula é criada sozinha. Quando der uma aula, use "+ Aula avulsa" e escolha este aluno; o valor/hora vale para todas.</div>}
+        </div>
         <div className="form-row cols2">
           <div className="form-group"><label>Nome do aluno</label><input value={f.nome} onChange={set('nome')} autoFocus placeholder="Ex.: Ana" /></div>
-          <div className="form-group"><label>Responsável financeiro</label><input value={f.responsavel} onChange={set('responsavel')} placeholder="Ex.: Maria" /></div>
+          <div className="form-group"><label>Responsável financeiro <span style={{ fontWeight: 400, color: 'var(--text3)' }}>(opcional)</span></label><input value={f.responsavel} onChange={set('responsavel')} placeholder="Ex.: Maria" /></div>
         </div>
         <div className="form-row cols2">
           <div className="form-group"><label>Valor por hora (R$)</label><input inputMode="decimal" value={f.valor} onChange={set('valor')} placeholder="Ex.: 80" /></div>
@@ -91,8 +98,8 @@ export default function ModalAluno({ store, aluno, onClose }) {
           <div className="form-group"><label>WhatsApp do responsável (com DDD)</label><input inputMode="tel" value={f.telefone} onChange={set('telefone')} placeholder="(11) 91234-5678" /></div>
         </div>
 
-        <div className="section-label" style={{ marginTop: 8 }}>programação semanal</div>
-        <div className="aluno-prog">
+        {tipo === 'fixo' && <div className="section-label" style={{ marginTop: 8 }}>programação semanal</div>}
+        {tipo === 'fixo' && <div className="aluno-prog">
           {linhas.map((l, i) => (
             <div key={i} className="aluno-prog-linha">
               <select aria-label="Dia da semana" value={l.dia_semana} onChange={(e) => setLinha(i, { dia_semana: Number(e.target.value) })}>
@@ -105,7 +112,7 @@ export default function ModalAluno({ store, aluno, onClose }) {
           ))}
           <button className="btn btn-ghost btn-sm" onClick={() => setLinhas((l) => [...l, linhaVazia()])}>+ Adicionar dia ou horário</button>
           <div className="cad-sub">O mesmo dia pode ter mais de uma aula, em horários diferentes. As aulas do mês são geradas sozinhas a partir daqui.</div>
-        </div>
+        </div>}
 
         <button className="link-btn" style={{ margin: '10px 0' }} onClick={() => setDetalhes((v) => !v)}>{detalhes ? 'Menos detalhes' : 'Mais detalhes (término, observações)'}</button>
         {detalhes && (

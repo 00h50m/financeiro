@@ -171,7 +171,7 @@ export default function Aulas({ store }) {
 
   return (
     <div className="page aulas-pg">
-      {modalAluno && <ModalAluno store={store} aluno={modalAluno.aluno} onClose={() => setModalAluno(null)} />}
+      {modalAluno && <ModalAluno store={store} aluno={modalAluno.aluno} inicialAvulso={!!modalAluno.avulso} onClose={() => setModalAluno(null)} />}
       {lote && <ModalLote store={store} aulas={selAulas} alunoPorId={alunoPorId} onClose={(ok) => { setLote(false); if (ok) sairSel() }} />}
       {configAberta && <ModalConfigAulas modo={store.modoRendaAulas} definirConfig={definirConfig} onClose={() => setConfigAberta(false)} />}
       {pausasAberto && <ModalPausas store={store} alunos={alunos} onClose={() => setPausasAberto(false)} />}
@@ -179,7 +179,7 @@ export default function Aulas({ store }) {
       {dialogo && (
         <DialogosAula
           store={store} tipo={dialogo.tipo} aula={dialogo.aula} aluno={dialogo.aula ? alunoPorId.get(dialogo.aula.aluno_id) : alunoFiltrado || ativos[0]}
-          alunos={ativos} dataInicial={dialogo.data} onClose={() => setDialogo(null)}
+          alunos={ativos} dataInicial={dialogo.data} onNovoAluno={dialogo.tipo === 'avulsa' ? () => { setDialogo(null); setModalAluno({ avulso: true }) } : undefined} onClose={() => setDialogo(null)}
           bloqueado={(tipo, f) => (tipo === 'remarcar' || tipo === 'editar' ? bloqueia(dialogo.aula.aluno_id, mesDe(f.data)) : (tipo === 'reposicao' || tipo === 'avulsa') ? bloqueia(dialogo.aula?.aluno_id || f.alunoId, mesDe(f.data)) : false)}
         />
       )}
@@ -260,7 +260,7 @@ export default function Aulas({ store }) {
                     <article key={al.id} className={`aulas-aluno ${al.ativo === false ? 'inativo' : ''}`}>
                       <div className="aulas-aluno-topo">
                         <div style={{ minWidth: 0 }}>
-                          <div className="cad-tile-nome">{al.nome}{al.ativo === false && <span className="badge badge-gray" style={{ marginLeft: 6 }}>inativo</span>}</div>
+                          <div className="cad-tile-nome">{al.nome}{al.ativo === false && <span className="badge badge-gray" style={{ marginLeft: 6 }}>inativo</span>}{!aulasProg.some((p) => p.aluno_id === al.id && !p.vigencia_fim) && <span className="badge badge-gray" style={{ marginLeft: 6 }} title="Sem dia fixo: as aulas são registradas como avulsas">avulso</span>}</div>
                           <div className="cad-sub">{al.responsavel} · {fmt(centavosParaReais(al.valor_hora_centavos))}/h</div>
                         </div>
                         <button className="btn btn-ghost btn-sm" onClick={() => setModalAluno({ aluno: al })}>Editar</button>

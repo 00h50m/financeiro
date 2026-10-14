@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { fmt, hojeSP } from '../../lib/utils'
 import {
-  DIAS_CURTOS, centavosParaReais, diaDaSemana, novaAvulsa, novaReposicao, patchEditar, patchEncerrar, patchRemarcar, reaisParaCentavos, textoDuracao,
+  DIAS_CURTOS, centavosParaReais, diaDaSemana, novaAvulsa, novaReposicao, patchEditar, patchEncerrar, patchRealizar, patchRemarcar, reaisParaCentavos, textoDuracao,
   valorAula,
 } from '../../lib/aulas'
 import CampoHorario from './CampoHorario'
@@ -11,7 +11,7 @@ const dataBr = (d) => d.split('-').reverse().join('/')
 export const rotuloData = (d) => `${DIAS_CURTOS[diaDaSemana(d)]} ${dataBr(d).slice(0, 5)}`
 
 // Um único diálogo para as ações de uma aula: editar, remarcar, cancelar / não realizada, reposição e aula avulsa.
-export default function DialogosAula({ store, tipo, aula, aluno, alunos, onClose, bloqueado, dataInicial }) {
+export default function DialogosAula({ store, tipo, aula, aluno, alunos, onClose, bloqueado, dataInicial, onNovoAluno }) {
   const { atualizarAula, inserirAula } = store
   const agoraISO = () => new Date().toISOString()
   const [f, setF] = useState(() => ({
@@ -21,6 +21,7 @@ export default function DialogosAula({ store, tipo, aula, aluno, alunos, onClose
     duracao: aula?.duracao_min || 60,
     duracaoReal: aula?.duracao_real_min || aula?.duracao_min || 60,
     valorHora: aula ? String(centavosParaReais(aula.valor_hora_centavos)).replace('.', ',') : '',
+    realizada: false,
     observacao: aula?.observacao || '',
     motivo: '',
     quem: 'aluno',
@@ -53,7 +54,10 @@ export default function DialogosAula({ store, tipo, aula, aluno, alunos, onClose
       ok = await inserirAula({ ...novaReposicao(aula, aluno, { data: f.data, horario: f.horario, duracao_min: f.duracao }), observacao: f.observacao.trim() || null })
     } else if (tipo === 'avulsa') {
       const al = alunos.find((a) => a.id === f.alunoId)
-      ok = await inserirAula(novaAvulsa(al, { data: f.data, horario: f.horario, duracao_min: f.duracao, observacao: f.observacao.trim() }))
+      let nova = novaAvulsa(al, { data: f.data, horario: f.horario, duracao_min: f.duracao, observacao: f.observacao.trim() })
+      if (valorCent != null && f.valorHora.trim() !== '') nova = { ...nova, valor_hora_centavos: valorCent, valor_hora_manual: true } // valor só desta aula
+      if (f.realizada) nova = { ...nova, ...patchRealizar(nova, f.duracao, agora) } // aula que já aconteceu: entra como realizada
+      ok = await inserirAula(nova)
     }
     setSalvando(false)
     if (ok) onClose()
@@ -62,7 +66,8 @@ export default function DialogosAula({ store, tipo, aula, aluno, alunos, onClose
   const nome = aula ? `${aluno?.nome || ''} · ${rotuloData(aula.data)}` : ''
   const rotuloSalvar = { editar: 'Salvar', remarcar: 'Remarcar', cancelada: 'Cancelar a aula', nao_realizada: 'Registrar', reposicao: 'Criar reposição', avulsa: 'Criar aula' }[tipo]
   const horaAula = tipo === 'avulsa' ? alunos.find((a) => a.id === f.alunoId)?.valor_hora_centavos : aluno?.valor_hora_centavos
-  const previa = (tipo === 'avulsa' || tipo === 'reposicao') && horaAula != null ? valorAula(horaAula, f.duracao) : null
+  const horaEfetiva = tipo === 'avulsa' && f.valorHora.trim() !== '' && valorCent != null ? valorCent : horaAula
+  const previa = (tipo === 'avulsa' || tipo === 'reposicao') && horaEfetiva != null ? valorAula(horaEfetiva, f.duracao) : null
 
   return (
     <div className="overlay" onClick={(e) => { if (e.target.className === 'overlay') onClose() }}>
@@ -73,6 +78,7 @@ export default function DialogosAula({ store, tipo, aula, aluno, alunos, onClose
         {tipo === 'avulsa' && (
           <div className="form-row"><div className="form-group"><label>Aluno</label>
             <select value={f.alunoId} onChange={set('alunoId')}>{alunos.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}</select>
+            {onNovoAluno && <button type="button" className="link-btn" style={{ marginTop: 6 }} onClick={onNovoAluno}>Aluno novo? Cadastrar (fixo ou avulso)</button>}
           </div></div>
         )}
 
@@ -106,12 +112,15 @@ export default function DialogosAula({ store, tipo, aula, aluno, alunos, onClose
           </div>
         )}
 
-        {tipo === 'editar' && (
+        {(tipo === 'editar' || tipo === 'avulsa') && (
           <div className="form-row"><div className="form-group">
-            <label>Valor por hora só desta aula (R$)</label>
-            <input inputMode="decimal" value={f.valorHora} onChange={set('valorHora')} />
-            <div className="cad-sub">Mudar aqui não altera o valor padrão do aluno.</div>
+            <label>Valor por hora só desta aula (R$){tipo === 'avulsa' ? ' · opcional' : ''}</label>
+            <input inputMode="decimal" value={f.valorHora} onChange={set('valorHora')} placeholder={tipo === 'avulsa' ? 'Vazio = valor do aluno' : undefined} />
+            <div className="cad-sub">{tipo === 'avulsa' ? 'Use para combinar um preço diferente nesta aula.' : 'Mudar aqui não altera o valor padrão do aluno.'}</div>
           </div></div>
+        )}
+        {tipo === 'avulsa' && (
+          <label className="check-linha"><input type="checkbox" checked={f.realizada} onChange={(e) => setF((x) => ({ ...x, realizada: e.target.checked }))} /> Esta aula já aconteceu (registrar como realizada)</label>
         )}
 
         {tipo === 'remarcar' && (

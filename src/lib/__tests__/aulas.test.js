@@ -303,3 +303,15 @@ describe('horário digitado', () => {
     expect(lerHorario('abc')).toBeNull()
   })
 })
+
+describe('aluno avulso e aula avulsa com valor próprio', () => {
+  const al = { id: 'a9', valor_hora_centavos: 10000 }
+  it('aluno sem programação não gera nenhuma aula', () => {
+    expect(gerarOcorrencias({ ...al, inicio: '2026-10-01', ativo: true }, [], '2026-10')).toEqual([])
+  })
+  it('avulsa já realizada com valor/hora combinado cobra pelo valor combinado', () => {
+    const base = { ...novaAvulsa(al, { data: '2026-10-10', duracao_min: 90 }), valor_hora_centavos: 8000, valor_hora_manual: true }
+    const feita = { ...base, ...patchRealizar(base, 90, AGORA) }
+    expect(feita).toMatchObject({ origem: 'avulsa', status: 'realizada', valor_hora_manual: true, duracao_real_min: 90, valor_centavos: 12000 })
+  })
+})

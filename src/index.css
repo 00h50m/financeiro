@@ -859,3 +859,6 @@ input[type="month"], input[type="date"] { max-width: 100%; }
   .ini-mini-valor { margin-top: 0; font-size: 17px; text-align: right; }
   .ini-mini-nota { grid-column: 1 / -1; margin-top: 4px; }
 }
+
+.form-group .check-linha, .modal > .check-linha { margin: 8px 0 14px; }
+.modal .check-linha { margin-bottom: 14px; }
