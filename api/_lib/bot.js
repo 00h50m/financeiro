@@ -14,6 +14,8 @@ import { motivoNaoLancarSozinho } from '../../src/lib/categorizacao.js'
 import { prepararEvento } from '../../src/lib/evento.js'
 import { hashCodigo, normalizarCodigo } from '../../src/lib/pareamento.js'
 import { fmt, hojeSP, addMonths } from '../../src/lib/utils.js'
+import { aulasParaAtualizar, acharAluno, lerComandoAula, rotuloAula, mesFechadoDoAluno } from '../../src/lib/aulasBot.js'
+import { patchRealizar, patchEncerrar, patchDesfazer, novaAvulsa, valorAula, textoDuracao } from '../../src/lib/aulas.js'
 
 const LIMITE_AUTORIZADO = 30 // mensagens por minuto
 const LIMITE_DESCONHECIDO = 5
@@ -47,6 +49,7 @@ Pergunte também: "quanto gastei em mercado este mês?"
 /faturas – quanto já está nas faturas abertas dos cartões
 /proximas – o que já está comprometido nas faturas dos próximos meses
 /auto on|off – lançar sozinho o que eu reconhecer com certeza (padrão: desligado)
+/aulas – aulas particulares esperando atualização (toque ✓ para registrar como realizada) · ou: /aula Lucas hoje 1h
 /avisos on – resumo automático todo domingo à noite, lembrete diário do que vence e, no dia 1, o resumo completo do mês que passou (/avisos off para parar)
 /android – conectar o aviso de compras do celular Android (as notificações do banco chegam aqui para você confirmar)
 /menu – mostra as opções em botões (ou mande "oi")
@@ -58,7 +61,7 @@ const botoesMenu = () => botoes([
   btn('📊 Resumo do mês', 'mn', 'x', 'resumo'), btn('💳 Faturas abertas', 'mn', 'x', 'faturas'),
   btn('📅 Próximas faturas', 'mn', 'x', 'proximas'), btn('🧾 Última compra', 'mn', 'x', 'ultima'),
   btn('⏳ Pendentes', 'mn', 'x', 'pendentes'), btn('🔔 Aviso de domingo', 'mn', 'x', 'avisos'),
-  btn('⚡ Lançar sozinho', 'mn', 'x', 'auto'), btn('📖 Como lançar', 'mn', 'x', 'ajuda'),
+  btn('🎓 Aulas', 'mn', 'x', 'aulas'), btn('⚡ Lançar sozinho', 'mn', 'x', 'auto'), btn('📖 Como lançar', 'mn', 'x', 'ajuda'),
 ], 2)
 
 const nomeCurto = (p) => (p?.apelidos?.[0] ? p.apelidos[0][0].toUpperCase() + p.apelidos[0].slice(1) : p?.nome || '—')
@@ -141,6 +144,8 @@ async function tratarMensagem(c, msg) {
   if (an) return await tratarAndroid(c, an[1])
   const au = texto.match(/^\/auto(?:@\w+)?(?:\s+(on|off|ligar|desligar))?$/i)
   if (au) return await tratarAuto(c, au[1])
+  const au2 = texto.match(/^\/aulas?(?:@\w+)?(?:\s+(.*))?$/i)
+  if (au2) return au2[1] ? await registrarAulaTexto(c, au2[1]) : await listarAulas(c)
   const av = texto.match(/^\/avisos(?:@\w+)?(?:\s+(on|off|ligar|desligar))?$/i)
   if (av) return await tratarAvisos(c, av[1])
   const px = texto.match(/^\/proximas(?:@\w+)?(?:\s+(.*))?$/i)
@@ -276,6 +281,7 @@ async function tratarMenu(c, cb, opcao) {
     case 'ultima': return await mostrarUltima(c)
     case 'pendentes': return await responderPendentes(c)
     case 'avisos': return await tratarAvisos(c, undefined)
+    case 'aulas': return await listarAulas(c)
     case 'auto': return await tratarAuto(c, undefined)
     case 'ajuda': await c.tg.enviar(c.chat.id, AJUDA); return { acao: 'ajuda' }
     default: return { ignorado: 'menu_opcao_invalida' }
@@ -582,6 +588,7 @@ async function tratarCallback(c, cb) {
   const [acao, eid, arg] = String(cb.data).split('|')
   if (acao === 'ul') return await tratarUltima(c, cb, eid, arg)
   if (acao === 'mn') return await tratarMenu(c, cb, arg)
+  if (acao === 'au') return await tratarAula(c, cb, eid, arg)
   const ev = await db.buscarEvento(eid)
   if (!ev || ev.contexto?.telegram_user_id !== de.id || !ABERTOS.includes(ev.status)) {
     await tg.responderCallback(cb.id, 'Esse lançamento já foi resolvido.')
@@ -771,4 +778,106 @@ function resumo(ev, base) {
     `Data: ${fmtData(ev.data_evento)}`,
     ev.obs ? `Obs.: ${ev.obs}` : null,
   ].filter(Boolean).join('\n')
+}
+
+// ---------- aulas particulares ----------
+const brlAula = (c) => (c / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+
+async function listarAulas(c) {
+  const dados = await c.db.dadosAulas()
+  if (!dados) { await c.tg.enviar(c.chat.id, 'As aulas particulares ainda não estão configuradas no Finapp.'); return { acao: 'aulas_indisponivel' } }
+  const { itens, total } = aulasParaAtualizar(dados, c.hoje)
+  if (!itens.length) { await c.tg.enviar(c.chat.id, 'Nenhuma aula esperando atualização. 🎉\n\nPara registrar uma aula: /aula Lucas hoje 1h'); return { acao: 'aulas_em_dia' } }
+  const linhas = itens.flatMap(({ aula, aluno }) => [btn(`✓ ${rotuloAula(aula, aluno)}`, 'au', aula.id, 'r'), btn('✕', 'au', aula.id, 'c')])
+  const resto = total > itens.length ? `\n\nMostrando as ${itens.length} mais recentes; há mais ${total - itens.length} no Finapp.` : ''
+  await c.tg.enviar(c.chat.id, `🎓 Aulas para atualizar. Toque em ✓ para registrar como realizada (na duração prevista) ou em ✕ para cancelar.${resto}`, botoes(linhas, 2))
+  return { acao: 'aulas_lista' }
+}
+
+const bloqueioAula = (dados) => dados.fechamento && ['fechado', 'sem_cobranca'].includes(dados.fechamento.status)
+const TXT_FECHADO = 'O mês deste aluno já está fechado. Reabra o fechamento no Finapp para alterar.'
+
+async function confirmarAula(c, aula, aluno, titulo) {
+  await c.tg.enviar(c.chat.id, titulo, botoes([btn('↩ Desfazer', 'au', aula.id, 'd')], 1))
+}
+
+async function tratarAula(c, cb, id, arg) {
+  const { db, tg } = c
+  const dados = await db.buscarAulaBot(id)
+  if (!dados) { await tg.responderCallback(cb.id, 'Não encontrei essa aula.'); return { ignorado: 'aula_inexistente' } }
+  const { aula, aluno } = dados
+  const agoraISO = c.agora().toISOString()
+  const rotulo = rotuloAula(aula, aluno)
+  if (arg === 'v') { await tg.responderCallback(cb.id); await limparTeclado(c, cb, 'Ok, nada foi alterado.'); return { acao: 'aula_voltar' } }
+  if (arg === 'x') { // desfazer de uma aula avulsa criada pelo bot
+    if (aula.origem !== 'avulsa') { await tg.responderCallback(cb.id, 'Só aulas avulsas podem ser removidas por aqui.'); return { ignorado: 'aula_nao_avulsa' } }
+    if (bloqueioAula(dados)) { await tg.responderCallback(cb.id, TXT_FECHADO); return { ignorado: 'mes_fechado' } }
+    await db.excluirAula(aula.id)
+    await tg.responderCallback(cb.id, 'Aula removida.')
+    return { acao: 'aula_removida' }
+  }
+  if (arg === 'd') {
+    if (aula.status === 'prevista') { await tg.responderCallback(cb.id, 'Essa aula já está como prevista.'); return { ignorado: 'aula_ja_prevista' } }
+    if (bloqueioAula(dados)) { await tg.responderCallback(cb.id, TXT_FECHADO); return { ignorado: 'mes_fechado' } }
+    await db.atualizarAula(aula.id, patchDesfazer(aula, agoraISO))
+    await tg.responderCallback(cb.id, 'Voltou para prevista.')
+    return { acao: 'aula_desfeita' }
+  }
+  if (aula.status !== 'prevista') { await tg.responderCallback(cb.id, 'Essa aula já foi atualizada.'); return { ignorado: 'aula_ja_atualizada' } }
+  if (bloqueioAula(dados)) { await tg.responderCallback(cb.id, TXT_FECHADO); return { ignorado: 'mes_fechado' } }
+  if (arg === 'r') {
+    await db.atualizarAula(aula.id, patchRealizar(aula, aula.duracao_min, agoraISO))
+    await tg.responderCallback(cb.id, 'Registrada ✓')
+    await confirmarAula(c, aula, aluno, `✓ ${rotulo} registrada como realizada (${brlAula(valorAula(aula.valor_hora_centavos, aula.duracao_min))}).`)
+    return { acao: 'aula_realizada' }
+  }
+  if (arg === 'c') {
+    await tg.responderCallback(cb.id)
+    await tg.enviar(c.chat.id, `O que aconteceu com ${rotulo}?`, botoes([
+      btn('Aluno cancelou', 'au', aula.id, 'ca'), btn('Eu cancelei', 'au', aula.id, 'cp'),
+      btn('Não aconteceu', 'au', aula.id, 'nr'), btn('Voltar', 'au', aula.id, 'v'),
+    ], 2))
+    return { acao: 'aula_pergunta_cancelar' }
+  }
+  const mapa = { ca: ['cancelada', 'aluno', 'cancelada pelo aluno'], cp: ['cancelada', 'professora', 'cancelada por você'], nr: ['nao_realizada', null, 'marcada como não realizada'] }[arg]
+  if (!mapa) return { ignorado: 'callback_invalido' }
+  await db.atualizarAula(aula.id, patchEncerrar(aula, mapa[0], { quem: mapa[1] }, agoraISO))
+  await tg.responderCallback(cb.id, 'Anotado.')
+  await limparTeclado(c, cb, `${rotulo}: ${mapa[2]} (sem cobrança).`)
+  await confirmarAula(c, aula, aluno, 'Se foi engano, você pode desfazer:')
+  return { acao: 'aula_encerrada' }
+}
+
+// /aula Lucas hoje 1h  ->  registra como realizada a aula prevista do dia (ou cria uma avulsa se informar a duração).
+async function registrarAulaTexto(c, arg) {
+  const { db, tg } = c
+  const dados = await db.dadosAulas()
+  if (!dados) { await tg.enviar(c.chat.id, 'As aulas particulares ainda não estão configuradas no Finapp.'); return { acao: 'aulas_indisponivel' } }
+  const cmd = lerComandoAula(arg, c.hoje)
+  const achado = acharAluno(dados.alunos, cmd.nome)
+  if (!achado.aluno) {
+    const nomes = achado.candidatos.map((a) => a.nome).join(', ')
+    await tg.enviar(c.chat.id, achado.erro === 'varios' ? `Qual aluno? Encontrei: ${nomes}.` : 'Não achei esse aluno. Exemplo: /aula Lucas hoje 1h')
+    return { acao: 'aula_aluno_invalido' }
+  }
+  const aluno = achado.aluno
+  if (cmd.data > c.hoje) { await tg.enviar(c.chat.id, 'Essa data ainda não chegou. Registro só aulas de hoje para trás.'); return { acao: 'aula_data_futura' } }
+  if (mesFechadoDoAluno(dados.aulasFech, aluno.id, cmd.data)) { await tg.enviar(c.chat.id, TXT_FECHADO); return { acao: 'aula_mes_fechado' } }
+  const agoraISO = c.agora().toISOString()
+  const dia = cmd.data.split('-').reverse().slice(0, 2).join('/')
+  const prevista = dados.aulas.filter((a) => a.aluno_id === aluno.id && a.data === cmd.data && a.status === 'prevista').sort((a, b) => (a.horario || '').localeCompare(b.horario || ''))[0]
+  if (prevista) {
+    const min = cmd.minutos || prevista.duracao_min
+    await db.atualizarAula(prevista.id, patchRealizar(prevista, min, agoraISO))
+    await confirmarAula(c, prevista, aluno, `✓ ${aluno.nome}, ${dia}: aula realizada (${textoDuracao(min)}, ${brlAula(valorAula(prevista.valor_hora_centavos, min))}).`)
+    return { acao: 'aula_realizada' }
+  }
+  if (!cmd.minutos) {
+    await tg.enviar(c.chat.id, `Não achei aula prevista de ${aluno.nome} em ${dia}. Para registrar uma aula avulsa, diga a duração: /aula ${aluno.nome.split(' ')[0]} ${cmd.data === c.hoje ? 'hoje' : dia} 1h`)
+    return { acao: 'aula_sem_prevista' }
+  }
+  const base = novaAvulsa(aluno, { data: cmd.data, duracao_min: cmd.minutos })
+  const nova = await db.inserirAula({ ...base, ...patchRealizar(base, cmd.minutos, agoraISO) })
+  await c.tg.enviar(c.chat.id, `✓ ${aluno.nome}, ${dia}: aula avulsa registrada como realizada (${textoDuracao(cmd.minutos)}, ${brlAula(valorAula(aluno.valor_hora_centavos, cmd.minutos))}).`, botoes([btn('↩ Desfazer', 'au', nova.id, 'x')], 1))
+  return { acao: 'aula_avulsa' }
 }

@@ -57,6 +57,7 @@ export function textoLembreteAulas(p) {
     linhas.push('', 'Fechado e ainda sem recebimento:')
     p.receber.forEach((r) => linhas.push(`• ${r.aluno} (${mesLabel(r.mes)}): ${fmt(r.valor)}`))
   }
+  if (p.atrasadas.length) linhas.push('', 'Para atualizar por aqui: /aulas')
   linhas.push('', 'Para parar de receber avisos: /avisos off')
   return linhas.join('\n')
 }
