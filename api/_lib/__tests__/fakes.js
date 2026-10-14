@@ -97,6 +97,14 @@ export function criarFakeDb({ comprasIniciais = [], regras = REGRAS } = {}) {
       }
     },
     async dadosAulas() { return s.dadosAulas || null },
+    async buscarAulaBot(id) {
+      const a = s.dadosAulas?.aulas.find((x) => x.id === id)
+      if (!a) return null
+      return { aula: a, aluno: s.dadosAulas.alunos.find((x) => x.id === a.aluno_id), fechamento: s.dadosAulas.aulasFech.find((f) => f.aluno_id === a.aluno_id && f.mes === a.data.slice(0, 7)) || null }
+    },
+    async atualizarAula(id, patch) { Object.assign(s.dadosAulas.aulas.find((x) => x.id === id), patch) },
+    async inserirAula(row) { const n = { id: 'novaaula' + s.proxId++, ...row }; s.dadosAulas.aulas.push(n); return n },
+    async excluirAula(id) { s.dadosAulas.aulas = s.dadosAulas.aulas.filter((x) => x.id !== id) },
     async destinatariosResumo() { return [...s.integracoes.values()].filter((i) => i.ativo && i.resumo_semanal) },
     async dadosTeto(categoria) {
       return { orcamentos: s.orcamentos || [], fixos: s.fixos || [], compras: s.compras.filter((c) => c.categoria === categoria) }

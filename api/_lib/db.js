@@ -155,6 +155,19 @@ export function criarDb({ url, serviceKey }) {
     async dadosAulas() {
       try { return { alunos: await todas('alunos', '*'), aulas: await todas('aulas', '*', (q) => q.order('id')), aulasFech: await todas('aulas_fechamentos', '*'), inicioApp: await this.inicioApp() } } catch { return null }
     },
+    // Uma aula com o aluno e o fechamento do mês dela (para os botões do bot). null se não existir.
+    async buscarAulaBot(id) {
+      const r = await sb.from('aulas').select('*').eq('id', id).maybeSingle()
+      if (r.error || !r.data) return null
+      const [al, fe] = await Promise.all([
+        sb.from('alunos').select('*').eq('id', r.data.aluno_id).maybeSingle(),
+        sb.from('aulas_fechamentos').select('*').eq('aluno_id', r.data.aluno_id).eq('mes', r.data.data.slice(0, 7)).maybeSingle(),
+      ])
+      return { aula: r.data, aluno: al.data, fechamento: fe.data || null }
+    },
+    async atualizarAula(id, patch) { dados(await sb.from('aulas').update(patch).eq('id', id)) },
+    async inserirAula(row) { return dados(await sb.from('aulas').insert(row).select().single()) },
+    async excluirAula(id) { dados(await sb.from('aulas').delete().eq('id', id)) },
     // Tudo que o resumo mensal precisa (mesmas contas do app). Tabelas opcionais que ainda não existem viram lista vazia.
     async dadosResumoMensal() {
       const opcional = async (tabela, colunas = '*') => { try { return await todas(tabela, colunas) } catch { return null } }
