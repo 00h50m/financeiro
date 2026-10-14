@@ -758,7 +758,7 @@ input[type='checkbox'] { width: auto; min-height: 0; accent-color: var(--brand);
 .aula-menu .btn { justify-content: center; }
 .aula-hist { font-size: 12px; color: var(--text2); line-height: 1.6; margin-top: 4px; }
 .aluno-prog { display: grid; gap: 8px; }
-.aluno-prog-linha { display: grid; grid-template-columns: minmax(110px, 1.2fr) minmax(100px, 1fr) minmax(90px, 1fr) auto; gap: 8px; align-items: center; }
+.aluno-prog-linha { display: grid; grid-template-columns: minmax(110px, 1.1fr) minmax(170px, 1.5fr) minmax(90px, 1fr) auto; gap: 8px; align-items: center; }
 @media (max-width: 600px) {
   .aula-card { flex-wrap: wrap; }
   .aula-acoes { width: 100%; justify-content: flex-end; }
@@ -862,3 +862,7 @@ input[type="month"], input[type="date"] { max-width: 100%; }
 
 .form-group .check-linha, .modal > .check-linha { margin: 8px 0 14px; }
 .modal .check-linha { margin-bottom: 14px; }
+
+/* horário em dois seletores */
+.campo-horario { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; min-width: 0; }
+.campo-horario select { min-width: 0; width: 100%; }
