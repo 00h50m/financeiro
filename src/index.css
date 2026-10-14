@@ -32,7 +32,7 @@
   --font-marca: 'Fredoka', 'DM Sans', sans-serif;
 }
 
-html, body, #root { min-height: 100vh; background: var(--bg); color: var(--text); }
+html, body, #root { min-height: 100vh; min-height: 100dvh; background: var(--bg); color: var(--text); }
 
 button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 input, select { font-family: inherit; outline: none; }
@@ -43,7 +43,7 @@ input:focus-visible, select:focus-visible { outline: none; }
 .icon-btn:hover { background: var(--bg3); color: var(--text); }
 
 /* LAYOUT: barra lateral + conteúdo */
-.app { display: flex; min-height: 100vh; }
+.app { display: flex; min-height: 100vh; min-height: 100dvh; }
 .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 
 .sidebar {
@@ -52,6 +52,7 @@ input:focus-visible, select:focus-visible { outline: none; }
   position: sticky;
   top: 0;
   height: 100vh;
+  height: 100dvh; /* o 100vh do celular ignora a barra do navegador e escondia o rodapé do menu */
   display: flex;
   flex-direction: column;
   background: var(--bg2);
@@ -182,7 +183,7 @@ select option { background: var(--bg3); }
 
 /* MODAL */
 .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 200; padding: 16px; }
-.modal { background: var(--bg2); border: 1px solid var(--border2); border-radius: 14px; padding: 24px; width: 100%; max-width: 500px; max-height: 92vh; overflow-y: auto; }
+.modal { background: var(--bg2); border: 1px solid var(--border2); border-radius: 14px; padding: 24px; width: 100%; max-width: 500px; max-height: 92vh; max-height: 92dvh; overflow-y: auto; overscroll-behavior: contain; }
 .modal-title { font-size: 16px; font-weight: 500; margin-bottom: 20px; }
 .modal-footer { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
 
@@ -268,7 +269,7 @@ input[type='checkbox'] { width: auto; min-height: 0; accent-color: var(--brand);
   .btn-sm { min-height: 34px; }
   .toolbar input, .toolbar select { max-width: none; flex: 1 1 140px; }
   .overlay { padding: 0; align-items: flex-end; }
-  .modal { max-width: none; border-radius: 16px 16px 0 0; max-height: 94vh; padding: 20px 16px; }
+  .modal { max-width: none; border-radius: 16px 16px 0 0; max-height: 94vh; max-height: 94dvh; padding: 20px 16px calc(20px + env(safe-area-inset-bottom)); }
   .modal-footer .btn { flex: 1 1 auto; justify-content: center; }
 }
 
@@ -763,7 +764,9 @@ input[type='checkbox'] { width: auto; min-height: 0; accent-color: var(--brand);
   .aula-acoes { width: 100%; justify-content: flex-end; }
   .aula-acoes .btn-primary { flex: 1; justify-content: center; min-height: 44px; }
   .aluno-prog-linha { grid-template-columns: 1fr 1fr; }
-  .aulas-acoes select, .aulas-acoes .btn { flex: 1 1 100%; justify-content: center; }
+  .aulas-acoes select { flex: 1 1 100%; }
+  .aulas-acoes .btn { flex: 1 1 calc(50% - 8px); justify-content: center; white-space: nowrap; }
+  .aulas-acoes .btn-primary { order: -1; }
 }
 
 /* aulas: fechamento */
@@ -826,3 +829,23 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; justif
 .aulas-meta-barra span { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 6px; }
 .aulas-meta-barra .prev { background: rgba(34, 197, 94, .35); }
 .aulas-meta-barra .apur { background: var(--green); }
+
+/* aulas: configurações */
+.aulas-conf-opcoes { display: flex; flex-direction: column; gap: 8px; }
+.aulas-conf-op { display: flex; flex-direction: column; gap: 2px; text-align: left; background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; color: var(--text); cursor: pointer; }
+.aulas-conf-op span { font-size: 12px; color: var(--text2); }
+.aulas-conf-op.ativo { border-color: var(--green); background: rgba(34, 197, 94, .08); }
+
+/* celular: nada de rolagem lateral na página inteira e sem zoom automático ao tocar em campos (iOS) */
+html { -webkit-text-size-adjust: 100%; }
+body { overflow-x: clip; } /* clip (e não hidden) para não quebrar o menu lateral fixo */
+@media (max-width: 860px) { input, select, textarea { font-size: 16px; } }
+
+/* telas muito estreitas (320px): nada pode passar da largura */
+.ini-mini { min-width: 0; }
+.ini-mini-valor { overflow: hidden; text-overflow: ellipsis; }
+.pilulas { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.pilulas::-webkit-scrollbar { display: none; }
+input[type="file"] { max-width: 100%; }
+input, select, textarea { min-width: 0; }
+input[type="month"], input[type="date"] { max-width: 100%; }

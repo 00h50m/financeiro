@@ -118,7 +118,7 @@ export default function Renda({ store, irPara }) {
         </div>
         {aulasAtual > 0 && (
           <div className="ini-hero-sub" style={{ marginTop: 10 }}>
-            Inclui <b>{fmt(aulasAtual)}</b> de aulas particulares{aulasMes[mes].projetada ? ' (previstas pela agenda)' : ''} ({fmt(aulasMes[mes].recebido)} recebidos{aulasMes[mes].aReceber > 0 ? `, ${fmt(aulasMes[mes].aReceber)} a receber` : ''}).{' '}
+            Inclui <b>{fmt(aulasAtual)}</b> de aulas particulares{aulasMes[mes].mesAulas ? ` dadas em ${mesLabel(aulasMes[mes].mesAulas)}` : ''}{aulasMes[mes].projetada ? ' (previstas pela agenda)' : ''} ({fmt(aulasMes[mes].recebido)} recebidos{aulasMes[mes].aReceber > 0 ? `, ${fmt(aulasMes[mes].aReceber)} a receber` : ''}).{' '}
             {irPara && <button className="link-btn" onClick={() => irPara('aulas')}>Ver aulas →</button>}
           </div>
         )}

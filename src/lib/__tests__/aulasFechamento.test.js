@@ -140,3 +140,31 @@ describe('link do WhatsApp', () => {
     expect(linkWhatsApp('11912345678', 'a\nb')).toContain('a%0Ab')
   })
 })
+
+import { deslocarMeses, modoRendaAulas, CHAVE_RENDA_AULAS } from '../aulasFechamento.js'
+describe('mês em que as aulas entram na renda', () => {
+  const aluno = { id: 'a1', nome: 'Lucas', ativo: true, inicio: '2026-09-01', valor_hora_centavos: 10000 }
+  const aulas = [{ id: 'x', aluno_id: 'a1', data: '2026-10-06', data_original: '2026-10-06', duracao_min: 60, duracao_real_min: 60, valor_hora_centavos: 10000, valor_centavos: 10000, status: 'realizada' }]
+  it('padrão é o mesmo mês; "proximo" vem da config', () => {
+    expect(modoRendaAulas({})).toBe('mesmo')
+    expect(modoRendaAulas({ [CHAVE_RENDA_AULAS]: 'proximo' })).toBe('proximo')
+    expect(modoRendaAulas({ [CHAVE_RENDA_AULAS]: 'qualquer' })).toBe('mesmo')
+  })
+  it('desloca as aulas de outubro para a renda de novembro e guarda a origem', () => {
+    const base = aulasPorMes([aluno], aulas, [])
+    const d = deslocarMeses(base, 1)
+    expect(d['2026-10']).toBeUndefined()
+    expect(d['2026-11']).toMatchObject({ valor: 100, mesAulas: '2026-10' })
+    expect(deslocarMeses(base, 0)).toBe(base)
+  })
+  it('na renda: outubro fica sem aulas e novembro recebe; virada de ano funciona', () => {
+    const d = deslocarMeses(aulasPorMes([aluno], [{ ...aulas[0], data: '2026-12-15', data_original: '2026-12-15' }], []), 1)
+    const rs = rendasComAulas([], d)
+    expect(rs.map((r) => r.mes)).toEqual(['2027-01'])
+    expect(rs[0].extra_sabrina).toBe(100)
+  })
+  it('o a receber acompanha o mês deslocado', () => {
+    const d = deslocarMeses(aulasPorMes([aluno], aulas, []), 1)
+    expect(aulasAReceberPorMes(d)).toEqual({ '2026-11': 100 })
+  })
+})
