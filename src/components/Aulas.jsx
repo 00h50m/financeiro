@@ -11,6 +11,8 @@ import DialogosAula, { rotuloData } from './aulas/DialogosAula'
 import SeletorDuracao from './aulas/SeletorDuracao'
 import Calendario from './aulas/Calendario'
 import ModalLote from './aulas/ModalLote'
+import MetaAulas from './aulas/MetaAulas'
+import { lerMeta, situacaoMeta } from '../lib/aulasMeta'
 import Relatorio from './aulas/Relatorio'
 import ModalPausas from './aulas/ModalPausas'
 import ModalFechamento from './aulas/ModalFechamento'
@@ -20,7 +22,7 @@ const dataBr = (d) => d.split('-').reverse().join('/')
 const COR_STATUS = { prevista: 'badge-blue', realizada: 'badge-green', cancelada: 'badge-gray', nao_realizada: 'badge-amber' }
 
 export default function Aulas({ store }) {
-  const { alunos, aulasProg, aulas, aulasPrevInicial, aulasFech, aulasPausas, aulasOk, loading, gerarAulas, atualizarAula, excluirAula } = store
+  const { alunos, aulasProg, aulas, aulasPrevInicial, aulasFech, aulasPausas, aulasOk, loading, config, definirConfig, gerarAulas, atualizarAula, excluirAula } = store
   const hoje = hojeSP()
   const [mes, setMes] = useState(nowYM())
   const [filtro, setFiltro] = useState('')
@@ -68,6 +70,12 @@ export default function Aulas({ store }) {
   const aReceber = valores.reduce((t, v) => t + (fechadoStatus(v.fechamento) ? v.aReceber : 0), 0)
   const recebidoTotal = valores.reduce((t, v) => t + v.recebido, 0)
   const rotuloPag = !nFechados ? 'nada fechado' : aReceber <= 0 && recebidoTotal > 0 ? 'tudo recebido' : recebidoTotal > 0 ? 'recebimento parcial' : 'aguardando pagamento'
+  // Meta do mês (todos os alunos). Mês ainda sem aulas geradas usa a projeção pela programação.
+  const metaCent = lerMeta(config)
+  const aulasDoMesTodas = aulasDoMes(aulas, mes)
+  const rTodos = resumoMes(aulasDoMesTodas, [])
+  const previstoMes = aulasDoMesTodas.length ? rTodos.previsto : Math.round((store.aulasMes?.[mes]?.valor || 0) * 100)
+  const sitMeta = situacaoMeta({ metaCentavos: metaCent, previstoCentavos: previstoMes, apuradoCentavos: rTodos.apurado, aulasMes: aulasDoMesTodas, alunosAtivos: ativos })
   const fechado = (alunoId, m) => aulasFech.some((f) => f.aluno_id === alunoId && f.mes === m && (f.status === 'fechado' || f.status === 'sem_cobranca'))
   const bloqueia = (alunoId, ...meses) => {
     const m = meses.find((x) => fechado(alunoId, x))
@@ -227,6 +235,7 @@ export default function Aulas({ store }) {
           </div>
           {frasePrevistoRealizado(r) && <div className="aulas-frase">{frasePrevistoRealizado(r)}</div>}
 
+          {!filtro && <MetaAulas mes={mes} sit={sitMeta} definirConfig={definirConfig} />}
           {r.inicial.qtd > 0 && (
             <Secao titulo="Previsto × realizado" info="planejamento do início do mês" aberto={compAberto} onToggle={() => setCompAberto((x) => !x)}>
               <div className="aulas-comp">
@@ -299,7 +308,7 @@ export default function Aulas({ store }) {
             </div>
           )}
 
-          {visao === 'relatorio' && <Relatorio alunos={alunos} aulas={aulas} aulasFech={aulasFech} alunoId={filtro} />}
+          {visao === 'relatorio' && <Relatorio alunos={alunos} aulas={aulas} aulasFech={aulasFech} alunoId={filtro} metaCentavos={metaCent} />}
 
           {visao === 'calendario' && doMes.length > 0 && (
             <>

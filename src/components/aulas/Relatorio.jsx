@@ -7,7 +7,7 @@ const MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'O
 const reais = (c) => fmt(centavosParaReais(c))
 
 // Relatório do ano: mês a mês (valor, horas, cancelamentos, recebimentos) e por aluno; destaca os meses fracos.
-export default function Relatorio({ alunos, aulas, aulasFech, alunoId }) {
+export default function Relatorio({ alunos, aulas, aulasFech, alunoId, metaCentavos = 0 }) {
   const anoAtual = Number(nowYM().slice(0, 4))
   const [ano, setAno] = useState(anoAtual)
   const anos = useMemo(() => anosComAulas(aulas, anoAtual), [aulas, anoAtual])
@@ -47,6 +47,10 @@ export default function Relatorio({ alunos, aulas, aulasFech, alunoId }) {
             </div>
           ))}
         </div>
+        {metaCentavos > 0 && !alunoId && (() => {
+          const abaixo = r.meses.filter((m) => m.temAulas && m.valor < metaCentavos)
+          return <div className="cad-sub" style={{ marginTop: 8 }}>Meta de {reais(metaCentavos)} por mês: {abaixo.length ? `abaixo em ${abaixo.map((m) => MESES[Number(m.mes.slice(5)) - 1]).join(', ')}.` : 'atingida em todos os meses com aulas.'}</div>
+        })()}
         {r.fracos.length > 0 && <div className="cad-sub" style={{ marginTop: 8 }}>Meses fracos (abaixo de 60% da média): {r.fracos.map((m) => MESES[Number(m.slice(5)) - 1]).join(', ')}.</div>}
       </div>
 
