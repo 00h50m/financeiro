@@ -280,3 +280,17 @@ export function frasePrevistoRealizado(r) {
     : ` A previsão atual é ${brl(r.previsto)}.`
   return `${abertura}${meio}${valor}`.trim()
 }
+
+// Horário digitado como "15", "1530", "15:30", "9h" ou "9h30" -> "HH:MM" (ou null se não for um horário).
+export function lerHorario(texto) {
+  const t = String(texto ?? '').trim().toLowerCase().replace(/\s+/g, '')
+  if (!t) return null
+  let h, m
+  let x = t.match(/^(\d{1,2})(?::|h)(\d{2})?$/)
+  if (x) { h = Number(x[1]); m = Number(x[2] || 0) }
+  else if ((x = t.match(/^(\d{1,2})(\d{2})$/))) { h = Number(x[1]); m = Number(x[2]) }
+  else if ((x = t.match(/^(\d{1,2})$/))) { h = Number(x[1]); m = 0 }
+  else return null
+  if (h > 23 || m > 59) return null
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+}

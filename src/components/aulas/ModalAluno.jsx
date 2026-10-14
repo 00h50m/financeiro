@@ -3,6 +3,7 @@ import { fmt, hojeSP } from '../../lib/utils'
 import {
   DIAS, afetadasPorMudanca, aulasParaNovoValor, centavosParaReais, diferencaProgramacao, reaisParaCentavos, textoDuracao, DIAS_CURTOS,
 } from '../../lib/aulas'
+import CampoHorario from './CampoHorario'
 import SeletorDuracao from './SeletorDuracao'
 
 const linhaVazia = () => ({ dia_semana: 2, horario: '', duracao_min: 60 })
@@ -87,7 +88,7 @@ export default function ModalAluno({ store, aluno, onClose }) {
           <div className="form-group"><label>Início das aulas</label><input type="date" value={f.inicio} onChange={set('inicio')} /></div>
         </div>
         <div className="form-row">
-          <div className="form-group"><label>WhatsApp do responsável (com DDD)</label><input inputMode="tel" value={f.telefone} onChange={set('telefone')} placeholder="Ex.: (11) 91234-5678 — para enviar o fechamento com um toque" /></div>
+          <div className="form-group"><label>WhatsApp do responsável (com DDD)</label><input inputMode="tel" value={f.telefone} onChange={set('telefone')} placeholder="(11) 91234-5678" /></div>
         </div>
 
         <div className="section-label" style={{ marginTop: 8 }}>programação semanal</div>
@@ -97,7 +98,7 @@ export default function ModalAluno({ store, aluno, onClose }) {
               <select aria-label="Dia da semana" value={l.dia_semana} onChange={(e) => setLinha(i, { dia_semana: Number(e.target.value) })}>
                 {DIAS.map((d, n) => <option key={n} value={n}>{d.charAt(0).toUpperCase() + d.slice(1)}</option>)}
               </select>
-              <input type="time" aria-label="Horário (opcional)" value={l.horario} onChange={(e) => setLinha(i, { horario: e.target.value })} />
+              <CampoHorario valor={l.horario} onChange={(h) => setLinha(i, { horario: h })} />
               <SeletorDuracao valor={l.duracao_min} onChange={(m) => setLinha(i, { duracao_min: m })} />
               <button className="btn btn-ghost btn-sm" onClick={() => setLinhas((x) => x.filter((_, j) => j !== i))} disabled={linhas.length === 1} aria-label="Remover este dia">×</button>
             </div>

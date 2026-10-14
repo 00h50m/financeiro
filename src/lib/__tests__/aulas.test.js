@@ -284,3 +284,22 @@ describe('períodos sem aula (férias e feriados)', () => {
     expect(previstasNaPausa(aulas, { aluno_id: 'a1', inicio: '2026-12-10', fim: '2027-01-10' }).map((a) => a.id)).toEqual(['1'])
   })
 })
+
+import { lerHorario } from '../aulas'
+describe('horário digitado', () => {
+  it('aceita formas comuns e normaliza para HH:MM', () => {
+    expect(lerHorario('15:30')).toBe('15:30')
+    expect(lerHorario('1530')).toBe('15:30')
+    expect(lerHorario('930')).toBe('09:30')
+    expect(lerHorario('9')).toBe('09:00')
+    expect(lerHorario('9h')).toBe('09:00')
+    expect(lerHorario('9h30')).toBe('09:30')
+    expect(lerHorario(' 8:05 ')).toBe('08:05')
+  })
+  it('rejeita o que não é horário', () => {
+    expect(lerHorario('')).toBeNull()
+    expect(lerHorario('25:00')).toBeNull()
+    expect(lerHorario('12:75')).toBeNull()
+    expect(lerHorario('abc')).toBeNull()
+  })
+})

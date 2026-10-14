@@ -843,9 +843,19 @@ body { overflow-x: clip; } /* clip (e não hidden) para não quebrar o menu late
 
 /* telas muito estreitas (320px): nada pode passar da largura */
 .ini-mini { min-width: 0; }
-.ini-mini-valor { overflow: hidden; text-overflow: ellipsis; }
 .pilulas { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
 .pilulas::-webkit-scrollbar { display: none; }
 input[type="file"] { max-width: 100%; }
 input, select, textarea { min-width: 0; }
 input[type="month"], input[type="date"] { max-width: 100%; }
+
+/* programação do aluno: botão de remover compacto */
+.aluno-prog-linha > .btn { width: 44px; min-width: 44px; height: 44px; padding: 0; justify-content: center; justify-self: start; }
+
+/* Início no celular: os três resumos viram linhas (rótulo à esquerda, valor à direita) em vez de cortar os valores */
+@media (max-width: 520px) {
+  .ini-kpis { grid-template-columns: 1fr; gap: 8px; }
+  .ini-mini { display: grid; grid-template-columns: 1fr auto; align-items: center; column-gap: 12px; padding: 12px 14px; }
+  .ini-mini-valor { margin-top: 0; font-size: 17px; text-align: right; }
+  .ini-mini-nota { grid-column: 1 / -1; margin-top: 4px; }
+}
