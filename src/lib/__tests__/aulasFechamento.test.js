@@ -123,3 +123,20 @@ describe('projeção respeita períodos sem aula', () => {
     expect(aulasPorMes([al], [], [], { programacoes: prog, pausas, desde: '2026-12', meses: 3 })['2027-02'].valor).toBe(400)
   })
 })
+
+import { linkWhatsApp } from '../aulasFechamento.js'
+describe('link do WhatsApp', () => {
+  it('monta wa.me com +55 e texto codificado', () => {
+    expect(linkWhatsApp('(11) 91234-5678', 'Olá! Total: R$ 80,00')).toBe('https://wa.me/5511912345678?text=Ol%C3%A1!%20Total%3A%20R%24%2080%2C00')
+    expect(linkWhatsApp('+55 11 91234-5678', 'x')).toBe('https://wa.me/5511912345678?text=x')
+    expect(linkWhatsApp('011 3456-7890', 'x')).toBe('https://wa.me/551134567890?text=x')
+  })
+  it('sem telefone válido abre a escolha de contato', () => {
+    expect(linkWhatsApp('', 'oi')).toBe('https://wa.me/?text=oi')
+    expect(linkWhatsApp('123', 'oi')).toBe('https://wa.me/?text=oi')
+    expect(linkWhatsApp(null, 'oi')).toBe('https://wa.me/?text=oi')
+  })
+  it('mantém quebras de linha da mensagem', () => {
+    expect(linkWhatsApp('11912345678', 'a\nb')).toContain('a%0Ab')
+  })
+})

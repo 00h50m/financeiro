@@ -93,3 +93,12 @@ export function mensagemFechamento(aluno, mes, itens, valorCentavos, { resumo = 
   }
   return linhas.join('\n')
 }
+
+// Link do WhatsApp (wa.me) com a mensagem pronta. Telefone brasileiro com ou sem DDD/+55; sem telefone válido abre a escolha de contato.
+// Nada é enviado sozinho: o WhatsApp só abre a conversa com o texto preenchido.
+export function linkWhatsApp(telefone, texto) {
+  let n = String(telefone || '').replace(/\D/g, '').replace(/^00/, '').replace(/^0+/, '')
+  if (n.length === 10 || n.length === 11) n = `55${n}`
+  const valido = /^55\d{10,11}$/.test(n) || (n.length >= 11 && n.length <= 15 && !n.startsWith('55'))
+  return `https://wa.me/${valido ? n : ''}?text=${encodeURIComponent(texto || '')}`
+}
