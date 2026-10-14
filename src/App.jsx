@@ -36,6 +36,7 @@ import Login from './components/Login'
 import { Marca, Nome } from './components/Marca'
 import { sb } from './lib/supabase'
 import { InicioContext } from './lib/InicioContext'
+import { useVoltar } from './lib/useVoltar'
 
 const ICONES = {
   inicio: 'M3 11l9-8 9 8 M5 10v10a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V10',
@@ -190,7 +191,10 @@ function AppLogado({ email }) {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
+  useVoltar({ aba, setAba, menuAberto, fecharMenu: () => setMenuAberto(false) })
+
   function irPara(id) {
+    if (id !== aba) history.pushState({ aba: id }, '') // o botão voltar do celular volta para a tela anterior
     setAba(id)
     setMenuAberto(false)
     window.scrollTo({ top: 0 })
