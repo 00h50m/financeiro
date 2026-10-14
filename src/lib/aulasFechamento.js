@@ -28,6 +28,10 @@ export function valorAlunoMes(aulas, fechamentos, alunoId, mes) {
   return { valor, recebido, aReceber: valor - recebido, fechamento: f }
 }
 
+export const CHAVE_RENDA_AULAS = 'aulas_renda_mes'
+// Em qual mês o dinheiro das aulas entra na renda: 'mesmo' (padrão) ou 'proximo' (aulas de um mês contam na renda do seguinte).
+export const modoRendaAulas = (config) => (config?.[CHAVE_RENDA_AULAS] === 'proximo' ? 'proximo' : 'mesmo')
+
 const somaMes = (mes, n) => { const t = Number(mes.slice(0, 4)) * 12 + Number(mes.slice(5, 7)) - 1 + n; return `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, '0')}` }
 
 // { 'AAAA-MM': { valor, recebido, aReceber (em reais), projetada, porAluno: [{alunoId, valor, recebido, aReceber, fechado, projetada}] } }
@@ -101,4 +105,10 @@ export function linkWhatsApp(telefone, texto) {
   if (n.length === 10 || n.length === 11) n = `55${n}`
   const valido = /^55\d{10,11}$/.test(n) || (n.length >= 11 && n.length <= 15 && !n.startsWith('55'))
   return `https://wa.me/${valido ? n : ''}?text=${encodeURIComponent(texto || '')}`
+}
+
+// Desloca os meses do resultado de aulasPorMes (as aulas de AAAA-MM passam a valer na renda de AAAA-MM + n). Guarda o mês de origem em `mesAulas`.
+export function deslocarMeses(porMes, n) {
+  if (!n) return porMes
+  return Object.fromEntries(Object.entries(porMes || {}).map(([mes, v]) => [somaMes(mes, n), { ...v, mesAulas: mes }]))
 }

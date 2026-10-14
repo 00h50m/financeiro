@@ -8,7 +8,7 @@ import { amigavel, explicarErro } from './erros.js'
 import { avisoTeto } from './alertaTeto.js'
 import { anexarValores, chaveConta } from './fixosVersoes.js'
 import { gerarCodigo, hashCodigo } from './pareamento.js'
-import { aulasPorMes, rendasComAulas, aulasAReceberPorMes, montarFechamento } from './aulasFechamento.js'
+import { aulasPorMes, rendasComAulas, aulasAReceberPorMes, montarFechamento, modoRendaAulas, deslocarMeses } from './aulasFechamento.js'
 
 const POR_PAGINA = 1000 // o Supabase devolve no máximo 1000 linhas por consulta
 
@@ -972,7 +972,11 @@ export function useStore(email = null) {
   const fixosComValores = useMemo(() => anexarValores(fixos, fixosValores), [fixos, fixosValores])
   const inicioApp = inicioDoApp(config)
   // Renda efetiva = o que foi digitado + aulas particulares (somadas em extra_sabrina). `rendasManuais` é só o digitado (tela Renda, backup).
-  const aulasMes = useMemo(() => (aulasOk ? aulasPorMes(alunos, aulas, aulasFech, { programacoes: aulasProg, pausas: aulasPausas, desde: nowYM() }) : {}), [aulasOk, alunos, aulas, aulasFech, aulasProg, aulasPausas])
+  const modoRenda = modoRendaAulas(config)
+  const deslocamento = modoRenda === 'proximo' ? 1 : 0
+  // por mês em que a aula acontece (telas de Aulas) e por mês em que entra na renda (Renda, disponível, resumos)
+  const aulasMesBase = useMemo(() => (aulasOk ? aulasPorMes(alunos, aulas, aulasFech, { programacoes: aulasProg, pausas: aulasPausas, desde: deslocamento ? addMonths(nowYM(), -1) : nowYM() }) : {}), [aulasOk, alunos, aulas, aulasFech, aulasProg, aulasPausas, deslocamento])
+  const aulasMes = useMemo(() => deslocarMeses(aulasMesBase, deslocamento), [aulasMesBase, deslocamento])
   const rendas = useMemo(() => rendasComAulas(rendasManuais, aulasMes), [rendasManuais, aulasMes])
   const aulasAReceber = useMemo(() => aulasAReceberPorMes(aulasMes), [aulasMes])
 
@@ -981,7 +985,7 @@ export function useStore(email = null) {
     integracoesTelegram, gerarPareamento, pausarIntegracao, desconectarIntegracao,
     eventos, regras, aliases, inboxOk,
     confirmarEvento, vincularEvento, ignorarEvento, adicionarEventos, adicionarRegras,
-    inicioApp, cartoes, compras, rendas, rendasManuais, aulasMes, aulasAReceber, fixos: fixosComValores, fixosValores, fixosValoresOk, definirValorFixo, faturas, categorias, fixosPagamentos, comprasPagamentos, comprasPagamentosOk, fechamentos, fechamentosOk, metas, metasMovimentos, metasOk, rendaSazonal, rendaSazonalOk, alunos, aulasProg, aulas, aulasPrevInicial, aulasFech, aulasPausas, aulasPausasOk, aulasOk, divisoes, divisoesRepasses, divisoesOk, saldoAjustes, pessoas, orcamentos, orcamentosOk, config, configOk,
+    inicioApp, cartoes, compras, rendas, rendasManuais, aulasMes, aulasMesBase, modoRendaAulas: modoRenda, aulasAReceber, fixos: fixosComValores, fixosValores, fixosValoresOk, definirValorFixo, faturas, categorias, fixosPagamentos, comprasPagamentos, comprasPagamentosOk, fechamentos, fechamentosOk, metas, metasMovimentos, metasOk, rendaSazonal, rendaSazonalOk, alunos, aulasProg, aulas, aulasPrevInicial, aulasFech, aulasPausas, aulasPausasOk, aulasOk, divisoes, divisoesRepasses, divisoesOk, saldoAjustes, pessoas, orcamentos, orcamentosOk, config, configOk,
     loading, syncState, error, loadAll,
     addCartao, updateCartao, delCartao,
     addCompra, updateCompra, salvarDivisao, updateComprasLote, delCompra,

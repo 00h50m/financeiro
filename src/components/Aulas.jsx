@@ -14,6 +14,7 @@ import ModalLote from './aulas/ModalLote'
 import MetaAulas from './aulas/MetaAulas'
 import { lerMeta, situacaoMeta } from '../lib/aulasMeta'
 import Relatorio from './aulas/Relatorio'
+import ModalConfigAulas from './aulas/ModalConfigAulas'
 import ModalPausas from './aulas/ModalPausas'
 import ModalFechamento from './aulas/ModalFechamento'
 import { achaFechamento, fechadoStatus, valorAlunoMes } from '../lib/aulasFechamento'
@@ -36,6 +37,7 @@ export default function Aulas({ store }) {
   const [lote, setLote] = useState(false)
   const [compAberto, setCompAberto] = useState(false)
   const [pausasAberto, setPausasAberto] = useState(false)
+  const [configAberta, setConfigAberta] = useState(false)
   const [fechando, setFechando] = useState(null) // aluno cujo fechamento está aberto
   const tentadas = useRef(new Set())
 
@@ -74,7 +76,7 @@ export default function Aulas({ store }) {
   const metaCent = lerMeta(config)
   const aulasDoMesTodas = aulasDoMes(aulas, mes)
   const rTodos = resumoMes(aulasDoMesTodas, [])
-  const previstoMes = aulasDoMesTodas.length ? rTodos.previsto : Math.round((store.aulasMes?.[mes]?.valor || 0) * 100)
+  const previstoMes = aulasDoMesTodas.length ? rTodos.previsto : Math.round((store.aulasMesBase?.[mes]?.valor || 0) * 100)
   const sitMeta = situacaoMeta({ metaCentavos: metaCent, previstoCentavos: previstoMes, apuradoCentavos: rTodos.apurado, aulasMes: aulasDoMesTodas, alunosAtivos: ativos })
   const fechado = (alunoId, m) => aulasFech.some((f) => f.aluno_id === alunoId && f.mes === m && (f.status === 'fechado' || f.status === 'sem_cobranca'))
   const bloqueia = (alunoId, ...meses) => {
@@ -171,6 +173,7 @@ export default function Aulas({ store }) {
     <div className="page aulas-pg">
       {modalAluno && <ModalAluno store={store} aluno={modalAluno.aluno} onClose={() => setModalAluno(null)} />}
       {lote && <ModalLote store={store} aulas={selAulas} alunoPorId={alunoPorId} onClose={(ok) => { setLote(false); if (ok) sairSel() }} />}
+      {configAberta && <ModalConfigAulas modo={store.modoRendaAulas} definirConfig={definirConfig} onClose={() => setConfigAberta(false)} />}
       {pausasAberto && <ModalPausas store={store} alunos={alunos} onClose={() => setPausasAberto(false)} />}
       {fechando && <ModalFechamento store={store} aluno={fechando} mes={mes} onClose={() => setFechando(null)} />}
       {dialogo && (
@@ -214,6 +217,7 @@ export default function Aulas({ store }) {
           </select>
           {ativos.length > 0 && <button className="btn btn-ghost" onClick={() => setDialogo({ tipo: 'avulsa' })}>+ Aula avulsa</button>}
           {alunos.length > 0 && <button className="btn btn-ghost" onClick={() => setPausasAberto(true)}>Férias / sem aulas</button>}
+          <button className="btn btn-ghost" onClick={() => setConfigAberta(true)} aria-label="Configurações das aulas" title="Configurações das aulas">⚙ Configurar</button>
           <button className="btn btn-primary" onClick={() => setModalAluno({})}>+ Aluno</button>
         </div>
       </div>
