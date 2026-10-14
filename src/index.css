@@ -811,3 +811,9 @@ input[type='checkbox'] { width: auto; min-height: 0; accent-color: var(--brand);
 .cal-dia.pausa { background: repeating-linear-gradient(45deg, var(--bg2), var(--bg2) 6px, rgba(148,163,184,.08) 6px, rgba(148,163,184,.08) 12px); }
 .cal-pausa { font-size: 9px; color: var(--text3); font-style: normal; }
 @media (max-width: 640px) { .cal-pausa { display: none; } }
+
+/* aulas: relatório anual */
+.aulas-rel-barras { display: grid; grid-template-columns: repeat(12, 1fr); gap: 6px; height: 120px; align-items: end; }
+.aulas-rel-col { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; gap: 4px; font-size: 10px; color: var(--text3); }
+.aulas-rel-barra { width: 100%; min-height: 2px; background: var(--green); border-radius: 4px 4px 0 0; }
+.aulas-rel-col.fraco .aulas-rel-barra { background: #f59e0b; }

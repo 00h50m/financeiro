@@ -11,6 +11,7 @@ import DialogosAula, { rotuloData } from './aulas/DialogosAula'
 import SeletorDuracao from './aulas/SeletorDuracao'
 import Calendario from './aulas/Calendario'
 import ModalLote from './aulas/ModalLote'
+import Relatorio from './aulas/Relatorio'
 import ModalPausas from './aulas/ModalPausas'
 import ModalFechamento from './aulas/ModalFechamento'
 import { achaFechamento, fechadoStatus, valorAlunoMes } from '../lib/aulasFechamento'
@@ -213,6 +214,7 @@ export default function Aulas({ store }) {
         <div className="card"><div className="empty">Nenhum aluno cadastrado ainda.{'\n'}Cadastre o primeiro aluno e a programação semanal: as aulas do mês são criadas sozinhas.</div></div>
       ) : (
         <>
+          {visao !== 'relatorio' && (<>
           <div className="kpi-faixa" aria-label={`Resumo de ${mesLabel(mes)}`}>
             <div className="kpi"><div className="kpi-rotulo">Previstas</div><div className="kpi-valor azul">{r.previstas}</div><div className="kpi-sub">{r.previstas ? 'aguardando definição' : 'nenhuma pendente'}</div></div>
             <div className="kpi"><div className="kpi-rotulo">Realizadas</div><div className="kpi-valor verde">{r.realizadas}</div><div className="kpi-sub">{textoDuracao(r.minutosRealizados)} efetivas</div></div>
@@ -277,14 +279,16 @@ export default function Aulas({ store }) {
           {filtro && (
             <div className="grupos-barra"><span>{alunoFiltrado?.nome} · {alunoFiltrado?.responsavel}</span><span>{alunoFiltrado && <button className="link-btn" onClick={() => setFechando(alunoFiltrado)}>{achaFechamento(aulasFech, alunoFiltrado.id, mes) && fechadoStatus(achaFechamento(aulasFech, alunoFiltrado.id, mes)) ? 'Ver fechamento' : 'Fechar mês'}</button>} · <button className="link-btn" onClick={() => setModalAluno({ aluno: alunoFiltrado })}>Editar aluno</button> · <button className="link-btn" onClick={() => setFiltro('')}>Ver todos</button></span></div>
           )}
+          </>)}
 
-          {doMes.length > 0 && (
+          {(doMes.length > 0 || visao === 'relatorio') && (
             <div className="aulas-barra">
               <div className="aulas-visao" role="group" aria-label="Visão">
                 <button className={visao === 'lista' ? 'ativo' : ''} onClick={() => setVisao('lista')}>Lista</button>
                 <button className={visao === 'calendario' ? 'ativo' : ''} onClick={() => setVisao('calendario')}>Calendário</button>
+                <button className={visao === 'relatorio' ? 'ativo' : ''} onClick={() => setVisao('relatorio')}>Relatório</button>
               </div>
-              {selecionaveis.length > 0 && (modoSel
+              {visao !== 'relatorio' && selecionaveis.length > 0 && (modoSel
                 ? <div className="aulas-sel">
                     <button className="link-btn" onClick={() => setSel(new Set(selecionaveis.filter((a) => a.data <= hoje).map((a) => a.id)))}>Já passaram</button>
                     <button className="link-btn" onClick={() => setSel(new Set(selecionaveis.map((a) => a.id)))}>Todas</button>
@@ -294,6 +298,8 @@ export default function Aulas({ store }) {
                 : <button className="btn btn-ghost btn-sm" onClick={() => { setModoSel(true); setVisao('lista') }}>Selecionar várias</button>)}
             </div>
           )}
+
+          {visao === 'relatorio' && <Relatorio alunos={alunos} aulas={aulas} aulasFech={aulasFech} alunoId={filtro} />}
 
           {visao === 'calendario' && doMes.length > 0 && (
             <>
@@ -305,7 +311,7 @@ export default function Aulas({ store }) {
           )}
 
           <div className="aulas-lista">
-            {visao === 'calendario' && doMes.length > 0 ? null : doMes.length === 0 ? (
+            {visao === 'relatorio' || (visao === 'calendario' && doMes.length > 0) ? null : doMes.length === 0 ? (
               <div className="card"><div className="empty">Nenhuma aula em {mesLabel(mes)}{filtro ? ' para este aluno' : ''}.{'\n'}As aulas aparecem sozinhas pela programação semanal; use "+ Aula avulsa" para uma aula fora dela.</div></div>
             ) : visao === 'calendario' ? null : doMes.map((a) => cardAula(a))}
           </div>
