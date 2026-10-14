@@ -1,6 +1,7 @@
 // Dados dos gráficos: tudo sai das mesmas contas do Dashboard e da Evolução (meses fechados usam a foto gravada).
 import { addMonths, fixosAtivos, gerarParcelas, donoDoFixo, nomeCasa } from './utils.js'
 import { serieMensal, resumoParaSerie } from './evolucao.js'
+import { antesDoInicio } from './inicioApp.js'
 import { comprasLiquidas, fixosLiquidos } from './divisoes.js'
 import { calendarioQuitacao } from './parcelamentos.js'
 import { resumoDoMes, rendaDoMes, detalhePagamentos } from './financeiro.js'
@@ -84,7 +85,9 @@ const aVistaDoMes = (d, mes) => comprasLiquidas(d).reduce((t, c) => (Number(c.pa
 // médio dos 3 meses anteriores (o que você costuma gastar no dia a dia e ainda não lançou). Renda: a cadastrada; sem ela, a última conhecida.
 // -> [{ mes, renda, rendaEstimada, comprometido, aVistaEstimado, despesas, sobra, acumulada }]
 export function projecao(d, mesInicio, n = 6) {
-  const media = r2([1, 2, 3].reduce((t, i) => t + aVistaDoMes(d, addMonths(mesInicio, -i)), 0) / 3)
+  // média do à vista dos 3 meses anteriores, sem os meses de antes do início do uso (dados incompletos)
+  const base = [1, 2, 3].map((i) => addMonths(mesInicio, -i)).filter((m) => !antesDoInicio(m, d.inicioApp))
+  const media = base.length ? r2(base.reduce((t, m) => t + aVistaDoMes(d, m), 0) / base.length) : 0
   const cache = new Map()
   let ultimaRenda = 0
   for (let i = 0; i <= 12 && !ultimaRenda; i++) ultimaRenda = rendaDoMes(d.rendas, addMonths(mesInicio, -i)).valor

@@ -196,7 +196,9 @@ export default function Pagamentos({ store }) {
           <div>
             Sobra de {mesLabel(addMonths(mes, -1))}
             <div className="extrato-sub">
-              {sobraPossivel === 0 && !temRendaAnterior
+              {store.inicioApp && addMonths(mes, -1) < store.inicioApp
+                ? `O app começou em ${mesLabel(store.inicioApp)}: não há mês anterior para trazer sobra.`
+                : sobraPossivel === 0 && !temRendaAnterior
                 ? `${mesLabel(addMonths(mes, -1))} não tem renda cadastrada, então não há sobra para trazer.`
                 : 'O que sobraria do mês anterior depois de pagar tudo dele.'}
             </div>

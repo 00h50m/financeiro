@@ -41,7 +41,8 @@ export default function Renda({ store, irPara }) {
     if (ok) setEditMes(null) // se deu erro, mantém o formulário
   }
 
-  const meses = Array.from({ length: 8 }, (_, i) => addMonths(mes, inicio + i))
+  const meses = Array.from({ length: 8 }, (_, i) => addMonths(mes, inicio + i)).filter((m) => !store.inicioApp || m >= store.inicioApp) // sem linhas de antes do início do uso
+  const noPrimeiro = !!store.inicioApp && addMonths(mes, inicio) <= store.inicioApp
   const rendaAtual = rendas.find((r) => r.mes === mes) || null // com aulas
   const manualAtual = rendasManuais.find((r) => r.mes === mes) || null // só o digitado
   const totalAtual = totalRenda(rendaAtual)
@@ -125,7 +126,7 @@ export default function Renda({ store, irPara }) {
       </section>
 
       <div className="grupos-barra">
-        <button className="link-btn" onClick={() => setInicio((i) => i - 6)}>← meses anteriores</button>
+        {!noPrimeiro ? <button className="link-btn" onClick={() => setInicio((i) => i - 6)}>← meses anteriores</button> : <span />}
         {inicio !== -3 && <button className="link-btn" onClick={() => setInicio(-3)}>voltar para hoje</button>}
         <button className="link-btn" onClick={() => setInicio((i) => i + 6)}>próximos meses →</button>
       </div>
