@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { fmt, hojeSP, mesLabel } from '../../lib/utils'
 import { aulasDoMes, centavosParaReais, reaisParaCentavos, textoDuracao } from '../../lib/aulas'
-import { achaFechamento, diferencaRecebimento, fechadoStatus, mensagemFechamento, montarFechamento, pendenciasDoMes } from '../../lib/aulasFechamento'
+import { achaFechamento, diferencaRecebimento, fechadoStatus, linkWhatsApp, mensagemFechamento, montarFechamento, pendenciasDoMes } from '../../lib/aulasFechamento'
 
 const dataBr = (d) => d.split('-').reverse().join('/')
 const reais = (c) => fmt(centavosParaReais(c))
@@ -71,9 +71,11 @@ export default function ModalFechamento({ store, aluno, mes, onClose }) {
           <textarea rows={Math.min(14, msg.split('\n').length + 1)} value={msg} onChange={(e) => { setMsg(e.target.value); setEditada(true) }} />
           <label className="check-linha"><input type="checkbox" checked={resumo} onChange={(e) => { setResumo(e.target.checked); setEditada(false) }} /> Incluir resumo de cancelamentos e reposições</label>
           <div className="modal-footer" style={{ justifyContent: 'flex-start', marginTop: 6 }}>
+            <a className="btn btn-primary btn-sm" href={linkWhatsApp(aluno.telefone, msg)} target="_blank" rel="noopener noreferrer" title={aluno.telefone ? 'Abre a conversa com o responsável, com a mensagem pronta' : 'Sem telefone cadastrado: o WhatsApp pede para escolher o contato'}>Abrir no WhatsApp</a>
             <button className="btn btn-ghost btn-sm" onClick={copiar}>{copiado ? 'Copiado ✓' : 'Copiar mensagem'}</button>
             {editada && <button className="btn btn-ghost btn-sm" onClick={() => setEditada(false)}>Refazer a mensagem</button>}
           </div>
+          {!aluno.telefone && <div className="cad-sub">Cadastre o WhatsApp do responsável em Editar aluno para abrir direto na conversa.</div>}
         </div>
 
         {exigeConferir && (

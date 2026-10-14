@@ -21,7 +21,7 @@ export default function ModalAluno({ store, aluno, onClose }) {
   }))
   const [linhas, setLinhas] = useState(() => (atuais.length ? atuais.map((p) => ({ id: p.id, dia_semana: p.dia_semana, horario: p.horario || '', duracao_min: p.duracao_min })) : [linhaVazia()]))
   const [desde, setDesde] = useState(hoje)
-  const [detalhes, setDetalhes] = useState(!!(aluno?.telefone || aluno?.fim || aluno?.observacoes))
+  const [detalhes, setDetalhes] = useState(!!(aluno?.fim || aluno?.observacoes))
   const [salvando, setSalvando] = useState(false)
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.value }))
   const setLinha = (i, patch) => setLinhas((l) => l.map((x, j) => (j === i ? { ...x, ...patch } : x)))
@@ -86,6 +86,9 @@ export default function ModalAluno({ store, aluno, onClose }) {
           <div className="form-group"><label>Valor por hora (R$)</label><input inputMode="decimal" value={f.valor} onChange={set('valor')} placeholder="Ex.: 80" /></div>
           <div className="form-group"><label>Início das aulas</label><input type="date" value={f.inicio} onChange={set('inicio')} /></div>
         </div>
+        <div className="form-row">
+          <div className="form-group"><label>WhatsApp do responsável (com DDD)</label><input inputMode="tel" value={f.telefone} onChange={set('telefone')} placeholder="Ex.: (11) 91234-5678 — para enviar o fechamento com um toque" /></div>
+        </div>
 
         <div className="section-label" style={{ marginTop: 8 }}>programação semanal</div>
         <div className="aluno-prog">
@@ -103,14 +106,13 @@ export default function ModalAluno({ store, aluno, onClose }) {
           <div className="cad-sub">O mesmo dia pode ter mais de uma aula, em horários diferentes. As aulas do mês são geradas sozinhas a partir daqui.</div>
         </div>
 
-        <button className="link-btn" style={{ margin: '10px 0' }} onClick={() => setDetalhes((v) => !v)}>{detalhes ? 'Menos detalhes' : 'Mais detalhes (telefone, término, observações)'}</button>
+        <button className="link-btn" style={{ margin: '10px 0' }} onClick={() => setDetalhes((v) => !v)}>{detalhes ? 'Menos detalhes' : 'Mais detalhes (término, observações)'}</button>
         {detalhes && (
           <>
             <div className="form-row cols2">
-              <div className="form-group"><label>Telefone / WhatsApp do responsável</label><input inputMode="tel" value={f.telefone} onChange={set('telefone')} placeholder="Opcional" /></div>
               <div className="form-group"><label>Término das aulas</label><input type="date" value={f.fim} onChange={set('fim')} /></div>
+              <div className="form-group"><label>Observações</label><input value={f.observacoes} onChange={set('observacoes')} placeholder="Opcional" /></div>
             </div>
-            <div className="form-row"><div className="form-group"><label>Observações</label><input value={f.observacoes} onChange={set('observacoes')} placeholder="Opcional" /></div></div>
           </>
         )}
 

@@ -817,3 +817,4 @@ input[type='checkbox'] { width: auto; min-height: 0; accent-color: var(--brand);
 .aulas-rel-col { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; gap: 4px; font-size: 10px; color: var(--text3); }
 .aulas-rel-barra { width: 100%; min-height: 2px; background: var(--green); border-radius: 4px 4px 0 0; }
 .aulas-rel-col.fraco .aulas-rel-barra { background: #f59e0b; }
+a.btn { text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }
