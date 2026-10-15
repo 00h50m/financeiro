@@ -875,3 +875,12 @@ input[type="month"], input[type="date"] { max-width: 100%; }
 
 .adiar-linha { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 4px; font-size: 12px; font-weight: 400; }
 .adiar-linha .link-btn { font-size: 12px; }
+
+/* multa e juros do boleto */
+.campos-acrescimo { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+.acrescimo-linha { display: grid; grid-template-columns: minmax(60px, 1fr) minmax(110px, 1.4fr); gap: 6px; }
+.acrescimo-linha input, .acrescimo-linha select { min-width: 0; width: 100%; }
+@media (max-width: 420px) { .campos-acrescimo { grid-template-columns: 1fr; } }
+
+.aulas-conf-opcoes.adiar-meses { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.adiar-meses .aulas-conf-op { align-items: center; text-align: center; padding: 10px 6px; }

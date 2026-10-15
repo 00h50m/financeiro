@@ -287,9 +287,18 @@ export function resumoDoMes(d, mes, { usarSaldoAnterior = true, cacheDetalhes } 
   }
 }
 
-// Multa + juros de adiar uma conta (boleto): multa única (%) + juros por mês (%) × meses de atraso. Devolve reais, com 2 casas.
-export function acrescimoAdiamento(valor, mesOrigem, mesDestino, multaPct = 0, jurosMesPct = 0) {
+// Multa + juros de adiar uma conta (boleto). Como vem no boleto:
+//  multa:  { tipo: 'pct', valor: 2 } (% do valor, uma vez)  ou  { tipo: 'valor', valor: 15 } (R$, uma vez)
+//  juros:  { tipo: 'pct_mes', valor: 1 } (% ao mês)  ·  { tipo: 'valor_mes', valor: 20 } (R$ ao mês)  ·  { tipo: 'valor_dia', valor: 0.5 } (R$ por dia, 30 dias por mês)
+// Números soltos valem como % (multa) e % ao mês (juros). Os juros contam por mês de atraso. Devolve reais, com 2 casas.
+export function acrescimoAdiamento(valor, mesOrigem, mesDestino, multa = 0, juros = 0) {
   const meses = (Number(mesDestino.slice(0, 4)) - Number(mesOrigem.slice(0, 4))) * 12 + (Number(mesDestino.slice(5, 7)) - Number(mesOrigem.slice(5, 7)))
-  if (!(meses > 0) || !(Number(valor) > 0)) return 0
-  return Math.round(Number(valor) * ((Number(multaPct) || 0) / 100 + ((Number(jurosMesPct) || 0) / 100) * meses) * 100) / 100
+  const v = Number(valor)
+  if (!(meses > 0) || !(v > 0)) return 0
+  const m = typeof multa === 'object' && multa ? multa : { tipo: 'pct', valor: multa }
+  const j = typeof juros === 'object' && juros ? juros : { tipo: 'pct_mes', valor: juros }
+  const n = (x) => (Number.isFinite(Number(x.valor)) && Number(x.valor) > 0 ? Number(x.valor) : 0)
+  const multaReais = m.tipo === 'valor' ? n(m) : (v * n(m)) / 100
+  const jurosReais = j.tipo === 'valor_mes' ? n(j) * meses : j.tipo === 'valor_dia' ? n(j) * 30 * meses : ((v * n(j)) / 100) * meses
+  return Math.round((multaReais + jurosReais) * 100) / 100
 }

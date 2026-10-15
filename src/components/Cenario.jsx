@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react'
 import NavMes from './NavMes'
 import { fmt, fmtK, mesLabel, nowYM, addMonths, tituloCompra } from '../lib/utils'
 import { detalhePagamentos, acrescimoAdiamento } from '../lib/financeiro'
-import { gravarPrefAdiar, lerPct, lerPrefAdiar } from '../lib/adiamentoPref'
+import { gravarPrefAdiar, lerPrefAdiar, paraAcrescimo } from '../lib/adiamentoPref'
+import CamposAcrescimo from './CamposAcrescimo'
 import { perfilDeLinhas, projecaoRenda } from '../lib/rendaSazonal'
 
 const MESES_VISTOS = 7
@@ -15,8 +16,8 @@ export default function Cenario({ store }) {
   const [mover, setMover] = useState({}) // chave "tipo|id" -> mês de destino
   const [aplicando, setAplicando] = useState(false)
   const pref = useMemo(() => lerPrefAdiar(), [])
-  const [multa, setMulta] = useState(String(pref.multa).replace('.', ','))
-  const [juros, setJuros] = useState(String(pref.juros).replace('.', ','))
+  const [multa, setMulta] = useState(pref.multa)
+  const [juros, setJuros] = useState(pref.juros)
   const [semAcrescimo, setSemAcrescimo] = useState(false)
   const perfil = useMemo(() => perfilDeLinhas(store.rendaSazonal), [store.rendaSazonal])
 
@@ -27,7 +28,7 @@ export default function Cenario({ store }) {
     return [...fixos, ...parcelas]
   }, [store, mes])
 
-  const simulados = candidatas.filter((c) => mover[c.chave]).map((c) => ({ id: `sim-${c.chave}`, tipo: c.tipo, ref_id: c.id, mes_origem: mes, mes_destino: mover[c.chave], acrescimo: semAcrescimo ? 0 : acrescimoAdiamento(c.valor, mes, mover[c.chave], lerPct(multa), lerPct(juros)) }))
+  const simulados = candidatas.filter((c) => mover[c.chave]).map((c) => ({ id: `sim-${c.chave}`, tipo: c.tipo, ref_id: c.id, mes_origem: mes, mes_destino: mover[c.chave], acrescimo: semAcrescimo ? 0 : acrescimoAdiamento(c.valor, mes, mover[c.chave], paraAcrescimo(multa), paraAcrescimo(juros)) }))
   const antes = useMemo(() => projecaoRenda(store, perfil, mes, MESES_VISTOS), [store, perfil, mes])
   const depois = useMemo(() => projecaoRenda({ ...store, adiamentos: [...(store.adiamentos || []), ...simulados] }, perfil, mes, MESES_VISTOS), [store, perfil, mes, simulados])
   const acum = (lista) => { let a = 0; return lista.map((m) => (a += m.sobra)) }
@@ -43,7 +44,7 @@ export default function Cenario({ store }) {
     if (!simulados.length) return
     if (!window.confirm(`Adiar ${simulados.length} ${simulados.length === 1 ? 'conta' : 'contas'} de verdade? Elas saem de ${mesLabel(mes)} e entram nos meses escolhidos. Você pode voltar cada uma depois, em Pagamentos.`)) return
     setAplicando(true)
-    const ok = (gravarPrefAdiar(lerPct(multa), lerPct(juros)), await adiarVarias(simulados.map((s) => ({ tipo: s.tipo, refId: s.ref_id, mesOrigem: s.mes_origem, mesDestino: s.mes_destino, acrescimo: s.acrescimo }))))
+    const ok = (gravarPrefAdiar(multa, juros), await adiarVarias(simulados.map((s) => ({ tipo: s.tipo, refId: s.ref_id, mesOrigem: s.mes_origem, mesDestino: s.mes_destino, acrescimo: s.acrescimo }))))
     setAplicando(false)
     if (ok) setMover({})
   }
@@ -58,12 +59,9 @@ export default function Cenario({ store }) {
       <div className="alert alert-blue">Simulação: escolha as contas que você não consegue pagar em <b>{mesLabel(mes)}</b> e para qual mês iriam. A tabela mostra como ficam os próximos meses. Nada é salvo até você apertar <b>Aplicar</b>.</div>
 
       <div className="card" style={{ padding: 14 }}>
-        <div className="form-row cols2">
-          <div className="form-group"><label>Multa por atraso (%)</label><input inputMode="decimal" value={multa} onChange={(e) => setMulta(e.target.value)} disabled={semAcrescimo} /></div>
-          <div className="form-group"><label>Juros ao mês (%)</label><input inputMode="decimal" value={juros} onChange={(e) => setJuros(e.target.value)} disabled={semAcrescimo} /></div>
-        </div>
+        <CamposAcrescimo multa={multa} juros={juros} onMulta={setMulta} onJuros={setJuros} desabilitado={semAcrescimo} />
         <label className="check-linha" style={{ marginBottom: 0 }}><input type="checkbox" checked={semAcrescimo} onChange={(e) => setSemAcrescimo(e.target.checked)} /> Simular sem multa nem juros</label>
-        <div className="cad-sub" style={{ marginTop: 6 }}>Padrão comum de boleto: 2% de multa + 1% ao mês. Confira no seu boleto. Os juros contam por mês de atraso, até o mês escolhido.</div>
+        <div className="cad-sub" style={{ marginTop: 6 }}>Padrão comum de boleto: 2% de multa + 1% ao mês. Se o boleto traz valor em R$, escolha "R$ fixo" ou "R$ por dia"; o valor vale para cada conta movida. Os juros contam por mês de atraso (30 dias), até o mês escolhido.</div>
       </div>
 
       <div className="card">
