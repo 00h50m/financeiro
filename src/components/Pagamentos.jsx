@@ -34,7 +34,7 @@ export default function Pagamentos({ store }) {
   function abrirAdiar(tipo, item, titulo, valor) {
     const mesOrigem = item.adiadoDe || mes
     if (mesFechado(store.fechamentos, mesOrigem)) { window.alert(`${mesLabel(mesOrigem)} está fechado. Reabra o fechamento para mexer nessa conta.`); return }
-    setAdiando({ tipo, refId: item.id, titulo, valor, mesOrigem, destinoAtual: item.adiadoDe ? mes : null })
+    setAdiando({ tipo, refId: item.id, titulo, valor: valor - (item.acrescimoAdiamento || 0), mesOrigem, destinoAtual: item.adiadoDe ? mes : null })
   }
   async function voltarAdiada(tipo, item) {
     const r = registroAdiamento(tipo, item.id, item.adiadoDe)
@@ -46,7 +46,7 @@ export default function Pagamentos({ store }) {
   const acoesAdiar = (tipo, item, titulo, valor, pago) => {
     if (!adiamentosOk) return null
     if (item.adiadoDe) return (
-      <div className="adiar-linha"><span className="badge badge-amber">adiada de {mesLabel(item.adiadoDe)}</span>
+      <div className="adiar-linha"><span className="badge badge-amber">adiada de {mesLabel(item.adiadoDe)}{item.acrescimoAdiamento > 0 ? ` · +${fmt(item.acrescimoAdiamento)} de multa/juros` : ''}</span>
         <button className="link-btn" onClick={() => voltarAdiada(tipo, item)}>voltar para {mesLabel(item.adiadoDe)}</button>
         {!pago && <button className="link-btn" onClick={() => abrirAdiar(tipo, item, titulo, valor)}>mudar de mês</button>}</div>
     )
@@ -153,7 +153,7 @@ export default function Pagamentos({ store }) {
 
   return (
     <div className="page">
-      {adiando && <ModalAdiar titulo={adiando.titulo} valor={adiando.valor} mesOrigem={adiando.mesOrigem} mesAtualDestino={adiando.destinoAtual} onClose={() => setAdiando(null)} onConfirmar={(destino) => adiarConta(adiando.tipo, adiando.refId, adiando.mesOrigem, destino)} />}
+      {adiando && <ModalAdiar titulo={adiando.titulo} valor={adiando.valor} mesOrigem={adiando.mesOrigem} mesAtualDestino={adiando.destinoAtual} onClose={() => setAdiando(null)} onConfirmar={(destino, acrescimo) => adiarConta(adiando.tipo, adiando.refId, adiando.mesOrigem, destino, acrescimo)} />}
       {pendencias.length > 0 && (
         <div className="alert alert-amber">
           <b>{pendencias.length === 1 ? '1 conta de valor variável' : `${pendencias.length} contas de valor variável`} ainda com valor estimado:</b>

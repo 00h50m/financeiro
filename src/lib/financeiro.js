@@ -104,7 +104,7 @@ export function detalhePagamentos(d, mes) {
   const fixosProprios = fixosAtivos(fixos, mes).filter((f) => noCartao(f) || !adiadoDe('fixo', f.id, mes))
   const fixosQueChegam = adiamentos
     .filter((a) => a.tipo === 'fixo' && a.mes_destino === mes)
-    .flatMap((a) => { const f = fixosAtivos(fixos, a.mes_origem).find((x) => String(x.id) === String(a.ref_id)); return f && !noCartao(f) ? [{ ...f, adiadoDe: a.mes_origem, mesPagamento: a.mes_origem }] : [] })
+    .flatMap((a) => { const f = fixosAtivos(fixos, a.mes_origem).find((x) => String(x.id) === String(a.ref_id)); return f && !noCartao(f) ? [{ ...f, valor: Number(f.valor) + (Number(a.acrescimo) || 0), adiadoDe: a.mes_origem, mesPagamento: a.mes_origem, acrescimoAdiamento: Number(a.acrescimo) || 0 }] : [] })
   const fixosMes = [...fixosProprios, ...fixosQueChegam]
   const fixosLista = fixosMes.filter((f) => !noCartao(f)).sort(POR_DIA)
   // Aceita o id ou a própria conta (a conta adiada olha o pagamento do mês de origem).
@@ -129,7 +129,7 @@ export function detalhePagamentos(d, mes) {
       for (const a of adiamentos) { // parcelas de outros meses que foram adiadas para este
         if (a.tipo !== 'compra' || a.mes_destino !== mes || String(a.ref_id) !== String(c.id)) continue
         const veio = parcelas.find((p) => p.mes === a.mes_origem)
-        if (veio) parcelasSemCartao.push({ c, parcela: veio, primeiroMes: parcelas[0].mes, adiadoDe: a.mes_origem })
+        if (veio) parcelasSemCartao.push({ c, parcela: { ...veio, valor: veio.valor + (Number(a.acrescimo) || 0) }, primeiroMes: parcelas[0].mes, adiadoDe: a.mes_origem, acrescimoAdiamento: Number(a.acrescimo) || 0 })
       }
     }
   }
@@ -161,7 +161,7 @@ export function detalhePagamentos(d, mes) {
 
   // Outras contas: sem cartão (dinheiro, Pix, boleto). Cada parcela tem o seu "pago".
   const outrasContas = parcelasSemCartao
-    .map(({ c, parcela, primeiroMes, adiadoDe: origem }) => {
+    .map(({ c, parcela, primeiroMes, adiadoDe: origem, acrescimoAdiamento }) => {
       const mesPag = origem || mes // o pagamento da parcela adiada continua no mês de origem
       const reg = registros.get(`${c.id}|${mesPag}`)
       return {
@@ -172,7 +172,7 @@ export function detalhePagamentos(d, mes) {
         pago: parcelaPaga(c, mesPag, primeiroMes, registros, tabelaPronta),
         data_pagamento: reg?.data_pagamento || (reg ? null : c.data_pagamento),
         mesParcela: mesPag,
-        ...(origem ? { adiadoDe: origem } : {}),
+        ...(origem ? { adiadoDe: origem, acrescimoAdiamento } : {}),
       }
     })
     .sort((a, b) => (a.data_compra < b.data_compra ? 1 : -1))
@@ -285,4 +285,11 @@ export function resumoDoMes(d, mes, { usarSaldoAnterior = true, cacheDetalhes } 
     disponivel, aulasAReceber, sobraProjetada: disponivel + aulasAReceber - aPagar, sobraDoMes: renda - det.comprometido,
     detalhe: det,
   }
+}
+
+// Multa + juros de adiar uma conta (boleto): multa única (%) + juros por mês (%) × meses de atraso. Devolve reais, com 2 casas.
+export function acrescimoAdiamento(valor, mesOrigem, mesDestino, multaPct = 0, jurosMesPct = 0) {
+  const meses = (Number(mesDestino.slice(0, 4)) - Number(mesOrigem.slice(0, 4))) * 12 + (Number(mesDestino.slice(5, 7)) - Number(mesOrigem.slice(5, 7)))
+  if (!(meses > 0) || !(Number(valor) > 0)) return 0
+  return Math.round(Number(valor) * ((Number(multaPct) || 0) / 100 + ((Number(jurosMesPct) || 0) / 100) * meses) * 100) / 100
 }

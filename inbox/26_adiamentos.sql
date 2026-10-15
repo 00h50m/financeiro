@@ -8,10 +8,14 @@ create table if not exists adiamentos (
   ref_id uuid not null,
   mes_origem text not null,
   mes_destino text not null,
+  acrescimo numeric(12, 2) not null default 0, -- multa e juros somados ao valor no mês de destino (R$)
   criado_em timestamptz not null default now(),
   check (mes_destino > mes_origem),
   unique (tipo, ref_id, mes_origem)
 );
+
+-- se a tabela já existia da primeira versão deste arquivo, acrescenta a coluna
+alter table public.adiamentos add column if not exists acrescimo numeric(12, 2) not null default 0;
 
 alter table public.adiamentos enable row level security;
 drop policy if exists "usuarios logados" on public.adiamentos;

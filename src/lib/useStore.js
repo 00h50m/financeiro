@@ -596,13 +596,13 @@ export function useStore(email = null) {
   }, ['aulas'], 'gerar as aulas do mês')
 
   // ADIAMENTOS: mover uma conta sem cartão (conta fixa ou parcela de compra sem cartão) de um mês para outro
-  const adiarConta = (tipo, refId, mesOrigem, mesDestino) => op(async () => {
-    const r = await sb.from('adiamentos').upsert({ tipo, ref_id: refId, mes_origem: mesOrigem, mes_destino: mesDestino }, { onConflict: 'tipo,ref_id,mes_origem' })
+  const adiarConta = (tipo, refId, mesOrigem, mesDestino, acrescimo = 0) => op(async () => {
+    const r = await sb.from('adiamentos').upsert({ tipo, ref_id: refId, mes_origem: mesOrigem, mes_destino: mesDestino, acrescimo: Number(acrescimo) || 0 }, { onConflict: 'tipo,ref_id,mes_origem' })
     if (r.error) throw r.error
   }, ['adiamentos'], 'adiar a conta')
   const adiarVarias = (lista) => op(async () => {
     if (!lista.length) return
-    const r = await sb.from('adiamentos').upsert(lista.map((a) => ({ tipo: a.tipo, ref_id: a.refId, mes_origem: a.mesOrigem, mes_destino: a.mesDestino })), { onConflict: 'tipo,ref_id,mes_origem' })
+    const r = await sb.from('adiamentos').upsert(lista.map((a) => ({ tipo: a.tipo, ref_id: a.refId, mes_origem: a.mesOrigem, mes_destino: a.mesDestino, acrescimo: Number(a.acrescimo) || 0 })), { onConflict: 'tipo,ref_id,mes_origem' })
     if (r.error) throw r.error
   }, ['adiamentos'], 'adiar as contas')
   const desfazerAdiamento = (id) => op(async () => {

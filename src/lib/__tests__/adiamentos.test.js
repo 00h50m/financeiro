@@ -59,3 +59,26 @@ describe('adiar contas para outro mês', () => {
     expect(detalhePagamentos(d, '2026-11').totalFixos).toBe(1100)
   })
 })
+
+import { acrescimoAdiamento } from '../financeiro.js'
+describe('multa e juros ao adiar', () => {
+  it('calcula multa + juros por mês de atraso', () => {
+    expect(acrescimoAdiamento(1000, '2026-10', '2026-11', 2, 1)).toBe(30) // 2% + 1 mês × 1%
+    expect(acrescimoAdiamento(1000, '2026-10', '2027-01', 2, 1)).toBe(50) // 2% + 3 meses × 1%
+    expect(acrescimoAdiamento(500, '2026-10', '2026-11', 0, 0)).toBe(0)
+    expect(acrescimoAdiamento(1000, '2026-10', '2026-10', 2, 1)).toBe(0)
+  })
+  it('o acréscimo entra no valor do mês de destino e a soma dos meses passa a refletir o custo', () => {
+    const d = base()
+    const dd = { ...d, adiamentos: [{ ...fixoAdiado, acrescimo: 30 }] }
+    const nov = detalhePagamentos(dd, '2026-11')
+    expect(nov.fixosLista.find((f) => f.adiadoDe)).toMatchObject({ valor: 1030, acrescimoAdiamento: 30 })
+    const soma = (x) => ['2026-10', '2026-11', '2026-12'].reduce((t, m) => t + detalhePagamentos(x, m).comprometido, 0)
+    expect(soma(dd) - soma(d)).toBe(30)
+  })
+  it('parcela adiada também leva o acréscimo', () => {
+    const dd = { ...base(), adiamentos: [{ ...parcelaAdiada, acrescimo: 12 }] }
+    const veio = detalhePagamentos(dd, '2026-11').outrasContas.find((c) => c.adiadoDe)
+    expect(veio.valorParcela).toBe(312)
+  })
+})
