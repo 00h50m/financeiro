@@ -82,3 +82,17 @@ describe('multa e juros ao adiar', () => {
     expect(veio.valorParcela).toBe(312)
   })
 })
+
+describe('multa e juros em R$ ou %', () => {
+  it('multa em R$ fixo e juros em % ao mês', () => {
+    expect(acrescimoAdiamento(1000, '2026-10', '2026-12', { tipo: 'valor', valor: 15 }, { tipo: 'pct_mes', valor: 1 })).toBe(35) // 15 + 2 meses × 10
+  })
+  it('juros em R$ por dia (30 dias por mês) e em R$ ao mês', () => {
+    expect(acrescimoAdiamento(1000, '2026-10', '2026-11', { tipo: 'pct', valor: 2 }, { tipo: 'valor_dia', valor: 0.5 })).toBe(35) // 20 + 0,50 × 30
+    expect(acrescimoAdiamento(1000, '2026-10', '2026-12', { tipo: 'valor', valor: 10 }, { tipo: 'valor_mes', valor: 8 })).toBe(26) // 10 + 2 × 8
+  })
+  it('valores vazios ou inválidos não geram acréscimo; sem mês de atraso também não', () => {
+    expect(acrescimoAdiamento(1000, '2026-10', '2026-11', { tipo: 'valor', valor: NaN }, { tipo: 'valor_dia', valor: -1 })).toBe(0)
+    expect(acrescimoAdiamento(1000, '2026-11', '2026-11', { tipo: 'valor', valor: 15 }, { tipo: 'valor_dia', valor: 1 })).toBe(0)
+  })
+})
