@@ -14,7 +14,7 @@ import { motivoNaoLancarSozinho } from '../../src/lib/categorizacao.js'
 import { prepararEvento } from '../../src/lib/evento.js'
 import { hashCodigo, normalizarCodigo } from '../../src/lib/pareamento.js'
 import { fmt, hojeSP, addMonths } from '../../src/lib/utils.js'
-import { aulasParaAtualizar, acharAluno, lerComandoAula, rotuloAula, mesFechadoDoAluno } from '../../src/lib/aulasBot.js'
+import { aulasParaAtualizar, acharAluno, lerComandoAula, rotuloAula, mesFechadoDoAluno, tecladoAulas } from '../../src/lib/aulasBot.js'
 import { patchRealizar, patchEncerrar, patchDesfazer, novaAvulsa, valorAula, textoDuracao } from '../../src/lib/aulas.js'
 
 const LIMITE_AUTORIZADO = 30 // mensagens por minuto
@@ -788,9 +788,8 @@ async function listarAulas(c) {
   if (!dados) { await c.tg.enviar(c.chat.id, 'As aulas particulares ainda não estão configuradas no Finapp.'); return { acao: 'aulas_indisponivel' } }
   const { itens, total } = aulasParaAtualizar(dados, c.hoje)
   if (!itens.length) { await c.tg.enviar(c.chat.id, 'Nenhuma aula esperando atualização. 🎉\n\nPara registrar uma aula: /aula Lucas hoje 1h'); return { acao: 'aulas_em_dia' } }
-  const linhas = itens.flatMap(({ aula, aluno }) => [btn(`✓ ${rotuloAula(aula, aluno)}`, 'au', aula.id, 'r'), btn('✕', 'au', aula.id, 'c')])
   const resto = total > itens.length ? `\n\nMostrando as ${itens.length} mais recentes; há mais ${total - itens.length} no Finapp.` : ''
-  await c.tg.enviar(c.chat.id, `🎓 Aulas para atualizar. Toque em ✓ para registrar como realizada (na duração prevista) ou em ✕ para cancelar.${resto}`, botoes(linhas, 2))
+  await c.tg.enviar(c.chat.id, `🎓 Aulas para atualizar. Toque em ✓ para registrar como realizada (na duração prevista) ou em ✕ para cancelar.${resto}`, tecladoAulas(itens))
   return { acao: 'aulas_lista' }
 }
 

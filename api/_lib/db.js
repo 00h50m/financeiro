@@ -154,7 +154,20 @@ export function criarDb({ url, serviceKey }) {
     async inicioApp() { return inicioDoApp(await this.configMapa()) },
     // Alunos, aulas e fechamentos (tabelas opcionais: sem elas, null e nenhum lembrete).
     async dadosAulas() {
-      try { return { alunos: await todas('alunos', '*'), aulas: await todas('aulas', '*', (q) => q.order('id')), aulasFech: await todas('aulas_fechamentos', '*'), inicioApp: await this.inicioApp() } } catch { return null }
+      const opcional = async (t, o) => { try { return await todas(t, '*', o) } catch { return [] } }
+      try {
+        return {
+          alunos: await todas('alunos', '*'), aulas: await todas('aulas', '*', (q) => q.order('id')), aulasFech: await todas('aulas_fechamentos', '*'), inicioApp: await this.inicioApp(),
+          aulasProg: await opcional('aulas_programacao'), pausas: await opcional('aulas_pausas'), previsoes: await opcional('aulas_previsao_inicial'),
+        }
+      } catch { return null }
+    },
+    // Cria as aulas previstas que faltam (sem duplicar: a unicidade é do banco) e a previsão inicial. Devolve as aulas criadas.
+    async gerarAulasDoMes(novas, previsoes) {
+      let criadas = []
+      if (novas.length) criadas = dados(await sb.from('aulas').upsert(novas, { onConflict: 'programacao_id,data_original', ignoreDuplicates: true }).select()) || []
+      if (previsoes.length) dados(await sb.from('aulas_previsao_inicial').upsert(previsoes, { onConflict: 'aluno_id,mes', ignoreDuplicates: true }))
+      return criadas
     },
     // Uma aula com o aluno e o fechamento do mês dela (para os botões do bot). null se não existir.
     async buscarAulaBot(id) {

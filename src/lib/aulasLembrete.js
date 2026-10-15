@@ -3,9 +3,11 @@
 //  · mês anterior de aluno sem fechar: nos dias 1, 3, 5 e 7;
 //  · fechamento sem recebimento há mais de 7 dias: às segundas.
 import { fmt, mesLabel, addMonths } from './utils.js'
+import { textoDuracao } from './aulas.js'
 import { mesDe } from './aulas.js'
 import { achaFechamento, fechadoStatus } from './aulasFechamento.js'
 import { antesDoInicio } from './inicioApp.js'
+import { aulasDeHoje } from './aulasBot.js'
 
 const DIAS_FECHAR = [1, 3, 5, 7]
 const dataBr = (d) => `${d.slice(8, 10)}/${d.slice(5, 7)}`
@@ -39,12 +41,17 @@ export function pendenciasDeAulas({ alunos = [], aulas = [], aulasFech = [], ini
       }
     }
   }
-  return { atrasadas, fechar, receber }
+  return { hoje: aulasDeHoje({ alunos, aulas, aulasFech, inicioApp }, hoje), atrasadas, fechar, receber }
 }
 
 export function textoLembreteAulas(p) {
-  if (!p.atrasadas.length && !p.fechar.length && !p.receber.length) return null
+  if (!p.hoje?.length && !p.atrasadas.length && !p.fechar.length && !p.receber.length) return null
   const linhas = ['🎓 Aulas particulares']
+  if (p.hoje?.length) {
+    linhas.push('', 'Hoje:')
+    p.hoje.forEach(({ aula, aluno }) => linhas.push(`• ${aula.horario ? `${aula.horario} · ` : ''}${aluno.nome} · ${textoDuracao(aula.duracao_min)}`))
+    linhas.push('Depois da aula, toque em ✓ abaixo para registrar.')
+  }
   if (p.atrasadas.length) {
     linhas.push('', 'Para atualizar (a data já passou):')
     p.atrasadas.forEach((a) => linhas.push(`• ${a.aluno}: ${a.qtd} ${a.qtd === 1 ? 'aula ainda como prevista' : 'aulas ainda como previstas'} (desde ${dataBr(a.desde)})`))
@@ -57,7 +64,7 @@ export function textoLembreteAulas(p) {
     linhas.push('', 'Fechado e ainda sem recebimento:')
     p.receber.forEach((r) => linhas.push(`• ${r.aluno} (${mesLabel(r.mes)}): ${fmt(r.valor)}`))
   }
-  if (p.atrasadas.length) linhas.push('', 'Para atualizar por aqui: /aulas')
+  if (p.atrasadas.length || p.hoje?.length) linhas.push('', 'Para atualizar por aqui: /aulas')
   linhas.push('', 'Para parar de receber avisos: /avisos off')
   return linhas.join('\n')
 }
