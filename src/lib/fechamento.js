@@ -66,7 +66,7 @@ export function montarFoto(d, mes, { reservaDestinada = 0, alertasAceitos = [] }
     por_categoria: porCategoria,
     por_pessoa: porPessoa,
     detalhes: {
-      fixos: det.fixosLista.map((f) => ({ id: f.id, nome: f.nome, valor: Number(f.valor), pago: !!det.fixoPagamento(f.id)?.pago })),
+      fixos: det.fixosLista.map((f) => ({ id: f.id, nome: f.nome, valor: Number(f.valor), pago: !!det.fixoPagamento(f)?.pago })),
       faturas: det.linhasCartao.map((l) => ({
         cartao_id: l.cartao_id, nome: l.nome, valor: arred(l.valor), lancado: arred(l.lancado), real: l.temFatura, pago: l.pago,
       })),
@@ -112,7 +112,7 @@ export function validarFechamento(d, mes, { hoje = nowYM() } = {}) {
     ['pendente', 'aguardando_dados'].includes(e.status) && String(e.data_evento || '').slice(0, 7) === mes)
   if (pendInbox.length) alertas.push(`${pendInbox.length} ${pendInbox.length === 1 ? 'item pendente' : 'itens pendentes'} no Inbox com data em ${rotulo}.`)
 
-  const fixosAbertos = det.fixosLista.filter((f) => !det.fixoPagamento(f.id)?.pago)
+  const fixosAbertos = det.fixosLista.filter((f) => !det.fixoPagamento(f)?.pago)
   if (fixosAbertos.length) alertas.push(`${fixosAbertos.length} ${fixosAbertos.length === 1 ? 'conta fixa' : 'contas fixas'} sem marca de paga: ${fixosAbertos.map((f) => f.nome).join(', ')}.`)
 
   const semCartaoAbertas = det.outrasContas.filter((c) => !c.pago)
@@ -149,7 +149,7 @@ export function riscosDoMes(d, mes, { hoje = nowYM(), diaHoje = Number(hojeSP().
     riscos.push({ nivel: 'alto', texto: `O mês deve terminar no vermelho (${Math.round(r.sobraProjetada).toLocaleString('pt-BR')}).`, aba: 'pagamentos' })
   }
   if (mes === hoje) {
-    const atrasadas = det.fixosLista.filter((f) => f.dia_vencimento && Number(f.dia_vencimento) < diaHoje && !det.fixoPagamento(f.id)?.pago)
+    const atrasadas = det.fixosLista.filter((f) => f.dia_vencimento && Number(f.dia_vencimento) < diaHoje && !det.fixoPagamento(f)?.pago)
     if (atrasadas.length) riscos.push({ nivel: 'alto', texto: `${atrasadas.length} ${atrasadas.length === 1 ? 'conta fixa já venceu' : 'contas fixas já venceram'} sem marca de paga: ${atrasadas.map((f) => f.nome).join(', ')}.`, aba: 'pagamentos' })
   }
   det.linhasCartao.filter((l) => !l.temFatura && !l.pago).forEach((l) => {

@@ -3,6 +3,7 @@ import { compilar } from '../lib/filtro'
 import { mediaRecente, pendenciasValorVariavel } from '../lib/fixosVariaveis'
 import ValorDoMes from './ValorDoMes'
 import Secao from './Secao'
+import ModalAdiar from './ModalAdiar'
 import NavMes, { PilulasPago } from './NavMes'
 import { CampoBusca, ResumoFiltro } from './FiltroLista'
 import { fmt, fmtK, mesLabel, nowYM, addMonths, totalRenda, tituloCompra, subtituloCompra, hojeSP } from '../lib/utils'
@@ -27,8 +28,32 @@ export default function Pagamentos({ store }) {
   const [filtroPago, setFiltroPago] = useState('') // 'pagas' | 'apagar'
   const [secoes, setSecoes] = useState({}) // seção → aberta; sem valor: abre quando ainda há algo a pagar
   const [extratoAberto, setExtratoAberto] = useState(false)
+  const [adiando, setAdiando] = useState(null) // { tipo, refId, titulo, valor, mesOrigem, destinoAtual }
+  const { adiamentosOk, adiarConta, desfazerAdiamento } = store
+  const registroAdiamento = (tipo, refId, mesOrigem) => (store.adiamentos || []).find((a) => a.tipo === tipo && String(a.ref_id) === String(refId) && a.mes_origem === mesOrigem)
+  function abrirAdiar(tipo, item, titulo, valor) {
+    const mesOrigem = item.adiadoDe || mes
+    if (mesFechado(store.fechamentos, mesOrigem)) { window.alert(`${mesLabel(mesOrigem)} está fechado. Reabra o fechamento para mexer nessa conta.`); return }
+    setAdiando({ tipo, refId: item.id, titulo, valor, mesOrigem, destinoAtual: item.adiadoDe ? mes : null })
+  }
+  async function voltarAdiada(tipo, item) {
+    const r = registroAdiamento(tipo, item.id, item.adiadoDe)
+    if (!r) return
+    if (mesFechado(store.fechamentos, item.adiadoDe) || mesFechado(store.fechamentos, mes)) { window.alert('Um dos meses está fechado. Reabra o fechamento para mexer nessa conta.'); return }
+    await desfazerAdiamento(r.id)
+  }
+  // Ações de adiar na linha de uma conta: Adiar (se ainda não está paga) ou, se já foi adiada, Voltar / Mudar de mês.
+  const acoesAdiar = (tipo, item, titulo, valor, pago) => {
+    if (!adiamentosOk) return null
+    if (item.adiadoDe) return (
+      <div className="adiar-linha"><span className="badge badge-amber">adiada de {mesLabel(item.adiadoDe)}</span>
+        <button className="link-btn" onClick={() => voltarAdiada(tipo, item)}>voltar para {mesLabel(item.adiadoDe)}</button>
+        {!pago && <button className="link-btn" onClick={() => abrirAdiar(tipo, item, titulo, valor)}>mudar de mês</button>}</div>
+    )
+    return pago ? null : <div className="adiar-linha"><button className="link-btn" onClick={() => abrirAdiar(tipo, item, titulo, valor)}>Adiar para outro mês</button></div>
+  }
 
-  const dados = { fixos, fixosPagamentos, cartoes, compras, faturas, rendas, saldoAjustes, comprasPagamentos, comprasPagamentosOk, aulasAReceber }
+  const dados = { fixos, fixosPagamentos, cartoes, compras, faturas, rendas, saldoAjustes, comprasPagamentos, comprasPagamentosOk, aulasAReceber, adiamentos: store.adiamentos }
   const resumo = resumoDoMes(dados, mes, { usarSaldoAnterior: usarSobra })
   const {
     fixosLista: fixosAtivos, fixoPagamento, linhasCartao, outrasContas,
@@ -37,7 +62,7 @@ export default function Pagamentos({ store }) {
 
   async function toggleOutraConta(c) {
     if (comprasPagamentosOk) {
-      await marcarParcelaPaga(c.id, mes, !c.pago) // cada parcela (mês) tem o seu "pago"
+      await marcarParcelaPaga(c.id, c.mesParcela || mes, !c.pago) // cada parcela (mês) tem o seu "pago"
       return
     }
     // Sem a atualização 14 do banco, o "pago" ainda vale para a compra inteira.
@@ -60,7 +85,7 @@ export default function Pagamentos({ store }) {
   const { combina } = compilar(busca)
   const filtroAtivo = !!(busca.trim() || filtroPago)
   const passaPago = (pago) => !filtroPago || (filtroPago === 'pagas' ? !!pago : !pago)
-  const fixosVis = fixosAtivos.filter((f) => passaPago(fixoPagamento(f.id)?.pago)
+  const fixosVis = fixosAtivos.filter((f) => passaPago(fixoPagamento(f)?.pago)
     && combina({ texto: [f.nome, f.categoria, f.subcategoria, f.estimado ? 'estimado' : ''].filter(Boolean).join(' '), valor: Number(f.valor) }))
   const cartoesVis = linhasCartao.filter((l) => passaPago(l.pago) && combina({ texto: l.nome, valor: Number(l.valor) }))
   const outrasVis = outrasContas.filter((c) => passaPago(c.pago)
@@ -79,7 +104,7 @@ export default function Pagamentos({ store }) {
       destaque: fmt(somaValor(lista, valorDe)),
     }
   }
-  const secFixos = resumoSecao('fixos', fixosVis, (f) => fixoPagamento(f.id)?.pago, (f) => f.valor)
+  const secFixos = resumoSecao('fixos', fixosVis, (f) => fixoPagamento(f)?.pago, (f) => f.valor)
   const secCartoes = resumoSecao('cartoes', cartoesVis, (l) => l.pago, (l) => l.valor)
   const secOutras = resumoSecao('outras', outrasVis, (c) => c.pago, (c) => c.valorParcela)
   const pctPago = comprometido > 0 ? Math.min(100, Math.round((pago / comprometido) * 100)) : 0
@@ -94,19 +119,19 @@ export default function Pagamentos({ store }) {
   // Conta de valor variável: o valor real é informado por mês (só aquele mês muda).
   async function informarValor(fixo) {
     const fixoBruto = store.fixos.find((x) => x.id === fixo.id) || fixo
-    const media = fixo.estimado ? mediaRecente(fixoBruto, mes) : null
+    const media = fixo.estimado ? mediaRecente(fixoBruto, fixo.mesPagamento || mes) : null
     const sugestao = media ? `\n\nMédia dos últimos ${media.meses} mese${media.meses > 1 ? 's' : ''} informados: ${fmt(media.media)}` : ''
-    const r = window.prompt(`Valor real de "${fixo.nome}" em ${mesLabel(mes)} (R$):${sugestao}`, String(media ? media.media : fixo.valor).replace('.', ','))
+    const r = window.prompt(`Valor real de "${fixo.nome}" em ${mesLabel(fixo.mesPagamento || mes)} (R$):${sugestao}`, String(media ? media.media : fixo.valor).replace('.', ','))
     if (r === null) return false
     const v = Number(String(r).trim().replace(/\./g, '').replace(',', '.'))
     if (!r.trim() || Number.isNaN(v) || v < 0) { window.alert('Valor inválido.\n\nDigite só números, com vírgula nos centavos (ex.: 312,40).'); return false }
-    return definirValorFixo(fixo.id, mes, v)
+    return definirValorFixo(fixo.id, fixo.mesPagamento || mes, v)
   }
   async function toggleFixo(fixo) {
-    const atual = fixoPagamento(fixo.id)?.pago || false
+    const atual = fixoPagamento(fixo)?.pago || false
     // ao pagar uma conta variável ainda estimada, confirma o valor real antes (evita pagar sem registrar)
     if (!atual && fixo.estimado && !(await informarValor(fixo))) return
-    await marcarFixoPago(fixo.id, mes, !atual)
+    await marcarFixoPago(fixo.id, fixo.mesPagamento || mes, !atual) // conta adiada: o pagamento fica no mês de origem
   }
 
   async function toggleCartao(linha) {
@@ -128,6 +153,7 @@ export default function Pagamentos({ store }) {
 
   return (
     <div className="page">
+      {adiando && <ModalAdiar titulo={adiando.titulo} valor={adiando.valor} mesOrigem={adiando.mesOrigem} mesAtualDestino={adiando.destinoAtual} onClose={() => setAdiando(null)} onConfirmar={(destino) => adiarConta(adiando.tipo, adiando.refId, adiando.mesOrigem, destino)} />}
       {pendencias.length > 0 && (
         <div className="alert alert-amber">
           <b>{pendencias.length === 1 ? '1 conta de valor variável' : `${pendencias.length} contas de valor variável`} ainda com valor estimado:</b>
@@ -272,15 +298,16 @@ export default function Pagamentos({ store }) {
             </thead>
             <tbody>
               {fixosVis.map((f) => {
-                const pg = fixoPagamento(f.id)
+                const pg = fixoPagamento(f)
                 return (
-                  <tr key={f.id} style={{ opacity: pg?.pago ? 0.6 : 1 }}>
+                  <tr key={`${f.id}|${f.mesPagamento || ''}`} style={{ opacity: pg?.pago ? 0.6 : 1 }}>
                     <td className="check-cel" style={{ textAlign: 'center' }}>
                       <input type="checkbox" checked={!!pg?.pago} onChange={() => toggleFixo(f)} />
                     </td>
                     <td className="nome-cel" style={{ fontWeight: 500 }}>
                       <span style={{ textDecoration: pg?.pago ? 'line-through' : 'none' }}>{f.nome}</span>
                       <div className="so-mobile">{[f.categoria, f.dia_vencimento ? `vence dia ${f.dia_vencimento}` : '', pg?.pago && dataFmt(pg?.data_pagamento) ? `pago em ${dataFmt(pg.data_pagamento)}` : ''].filter(Boolean).join(' · ')}</div>
+                      {acoesAdiar('fixo', f, f.nome, Number(f.valor), !!pg?.pago)}
                     </td>
                     <td className="col-opc" style={{ fontSize: 12, color: 'var(--text2)' }}>
                       {f.categoria ? (
@@ -380,7 +407,7 @@ export default function Pagamentos({ store }) {
             </thead>
             <tbody>
               {outrasVis.map((c) => (
-                <tr key={c.id} style={{ opacity: c.pago ? 0.6 : 1 }}>
+                <tr key={`${c.id}|${c.mesParcela}`} style={{ opacity: c.pago ? 0.6 : 1 }}>
                   <td className="check-cel" style={{ textAlign: 'center' }}>
                     <input type="checkbox" checked={!!c.pago} onChange={() => toggleOutraConta(c)} />
                   </td>
@@ -389,6 +416,7 @@ export default function Pagamentos({ store }) {
                     <div className="so-mobile" style={{ textDecoration: 'none' }}>{c.parcelaTotal > 1 ? `parcela ${c.parcelaNum}/${c.parcelaTotal}` : 'à vista'}{c.pago && dataFmt(c.data_pagamento) ? ` · pago em ${dataFmt(c.data_pagamento)}` : ''}</div>
                     {subtituloCompra(c) && <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 400 }}>no cartão: {subtituloCompra(c)}</div>}
                     {c.obs &&<div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 400 }}>{c.obs}</div>}
+                    {acoesAdiar('compra', c, tituloCompra(c), c.valorParcela, !!c.pago)}
                   </td>
                   <td className="valor-cel" style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(c.valorParcela)}</td>
                   <td className="col-opc" style={{ textAlign: 'center' }}>

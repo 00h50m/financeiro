@@ -37,6 +37,7 @@ const TABELAS = [
   ['aulas_fechamentos', 'Aulas: fechamentos por aluno', 'id', true],
   ['aulas_fechamentos_hist', 'Aulas: histórico dos fechamentos', 'id', true],
   ['aulas_pausas', 'Aulas: períodos sem aula', 'id', true],
+  ['adiamentos', 'Contas adiadas para outro mês', 'id', true],
 ]
 const ORDEM = Object.fromEntries(TABELAS.map(([t, , o]) => [t, o]))
 
@@ -272,7 +273,7 @@ export default function Backup({ store }) {
     fechamentos: store.fechamentos.length, metas: store.metas.length, metas_movimentos: store.metasMovimentos.length,
     regras_categorizacao: store.regras.length, estabelecimento_aliases: store.aliases.length, eventos_financeiros: store.eventos.length,
     renda_sazonal: store.rendaSazonal.length, alunos: store.alunos.length, aulas_programacao: store.aulasProg.length, aulas: store.aulas.length,
-    aulas_previsao_inicial: store.aulasPrevInicial.length, aulas_fechamentos: store.aulasFech.length, aulas_pausas: store.aulasPausas.length,
+    aulas_previsao_inicial: store.aulasPrevInicial.length, adiamentos: store.adiamentos.length, aulas_fechamentos: store.aulasFech.length, aulas_pausas: store.aulasPausas.length,
   }
 
   function registrar() {

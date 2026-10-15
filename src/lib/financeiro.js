@@ -96,10 +96,23 @@ export function detalhePagamentos(d, mes) {
 
   // Contas fixas ativas no mês, por dia de vencimento.
   // Fixos pagos no cartão não são contas à parte: já estão dentro da fatura do cartão (ver abaixo).
-  const fixosMes = fixosAtivos(fixos, mes)
+  // Adiamentos: uma conta sem cartão (conta fixa ou parcela de compra sem cartão) pode ser movida de um mês para outro.
+  // Sai do mês de origem e entra no de destino; o "pago" continua guardado no mês de origem (`mesPagamento`).
+  const adiamentos = d.adiamentos || []
+  const adiadoDe = (tipo, id, m) => adiamentos.find((a) => a.tipo === tipo && String(a.ref_id) === String(id) && a.mes_origem === m)
   const noCartao = (f) => !!f.cartao_id && cartoes.some((c) => c.id === f.cartao_id)
+  const fixosProprios = fixosAtivos(fixos, mes).filter((f) => noCartao(f) || !adiadoDe('fixo', f.id, mes))
+  const fixosQueChegam = adiamentos
+    .filter((a) => a.tipo === 'fixo' && a.mes_destino === mes)
+    .flatMap((a) => { const f = fixosAtivos(fixos, a.mes_origem).find((x) => String(x.id) === String(a.ref_id)); return f && !noCartao(f) ? [{ ...f, adiadoDe: a.mes_origem, mesPagamento: a.mes_origem }] : [] })
+  const fixosMes = [...fixosProprios, ...fixosQueChegam]
   const fixosLista = fixosMes.filter((f) => !noCartao(f)).sort(POR_DIA)
-  const fixoPagamento = (fixoId) => fixosPagamentos.find((p) => p.fixo_id === fixoId && p.mes === mes)
+  // Aceita o id ou a própria conta (a conta adiada olha o pagamento do mês de origem).
+  const fixoPagamento = (idOuConta) => {
+    const id = typeof idOuConta === 'object' ? idOuConta.id : idOuConta
+    const m = (typeof idOuConta === 'object' && idOuConta.mesPagamento) || mes
+    return fixosPagamentos.find((p) => p.fixo_id === id && p.mes === m)
+  }
 
   // Cartões com parcelas no mês ou fatura registrada.
   const lancadoPorCartao = new Map()
@@ -112,7 +125,12 @@ export function detalhePagamentos(d, mes) {
       }
     } else {
       const parcela = parcelas.find((p) => p.mes === mes)
-      if (parcela) parcelasSemCartao.push({ c, parcela, primeiroMes: parcelas[0].mes })
+      if (parcela && !adiadoDe('compra', c.id, mes)) parcelasSemCartao.push({ c, parcela, primeiroMes: parcelas[0].mes })
+      for (const a of adiamentos) { // parcelas de outros meses que foram adiadas para este
+        if (a.tipo !== 'compra' || a.mes_destino !== mes || String(a.ref_id) !== String(c.id)) continue
+        const veio = parcelas.find((p) => p.mes === a.mes_origem)
+        if (veio) parcelasSemCartao.push({ c, parcela: veio, primeiroMes: parcelas[0].mes, adiadoDe: a.mes_origem })
+      }
     }
   }
   for (const f of fixosMes.filter(noCartao)) {
@@ -143,16 +161,18 @@ export function detalhePagamentos(d, mes) {
 
   // Outras contas: sem cartão (dinheiro, Pix, boleto). Cada parcela tem o seu "pago".
   const outrasContas = parcelasSemCartao
-    .map(({ c, parcela, primeiroMes }) => {
-      const reg = registros.get(`${c.id}|${mes}`)
+    .map(({ c, parcela, primeiroMes, adiadoDe: origem }) => {
+      const mesPag = origem || mes // o pagamento da parcela adiada continua no mês de origem
+      const reg = registros.get(`${c.id}|${mesPag}`)
       return {
         ...c,
         valorParcela: parcela.valor,
         parcelaNum: parcela.num,
         parcelaTotal: parcela.total,
-        pago: parcelaPaga(c, mes, primeiroMes, registros, tabelaPronta),
+        pago: parcelaPaga(c, mesPag, primeiroMes, registros, tabelaPronta),
         data_pagamento: reg?.data_pagamento || (reg ? null : c.data_pagamento),
-        mesParcela: mes,
+        mesParcela: mesPag,
+        ...(origem ? { adiadoDe: origem } : {}),
       }
     })
     .sort((a, b) => (a.data_compra < b.data_compra ? 1 : -1))
@@ -160,7 +180,7 @@ export function detalhePagamentos(d, mes) {
   const soma = (lista, f) => lista.reduce((s, x) => s + f(x), 0)
   const totalFixos = soma(fixosMes, (f) => Number(f.valor)) // custo fixo total (inclui os pagos no cartão)
   const totalFixosAvulsos = soma(fixosLista, (f) => Number(f.valor)) // contas a pagar à parte
-  const totalFixosPagos = soma(fixosLista, (f) => (fixoPagamento(f.id)?.pago ? Number(f.valor) : 0))
+  const totalFixosPagos = soma(fixosLista, (f) => (fixoPagamento(f)?.pago ? Number(f.valor) : 0))
   const totalCartoes = soma(linhasCartao, (l) => l.valor)
   const totalCartoesPagos = soma(linhasCartao, (l) => (l.pago ? l.valor : 0))
   const totalOutras = soma(outrasContas, (c) => c.valorParcela)

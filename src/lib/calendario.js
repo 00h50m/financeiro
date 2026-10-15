@@ -12,7 +12,7 @@ export function eventosDoMes(d, mes) {
   const eventos = []
   const semDia = []
   for (const f of det.fixosLista) {
-    const item = { chave: `fixo|${f.id}`, tipo: 'fixo', titulo: f.nome, valor: Number(f.valor), pago: !!det.fixoPagamento(f.id)?.pago, aba: 'pagamentos' }
+    const item = { chave: `fixo|${f.id}|${f.mesPagamento || ''}`, tipo: 'fixo', titulo: f.nome, valor: Number(f.valor), pago: !!det.fixoPagamento(f)?.pago, aba: 'pagamentos' }
     if (f.dia_vencimento) eventos.push({ ...item, dia: clampDia(f.dia_vencimento, mes) })
     else semDia.push(item)
   }

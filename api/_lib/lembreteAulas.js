@@ -2,7 +2,7 @@
 // Antes de montar a mensagem, cria as aulas previstas do mês que ainda não existem (igual ao app ao abrir o mês), para os botões funcionarem.
 import { hojeSP } from '../../src/lib/utils.js'
 import { pendenciasDeAulas, textoLembreteAulas } from '../../src/lib/aulasLembrete.js'
-import { aulasDeHoje, planejarMesDoDia, tecladoAulas } from '../../src/lib/aulasBot.js'
+import { planejarMesDoDia, tecladoAulas } from '../../src/lib/aulasBot.js'
 
 export async function enviarLembretesAulas({ db, tg, agora = () => new Date() }) {
   const destinatarios = await db.destinatariosResumo()

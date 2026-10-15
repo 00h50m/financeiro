@@ -185,10 +185,10 @@ export function criarDb({ url, serviceKey }) {
     // Tudo que o resumo mensal precisa (mesmas contas do app). Tabelas opcionais que ainda não existem viram lista vazia.
     async dadosResumoMensal() {
       const opcional = async (tabela, colunas = '*') => { try { return await todas(tabela, colunas) } catch { return null } }
-      const [compras, cartoes, fixos, fixosValores, faturas, rendas, fixosPagamentos, comprasPagamentos, saldoAjustes, pessoas, orcamentos, fechamentos, divisoes, divisoesRepasses] = await Promise.all([
+      const [compras, cartoes, fixos, fixosValores, faturas, rendas, fixosPagamentos, comprasPagamentos, saldoAjustes, pessoas, orcamentos, fechamentos, divisoes, divisoesRepasses, adiamentos] = await Promise.all([
         todas('compras', '*', (q) => q.order('id')), todas('cartoes', '*'), todas('fixos', '*'), opcional('fixos_valores'), todas('faturas', '*', (q) => q.order('id')),
         todas('rendas', '*'), todas('fixos_pagamentos', '*', (q) => q.order('id')), opcional('compras_pagamentos'), todas('saldo_ajustes', '*'), todas('pessoas', '*'),
-        opcional('orcamentos'), opcional('fechamentos'), opcional('divisoes'), opcional('divisoes_repasses'),
+        opcional('orcamentos'), opcional('fechamentos'), opcional('divisoes'), opcional('divisoes_repasses'), opcional('adiamentos'),
       ])
       // Aulas particulares (tabelas opcionais): somam na renda e o "a receber" sai do disponível, igual ao app.
       const config = await this.configMapa()
@@ -198,7 +198,7 @@ export function criarDb({ url, serviceKey }) {
       const porMes = alunos && aulas && aulasFech ? deslocarMeses(aulasPorMes(alunos, aulas, aulasFech, { programacoes: aulasProg || [], pausas: aulasPausas || [], desde: desloca ? addMesesIso(hojeSP().slice(0, 7), -1) : hojeSP().slice(0, 7) }), desloca) : {}
       return {
         compras, cartoes, fixos, fixosValores: fixosValores || [], faturas, rendas: rendasComAulas(rendas, porMes), aulasAReceber: aulasAReceberPorMes(porMes), fixosPagamentos, comprasPagamentos: comprasPagamentos || [], comprasPagamentosOk: comprasPagamentos != null,
-        saldoAjustes, pessoas, inicioApp, orcamentos: orcamentos || [], fechamentos: fechamentos || [], divisoes: divisoes || [], divisoesRepasses: divisoesRepasses || [], metas: [], metasMovimentos: [],
+        saldoAjustes, pessoas, inicioApp, adiamentos: adiamentos || [], orcamentos: orcamentos || [], fechamentos: fechamentos || [], divisoes: divisoes || [], divisoesRepasses: divisoesRepasses || [], metas: [], metasMovimentos: [],
       }
     },
     // ---- resumo semanal (precisa do inbox/11) ----
