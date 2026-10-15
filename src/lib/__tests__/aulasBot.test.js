@@ -107,3 +107,49 @@ describe('bot: /aulas e /aula', () => {
     expect(textos(tg).join()).toContain('Não achei esse aluno')
   })
 })
+
+import { aulasDeHoje, tecladoAulas, planejarMesDoDia } from '../aulasBot.js'
+import { pendenciasDeAulas, textoLembreteAulas } from '../aulasLembrete.js'
+import { enviarLembretesAulas } from '../../../api/_lib/lembreteAulas.js'
+
+describe('aviso das aulas do dia', () => {
+  const al = [{ id: 'a1', nome: 'Lucas', ativo: true, inicio: '2026-09-01', valor_hora_centavos: 10000 }, { id: 'a2', nome: 'Ana', ativo: true, inicio: '2026-09-01', valor_hora_centavos: 8000 }]
+  const mk = (id, aluno, data, horario, status = 'prevista') => ({ id, aluno_id: aluno, data, horario, status, duracao_min: 60 })
+  it('aulas de hoje por horário (sem horário no fim), só previstas', () => {
+    const aulas = [mk('1', 'a2', '2026-10-13', null), mk('2', 'a1', '2026-10-13', '15:00'), mk('3', 'a1', '2026-10-13', '09:00', 'realizada'), mk('4', 'a1', '2026-10-14', '10:00')]
+    expect(aulasDeHoje({ alunos: al, aulas }, '2026-10-13').map((i) => i.aula.id)).toEqual(['2', '1'])
+  })
+  it('teclado tem ✓ e ✕ por aula, no formato que o bot entende', () => {
+    const k = tecladoAulas(aulasDeHoje({ alunos: al, aulas: [mk('2', 'a1', '2026-10-13', '15:00')] }, '2026-10-13'))
+    expect(k.inline_keyboard[0].map((b) => b.callback_data)).toEqual(['au|2|r', 'au|2|c'])
+    expect(k.inline_keyboard[0][0].text).toContain('Lucas')
+  })
+  it('mensagem lista as aulas do dia e aponta para /aulas', () => {
+    const p = pendenciasDeAulas({ alunos: al, aulas: [mk('2', 'a1', '2026-10-13', '15:00')], aulasFech: [] }, '2026-10-13')
+    const t = textoLembreteAulas(p)
+    expect(t).toContain('Hoje:')
+    expect(t).toContain('15:00 · Lucas · 1h')
+    expect(t).toContain('/aulas')
+  })
+  it('planeja as aulas do mês que faltam, uma vez só', () => {
+    const progs = [{ id: 'p1', aluno_id: 'a1', dia_semana: 2, duracao_min: 60, horario: '15:00', vigencia_inicio: '2026-09-01' }] // terças
+    const { novas, previsoes } = planejarMesDoDia({ alunos: al, aulasProg: progs, aulas: [] }, '2026-10-13')
+    expect(novas.map((n) => n.data)).toEqual(['2026-10-06', '2026-10-13', '2026-10-20', '2026-10-27'])
+    expect(previsoes).toHaveLength(1)
+    const de = planejarMesDoDia({ alunos: al, aulasProg: progs, aulas: novas.map((n, i) => ({ id: 'x' + i, ...n })), previsoes: previsoes }, '2026-10-13')
+    expect(de.novas).toHaveLength(0)
+    expect(de.previsoes).toHaveLength(0)
+  })
+  it('cron: cria as aulas do mês e manda o aviso com botões', async () => {
+    const db = criarFakeDb(); const tg = criarFakeTg()
+    db.s.dadosAulas = { alunos: al, aulas: [], aulasFech: [], inicioApp: '2026-10', aulasProg: [{ id: 'p1', aluno_id: 'a1', dia_semana: 2, duracao_min: 60, horario: '15:00', vigencia_inicio: '2026-09-01' }], pausas: [], previsoes: [] }
+    const agora = () => new Date('2026-10-13T11:00:00Z')
+    await processarUpdate(msg(GI, '/avisos on'), { db, tg, agora })
+    tg.enviadas.length = 0
+    const r = await enviarLembretesAulas({ db, tg, agora })
+    expect(r.enviados).toBe(1)
+    expect(db.s.geradas).toBe(4)
+    expect(tg.enviadas[0].text).toContain('15:00 · Lucas')
+    expect(tg.enviadas[0].markup.inline_keyboard[0][0].callback_data).toMatch(/^au\|.+\|r$/)
+  })
+})

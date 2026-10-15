@@ -97,6 +97,7 @@ export function criarFakeDb({ comprasIniciais = [], regras = REGRAS } = {}) {
       }
     },
     async dadosAulas() { return s.dadosAulas || null },
+    async gerarAulasDoMes(novas) { const criadas = novas.map((n) => ({ id: 'gen' + s.proxId++, ...n })); s.dadosAulas.aulas.push(...criadas); s.geradas = (s.geradas || 0) + criadas.length; return [] },
     async buscarAulaBot(id) {
       const a = s.dadosAulas?.aulas.find((x) => x.id === id)
       if (!a) return null
