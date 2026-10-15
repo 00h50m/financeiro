@@ -872,3 +872,6 @@ input[type="month"], input[type="date"] { max-width: 100%; }
 .prog-campo { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text2); min-width: 0; }
 .prog-campo select { width: 100%; }
 .prog-remover { grid-column: 1 / -1; justify-self: end; font-size: 12px; color: var(--red); }
+
+.adiar-linha { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 4px; font-size: 12px; font-weight: 400; }
+.adiar-linha .link-btn { font-size: 12px; }

@@ -35,8 +35,8 @@ export function contasDoMes(detalhe, cartoes, mes, hoje = hojeSP()) {
   for (const f of detalhe.fixosLista) {
     const dia = f.dia_vencimento || null
     linhas.push({
-      chave: `fixo-${f.id}`, tipo: 'fixo', nome: f.nome, valor: Number(f.valor), dia,
-      pago: !!detalhe.fixoPagamento(f.id)?.pago, estimado: !!f.estimado,
+      chave: `fixo-${f.id}${f.mesPagamento ? `-${f.mesPagamento}` : ''}`, tipo: 'fixo', nome: f.nome, valor: Number(f.valor), dia,
+      pago: !!detalhe.fixoPagamento(f)?.pago, estimado: !!f.estimado,
     })
   }
   for (const l of detalhe.linhasCartao) {
