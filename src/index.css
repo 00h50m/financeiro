@@ -884,3 +884,17 @@ input[type="month"], input[type="date"] { max-width: 100%; }
 
 .aulas-conf-opcoes.adiar-meses { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .adiar-meses .aulas-conf-op { align-items: center; text-align: center; padding: 10px 6px; }
+
+/* plano de dívidas */
+.dividas-cmp { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.dividas-cmp-card { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; text-align: left; background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 12px; color: var(--text); cursor: pointer; font-size: 13px; }
+.dividas-cmp-card:disabled { cursor: default; opacity: .8; }
+.dividas-cmp-card.ativo { border-color: var(--green); background: rgba(34, 197, 94, .08); }
+.dividas-cmp-valor { font-size: 15px; font-weight: 600; }
+.dividas-eco { color: var(--green); font-size: 12px; }
+@media (max-width: 700px) { .dividas-cmp { grid-template-columns: 1fr; } }
+.divida-linha { display: flex; gap: 12px; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--border); }
+.divida-linha:last-child { border-bottom: 0; }
+.divida-ordem { font-weight: 700; font-size: 16px; color: var(--text3); min-width: 28px; }
+.divida-corpo { flex: 1; min-width: 0; }
+.divida-quita { font-size: 12px; margin-top: 2px; color: var(--text2); }
