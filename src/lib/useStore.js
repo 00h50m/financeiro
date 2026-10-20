@@ -513,6 +513,16 @@ export function useStore(email = null) {
     )
     if (r.error) throw r.error
   }, ['fixosPagamentos'], 'marcar o pagamento da conta fixa')
+  // Corrigir só a DATA de um pagamento já marcado (ao marcar, a data é a de hoje). Não muda valores nem o "pago",
+  // então não mexe nos números de mês fechado e não pede justificativa.
+  const definirDataPagamentoFixo = (fixo_id, mes, data) => op(async () => {
+    const r = await sb.from('fixos_pagamentos').update({ data_pagamento: data }).eq('fixo_id', fixo_id).eq('mes', mes)
+    if (r.error) throw r.error
+  }, ['fixosPagamentos'], 'corrigir a data do pagamento')
+  const definirDataPagamentoFatura = (cartao_id, mes, data) => op(async () => {
+    const r = await sb.from('faturas').update({ data_pagamento: data }).eq('cartao_id', cartao_id).eq('mes', mes)
+    if (r.error) throw r.error
+  }, ['faturas'], 'corrigir a data do pagamento')
 
   // PAGAMENTO POR PARCELA (compras sem cartão): uma linha por compra e mês
   const marcarParcelaPaga = (compra_id, mes, pago) => op(async () => {
@@ -522,6 +532,10 @@ export function useStore(email = null) {
     )
     if (r.error) throw r.error
   }, ['comprasPagamentos'], 'marcar o pagamento da parcela')
+  const definirDataPagamentoParcela = (compra_id, mes, data) => op(async () => {
+    const r = await sb.from('compras_pagamentos').update({ data_pagamento: data }).eq('compra_id', compra_id).eq('mes', mes)
+    if (r.error) throw r.error
+  }, ['comprasPagamentos'], 'corrigir a data do pagamento')
 
   // SALDO (dinheiro disponível — ajuste manual por mês)
   const definirAjusteSaldo = async (mes, ajuste) => {
@@ -1025,7 +1039,7 @@ export function useStore(email = null) {
     upsertRenda,
     addFixo, updateFixo, delFixo,
     upsertFatura, updateFatura, delFatura,
-    marcarFixoPago, marcarParcelaPaga,
+    marcarFixoPago, marcarParcelaPaga, definirDataPagamentoFixo, definirDataPagamentoFatura, definirDataPagamentoParcela,
     juntarVersoes, apagarVersaoFixo, aviso, mostrarAviso, desfazivel, desfazerExclusao, dispensarDesfazer,
     fecharMes, reabrirMes, listarAuditoria, registrarAuditoria,
     definirAjusteSaldo, definirFatorSazonal,

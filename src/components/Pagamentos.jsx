@@ -15,6 +15,7 @@ export default function Pagamentos({ store, irPara }) {
   const {
     fixos, fixosPagamentos, cartoes, compras, faturas, rendas, saldoAjustes, comprasPagamentos, comprasPagamentosOk, aulasAReceber,
     marcarFixoPago, marcarParcelaPaga, definirValorFixo, upsertFatura, updateCompra, definirAjusteSaldo,
+    definirDataPagamentoFixo, definirDataPagamentoFatura, definirDataPagamentoParcela,
   } = store
   const [mes, setMes] = useState(nowYM())
   const [usarSobra, setUsarSobra] = useState(lerUsarSaldoAnterior)
@@ -156,11 +157,18 @@ export default function Pagamentos({ store, irPara }) {
     })
   }
 
-  function dataFmt(d) {
-    if (!d) return ''
-    const [y, m, dd] = d.slice(0, 10).split('-')
-    return `${dd}/${m}/${y.slice(2)}`
-  }
+  // Ao marcar como pago a data é a de hoje; este campo deixa corrigir (ex.: pagou ontem). Campo vazio é ignorado.
+  const dataPag = (valor, aoMudar) => (
+    <input
+      type="date" className="input-data" value={(valor || '').slice(0, 10)} max={hojeSP()}
+      onChange={(e) => { if (e.target.value) aoMudar(e.target.value) }}
+      aria-label="Data do pagamento" title="Data do pagamento (clique para alterar)"
+    />
+  )
+  const semData = <span style={{ color: 'var(--text3)' }}>—</span>
+  const mudarDataParcela = (c, d) => (comprasPagamentosOk
+    ? definirDataPagamentoParcela(c.id, c.mesParcela || mes, d)
+    : updateCompra(c.id, { data_pagamento: d }))
 
   return (
     <div className="page">
@@ -318,7 +326,8 @@ export default function Pagamentos({ store, irPara }) {
                     </td>
                     <td className="nome-cel" style={{ fontWeight: 500 }}>
                       <span style={{ textDecoration: pg?.pago ? 'line-through' : 'none' }}>{f.nome}</span>
-                      <div className="so-mobile">{[f.categoria, f.dia_vencimento ? `vence dia ${f.dia_vencimento}` : '', pg?.pago && dataFmt(pg?.data_pagamento) ? `pago em ${dataFmt(pg.data_pagamento)}` : ''].filter(Boolean).join(' · ')}</div>
+                      <div className="so-mobile">{[f.categoria, f.dia_vencimento ? `vence dia ${f.dia_vencimento}` : ''].filter(Boolean).join(' · ')}</div>
+                      {pg?.pago && <div className="so-mobile">pago em {dataPag(pg.data_pagamento, (d) => definirDataPagamentoFixo(f.id, f.mesPagamento || mes, d))}</div>}
                       {acoesAdiar('fixo', f, f.nome, Number(f.valor), !!pg?.pago)}
                     </td>
                     <td className="col-opc" style={{ fontSize: 12, color: 'var(--text2)' }}>
@@ -339,7 +348,7 @@ export default function Pagamentos({ store, irPara }) {
                         <ValorDoMes fixo={f} mes={mes} real={store.fixos.find((x) => x.id === f.id)?.valores?.[mes]} definirValorFixo={definirValorFixo} compacto fechado={mesFechado(store.fechamentos, mes)} />
                       ) : fmt(f.valor)}
                     </td>
-                    <td className="col-opc" style={{ fontSize: 12, color: 'var(--text3)', fontFamily: 'DM Mono' }}>{dataFmt(pg?.data_pagamento) || '—'}</td>
+                    <td className="col-opc">{pg?.pago ? dataPag(pg.data_pagamento, (d) => definirDataPagamentoFixo(f.id, f.mesPagamento || mes, d)) : semData}</td>
                   </tr>
                 )
               })}
@@ -373,7 +382,8 @@ export default function Pagamentos({ store, irPara }) {
                   <td className="nome-cel" style={{ fontWeight: 500, textDecoration: l.pago ? 'line-through' : 'none' }}>
                     {l.nome}
                     {!l.pago && dividasOk && <div className="adiar-linha"><button className="link-btn" onClick={() => virarDivida('fatura', l, `Fatura ${l.nome}`, Number(l.valor))}>Virar dívida</button></div>}
-                    <div className="so-mobile" style={{ textDecoration: 'none' }}>{l.temFatura ? 'valor real da fatura' : 'estimado (lançado)'}{l.pago && dataFmt(l.dataPagamento) ? ` · pago em ${dataFmt(l.dataPagamento)}` : ''}</div>
+                    <div className="so-mobile" style={{ textDecoration: 'none' }}>{l.temFatura ? 'valor real da fatura' : 'estimado (lançado)'}</div>
+                    {l.pago && <div className="so-mobile" style={{ textDecoration: 'none' }}>pago em {dataPag(l.dataPagamento, (d) => definirDataPagamentoFatura(l.cartao_id, mes, d))}</div>}
                     {l.fixosNoCartao?.length > 0 && (
                       <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 400, textDecoration: 'none' }}>
                         inclui contas fixas: {l.fixosNoCartao.map((f) => `${f.nome} ${fmt(f.valor)}`).join(' · ')}
@@ -388,7 +398,7 @@ export default function Pagamentos({ store, irPara }) {
                       <span className="badge badge-gray">estimado (lançado)</span>
                     )}
                   </td>
-                  <td className="col-opc" style={{ fontSize: 12, color: 'var(--text3)', fontFamily: 'DM Mono' }}>{dataFmt(l.dataPagamento) || '—'}</td>
+                  <td className="col-opc">{l.pago ? dataPag(l.dataPagamento, (d) => definirDataPagamentoFatura(l.cartao_id, mes, d)) : semData}</td>
                 </tr>
               ))}
             </tbody>
@@ -426,7 +436,8 @@ export default function Pagamentos({ store, irPara }) {
                   </td>
                   <td className="nome-cel" style={{ fontWeight: 500, textDecoration: c.pago ? 'line-through' : 'none' }}>
                     {tituloCompra(c)}
-                    <div className="so-mobile" style={{ textDecoration: 'none' }}>{c.parcelaTotal > 1 ? `parcela ${c.parcelaNum}/${c.parcelaTotal}` : 'à vista'}{c.pago && dataFmt(c.data_pagamento) ? ` · pago em ${dataFmt(c.data_pagamento)}` : ''}</div>
+                    <div className="so-mobile" style={{ textDecoration: 'none' }}>{c.parcelaTotal > 1 ? `parcela ${c.parcelaNum}/${c.parcelaTotal}` : 'à vista'}</div>
+                    {c.pago && <div className="so-mobile" style={{ textDecoration: 'none' }}>pago em {dataPag(c.data_pagamento, (d) => mudarDataParcela(c, d))}</div>}
                     {subtituloCompra(c) && <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 400 }}>no cartão: {subtituloCompra(c)}</div>}
                     {c.obs &&<div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 400 }}>{c.obs}</div>}
                     {acoesAdiar('compra', c, tituloCompra(c), c.valorParcela, !!c.pago)}
@@ -439,7 +450,7 @@ export default function Pagamentos({ store, irPara }) {
                       <span className="badge badge-gray">à vista</span>
                     )}
                   </td>
-                  <td className="col-opc" style={{ fontSize: 12, color: 'var(--text3)', fontFamily: 'DM Mono' }}>{dataFmt(c.data_pagamento) || '—'}</td>
+                  <td className="col-opc">{c.pago ? dataPag(c.data_pagamento, (d) => mudarDataParcela(c, d)) : semData}</td>
                 </tr>
               ))}
             </tbody>
