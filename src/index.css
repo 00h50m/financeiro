@@ -325,6 +325,8 @@ input[type='checkbox'] { width: auto; min-height: 0; accent-color: var(--brand);
 .toast-red { border-color: var(--red-border); background: var(--red-bg); color: #fca5a5; }
 
 /* CELULAR: tabelas "compactas" mostram só o essencial (nome, valor, ações); o resto vai numa linha pequena embaixo do nome. */
+.input-data { width: 138px; padding: 5px 8px; font-size: 12px; font-family: 'DM Mono', monospace; color-scheme: dark; }
+.so-mobile .input-data { margin-left: 4px; }
 .so-mobile { display: none; font-size: 11px; color: var(--text3); margin-top: 3px; line-height: 1.5; font-weight: 400; }
 @media (max-width: 600px) {
   .col-opc { display: none !important; }
