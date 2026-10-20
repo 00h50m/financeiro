@@ -2,6 +2,8 @@ import { useState, useMemo } from 'react'
 import { montarInicio } from '../lib/inicio'
 import { fmt, mesLabel, nowYM, hojeSP } from '../lib/utils'
 import { resumoDoPlano } from '../lib/dividasResumo'
+import { cartaoAulasInicio } from '../lib/aulasInicio'
+import { patchRealizar, textoDuracao, valorAula } from '../lib/aulas'
 import { mesFechado } from '../lib/fechamento'
 import ModalCompra from './ModalCompra'
 import LongoPrazo from './LongoPrazo'
@@ -87,6 +89,10 @@ export default function Inicio({ store, irPara }) {
   const [novaCompra, setNovaCompra] = useState(false)
   const [diaAberto, setDiaAberto] = useState(null)
   const d = useMemo(() => montarInicio(store, mes), [store, mes])
+  // Aulas particulares: as de hoje, o que falta atualizar e o que ainda não foi recebido no mês
+  const hojeISO = hojeSP()
+  const aulasCard = useMemo(() => cartaoAulasInicio(store, hojeISO, mes), [store.aulasOk, store.alunos, store.aulas, store.aulasFech, store.aulasMesBase, store.inicioApp, mes, hojeISO]) // eslint-disable-line react-hooks/exhaustive-deps
+  const realizarAula = (a) => store.atualizarAula(a.id, patchRealizar(a, a.duracao_min, new Date().toISOString()))
   const planoDividas = useMemo(() => (store.dividas?.length ? resumoDoPlano(store, hojeSP()) : null), [store.dividas, store.rendas, store.fixos, store.compras, store.faturas, store.fixosPagamentos, store.comprasPagamentos, store.adiamentos, store.rendaSazonal]) // eslint-disable-line react-hooks/exhaustive-deps
   const sazonal = useProjecaoSazonal(store, 12)
   const fechado = mesFechado(store.fechamentos, mes)
@@ -194,6 +200,36 @@ export default function Inicio({ store, irPara }) {
           <section className="ini-card ini-linha">
             <div className="ini-card-topo"><h2>Linha do mês</h2><span className="ini-card-dica">toque numa bolinha para ver o dia</span></div>
             <LinhaDoMes linha={d.linha} aberto={diaAberto} onAbrir={setDiaAberto} />
+          </section>
+        )}
+
+        {aulasCard && (
+          <section className="ini-card ini-aulas">
+            <div className="ini-card-topo">
+              <h2>Aulas particulares</h2>
+              <button className="link-btn" onClick={() => irPara('aulas')}>Abrir aulas →</button>
+            </div>
+            {aulasCard.hoje.length > 0 ? (
+              <div className="ini-aulas-hoje">
+                <div className="cad-sub">Hoje</div>
+                {aulasCard.hoje.map(({ aula, aluno }) => (
+                  <div key={aula.id} className="ini-aula-linha">
+                    <span><b>{aula.horario ? `${aula.horario} · ` : ''}{aluno.nome}</b> <span className="cad-sub">{textoDuracao(aula.duracao_min)} · {fmt(valorAula(aula.valor_hora_centavos, aula.duracao_min) / 100)}</span></span>
+                    <button className="btn btn-primary btn-sm" onClick={() => realizarAula(aula)}>✓ Realizada</button>
+                  </div>
+                ))}
+              </div>
+            ) : <div className="cad-sub">Nenhuma aula prevista para hoje.</div>}
+            {aulasCard.atrasadas > 0 && (
+              <button className="ini-aulas-aviso" onClick={() => irPara('aulas')}>⚠ {aulasCard.atrasadas} {aulasCard.atrasadas === 1 ? 'aula de dia passado ainda como prevista' : 'aulas de dias passados ainda como previstas'}: toque para atualizar</button>
+            )}
+            {(aulasCard.mes || aulasCard.aReceberFechado > 0) && (
+              <div className="ini-aulas-mes">
+                {aulasCard.mes && <span>{mesLabel(mes)}: <b className="mono">{fmt(aulasCard.mes.valor)}</b> em aulas{aulasCard.mes.projetada ? ' (previsto)' : ''}</span>}
+                {aulasCard.mes && aulasCard.mes.aReceber > 0.005 && <span>ainda não recebido <b className="mono">{fmt(aulasCard.mes.aReceber)}</b></span>}
+                {aulasCard.aReceberFechado > 0 && <span style={{ color: 'var(--amber)' }}>{aulasCard.nFechadas} {aulasCard.nFechadas === 1 ? 'mês fechado' : 'meses fechados'} sem recebimento: <b className="mono">{fmt(aulasCard.aReceberFechado)}</b></span>}
+              </div>
+            )}
           </section>
         )}
 
