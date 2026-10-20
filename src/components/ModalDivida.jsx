@@ -7,10 +7,10 @@ export const TIPOS_DIVIDA = { cartao: 'Cartão', boleto: 'Boleto / conta atrasad
 const txt = (n) => (Number(n) ? String(n).replace('.', ',') : '')
 
 // Cadastro de uma dívida. Só nome e saldo são obrigatórios; parcela e juros ajudam a simular melhor.
-export default function ModalDivida({ divida, onSalvar, onRemover, onClose }) {
+export default function ModalDivida({ divida, sugestao, onSalvar, onRemover, onClose }) {
   const [f, setF] = useState(() => ({
-    nome: divida?.nome || '', tipo: divida?.tipo || 'cartao', saldo: txt(divida?.saldo), parcela: txt(divida?.parcela), juros: txt(divida?.juros_mes),
-    dia: divida?.vencimento_dia ? String(divida.vencimento_dia) : '', atrasada: !!divida?.atrasada, obs: divida?.observacao || '',
+    nome: divida?.nome || sugestao?.nome || '', tipo: divida?.tipo || sugestao?.tipo || 'cartao', saldo: txt(divida?.saldo ?? sugestao?.valor), parcela: txt(divida?.parcela), juros: txt(divida?.juros_mes),
+    dia: divida?.vencimento_dia ? String(divida.vencimento_dia) : '', atrasada: divida ? !!divida.atrasada : !!sugestao, obs: divida?.observacao || '',
   }))
   const [salvando, setSalvando] = useState(false)
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.value }))
@@ -25,6 +25,8 @@ export default function ModalDivida({ divida, onSalvar, onRemover, onClose }) {
       ...(divida?.id ? { id: divida.id } : {}),
       nome: f.nome.trim(), tipo: f.tipo, saldo: extra.quitar ? 0 : saldo, parcela: lerNum(f.parcela), juros_mes: lerNum(f.juros),
       vencimento_dia: dia >= 1 && dia <= 31 ? dia : null, atrasada: f.atrasada, observacao: f.obs.trim() || null,
+      saldo_inicial: Math.max(Number(divida?.saldo_inicial) || Number(divida?.saldo) || 0, extra.quitar ? 0 : saldo),
+      ...(sugestao?.origem ? { origem: sugestao.origem } : {}),
       ...(extra.quitar ? { ativa: false, quitada_em: hojeSP() } : { ativa: true, quitada_em: null }),
     }
     const ok = await onSalvar(reg)

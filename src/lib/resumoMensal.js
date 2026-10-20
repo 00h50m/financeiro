@@ -3,6 +3,7 @@ import { fmt, mesLabel, addMonths, statusTeto } from './utils.js'
 import { serieMensal } from './evolucao.js'
 import { categoriasDoMes } from './graficos.js'
 import { resumoDoMes } from './financeiro.js'
+import { resumoDoPlano } from './dividasResumo.js'
 import { antesDoInicio } from './inicioApp.js'
 import { terminandoLogo } from './parcelamentos.js'
 import { pendenciasValorVariavel } from './fixosVariaveis.js'
@@ -31,6 +32,8 @@ export function montarResumoMensal(d, mes, hoje) {
   if (r.aPagar > 0.005) base.avisos.push({ tom: 'info', texto: `Ainda a pagar neste mês: ${fmt(r.aPagar)}` })
   const aReceberAulas = Number((d.aulasAReceber || {})[mes]) || 0
   if (aReceberAulas > 0.005) base.avisos.push({ tom: 'info', texto: `Aulas particulares a receber: ${fmt(aReceberAulas)} (já contam na renda do mês)` })
+  const plano = d.dividas?.length ? resumoDoPlano(d, hoje) : null
+  if (plano) base.avisos.push({ tom: plano.atrasadas ? 'ruim' : 'info', texto: `Dívidas: ${plano.texto}${plano.pctPago > 0 ? `. Já pagou ${plano.pctPago}% do total` : ''}` })
   const acabam = terminandoLogo(d.compras, d.cartoes, mes, 0)
   if (acabam.length) base.avisos.push({ tom: 'bom', texto: `Última parcela este mês: ${acabam.map((a) => a.compra.identificacao || a.compra.descricao).join(', ')} (libera ${fmt(acabam.reduce((t, a) => t + a.libera, 0))}/mês)` })
   const pend = pendenciasValorVariavel(d.fixos, hoje, { inicio: d.inicioApp }).filter((p) => p.mes === mes)

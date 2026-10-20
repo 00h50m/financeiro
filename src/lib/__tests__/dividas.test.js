@@ -59,3 +59,36 @@ describe('plano de dívidas', () => {
     expect(simularPlano([], { orcamento: 100, inicio: '2026-11' }).livreEm).toBe(0)
   })
 })
+
+import { atrasadasDoApp } from '../dividasApp.js'
+import { resumoDoPlano } from '../dividasResumo.js'
+import { montarResumoMensal, textoDoResumo } from '../resumoMensal.js'
+
+const dados = (extra = {}) => ({
+  cartoes: [], faturas: [], saldoAjustes: [], comprasPagamentos: [], comprasPagamentosOk: true, compras: [], fixosPagamentos: [], rendaSazonal: [], inicioApp: '2026-09',
+  fixos: [{ id: 'f1', nome: 'Aluguel', valor: 1000, ativo: true, dia_vencimento: 5, categoria: 'Casa', subcategoria: 'Aluguel' }],
+  rendas: [{ mes: '2026-09', giovanna: 4000 }, { mes: '2026-10', giovanna: 4000 }, { mes: '2026-11', giovanna: 4000 }], fechamentos: [], dividas: [], ...extra,
+})
+
+describe('plano de dívidas v2', () => {
+  it('conta de mês passado sem pagar vira candidata; paga ou já importada não', () => {
+    const d = dados()
+    expect(atrasadasDoApp(d, '2026-10-15').map((a) => a.origem)).toEqual(['fixo|f1|2026-09'])
+    expect(atrasadasDoApp({ ...d, fixosPagamentos: [{ fixo_id: 'f1', mes: '2026-09', pago: true }] }, '2026-10-15')).toEqual([])
+    expect(atrasadasDoApp(d, '2026-10-15', [{ origem: 'fixo|f1|2026-09' }])).toEqual([])
+  })
+  it('mês atual e futuro não entram como atrasados', () => {
+    expect(atrasadasDoApp({ ...dados(), inicioApp: '2026-10' }, '2026-10-15')).toEqual([])
+  })
+  it('resumo do plano: total, progresso, próxima a quitar e mês livre', () => {
+    const r = resumoDoPlano(dados({ dividas: [{ id: 'a', nome: 'Boleto', saldo: 300, saldo_inicial: 500, parcela: 0, juros_mes: 0, ativa: true }] }), '2026-10-15')
+    expect(r).toMatchObject({ total: 300, pago: 200, pctPago: 40, proxima: { nome: 'Boleto' } })
+    expect(r.livreMes).toBeTruthy()
+    expect(resumoDoPlano(dados(), '2026-10-15')).toBeNull()
+  })
+  it('resumo mensal (Telegram) ganha a linha de dívidas', () => {
+    const d = dados({ dividas: [{ id: 'a', nome: 'Cartão', saldo: 900, saldo_inicial: 900, parcela: 100, juros_mes: 2, ativa: true, atrasada: true }], compras: [] })
+    const t = textoDoResumo(montarResumoMensal(d, '2026-10', '2026-10-31'))
+    expect(t).toContain('Dívidas: 1 dívida')
+  })
+})
