@@ -5,6 +5,9 @@ import { fmt, fmtK, mesLabel, nowYM } from '../lib/utils'
 import { compararEstrategias, resumoDividas, ESTRATEGIAS } from '../lib/dividas'
 import { perfilDeLinhas, projecaoRenda } from '../lib/rendaSazonal'
 import { lerNum } from '../lib/adiamentoPref'
+import { atrasadasDoApp } from '../lib/dividasApp'
+import { terminandoLogo } from '../lib/parcelamentos'
+import { tituloCompra } from '../lib/utils'
 
 const MESES_PROJECAO = 24
 const prazo = (idx) => (idx == null ? null : `${idx + 1} ${idx + 1 === 1 ? 'mês' : 'meses'}`)
@@ -13,7 +16,7 @@ const prazo = (idx) => (idx == null ? null : `${idx + 1} ${idx + 1 === 1 ? 'mês
 export default function PlanoDividas({ store }) {
   const { dividas, dividasOk, salvarDivida, removerDivida } = store
   const hoje = nowYM()
-  const [modal, setModal] = useState(null) // { divida? }
+  const [modal, setModal] = useState(null) // { divida? } ou { sugestao } (conta atrasada do app a importar)
   const [fonte, setFonte] = useState('projecao') // 'projecao' | 'fixo'
   const [fixo, setFixo] = useState('')
   const [estrategia, setEstrategia] = useState('avalanche')
@@ -28,7 +31,19 @@ export default function PlanoDividas({ store }) {
   const ativas = dividas.filter((d) => d.ativa !== false && Number(d.saldo) > 0)
   const prioridade = new Map(plano.ordemQuitacao.map((o, i) => [o.id, i]))
   const lista = [...ativas].sort((a, b) => (prioridade.get(a.id) ?? 99) - (prioridade.get(b.id) ?? 99) || Number(b.juros_mes) - Number(a.juros_mes))
+  const atrasadasApp = useMemo(() => atrasadasDoApp(store, `${hoje}-01`, dividas), [store, hoje, dividas])
+  const terminando = useMemo(() => terminandoLogo(store.compras, store.cartoes, hoje, 12).slice(0, 5), [store.compras, store.cartoes, hoje])
+  const inicialTotal = dividas.filter((d) => d.ativa !== false).reduce((t, d) => t + (Number(d.saldo_inicial) || Number(d.saldo)), 0)
+  const jaPago = Math.max(0, inicialTotal - resumo.total)
   const maior = Math.max(1, plano.inicial)
+  async function paguei(d) {
+    const t = window.prompt(`Quanto você pagou de "${d.nome}"? (R$)`, '')
+    if (t == null || t.trim() === '') return
+    const v = lerNum(t)
+    if (!(v > 0)) { window.alert('Não entendi esse valor. Exemplo: 250 ou 250,50'); return }
+    const novo = Math.max(0, Math.round((Number(d.saldo) - v) * 100) / 100)
+    await salvarDivida(novo === 0 ? { id: d.id, saldo: 0, ativa: false, quitada_em: new Date().toISOString().slice(0, 10) } : { id: d.id, saldo: novo })
+  }
   const melhor = ['avalanche', 'bola'].filter((e) => cmp[e].livreEm != null).sort((a, b) => cmp[a].jurosTotal - cmp[b].jurosTotal)[0]
 
   if (!dividasOk) {
@@ -37,7 +52,7 @@ export default function PlanoDividas({ store }) {
 
   return (
     <div className="page dividas-pg">
-      {modal && <ModalDivida divida={modal.divida} onSalvar={salvarDivida} onRemover={removerDivida} onClose={() => setModal(null)} />}
+      {modal && <ModalDivida divida={modal.divida} sugestao={modal.sugestao} onSalvar={salvarDivida} onRemover={removerDivida} onClose={() => setModal(null)} />}
 
       <div className="aulas-acoes" style={{ marginBottom: 12 }}>
         <button className="btn btn-primary" onClick={() => setModal({})}>+ Dívida</button>
@@ -53,6 +68,15 @@ export default function PlanoDividas({ store }) {
             <div className="kpi"><div className="kpi-rotulo">Juros por mês</div><div className="kpi-valor">{resumo.jurosMes ? fmtK(resumo.jurosMes) : '—'}</div><div className="kpi-sub">{resumo.jurosMes ? 'o que a dívida cresce sozinha' : 'informe os juros para estimar'}</div></div>
             <div className="kpi"><div className="kpi-rotulo">Livre em</div><div className="kpi-valor verde">{plano.livreMes ? mesLabel(plano.livreMes) : '—'}</div><div className="kpi-sub">{plano.livreEm != null ? `em ${prazo(plano.livreEm)} · ${ESTRATEGIAS[estrategia].split(' (')[0]}` : 'não quita no prazo com esse valor'}</div></div>
           </div>
+
+          {inicialTotal > 0 && (
+            <div className="card" style={{ padding: 12 }}>
+              <div className="aulas-meta-barra" role="progressbar" aria-valuenow={Math.round((jaPago / inicialTotal) * 100)} aria-valuemin={0} aria-valuemax={100} aria-label="Já pago do total">
+                <span className="apur" style={{ width: `${Math.min(100, Math.round((jaPago / inicialTotal) * 100))}%` }} />
+              </div>
+              <div className="cad-sub">Já pagou <b>{fmt(jaPago)}</b> de {fmt(inicialTotal)} ({Math.round((jaPago / inicialTotal) * 100)}%). Quando pagar algo, toque em "Paguei" na dívida para atualizar.</div>
+            </div>
+          )}
 
           <div className="card" style={{ padding: 14 }}>
             <div style={{ fontWeight: 600, marginBottom: 6 }}>Quanto dá para pagar de dívida por mês?</div>
@@ -97,11 +121,44 @@ export default function PlanoDividas({ store }) {
                     </div>
                     <div className="divida-quita">{q ? <>Quita em <b>{mesLabel(q.mes)}</b> ({prazo(q.idx)}){q.jurosPagos > 0.5 ? ` · juros ${fmt(q.jurosPagos)}` : ''}</> : nao ? <span style={{ color: 'var(--red)' }}>Não quita no prazo: os juros comem o pagamento. Renegocie ou aumente o valor.</span> : null}</div>
                   </div>
-                  <button className="btn btn-ghost btn-sm" onClick={() => setModal({ divida: d })}>Editar</button>
+                  <div className="divida-acoes">
+                    <button className="btn btn-ghost btn-sm" onClick={() => paguei(d)}>Paguei</button>
+                    <button className="btn btn-ghost btn-sm" onClick={() => setModal({ divida: d })}>Editar</button>
+                  </div>
                 </div>
               )
             })}
           </div>
+
+          {atrasadasApp.length > 0 && (
+            <>
+              <div className="section-label">contas atrasadas no app (ainda sem pagar)</div>
+              <div className="card" style={{ padding: 0 }}>
+                {atrasadasApp.slice(0, 12).map((a) => (
+                  <div key={a.origem} className="divida-linha">
+                    <div className="divida-corpo"><b>{a.nome}</b><div className="cad-sub">{mesLabel(a.mes)} · {fmt(a.valor)}</div></div>
+                    <button className="btn btn-ghost btn-sm" onClick={() => setModal({ sugestao: a })}>Adicionar ao plano</button>
+                  </div>
+                ))}
+              </div>
+              <div className="cad-sub" style={{ margin: '6px 2px 14px' }}>Contas de meses passados que continuam sem o "pago". Se já pagou, marque em Pagamentos. Se não, adicione ao plano para somar na estratégia.</div>
+            </>
+          )}
+
+          {terminando.length > 0 && (
+            <>
+              <div className="section-label">parcelamentos do app que terminam (liberam dinheiro)</div>
+              <div className="card" style={{ padding: 0 }}>
+                {terminando.map((t) => (
+                  <div key={t.compra.id} className="divida-linha">
+                    <div className="divida-corpo"><b>{tituloCompra(t.compra)}</b><div className="cad-sub">última parcela em {mesLabel(t.termino)} · {t.parcelasRestantes} {t.parcelasRestantes === 1 ? 'parcela restante' : 'parcelas restantes'}</div></div>
+                    <span className="mono" style={{ color: 'var(--green)' }}>libera {fmt(t.libera)}/mês</span>
+                  </div>
+                ))}
+              </div>
+              <div className="cad-sub" style={{ margin: '6px 2px 14px' }}>Esses já estão na sua sobra projetada: quando terminam, a sobra sobe e o plano acelera sozinho.</div>
+            </>
+          )}
 
           <div className="section-label">saldo total ao longo do tempo</div>
           <div className="card" style={{ padding: 14 }}>

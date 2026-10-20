@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { montarInicio } from '../lib/inicio'
-import { fmt, mesLabel, nowYM } from '../lib/utils'
+import { fmt, mesLabel, nowYM, hojeSP } from '../lib/utils'
+import { resumoDoPlano } from '../lib/dividasResumo'
 import { mesFechado } from '../lib/fechamento'
 import ModalCompra from './ModalCompra'
 import LongoPrazo from './LongoPrazo'
@@ -86,6 +87,7 @@ export default function Inicio({ store, irPara }) {
   const [novaCompra, setNovaCompra] = useState(false)
   const [diaAberto, setDiaAberto] = useState(null)
   const d = useMemo(() => montarInicio(store, mes), [store, mes])
+  const planoDividas = useMemo(() => (store.dividas?.length ? resumoDoPlano(store, hojeSP()) : null), [store.dividas, store.rendas, store.fixos, store.compras, store.faturas, store.fixosPagamentos, store.comprasPagamentos, store.adiamentos, store.rendaSazonal]) // eslint-disable-line react-hooks/exhaustive-deps
   const sazonal = useProjecaoSazonal(store, 12)
   const fechado = mesFechado(store.fechamentos, mes)
   const negativo = d.podeGastar < 0
@@ -192,6 +194,25 @@ export default function Inicio({ store, irPara }) {
           <section className="ini-card ini-linha">
             <div className="ini-card-topo"><h2>Linha do mês</h2><span className="ini-card-dica">toque numa bolinha para ver o dia</span></div>
             <LinhaDoMes linha={d.linha} aberto={diaAberto} onAbrir={setDiaAberto} />
+          </section>
+        )}
+
+        {planoDividas && (
+          <section className="ini-card ini-dividas">
+            <div className="ini-card-topo">
+              <h2>Dívidas</h2>
+              <button className="link-btn" onClick={() => irPara('dividas')}>Abrir o plano →</button>
+            </div>
+            <div className="ini-dividas-linha">
+              <div><div className="cad-sub">Você deve</div><div className="mono" style={{ fontSize: 18, fontWeight: 600, color: 'var(--red)' }}>{fmt(planoDividas.total)}</div></div>
+              <div style={{ textAlign: 'right' }}><div className="cad-sub">{planoDividas.livreMes ? 'Livre em' : 'Prazo'}</div><div className="mono" style={{ fontSize: 18, fontWeight: 600, color: 'var(--green)' }}>{planoDividas.livreMes ? mesLabel(planoDividas.livreMes) : '—'}</div></div>
+            </div>
+            <div className="aulas-meta-barra" role="progressbar" aria-valuenow={planoDividas.pctPago} aria-valuemin={0} aria-valuemax={100} aria-label="Já pago do total das dívidas"><span className="apur" style={{ width: `${planoDividas.pctPago}%` }} /></div>
+            <div className="cad-sub">
+              {planoDividas.pctPago > 0 ? `Já pagou ${fmt(planoDividas.pago)} (${planoDividas.pctPago}%). ` : ''}
+              {planoDividas.proxima ? <>Próxima a quitar: <b>{planoDividas.proxima.nome}</b> em {mesLabel(planoDividas.proxima.mes)}.</> : 'Informe a parcela ou o valor por mês para o app estimar a quitação.'}
+              {planoDividas.atrasadas > 0 ? ` ${planoDividas.atrasadas} ${planoDividas.atrasadas === 1 ? 'está atrasada' : 'estão atrasadas'}.` : ''}
+            </div>
           </section>
         )}
 
