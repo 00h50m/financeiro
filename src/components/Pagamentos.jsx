@@ -4,13 +4,14 @@ import { mediaRecente, pendenciasValorVariavel } from '../lib/fixosVariaveis'
 import ValorDoMes from './ValorDoMes'
 import Secao from './Secao'
 import ModalAdiar from './ModalAdiar'
+import ModalDivida from './ModalDivida'
 import NavMes, { PilulasPago } from './NavMes'
 import { CampoBusca, ResumoFiltro } from './FiltroLista'
 import { fmt, fmtK, mesLabel, nowYM, addMonths, totalRenda, tituloCompra, subtituloCompra, hojeSP } from '../lib/utils'
 import { mesFechado } from '../lib/fechamento'
 import { resumoDoMes, sobraAnterior, lerUsarSaldoAnterior, gravarUsarSaldoAnterior } from '../lib/financeiro'
 
-export default function Pagamentos({ store }) {
+export default function Pagamentos({ store, irPara }) {
   const {
     fixos, fixosPagamentos, cartoes, compras, faturas, rendas, saldoAjustes, comprasPagamentos, comprasPagamentosOk, aulasAReceber,
     marcarFixoPago, marcarParcelaPaga, definirValorFixo, upsertFatura, updateCompra, definirAjusteSaldo,
@@ -29,7 +30,9 @@ export default function Pagamentos({ store }) {
   const [secoes, setSecoes] = useState({}) // seção → aberta; sem valor: abre quando ainda há algo a pagar
   const [extratoAberto, setExtratoAberto] = useState(false)
   const [adiando, setAdiando] = useState(null) // { tipo, refId, titulo, valor, mesOrigem, destinoAtual }
-  const { adiamentosOk, adiarConta, desfazerAdiamento } = store
+  const [divida, setDivida] = useState(null) // sugestão de dívida criada a partir de uma conta
+  const { adiamentosOk, adiarConta, desfazerAdiamento, dividasOk, salvarDivida, removerDivida } = store
+  const noPlanoMes = (store.dividas || []).filter((x) => x.origem && x.origem.split('|')[2] === mes)
   const registroAdiamento = (tipo, refId, mesOrigem) => (store.adiamentos || []).find((a) => a.tipo === tipo && String(a.ref_id) === String(refId) && a.mes_origem === mesOrigem)
   function abrirAdiar(tipo, item, titulo, valor) {
     const mesOrigem = item.adiadoDe || mes
@@ -42,18 +45,26 @@ export default function Pagamentos({ store }) {
     if (mesFechado(store.fechamentos, item.adiadoDe) || mesFechado(store.fechamentos, mes)) { window.alert('Um dos meses está fechado. Reabra o fechamento para mexer nessa conta.'); return }
     await desfazerAdiamento(r.id)
   }
+  // Virar dívida: a conta sai do mês e passa a ser paga pelo Plano de dívidas.
+  function virarDivida(tipo, item, nome, valor) {
+    const mesOrigem = item.adiadoDe || item.mesPagamento || item.mesParcela || mes
+    if (mesFechado(store.fechamentos, mesOrigem)) { window.alert(`${mesLabel(mesOrigem)} está fechado. Reabra o fechamento para mexer nessa conta.`); return }
+    setDivida({ nome, valor: valor - (item.acrescimoAdiamento || 0), tipo: tipo === 'fatura' ? 'cartao' : 'boleto', origem: `${tipo}|${tipo === 'fatura' ? item.cartao_id : item.id}|${tipo === 'fatura' ? mesOrigem : (tipo === 'fixo' ? item.mesPagamento || mes : item.mesParcela || mes)}` })
+  }
+  const linkDivida = (tipo, item, nome, valor) => (dividasOk ? <button className="link-btn" onClick={() => virarDivida(tipo, item, nome, valor)}>Virar dívida</button> : null)
   // Ações de adiar na linha de uma conta: Adiar (se ainda não está paga) ou, se já foi adiada, Voltar / Mudar de mês.
   const acoesAdiar = (tipo, item, titulo, valor, pago) => {
     if (!adiamentosOk) return null
     if (item.adiadoDe) return (
       <div className="adiar-linha"><span className="badge badge-amber">adiada de {mesLabel(item.adiadoDe)}{item.acrescimoAdiamento > 0 ? ` · +${fmt(item.acrescimoAdiamento)} de multa/juros` : ''}</span>
         <button className="link-btn" onClick={() => voltarAdiada(tipo, item)}>voltar para {mesLabel(item.adiadoDe)}</button>
+        {!pago && linkDivida(tipo, item, titulo, valor)}
         {!pago && <button className="link-btn" onClick={() => abrirAdiar(tipo, item, titulo, valor)}>mudar de mês</button>}</div>
     )
-    return pago ? null : <div className="adiar-linha"><button className="link-btn" onClick={() => abrirAdiar(tipo, item, titulo, valor)}>Adiar para outro mês</button></div>
+    return pago ? null : <div className="adiar-linha"><button className="link-btn" onClick={() => abrirAdiar(tipo, item, titulo, valor)}>Adiar para outro mês</button>{linkDivida(tipo, item, titulo, valor)}</div>
   }
 
-  const dados = { fixos, fixosPagamentos, cartoes, compras, faturas, rendas, saldoAjustes, comprasPagamentos, comprasPagamentosOk, aulasAReceber, adiamentos: store.adiamentos }
+  const dados = { fixos, fixosPagamentos, cartoes, compras, faturas, rendas, saldoAjustes, comprasPagamentos, comprasPagamentosOk, aulasAReceber, adiamentos: store.adiamentos, dividas: store.dividas }
   const resumo = resumoDoMes(dados, mes, { usarSaldoAnterior: usarSobra })
   const {
     fixosLista: fixosAtivos, fixoPagamento, linhasCartao, outrasContas,
@@ -153,6 +164,7 @@ export default function Pagamentos({ store }) {
 
   return (
     <div className="page">
+      {divida && <ModalDivida sugestao={divida} onSalvar={salvarDivida} onRemover={removerDivida} onClose={() => setDivida(null)} />}
       {adiando && <ModalAdiar titulo={adiando.titulo} valor={adiando.valor} mesOrigem={adiando.mesOrigem} mesAtualDestino={adiando.destinoAtual} onClose={() => setAdiando(null)} onConfirmar={(destino, acrescimo) => adiarConta(adiando.tipo, adiando.refId, adiando.mesOrigem, destino, acrescimo)} />}
       {pendencias.length > 0 && (
         <div className="alert alert-amber">
@@ -360,6 +372,7 @@ export default function Pagamentos({ store }) {
                   </td>
                   <td className="nome-cel" style={{ fontWeight: 500, textDecoration: l.pago ? 'line-through' : 'none' }}>
                     {l.nome}
+                    {!l.pago && dividasOk && <div className="adiar-linha"><button className="link-btn" onClick={() => virarDivida('fatura', l, `Fatura ${l.nome}`, Number(l.valor))}>Virar dívida</button></div>}
                     <div className="so-mobile" style={{ textDecoration: 'none' }}>{l.temFatura ? 'valor real da fatura' : 'estimado (lançado)'}{l.pago && dataFmt(l.dataPagamento) ? ` · pago em ${dataFmt(l.dataPagamento)}` : ''}</div>
                     {l.fixosNoCartao?.length > 0 && (
                       <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 400, textDecoration: 'none' }}>
@@ -440,6 +453,22 @@ export default function Pagamentos({ store }) {
         </>
       )}
       </Secao>
+
+      {noPlanoMes.length > 0 && (
+        <section className="card" style={{ padding: 14 }}>
+          <div style={{ fontWeight: 600, marginBottom: 4 }}>Viraram dívida em {mesLabel(mes)}</div>
+          <div className="cad-sub" style={{ marginBottom: 8 }}>Saíram do mês e passam a ser pagas pelo Plano de dívidas.</div>
+          {noPlanoMes.map((x) => (
+            <div key={x.id} className="divida-linha" style={{ padding: '8px 0' }}>
+              <div className="divida-corpo"><b>{x.nome}</b><div className="cad-sub">{x.ativa === false ? 'quitada' : `deve ${fmt(Number(x.saldo))}`}{Number(x.saldo_inicial) ? ` · era ${fmt(Number(x.saldo_inicial))}` : ''}</div></div>
+              <div className="divida-acoes">
+                {irPara && <button className="btn btn-ghost btn-sm" onClick={() => irPara('dividas')}>Ver no plano</button>}
+                <button className="btn btn-ghost btn-sm" onClick={async () => { if (window.confirm(`Voltar "${x.nome}" para as contas de ${mesLabel(mes)}? A dívida será apagada do plano.`)) await removerDivida(x.id) }}>Desfazer</button>
+              </div>
+            </div>
+          ))}
+        </section>
+      )}
     </div>
   )
 }

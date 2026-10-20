@@ -98,6 +98,9 @@ export function detalhePagamentos(d, mes) {
   // Fixos pagos no cartão não são contas à parte: já estão dentro da fatura do cartão (ver abaixo).
   // Adiamentos: uma conta sem cartão (conta fixa ou parcela de compra sem cartão) pode ser movida de um mês para outro.
   // Sai do mês de origem e entra no de destino; o "pago" continua guardado no mês de origem (`mesPagamento`).
+  // Plano de dívidas: uma conta que virou dívida (dividas.origem = 'fixo|id|mês', 'compra|id|mês' ou 'fatura|cartão|mês') sai da lista do mês,
+  // porque passa a ser paga pelo plano. A chave usa o mês de origem do pagamento.
+  const noPlano = new Set((d.dividas || []).map((x) => x.origem).filter(Boolean))
   const adiamentos = d.adiamentos || []
   const adiadoDe = (tipo, id, m) => adiamentos.find((a) => a.tipo === tipo && String(a.ref_id) === String(id) && a.mes_origem === m)
   const noCartao = (f) => !!f.cartao_id && cartoes.some((c) => c.id === f.cartao_id)
@@ -105,7 +108,7 @@ export function detalhePagamentos(d, mes) {
   const fixosQueChegam = adiamentos
     .filter((a) => a.tipo === 'fixo' && a.mes_destino === mes)
     .flatMap((a) => { const f = fixosAtivos(fixos, a.mes_origem).find((x) => String(x.id) === String(a.ref_id)); return f && !noCartao(f) ? [{ ...f, valor: Number(f.valor) + (Number(a.acrescimo) || 0), adiadoDe: a.mes_origem, mesPagamento: a.mes_origem, acrescimoAdiamento: Number(a.acrescimo) || 0 }] : [] })
-  const fixosMes = [...fixosProprios, ...fixosQueChegam]
+  const fixosMes = [...fixosProprios, ...fixosQueChegam].filter((f) => noCartao(f) || !noPlano.has(`fixo|${f.id}|${f.mesPagamento || mes}`))
   const fixosLista = fixosMes.filter((f) => !noCartao(f)).sort(POR_DIA)
   // Aceita o id ou a própria conta (a conta adiada olha o pagamento do mês de origem).
   const fixoPagamento = (idOuConta) => {
@@ -125,11 +128,11 @@ export function detalhePagamentos(d, mes) {
       }
     } else {
       const parcela = parcelas.find((p) => p.mes === mes)
-      if (parcela && !adiadoDe('compra', c.id, mes)) parcelasSemCartao.push({ c, parcela, primeiroMes: parcelas[0].mes })
+      if (parcela && !adiadoDe('compra', c.id, mes) && !noPlano.has(`compra|${c.id}|${mes}`)) parcelasSemCartao.push({ c, parcela, primeiroMes: parcelas[0].mes })
       for (const a of adiamentos) { // parcelas de outros meses que foram adiadas para este
         if (a.tipo !== 'compra' || a.mes_destino !== mes || String(a.ref_id) !== String(c.id)) continue
         const veio = parcelas.find((p) => p.mes === a.mes_origem)
-        if (veio) parcelasSemCartao.push({ c, parcela: { ...veio, valor: veio.valor + (Number(a.acrescimo) || 0) }, primeiroMes: parcelas[0].mes, adiadoDe: a.mes_origem, acrescimoAdiamento: Number(a.acrescimo) || 0 })
+        if (veio && !noPlano.has(`compra|${c.id}|${a.mes_origem}`)) parcelasSemCartao.push({ c, parcela: { ...veio, valor: veio.valor + (Number(a.acrescimo) || 0) }, primeiroMes: parcelas[0].mes, adiadoDe: a.mes_origem, acrescimoAdiamento: Number(a.acrescimo) || 0 })
       }
     }
   }
@@ -139,7 +142,7 @@ export function detalhePagamentos(d, mes) {
   const cartaoIds = new Set(lancadoPorCartao.keys())
   faturas.forEach((f) => { if (f.mes === mes && f.cartao_id) cartaoIds.add(f.cartao_id) })
 
-  const linhasCartao = [...cartaoIds]
+  const linhasCartao = [...cartaoIds].filter((cartao_id) => !noPlano.has(`fatura|${cartao_id}|${mes}`))
     .map((cartao_id) => {
       const cartao = cartoes.find((c) => c.id === cartao_id)
       const lancado = lancadoPorCartao.get(cartao_id) || 0

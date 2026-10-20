@@ -92,3 +92,36 @@ describe('plano de dívidas v2', () => {
     expect(t).toContain('Dívidas: 1 dívida')
   })
 })
+
+import { detalhePagamentos } from '../financeiro.js'
+describe('conta que virou dívida sai do mês', () => {
+  const base = () => dados({
+    inicioApp: '2026-10', cartoes: [{ id: 'k', nome: 'Nubank', ativo: true }],
+    compras: [{ id: 'c1', descricao: 'Boleto TV', valor_total: 900, parcelas: 3, data_compra: '2026-10-05', categoria: 'Casa', subcategoria: 'Outros', cartao_id: null, pessoa: 'G' }],
+    faturas: [{ id: 'fa', cartao_id: 'k', mes: '2026-10', valor_real: 2000, pago: false }],
+  })
+  it('conta fixa, parcela de boleto e fatura saem do comprometido quando existe dívida com a origem', () => {
+    const d = base()
+    const antes = detalhePagamentos(d, '2026-10').comprometido
+    expect(antes).toBe(1000 + 300 + 2000)
+    const dd = { ...d, dividas: [{ origem: 'fixo|f1|2026-10' }, { origem: 'compra|c1|2026-10' }, { origem: 'fatura|k|2026-10' }] }
+    const det = detalhePagamentos(dd, '2026-10')
+    expect(det.fixosLista).toHaveLength(0)
+    expect(det.outrasContas).toHaveLength(0)
+    expect(det.linhasCartao).toHaveLength(0)
+    expect(det.comprometido).toBe(0)
+  })
+  it('só some o mês indicado: a parcela do mês seguinte continua', () => {
+    const dd = { ...base(), dividas: [{ origem: 'compra|c1|2026-10' }] }
+    expect(detalhePagamentos(dd, '2026-11').outrasContas).toHaveLength(1)
+    expect(detalhePagamentos(dd, '2026-11').fixosLista).toHaveLength(1)
+  })
+  it('dívida sem origem (cadastrada à mão) não mexe nos meses', () => {
+    const dd = { ...base(), dividas: [{ nome: 'Cartão', origem: null }] }
+    expect(detalhePagamentos(dd, '2026-10').comprometido).toBe(3300)
+  })
+  it('a dívida quitada continua tirando a conta do mês (ela foi paga pelo plano)', () => {
+    const dd = { ...base(), dividas: [{ origem: 'fixo|f1|2026-10', ativa: false, saldo: 0 }] }
+    expect(detalhePagamentos(dd, '2026-10').fixosLista).toHaveLength(0)
+  })
+})
