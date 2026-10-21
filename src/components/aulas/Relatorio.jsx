@@ -2,12 +2,15 @@ import { useMemo, useState } from 'react'
 import { fmt, fmtK, nowYM } from '../../lib/utils'
 import { centavosParaReais, textoDuracao } from '../../lib/aulas'
 import { anosComAulas, csvRelatorio, relatorioAnual } from '../../lib/aulasRelatorio'
+import RelatorioDetalhado from './RelatorioDetalhado'
+import { Pilulas } from '../NavMes'
 
 const MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
 const reais = (c) => fmt(centavosParaReais(c))
 
 // Relatório do ano: mês a mês (valor, horas, cancelamentos, recebimentos) e por aluno; destaca os meses fracos.
-export default function Relatorio({ alunos, aulas, aulasFech, alunoId, metaCentavos = 0 }) {
+export default function Relatorio({ store, alunos, aulas, aulasFech, alunoId, metaCentavos = 0 }) {
+  const [tipo, setTipo] = useState('resumo')
   const anoAtual = Number(nowYM().slice(0, 4))
   const [ano, setAno] = useState(anoAtual)
   const anos = useMemo(() => anosComAulas(aulas, anoAtual), [aulas, anoAtual])
@@ -22,8 +25,12 @@ export default function Relatorio({ alunos, aulas, aulasFech, alunoId, metaCenta
     URL.revokeObjectURL(url)
   }
 
+  const escolha = <div style={{ marginBottom: 12 }}><Pilulas rotulo="Tipo de relatório" valor={tipo} onChange={setTipo} opcoes={[['resumo', 'Resumo do ano'], ['detalhado', 'Detalhado']]} /></div>
+  if (tipo === 'detalhado') return <div>{escolha}<RelatorioDetalhado store={store} metaCentavos={metaCentavos} /></div>
+
   return (
     <div className="aulas-rel">
+      {escolha}
       <div className="aulas-barra">
         <div className="aulas-visao" role="group" aria-label="Ano">
           {anos.map((a) => <button key={a} className={a === ano ? 'ativo' : ''} onClick={() => setAno(a)}>{a}</button>)}

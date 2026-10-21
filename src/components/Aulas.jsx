@@ -327,7 +327,7 @@ export default function Aulas({ store }) {
             </div>
           )}
 
-          {visao === 'relatorio' && <Relatorio alunos={alunos} aulas={aulas} aulasFech={aulasFech} alunoId={filtro} metaCentavos={metaCent} />}
+          {visao === 'relatorio' && <Relatorio store={store} alunos={alunos} aulas={aulas} aulasFech={aulasFech} alunoId={filtro} metaCentavos={metaCent} />}
 
           {visao === 'calendario' && doMes.length > 0 && (
             <>
