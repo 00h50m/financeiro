@@ -371,16 +371,19 @@ input[type='checkbox'] { width: auto; min-height: 0; accent-color: var(--brand);
   .lista-cartoes tr.linha-total { padding: 10px 14px; }
 }
 
-/* TELA INÍCIO: o mês de relance (saldo por dia, para onde vai o dinheiro, linha do mês). Celular em uma coluna; computador em grade. */
+/* TELA INÍCIO: o mês de relance. Celular: uma coluna, na ordem do que importa (saldo → o que pede ação → contas → resto).
+   Tablet: duas colunas. Computador: grade de 12 colunas (saldo grande + resumo; contas à esquerda, categorias e módulos à direita). */
 .inicio {
   --ini-1: #c6f24e; --ini-2: #3987e5; --ini-3: #d55181; --ini-4: #f0a030; --ini-5: #9085e9;
-  max-width: 1120px;
+  --ini-gap: 14px; --ini-pad: 18px;
+  max-width: 1360px;
 }
-.ini-topo { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
-.ini-grade { display: grid; gap: 12px; grid-template-columns: 1fr; }
+.ini-topo { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+.ini-grade { display: grid; gap: var(--ini-gap); grid-template-columns: minmax(0, 1fr); }
 .ini-grade > * { min-width: 0; }
 .ini-acoes.so-desk { display: none; }
 
+/* Saldo grande (a classe também é usada na tela Renda) */
 .ini-hero { background: linear-gradient(135deg, #1d2b12, #16200f 60%, var(--bg2)); border: 1px solid #34471c; border-radius: 20px; padding: 20px; }
 .ini-hero.neg { background: linear-gradient(135deg, #2c1414, #1d1010 60%, var(--bg2)); border-color: var(--red-border); }
 .ini-hero-rotulo { font-size: 13px; color: var(--text2); }
@@ -389,12 +392,9 @@ input[type='checkbox'] { width: auto; min-height: 0; accent-color: var(--brand);
 .ini-hero-sub { font-size: 13px; color: var(--text2); }
 .ini-hero-sub strong { color: var(--text); }
 .ini-hero .btn { margin-top: 10px; }
-.ini-reparto { margin-top: 18px; }
-.ini-reparto-barra { display: flex; height: 12px; border-radius: 8px; overflow: hidden; background: var(--bg4); gap: 2px; }
 .ini-seg.pago { background: var(--green); }
 .ini-seg.apagar { background: var(--amber); }
 .ini-seg.livre { background: var(--brand); }
-.ini-reparto-leg { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 10px; font-size: 12px; color: var(--text2); }
 .ini-reparto-leg i, .ini-linha-legenda i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; }
 .ini-reparto-leg b { color: var(--text); font-weight: 500; margin-left: 2px; }
 .ini-reparto-leg i.pago, .ini-linha-legenda i.pago { background: var(--green); }
@@ -402,13 +402,35 @@ input[type='checkbox'] { width: auto; min-height: 0; accent-color: var(--brand);
 .ini-reparto-leg i.livre { background: var(--brand); }
 .ini-linha-legenda i.atrasada { background: var(--red); }
 
-.ini-kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-.ini-mini { background: var(--bg2); border: 1px solid var(--border); border-radius: 16px; padding: 12px 10px; }
-.ini-mini-rotulo { font-size: 12px; color: var(--text2); display: flex; align-items: center; gap: 6px; }
-.ini-mini-valor { font-size: 13.5px; margin-top: 6px; font-weight: 600; white-space: nowrap; }
-.ini-mini-valor.verde { color: var(--green); }
-.ini-mini-nota { font-size: 11px; color: var(--text3); margin-top: 2px; }
-.ini-seta { width: 18px; height: 18px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; flex-shrink: 0; }
+.inicio .ini-hero { display: flex; flex-direction: column; gap: 14px; padding: 22px var(--ini-pad) var(--ini-pad); }
+.ini-hero-corpo { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px 20px; flex-wrap: wrap; }
+.inicio .ini-hero-rotulo { font-size: 12px; text-transform: uppercase; letter-spacing: .09em; color: var(--text2); }
+.inicio .ini-hero-valor { font-size: clamp(36px, 9.5vw, 58px); line-height: 1.05; margin: 8px 0 0; }
+.ini-hero-chip { display: inline-flex; align-items: baseline; gap: 4px 8px; flex-wrap: wrap; padding: 8px 12px; border-radius: 12px; background: rgba(198, 242, 78, .08); border: 1px solid rgba(198, 242, 78, .2); font-size: 12px; color: var(--text2); }
+.ini-hero-chip b { font-size: 15px; font-weight: 600; color: var(--text); }
+.inicio .ini-hero .btn { margin-top: 0; align-self: flex-start; }
+.ini-reparto { margin-top: 4px; padding-top: 16px; border-top: 1px solid rgba(255, 255, 255, .08); }
+.ini-reparto-topo { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--text2); margin-bottom: 9px; }
+.ini-reparto-barra { display: flex; height: 10px; border-radius: 8px; overflow: hidden; background: var(--bg4); gap: 2px; }
+.ini-reparto-leg { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 10px; font-size: 12px; color: var(--text2); }
+
+/* Resumo: entrada, saldo anterior e comprometido, com a conta que gera o "pode gastar" */
+.ini-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 18px; padding: var(--ini-pad); }
+.ini-card-topo { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+.ini-card-topo h2 { font-size: 15px; font-weight: 600; letter-spacing: .005em; }
+.ini-card-dica { font-size: 12px; color: var(--text3); }
+.ini-vazio { font-size: 13px; color: var(--text2); padding: 14px 0; text-align: center; }
+.ini-res-lista { display: flex; flex-direction: column; }
+.ini-res-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 0; border-top: 1px solid var(--border); }
+.ini-res-item:first-child { border-top: 0; padding-top: 2px; }
+.ini-res-rotulo { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text2); }
+.ini-res-valor { font-size: 16px; font-weight: 600; white-space: nowrap; }
+.ini-res-valor.verde { color: var(--green); }
+.ini-res-valor.vermelho { color: var(--red); }
+.ini-res-nota { display: none; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border2); font-size: 11.5px; color: var(--text3); line-height: 1.5; }
+.ini-resumo .ini-card-topo { margin-bottom: 6px; }
+.ini-resumo .ini-res-item { padding: 9px 0; }
+.ini-seta { width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; flex-shrink: 0; }
 .ini-seta.up { background: var(--green-bg); color: var(--green); }
 .ini-seta.down { background: var(--amber-bg); color: var(--amber); }
 .ini-seta.ok { background: var(--blue-bg); color: var(--blue); }
@@ -419,18 +441,20 @@ input[type='checkbox'] { width: auto; min-height: 0; accent-color: var(--brand);
 .ini-btn-gasto { background: var(--brand); color: var(--brand-ink); }
 .ini-btn-entrada { background: var(--bg3); color: var(--text); border: 1px solid var(--border2); }
 
-.ini-atencao { border-radius: 14px; padding: 12px 14px; font-size: 13px; border: 1px solid var(--border); background: var(--bg2); color: var(--text2); }
+/* Faixa de atenção: o que pede ação agora, com atalho */
+.ini-atencao { display: flex; align-items: center; justify-content: space-between; gap: 8px 14px; flex-wrap: wrap; border-radius: 14px; padding: 12px 16px; font-size: 13px; line-height: 1.45; border: 1px solid var(--border); background: var(--bg2); color: var(--text2); }
 .ini-atencao b { color: var(--text); }
 .ini-atencao.ruim { background: var(--red-bg); border-color: var(--red-border); color: #fca5a5; }
 .ini-atencao.aviso { background: var(--amber-bg); border-color: var(--amber-border); color: #fcd34d; }
 .ini-atencao.ok { background: var(--green-bg); border-color: var(--green-border); color: #86efac; }
+.ini-atencao-texto { flex: 1 1 260px; min-width: 0; }
+.ini-atencao-btn { background: rgba(255, 255, 255, .09); color: inherit; border-radius: 10px; padding: 7px 12px; font-size: 12.5px; font-weight: 500; white-space: nowrap; }
+.ini-atencao-btn:hover { background: rgba(255, 255, 255, .15); }
 
-.ini-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 18px; padding: 16px; }
-.ini-card-topo { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
-.ini-card-topo h2 { font-size: 16px; font-weight: 600; }
-.ini-card-dica { font-size: 12px; color: var(--text3); }
-.ini-vazio { font-size: 13px; color: var(--text2); padding: 14px 0; text-align: center; }
-
+/* Linha do mês (dentro de "Contas a pagar") */
+.ini-linha { margin-bottom: 6px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+.ini-sub-rotulo { font-size: 12px; color: var(--text2); }
+.ini-sub-rotulo span { color: var(--text3); }
 .ini-linha-trilho { position: relative; height: 44px; margin: 22px 11px 0; }
 .ini-linha-eixo { position: absolute; left: -11px; right: -11px; top: 50%; height: 4px; margin-top: -2px; border-radius: 4px; background: var(--bg4); }
 .ini-linha-hoje { position: absolute; top: 2px; bottom: 2px; width: 2px; margin-left: -1px; background: var(--brand); border-radius: 2px; }
@@ -447,47 +471,62 @@ input[type='checkbox'] { width: auto; min-height: 0; accent-color: var(--brand);
 .ini-linha-detalhe { margin-top: 10px; padding: 10px 12px; background: var(--bg3); border-radius: 12px; font-size: 13px; }
 .ini-linha-item { display: flex; justify-content: space-between; gap: 10px; padding-top: 6px; color: var(--text2); }
 
+/* Contas a pagar */
 .ini-conta { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-top: 1px solid var(--border); }
+.ini-conta:first-of-type { border-top: 0; }
 .ini-conta-ic { width: 38px; height: 38px; border-radius: 12px; background: var(--bg3); display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+.ini-conta.atrasada .ini-conta-ic { background: var(--red-bg); }
 .ini-conta-meio { flex: 1; min-width: 0; }
-.ini-conta-nome { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ini-conta-nome { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ini-conta-quando { font-size: 12px; color: var(--text2); margin-top: 2px; }
 .ini-conta-quando.perto { color: var(--amber); }
 .ini-conta-quando.atrasada { color: var(--red); font-weight: 500; }
-.ini-conta-valor { font-size: 14px; font-weight: 600; }
+.ini-conta-valor { font-size: 14px; font-weight: 600; white-space: nowrap; }
 .ini-mais { font-size: 12px; color: var(--text2); padding: 6px 0 2px; }
-.ini-link { background: transparent; color: var(--brand); font-size: 13px; padding: 10px 0 0; display: block; }
+.ini-link { background: transparent; color: var(--brand); font-size: 13px; padding: 12px 0 0; display: block; }
 
-.ini-cats { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-.ini-rosca { width: 128px; height: 128px; flex-shrink: 0; margin: 0 auto; }
-.ini-rosca-t1 { font-size: 11px; fill: var(--text2); font-family: 'DM Sans', sans-serif; }
+/* Coluna lateral: categorias e módulos (aulas, dívidas) */
+.ini-lateral { display: flex; flex-direction: column; gap: var(--ini-gap); min-width: 0; }
+.ini-cats { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.ini-rosca { width: 140px; height: 140px; flex-shrink: 0; margin: 0 auto; }
+.ini-rosca-t1 { font-size: 10px; fill: var(--text2); font-family: 'DM Sans', sans-serif; }
+.ini-rosca-t2 { font-size: 14px; font-weight: 600; fill: var(--text); font-family: 'DM Mono', monospace; }
 .ini-legenda { list-style: none; flex: 1 1 200px; min-width: 0; }
-.ini-legenda li { display: grid; grid-template-columns: 10px 1fr auto auto; gap: 8px; align-items: center; font-size: 12px; padding: 5px 0; }
+.ini-legenda li { display: grid; grid-template-columns: 10px 1fr auto auto; gap: 8px; align-items: center; font-size: 12.5px; padding: 6px 0; }
 .ini-ponto { width: 10px; height: 10px; border-radius: 50%; }
 .ini-leg-nome { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ini-leg-pct { color: var(--text2); min-width: 38px; text-align: right; }
 
-/* Tablet: ainda uma coluna, mas centralizada e com os números maiores */
-@media (min-width: 601px) {
-  .inicio { padding-top: 24px; }
-  .ini-hero-valor { font-size: 42px; }
-  .ini-mini-valor { font-size: 18px; }
+/* Tablet: duas colunas */
+@media (min-width: 700px) {
+  .inicio { --ini-gap: 16px; --ini-pad: 20px; padding-top: 24px; }
+  .ini-res-nota { display: block; }
+  .ini-resumo .ini-card-topo { margin-bottom: 12px; }
+  .ini-grade { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ini-hero, .ini-resumo, .ini-atencao, .ini-contas, .ini-lateral, .ini-longo, .ini-acoes { grid-column: 1 / -1; }
+  .ini-res-lista { flex-direction: row; }
+  .ini-res-item { flex: 1; flex-direction: column; align-items: flex-start; gap: 6px; border-top: 0; border-left: 1px solid var(--border); padding: 2px 18px; }
+  .ini-res-item:first-child { border-left: 0; padding-left: 0; }
+  .ini-lateral { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+  .ini-lateral > :first-child { grid-column: 1 / -1; }
 }
 
-/* Computador: grade de duas colunas, com o saldo grande à esquerda e os números ao lado */
-@media (min-width: 1000px) {
+/* Computador: 12 colunas — saldo + resumo no topo; contas à esquerda; categorias e módulos à direita */
+@media (min-width: 1100px) {
   .ini-acoes.so-desk { display: grid; }
   .ini-acoes.so-mob { display: none; }
-  .ini-grade { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 16px; align-items: stretch; }
-  .ini-hero { grid-column: 1; grid-row: 1; padding: 26px 28px; display: flex; flex-direction: column; justify-content: center; }
-  .ini-hero-valor { font-size: 52px; }
-  .ini-kpis { grid-column: 2; grid-row: 1; grid-template-columns: 1fr; align-content: stretch; }
-  .ini-mini { display: flex; flex-direction: column; justify-content: center; padding: 14px 18px; }
-  .ini-mini-valor { font-size: 22px; }
+  .ini-grade { grid-template-columns: repeat(12, minmax(0, 1fr)); align-items: start; }
+  .ini-hero { grid-column: span 8; align-self: stretch; justify-content: center; padding: 28px 30px; }
+  .ini-resumo { grid-column: span 4; align-self: stretch; display: flex; flex-direction: column; }
+  .ini-res-lista { flex-direction: column; flex: 1; justify-content: center; }
+  .ini-res-item { flex-direction: row; align-items: center; gap: 12px; border-left: 0; border-top: 1px solid var(--border); padding: 13px 0; }
+  .ini-res-item:first-child { border-top: 0; padding-left: 0; }
+  .ini-res-valor { font-size: 20px; }
   .ini-atencao { grid-column: 1 / -1; }
-  .ini-linha { grid-column: 1 / -1; }
-  .ini-contas { grid-column: 1; }
-  .ini-cats-card { grid-column: 2; }
+  .ini-contas { grid-column: span 7; }
+  .ini-lateral { grid-column: span 5; display: flex; flex-direction: column; }
+  .ini-lateral > :first-child { grid-column: auto; }
+  .ini-longo { grid-column: 1 / -1; }
   .ini-acoes { min-width: 280px; }
 }
 @media (prefers-reduced-motion: no-preference) { .ini-seg { transition: width .3s ease; } }
@@ -537,7 +576,6 @@ input[type='checkbox'] { width: auto; min-height: 0; accent-color: var(--brand);
 .lp-cartoes { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0 4px; }
 .lp-tabela { margin-top: 12px; }
 .lp-nota { font-size: 11px; color: var(--text3); margin-top: 10px; line-height: 1.5; }
-@media (min-width: 1000px) { .ini-longo { grid-column: 1 / -1; } }
 .lp-ver { display: block; margin-top: 12px; font-size: 12px; }
 
 /* Navegação de mês e pílulas (telas Início, Pagamentos e Por pessoa) */
