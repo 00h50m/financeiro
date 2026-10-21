@@ -47,3 +47,16 @@ describe('lembretes das aulas', () => {
     expect(tg.enviadas[0].text).toContain('Lucas')
   })
 })
+
+describe('lembrete: follow-up de pausa e saída prevista', () => {
+  const al = [{ id: 'a1', nome: 'Lucas', ativo: true, saida_prevista: '2026-12-20' }]
+  it('avisa 3 dias antes de voltar e no dia 1 sobre saídas', () => {
+    const pausas = [{ id: 'p', aluno_id: 'a1', inicio: '2026-10-01', fim: '2026-10-14', motivo: 'viagem' }]
+    const p = pendenciasDeAulas({ alunos: al, aulas: [], pausas }, '2026-10-13')
+    expect(p.followups).toHaveLength(1)
+    expect(p.saidas).toHaveLength(0)
+    expect(textoLembreteAulas(p)).toContain('Lucas: volta em 15/10 (viagem)')
+    const q = pendenciasDeAulas({ alunos: al, aulas: [], pausas: [] }, '2026-11-01')
+    expect(textoLembreteAulas(q)).toContain('Saídas previstas')
+  })
+})

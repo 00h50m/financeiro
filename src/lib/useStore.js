@@ -680,6 +680,10 @@ export function useStore(email = null) {
     const erro = rs.find((x) => x.error)
     if (erro) throw erro.error
   }, ['aulas'], 'salvar o período sem aulas')
+  const marcarFollowup = (id, feito = true) => op(async () => {
+    const r = await sb.from('aulas_pausas').update({ followup_feito_em: feito ? hojeSP() : null }).eq('id', id)
+    if (r.error) throw r.error
+  }, ['aulas'], 'marcar o follow-up')
   const removerPausa = (id) => op(async () => {
     const r = await sb.from('aulas_pausas').delete().eq('id', id)
     if (r.error) throw r.error
@@ -1045,7 +1049,7 @@ export function useStore(email = null) {
     definirAjusteSaldo, definirFatorSazonal,
     adiarConta, adiarVarias, desfazerAdiamento, salvarDivida, removerDivida,
     fecharAluno, reabrirAluno, registrarRecebimento, desfazerRecebimento, historicoFechamento,
-    criarPausa, removerPausa,
+    criarPausa, removerPausa, marcarFollowup,
     criarAluno, atualizarAluno, mudarProgramacao, gerarAulas, inserirAula, atualizarAula, atualizarAulasLote, excluirAula,
     atualizarRegra, esquecerRegra,
     addDivisao, delDivisao, marcarRepasse, desmarcarRepasse,

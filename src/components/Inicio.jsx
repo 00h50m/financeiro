@@ -91,7 +91,7 @@ export default function Inicio({ store, irPara }) {
   const d = useMemo(() => montarInicio(store, mes), [store, mes])
   // Aulas particulares: as de hoje, o que falta atualizar e o que ainda não foi recebido no mês
   const hojeISO = hojeSP()
-  const aulasCard = useMemo(() => cartaoAulasInicio(store, hojeISO, mes), [store.aulasOk, store.alunos, store.aulas, store.aulasFech, store.aulasMesBase, store.inicioApp, mes, hojeISO]) // eslint-disable-line react-hooks/exhaustive-deps
+  const aulasCard = useMemo(() => cartaoAulasInicio(store, hojeISO, mes), [store.aulasOk, store.alunos, store.aulas, store.aulasFech, store.aulasMesBase, store.aulasPausas, store.inicioApp, mes, hojeISO]) // eslint-disable-line react-hooks/exhaustive-deps
   const realizarAula = (a) => store.atualizarAula(a.id, patchRealizar(a, a.duracao_min, new Date().toISOString()))
   const planoDividas = useMemo(() => (store.dividas?.length ? resumoDoPlano(store, hojeSP()) : null), [store.dividas, store.rendas, store.fixos, store.compras, store.faturas, store.fixosPagamentos, store.comprasPagamentos, store.adiamentos, store.rendaSazonal]) // eslint-disable-line react-hooks/exhaustive-deps
   const sazonal = useProjecaoSazonal(store, 12)
@@ -288,6 +288,16 @@ export default function Inicio({ store, irPara }) {
               ) : <div className="cad-sub">Nenhuma aula prevista para hoje.</div>}
               {aulasCard.atrasadas > 0 && (
                 <button className="ini-aulas-aviso" onClick={() => irPara('aulas')}>⚠ {aulasCard.atrasadas} {aulasCard.atrasadas === 1 ? 'aula de dia passado ainda como prevista' : 'aulas de dias passados ainda como previstas'}: toque para atualizar</button>
+              )}
+              {aulasCard.followups.length > 0 && (
+                <button className="ini-aulas-aviso" onClick={() => irPara('aulas')}>
+                  📞 Follow-up: {aulasCard.followups.map((x) => `${x.aluno.nome} ${x.dias < 0 ? `(voltava em ${x.retorno.split('-').reverse().slice(0, 2).join('/')})` : x.dias === 0 ? '(volta hoje)' : `(volta em ${x.dias} ${x.dias === 1 ? 'dia' : 'dias'})`}`).join(', ')}
+                </button>
+              )}
+              {aulasCard.saidas.length > 0 && (
+                <button className="ini-aulas-aviso" onClick={() => irPara('aulas')}>
+                  🎓 Saída prevista: {aulasCard.saidas.map((x) => `${x.aluno.nome} (${x.saida.split('-').reverse().slice(0, 2).join('/')})`).join(', ')}
+                </button>
               )}
               {(aulasCard.mes || aulasCard.aReceberFechado > 0) && (
                 <div className="ini-aulas-mes">

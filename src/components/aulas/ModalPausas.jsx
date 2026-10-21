@@ -5,10 +5,10 @@ import { patchEncerrar, previstasNaPausa } from '../../lib/aulas'
 const dataBr = (d) => d.split('-').reverse().join('/')
 
 // Períodos sem aula (férias, feriados): as aulas desse período deixam de ser geradas e as já previstas são canceladas, sem cobrança.
-export default function ModalPausas({ store, alunos, onClose }) {
-  const { aulasPausas, aulasPausasOk, aulas, criarPausa, removerPausa } = store
+export default function ModalPausas({ store, alunos, alunoInicial = '', onClose }) {
+  const { aulasPausas, aulasPausasOk, aulas, criarPausa, removerPausa, marcarFollowup } = store
   const hoje = hojeSP()
-  const [f, setF] = useState({ inicio: hoje, fim: hoje, motivo: '', alunoId: '' })
+  const [f, setF] = useState({ inicio: hoje, fim: hoje, motivo: '', alunoId: alunoInicial })
   const [salvando, setSalvando] = useState(false)
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.value }))
   const nome = (id) => alunos.find((a) => a.id === id)?.nome || 'aluno'
@@ -25,7 +25,7 @@ export default function ModalPausas({ store, alunos, onClose }) {
     const agora = new Date().toISOString()
     const ok = await criarPausa(pausa, afetadas.map((a) => ({ id: a.id, patch: patchEncerrar(a, 'cancelada', { quem: 'professora', motivo: pausa.motivo || 'Sem aulas no período' }, agora) })))
     setSalvando(false)
-    if (ok) setF({ inicio: hoje, fim: hoje, motivo: '', alunoId: '' })
+    if (ok) setF({ inicio: hoje, fim: hoje, motivo: '', alunoId: alunoInicial })
   }
   async function remover(p) {
     if (!window.confirm('Remover este período? As aulas já canceladas por ele continuam canceladas (você pode voltá-las para "prevista" uma a uma); as futuras ainda não criadas voltam a ser geradas.')) return
@@ -44,15 +44,18 @@ export default function ModalPausas({ store, alunos, onClose }) {
               <div className="fech-itens" style={{ marginBottom: 12 }}>
                 {aulasPausas.map((p) => (
                   <div key={p.id} className="fech-item">
-                    <span>{dataBr(p.inicio)}{p.fim !== p.inicio ? ` a ${dataBr(p.fim)}` : ''} · {p.aluno_id ? nome(p.aluno_id) : 'todos os alunos'}{p.motivo ? ` · ${p.motivo}` : ''}</span>
-                    <button className="link-btn" onClick={() => remover(p)}>remover</button>
+                    <span>{dataBr(p.inicio)}{p.fim !== p.inicio ? ` a ${dataBr(p.fim)}` : ''} · {p.aluno_id ? nome(p.aluno_id) : 'todos os alunos'}{p.motivo ? ` · ${p.motivo}` : ''}{p.aluno_id && p.followup_feito_em ? ' · follow-up feito' : ''}</span>
+                    <span>
+                      {p.aluno_id && !p.followup_feito_em && <button className="link-btn" onClick={() => marcarFollowup(p.id)}>follow-up feito</button>}{' '}
+                      <button className="link-btn" onClick={() => remover(p)}>remover</button>
+                    </span>
                   </div>
                 ))}
               </div>
             )}
             <div className="form-row cols2">
               <div className="form-group"><label>De</label><input type="date" value={f.inicio} onChange={(e) => setF((x) => ({ ...x, inicio: e.target.value, fim: x.fim < e.target.value ? e.target.value : x.fim }))} /></div>
-              <div className="form-group"><label>Até</label><input type="date" value={f.fim} min={f.inicio} onChange={set('fim')} /></div>
+              <div className="form-group"><label>{f.alunoId ? 'Volta em (último dia sem aula)' : 'Até'}</label><input type="date" value={f.fim} min={f.inicio} onChange={set('fim')} /></div>
             </div>
             <div className="form-group"><label>Motivo (opcional)</label><input value={f.motivo} onChange={set('motivo')} placeholder="Férias de julho, feriado…" /></div>
             <div className="form-group">
@@ -61,6 +64,7 @@ export default function ModalPausas({ store, alunos, onClose }) {
                 <option value="">Todos os alunos</option>
                 {alunos.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
               </select>
+              {f.alunoId && <div className="cad-sub" style={{ marginTop: 4 }}>Perto da data de retorno o app avisa no Início e no Telegram para você fazer o follow-up com o aluno.</div>}
             </div>
           </>
         )}

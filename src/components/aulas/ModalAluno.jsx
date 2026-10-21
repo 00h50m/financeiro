@@ -6,13 +6,16 @@ import {
 import { Pilulas } from '../NavMes'
 import CampoHorario from './CampoHorario'
 import SeletorDuracao from './SeletorDuracao'
+import { SERIES, saidaSugerida, riscoDeSaida } from '../../lib/alunosCiclo'
+
+const MOTIVOS = ['Terminou o ciclo (formou/vestibular)', 'Parou por conta própria', 'Preço', 'Mudou de cidade', 'Horário não encaixa', 'Outro']
 
 const linhaVazia = () => ({ dia_semana: 2, horario: '', duracao_min: 60 })
 const dataBr = (d) => d.split('-').reverse().join('/')
 
 // Cadastro enxuto do aluno + programação semanal. Ao editar, mudanças de programação e de valor/hora valem a partir de uma data,
 // com a lista do que será afetado antes de aplicar.
-export default function ModalAluno({ store, aluno, onClose, inicialAvulso = false }) {
+export default function ModalAluno({ store, aluno, onClose, onPausar, inicialAvulso = false }) {
   const { criarAluno, atualizarAluno, mudarProgramacao, aulas, aulasProg } = store
   const edicao = !!aluno
   const hoje = hojeSP()
@@ -20,13 +23,19 @@ export default function ModalAluno({ store, aluno, onClose, inicialAvulso = fals
   const [f, setF] = useState(() => ({
     nome: aluno?.nome || '', responsavel: aluno?.responsavel || '', valor: aluno ? String(centavosParaReais(aluno.valor_hora_centavos)).replace('.', ',') : '',
     inicio: aluno?.inicio || hoje, telefone: aluno?.telefone || '', fim: aluno?.fim || '', observacoes: aluno?.observacoes || '',
+    serie: aluno?.serie || '', saida: aluno?.saida_prevista || '',
   }))
+  const [encerrando, setEncerrando] = useState(null) // { data, motivo, outro }
   const [linhas, setLinhas] = useState(() => (atuais.length ? atuais.map((p) => ({ id: p.id, dia_semana: p.dia_semana, horario: p.horario || '', duracao_min: p.duracao_min })) : [linhaVazia()]))
   const [tipo, setTipo] = useState(() => (inicialAvulso || (aluno && atuais.length === 0) ? 'avulso' : 'fixo')) // fixo = tem dia da semana · avulso = aulas quando combinar
   const [desde, setDesde] = useState(hoje)
   const [detalhes, setDetalhes] = useState(!!(aluno?.fim || aluno?.observacoes))
   const [salvando, setSalvando] = useState(false)
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.value }))
+  const mudarSerie = (e) => {
+    const serie = e.target.value
+    setF((x) => ({ ...x, serie, saida: !x.saida || x.saida === saidaSugerida(x.serie, hoje) ? saidaSugerida(serie, hoje) : x.saida }))
+  }
   const setLinha = (i, patch) => setLinhas((l) => l.map((x, j) => (j === i ? { ...x, ...patch } : x)))
 
   const valorCent = reaisParaCentavos(f.valor)
@@ -49,6 +58,7 @@ export default function ModalAluno({ store, aluno, onClose, inicialAvulso = fals
     const base = {
       nome: f.nome.trim(), responsavel: f.responsavel.trim(), telefone: f.telefone.trim() || null, valor_hora_centavos: valorCent,
       inicio: f.inicio, fim: f.fim || null, observacoes: f.observacoes.trim() || null,
+      serie: f.serie || null, saida_prevista: f.saida || null,
     }
     let ok
     if (!edicao) {
@@ -66,13 +76,14 @@ export default function ModalAluno({ store, aluno, onClose, inicialAvulso = fals
     if (ok) onClose()
   }
 
-  async function alternarAtivo() {
-    const ativar = aluno.ativo === false
-    const msg = ativar
-      ? `Reativar ${aluno.nome}? As aulas voltam a ser previstas a partir de hoje.`
-      : `Inativar ${aluno.nome} a partir de hoje (${dataBr(hoje)})?\n\nNenhuma aula nova é prevista depois dessa data. As aulas já registradas e os fechamentos continuam guardados.`
-    if (!window.confirm(msg)) return
-    const ok = await atualizarAluno(aluno.id, ativar ? { ativo: true, inativado_em: null } : { ativo: false, inativado_em: hoje })
+  async function reativar() {
+    if (!window.confirm(`Reativar ${aluno.nome}? As aulas voltam a ser previstas a partir de hoje.`)) return
+    const ok = await atualizarAluno(aluno.id, { ativo: true, inativado_em: null, motivo_encerramento: null })
+    if (ok) onClose()
+  }
+  async function encerrar() {
+    const motivo = encerrando.motivo === 'Outro' ? encerrando.outro.trim() || 'Outro' : encerrando.motivo
+    const ok = await atualizarAluno(aluno.id, { ativo: false, inativado_em: encerrando.data, motivo_encerramento: motivo })
     if (ok) onClose()
   }
 
@@ -94,6 +105,13 @@ export default function ModalAluno({ store, aluno, onClose, inicialAvulso = fals
           <div className="form-group"><label>Valor por hora (R$)</label><input inputMode="decimal" value={f.valor} onChange={set('valor')} placeholder="Ex.: 80" /></div>
           <div className="form-group"><label>Início das aulas</label><input type="date" value={f.inicio} onChange={set('inicio')} /></div>
         </div>
+        <div className="form-row cols2">
+          <div className="form-group"><label>Série <span style={{ fontWeight: 400, color: 'var(--text3)' }}>(opcional)</span></label>
+            <select value={f.serie} onChange={mudarSerie}><option value="">Não informada</option>{SERIES.map(([k, n]) => <option key={k} value={k}>{n}</option>)}</select>
+          </div>
+          <div className="form-group"><label>Saída prevista <span style={{ fontWeight: 400, color: 'var(--text3)' }}>(opcional)</span></label><input type="date" value={f.saida} onChange={set('saida')} /></div>
+        </div>
+        {riscoDeSaida(f.serie) && <div className="cad-sub" style={{ margin: '-6px 0 12px' }}>Quem está nessa série costuma encerrar as aulas no fim do ano: o app avisa quando a saída se aproximar.</div>}
         <div className="form-row">
           <div className="form-group"><label>WhatsApp do responsável (com DDD)</label><input inputMode="tel" value={f.telefone} onChange={set('telefone')} placeholder="(11) 91234-5678" /></div>
         </div>
@@ -148,8 +166,31 @@ export default function ModalAluno({ store, aluno, onClose, inicialAvulso = fals
           </div>
         )}
 
+        {encerrando && (
+          <div className="alert alert-amber" style={{ marginTop: 10 }}>
+            <div style={{ fontWeight: 600, marginBottom: 8 }}>Encerrar {aluno.nome}</div>
+            <div className="form-row cols2">
+              <div className="form-group"><label>Última aula em</label><input type="date" value={encerrando.data} onChange={(e) => setEncerrando((x) => ({ ...x, data: e.target.value || hoje }))} /></div>
+              <div className="form-group"><label>Motivo</label>
+                <select value={encerrando.motivo} onChange={(e) => setEncerrando((x) => ({ ...x, motivo: e.target.value }))}>{MOTIVOS.map((m) => <option key={m}>{m}</option>)}</select>
+              </div>
+            </div>
+            {encerrando.motivo === 'Outro' && <div className="form-group"><label>Qual?</label><input value={encerrando.outro} onChange={(e) => setEncerrando((x) => ({ ...x, outro: e.target.value }))} /></div>}
+            <div className="cad-sub">Nenhuma aula nova é prevista depois dessa data. O histórico, as aulas registradas e os fechamentos continuam guardados, e dá para reativar depois.</div>
+            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+              <button className="btn btn-primary btn-sm" onClick={encerrar}>Confirmar encerramento</button>
+              <button className="btn btn-ghost btn-sm" onClick={() => setEncerrando(null)}>Voltar</button>
+            </div>
+          </div>
+        )}
         <div className="modal-footer">
-          {edicao && <button className="btn btn-ghost" style={{ marginRight: 'auto' }} onClick={alternarAtivo}>{aluno.ativo === false ? 'Reativar aluno' : 'Inativar aluno'}</button>}
+          {edicao && aluno.ativo === false && <button className="btn btn-ghost" style={{ marginRight: 'auto' }} onClick={reativar}>Reativar aluno</button>}
+          {edicao && aluno.ativo !== false && !encerrando && (
+            <span style={{ marginRight: 'auto', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {onPausar && <button className="btn btn-ghost" onClick={() => onPausar(aluno)}>Pausar</button>}
+              <button className="btn btn-ghost" onClick={() => setEncerrando({ data: hoje, motivo: MOTIVOS[0], outro: '' })}>Encerrar aluno</button>
+            </span>
+          )}
           <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
           <button className="btn btn-primary" onClick={salvar} disabled={!valido || salvando}>{salvando ? 'Salvando...' : edicao && (mudouProg || mudouValor) ? 'Aplicar e salvar' : 'Salvar'}</button>
         </div>
