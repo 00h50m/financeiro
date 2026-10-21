@@ -25,11 +25,11 @@ const lerLocal = () => { try { return JSON.parse(localStorage.getItem(CHAVE_CENA
 const gravarLocal = (l) => { try { localStorage.setItem(CHAVE_CENARIOS, JSON.stringify(l)) } catch { /* sem armazenamento: não lembra */ } }
 
 export default function Emprestimos({ store, irPara }) {
-  const { compras, cartoes, categorias, pessoas, metas, metasMovimentos, metasOk, config, configOk, definirConfig, addCompra } = store
+  const { compras, cartoes, categorias, pessoas, metas, metasMovimentos, metasOk, config, configOk, definirConfig, addCompra, upsertRenda, rendasManuais = [] } = store
   const hoje = nowYM()
   const [f, setF] = useState({
     nome: '', valor: '', tipoTaxa: 'mes', taxa: '', prazo: '24', sistema: 'price', iof: '', tarifa: '', seguro: '',
-    financiarCustos: true, noCartao: false, cartaoId: '', taxaFixa: '2,94', taxaParcela: '0,69', primeiro: addMonths(hoje, 1), dia: '10', pessoa: pessoas[0]?.nome || '',
+    financiarCustos: true, lancarEntrada: true, mesEntrada: hoje, noCartao: false, cartaoId: '', taxaFixa: '2,94', taxaParcela: '0,69', primeiro: addMonths(hoje, 1), dia: '10', pessoa: pessoas[0]?.nome || '',
   })
   const [salvando, setSalvando] = useState(false)
   // Propostas guardadas: na conta (tabela config) quando existe, para aparecerem no celular e no computador; senão só neste aparelho.
@@ -84,8 +84,13 @@ export default function Emprestimos({ store, irPara }) {
         ? `Empréstimo no cartão: recebe ${fmt(sim.valor)} · passa ${fmt(sim.total)} em ${sim.prazo}x · taxa do cartão ${pctTxt(sim.taxaTotal)} do total (${f.taxaFixa}% + ${f.taxaParcela}% × ${sim.prazo}) · CET ${pctTxt(sim.cetMes)} a.m. (${pctTxt(sim.cetAno, 1)} a.a.)`
         : `Empréstimo de ${fmt(sim.valor)} · taxa ${pctTxt(sim.taxaMes)} a.m. · CET ${pctTxt(sim.cetMes)} a.m. (${pctTxt(sim.cetAno, 1)} a.a.) · ${sim.sistema === 'sac' ? 'SAC' : 'Price'}`,
     })
+    let entradaOk = true
+    if (ok && f.lancarEntrada && /^\d{4}-\d{2}$/.test(f.mesEntrada)) {
+      const r = rendasManuais.find((x) => x.mes === f.mesEntrada) || {}
+      entradaOk = await upsertRenda({ mes: f.mesEntrada, giovanna: Number(r.giovanna || 0), sabrina: Number(r.sabrina || 0), extra_sabrina: Number(r.extra_sabrina || 0), mesada: Number(r.mesada || 0), outros: Math.round((Number(r.outros || 0) + sim.valor) * 100) / 100 })
+    }
     setSalvando(false)
-    if (ok) { alert('Empréstimo adicionado. Confira em Parcelamentos e Pagamentos.\n\nLembrete: o dinheiro que entrou na sua conta não é lançado como renda automaticamente — se quiser, registre em Renda.'); irPara?.('parcelamentos') }
+    if (ok) { alert(`Empréstimo adicionado. Confira em Parcelamentos e Pagamentos.${f.lancarEntrada ? (entradaOk ? `\n\n${fmt(sim.valor)} entraram na Renda de ${mesLabel(f.mesEntrada)} (campo Outros), então já somam no seu saldo.` : '\n\nNão consegui lançar a entrada na Renda: lance manualmente em Renda > Outros.') : '\n\nO dinheiro recebido não foi lançado na Renda.'}`); irPara?.('parcelamentos') }
   }
 
   function guardar() {
@@ -171,6 +176,14 @@ export default function Emprestimos({ store, irPara }) {
             </div>
           </div>
         </details>
+        <div className="form-row cols2">
+          <div className="form-group" style={{ justifyContent: 'flex-end' }}>
+            <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13 }}>
+              <input type="checkbox" checked={f.lancarEntrada} onChange={s('lancarEntrada')} /> Lançar o dinheiro recebido na Renda (entra no saldo)
+            </label>
+          </div>
+          {f.lancarEntrada && <div className="form-group"><label>Mês em que o dinheiro entra</label><input type="month" value={f.mesEntrada} onChange={s('mesEntrada')} /></div>}
+        </div>
         {erroEntrada && <div className="alert alert-amber" style={{ marginBottom: 0 }}>{erroEntrada}</div>}
       </div>
 
