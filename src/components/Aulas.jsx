@@ -16,6 +16,7 @@ import { lerMeta, situacaoMeta } from '../lib/aulasMeta'
 import Relatorio from './aulas/Relatorio'
 import ModalConfigAulas from './aulas/ModalConfigAulas'
 import ModalPausas from './aulas/ModalPausas'
+import SimuladorAluno from './aulas/SimuladorAluno'
 import { nomeSerieCurto } from '../lib/alunosCiclo'
 import ModalFechamento from './aulas/ModalFechamento'
 import { achaFechamento, fechadoStatus, valorAlunoMes } from '../lib/aulasFechamento'
@@ -41,6 +42,7 @@ export default function Aulas({ store }) {
   const [lote, setLote] = useState(false)
   const [compAberto, setCompAberto] = useState(false)
   const [pausasAberto, setPausasAberto] = useState(false)
+  const [simuladorAberto, setSimuladorAberto] = useState(false)
   const [pausaAluno, setPausaAluno] = useState('') // aluno pré-selecionado ao abrir 'Pausar' pelo cadastro
   const [configAberta, setConfigAberta] = useState(false)
   const [fechando, setFechando] = useState(null) // aluno cujo fechamento está aberto
@@ -179,6 +181,7 @@ export default function Aulas({ store }) {
       {modalAluno && <ModalAluno store={store} aluno={modalAluno.aluno} inicialAvulso={!!modalAluno.avulso} onPausar={(al) => { setModalAluno(null); setPausaAluno(al.id); setPausasAberto(true) }} onClose={() => setModalAluno(null)} />}
       {lote && <ModalLote store={store} aulas={selAulas} alunoPorId={alunoPorId} onClose={(ok) => { setLote(false); if (ok) sairSel() }} />}
       {configAberta && <ModalConfigAulas modo={store.modoRendaAulas} definirConfig={definirConfig} onClose={() => setConfigAberta(false)} />}
+      {simuladorAberto && <SimuladorAluno store={store} metaCentavos={metaCent} onClose={() => setSimuladorAberto(false)} />}
       {pausasAberto && <ModalPausas store={store} alunos={alunos} alunoInicial={pausaAluno} onClose={() => { setPausasAberto(false); setPausaAluno('') }} />}
       {fechando && <ModalFechamento store={store} aluno={fechando} mes={mes} onClose={() => setFechando(null)} />}
       {dialogo && (
@@ -222,6 +225,7 @@ export default function Aulas({ store }) {
           </select>
           {ativos.length > 0 && <button className="btn btn-ghost" onClick={() => setDialogo({ tipo: 'avulsa' })}>+ Aula avulsa</button>}
           {alunos.length > 0 && <button className="btn btn-ghost" onClick={() => setPausasAberto(true)}>Férias / sem aulas</button>}
+          {alunos.length > 0 && <button className="btn btn-ghost" onClick={() => setSimuladorAberto(true)}>Simular novo aluno</button>}
           <button className="btn btn-ghost" onClick={() => setConfigAberta(true)} aria-label="Configurações das aulas" title="Configurações das aulas">⚙ Configurar</button>
           <button className="btn btn-primary" onClick={() => setModalAluno({})}>+ Aluno</button>
         </div>
