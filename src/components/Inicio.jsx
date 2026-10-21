@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { montarInicio } from '../lib/inicio'
-import { fmt, mesLabel, nowYM, hojeSP } from '../lib/utils'
+import { fmt, fmtK, mesLabel, nowYM, hojeSP } from '../lib/utils'
 import { resumoDoPlano } from '../lib/dividasResumo'
 import { cartaoAulasInicio } from '../lib/aulasInicio'
 import { patchRealizar, textoDuracao, valorAula } from '../lib/aulas'
@@ -29,8 +29,8 @@ function Rosca({ itens, total }) {
         acumulado += parte
         return el
       })}
-      <text x="70" y="66" textAnchor="middle" className="ini-rosca-t1">Neste</text>
-      <text x="70" y="82" textAnchor="middle" className="ini-rosca-t1">mês</text>
+      <text x="70" y="64" textAnchor="middle" className="ini-rosca-t1">Gasto no mês</text>
+      <text x="70" y="82" textAnchor="middle" className="ini-rosca-t2">{fmtK(total)}</text>
     </svg>
   )
 }
@@ -132,17 +132,32 @@ export default function Inicio({ store, irPara }) {
 
       <div className="ini-grade">
         <section className={`ini-hero ${negativo ? 'neg' : ''}`} aria-label="Saldo do mês">
-          <div className="ini-hero-rotulo">{negativo ? 'Faltando para fechar o mês' : 'Pode gastar'}</div>
-          <div className="ini-hero-valor mono">{negativo ? '−' : ''}{fmt(Math.abs(d.podeGastar))}</div>
-          <div className="ini-hero-sub">
-            {semRenda ? 'Cadastre a renda do mês para o saldo ficar certo.'
-              : negativo ? 'As contas do mês passam do que entrou.'
-                : d.porDia != null ? <>≈ <strong>{fmt(d.porDia)}</strong> por dia · {d.diasRestantes} {d.diasRestantes === 1 ? 'dia' : 'dias'} até o fim do mês</>
-                  : 'Depois de pagar tudo o que falta no mês.'}
+          <div className="ini-hero-corpo">
+            <div>
+              <div className="ini-hero-rotulo">{negativo ? 'Faltando para fechar o mês' : 'Pode gastar'}</div>
+              <div className="ini-hero-valor mono">{negativo ? '−' : ''}{fmt(Math.abs(d.podeGastar))}</div>
+            </div>
+            {!semRenda && !negativo && d.porDia != null && (
+              <div className="ini-hero-chip">
+                <b className="mono">{fmt(d.porDia)}</b>
+                <span>por dia · {d.diasRestantes} {d.diasRestantes === 1 ? 'dia' : 'dias'} até o fim do mês</span>
+              </div>
+            )}
           </div>
+          {(semRenda || negativo || d.porDia == null) && (
+            <div className="ini-hero-sub">
+              {semRenda ? 'Cadastre a renda do mês para o saldo ficar certo.'
+                : negativo ? 'As contas do mês passam do que entrou.'
+                  : 'Depois de pagar tudo o que falta no mês.'}
+            </div>
+          )}
           {semRenda && <button className="btn btn-primary btn-sm" onClick={() => irPara('renda')}>Cadastrar renda</button>}
           {d.reparto.total > 0 && (
             <div className="ini-reparto">
+              <div className="ini-reparto-topo">
+                <span>Para onde vai o dinheiro do mês</span>
+                {d.comprometido > 0 && <span>{d.pctPago}% das contas pagas</span>}
+              </div>
               <div className="ini-reparto-barra" role="img" aria-label={d.reparto.partes.map((p) => `${p.rotulo} ${fmt(p.valor)}`).join(', ')}>
                 {d.reparto.partes.filter((p) => p.pct > 0).map((p) => <div key={p.chave} className={`ini-seg ${p.chave}`} style={{ width: `${p.pct}%` }} />)}
               </div>
@@ -155,112 +170,72 @@ export default function Inicio({ store, irPara }) {
           )}
         </section>
 
-        <section className="ini-kpis" aria-label="Resumo do mês">
-          <div className="ini-mini">
-            <div className="ini-mini-rotulo"><span className="ini-seta up">↑</span> Entrada</div>
-            <div className="ini-mini-valor mono verde">{fmt(d.entrada)}</div>
+        <section className="ini-card ini-resumo" aria-label="Resumo do mês">
+          <div className="ini-card-topo"><h2>Resumo do mês</h2></div>
+          <div className="ini-res-lista">
+            <div className="ini-res-item">
+              <div className="ini-res-rotulo"><span className="ini-seta up">↑</span>Entrada</div>
+              <div className="ini-res-valor mono verde">{fmt(d.entrada)}</div>
+            </div>
+            {d.saldoAnterior !== 0 && (
+              <div className="ini-res-item">
+                <div className="ini-res-rotulo"><span className="ini-seta ok">↺</span>Saldo anterior</div>
+                <div className={`ini-res-valor mono ${d.saldoAnterior < 0 ? 'vermelho' : ''}`}>{fmt(d.saldoAnterior)}</div>
+              </div>
+            )}
+            <div className="ini-res-item">
+              <div className="ini-res-rotulo"><span className="ini-seta down">↓</span>Comprometido</div>
+              <div className="ini-res-valor mono">{fmt(d.comprometido)}</div>
+            </div>
           </div>
-          <div className="ini-mini">
-            <div className="ini-mini-rotulo"><span className="ini-seta down">↓</span> Comprometido</div>
-            <div className="ini-mini-valor mono">{fmt(d.comprometido)}</div>
-          </div>
-          <div className="ini-mini">
-            <div className="ini-mini-rotulo"><span className="ini-seta ok">✓</span> Já pago</div>
-            <div className="ini-mini-valor mono">{fmt(d.pago)}</div>
-            {d.comprometido > 0 && <div className="ini-mini-nota">{d.pctPago}% das contas</div>}
-          </div>
+          <div className="ini-res-nota">Pode gastar = entrada{d.saldoAnterior !== 0 ? ' + saldo anterior' : ''} − comprometido</div>
         </section>
 
         {acoes('so-mob')}
 
         <section className={`ini-atencao ${atrasadas.n ? 'ruim' : proximos7.n ? 'aviso' : 'ok'}`} aria-live="polite">
-          {atrasadas.n > 0 ? (
-            <>⚠ <b>{atrasadas.n} {atrasadas.n === 1 ? 'conta atrasada' : 'contas atrasadas'}</b> · {fmt(atrasadas.valor)}{proximos7.n > 0 && <span> · e {fmt(proximos7.valor)} vence nos próximos 7 dias</span>}</>
-          ) : proximos7.n > 0 ? (
-            <>🗓 <b>{fmt(proximos7.valor)}</b> vence nos próximos 7 dias ({proximos7.n} {proximos7.n === 1 ? 'conta' : 'contas'})</>
-          ) : d.contas.length > 0 && d.abertas.length === 0 ? (
-            <>🎉 Tudo pago neste mês</>
-          ) : (
-            <>✓ Nada vencendo nos próximos 7 dias</>
-          )}
+          <div className="ini-atencao-texto">
+            {atrasadas.n > 0 ? (
+              <>⚠ <b>{atrasadas.n} {atrasadas.n === 1 ? 'conta atrasada' : 'contas atrasadas'}</b> · {fmt(atrasadas.valor)}{proximos7.n > 0 && <span> · e {fmt(proximos7.valor)} vence nos próximos 7 dias</span>}</>
+            ) : proximos7.n > 0 ? (
+              <>🗓 <b>{fmt(proximos7.valor)}</b> vence nos próximos 7 dias ({proximos7.n} {proximos7.n === 1 ? 'conta' : 'contas'})</>
+            ) : d.contas.length > 0 && d.abertas.length === 0 ? (
+              <>🎉 Tudo pago neste mês</>
+            ) : (
+              <>✓ Nada vencendo nos próximos 7 dias</>
+            )}
+          </div>
+          {(atrasadas.n > 0 || proximos7.n > 0) && <button className="ini-atencao-btn" onClick={() => irPara('pagamentos')}>Ver contas →</button>}
         </section>
 
         {sazonal.ativo && sazonal.plano.tem && (() => {
           const w = sazonal.plano.janelas[0]
           return (
             <section className="ini-atencao aviso" aria-live="polite">
-              🗓 <b>{mesLabel(w.primeiroMes)}</b> deve ficar no vermelho (faltam {fmt(w.buraco)}).{' '}
-              {w.precisa > 0 && w.mesesAntes > 0 ? <>Guarde <b>{fmt(w.porMes)}</b> por mês até lá. </> : null}
-              <button className="link-btn" onClick={() => irPara('renda')}>Ver o plano</button>
+              <div className="ini-atencao-texto">
+                🗓 <b>{mesLabel(w.primeiroMes)}</b> deve ficar no vermelho (faltam {fmt(w.buraco)}).{' '}
+                {w.precisa > 0 && w.mesesAntes > 0 ? <>Guarde <b>{fmt(w.porMes)}</b> por mês até lá. </> : null}
+              </div>
+              <button className="ini-atencao-btn" onClick={() => irPara('renda')}>Ver o plano →</button>
             </section>
           )
         })()}
-
-        {d.linha.marcas.length > 0 && (
-          <section className="ini-card ini-linha">
-            <div className="ini-card-topo"><h2>Linha do mês</h2><span className="ini-card-dica">toque numa bolinha para ver o dia</span></div>
-            <LinhaDoMes linha={d.linha} aberto={diaAberto} onAbrir={setDiaAberto} />
-          </section>
-        )}
-
-        {aulasCard && (
-          <section className="ini-card ini-aulas">
-            <div className="ini-card-topo">
-              <h2>Aulas particulares</h2>
-              <button className="link-btn" onClick={() => irPara('aulas')}>Abrir aulas →</button>
-            </div>
-            {aulasCard.hoje.length > 0 ? (
-              <div className="ini-aulas-hoje">
-                <div className="cad-sub">Hoje</div>
-                {aulasCard.hoje.map(({ aula, aluno }) => (
-                  <div key={aula.id} className="ini-aula-linha">
-                    <span><b>{aula.horario ? `${aula.horario} · ` : ''}{aluno.nome}</b> <span className="cad-sub">{textoDuracao(aula.duracao_min)} · {fmt(valorAula(aula.valor_hora_centavos, aula.duracao_min) / 100)}</span></span>
-                    <button className="btn btn-primary btn-sm" onClick={() => realizarAula(aula)}>✓ Realizada</button>
-                  </div>
-                ))}
-              </div>
-            ) : <div className="cad-sub">Nenhuma aula prevista para hoje.</div>}
-            {aulasCard.atrasadas > 0 && (
-              <button className="ini-aulas-aviso" onClick={() => irPara('aulas')}>⚠ {aulasCard.atrasadas} {aulasCard.atrasadas === 1 ? 'aula de dia passado ainda como prevista' : 'aulas de dias passados ainda como previstas'}: toque para atualizar</button>
-            )}
-            {(aulasCard.mes || aulasCard.aReceberFechado > 0) && (
-              <div className="ini-aulas-mes">
-                {aulasCard.mes && <span>{mesLabel(mes)}: <b className="mono">{fmt(aulasCard.mes.valor)}</b> em aulas{aulasCard.mes.projetada ? ' (previsto)' : ''}</span>}
-                {aulasCard.mes && aulasCard.mes.aReceber > 0.005 && <span>ainda não recebido <b className="mono">{fmt(aulasCard.mes.aReceber)}</b></span>}
-                {aulasCard.aReceberFechado > 0 && <span style={{ color: 'var(--amber)' }}>{aulasCard.nFechadas} {aulasCard.nFechadas === 1 ? 'mês fechado' : 'meses fechados'} sem recebimento: <b className="mono">{fmt(aulasCard.aReceberFechado)}</b></span>}
-              </div>
-            )}
-          </section>
-        )}
-
-        {planoDividas && (
-          <section className="ini-card ini-dividas">
-            <div className="ini-card-topo">
-              <h2>Dívidas</h2>
-              <button className="link-btn" onClick={() => irPara('dividas')}>Abrir o plano →</button>
-            </div>
-            <div className="ini-dividas-linha">
-              <div><div className="cad-sub">Você deve</div><div className="mono" style={{ fontSize: 18, fontWeight: 600, color: 'var(--red)' }}>{fmt(planoDividas.total)}</div></div>
-              <div style={{ textAlign: 'right' }}><div className="cad-sub">{planoDividas.livreMes ? 'Livre em' : 'Prazo'}</div><div className="mono" style={{ fontSize: 18, fontWeight: 600, color: 'var(--green)' }}>{planoDividas.livreMes ? mesLabel(planoDividas.livreMes) : '—'}</div></div>
-            </div>
-            <div className="aulas-meta-barra" role="progressbar" aria-valuenow={planoDividas.pctPago} aria-valuemin={0} aria-valuemax={100} aria-label="Já pago do total das dívidas"><span className="apur" style={{ width: `${planoDividas.pctPago}%` }} /></div>
-            <div className="cad-sub">
-              {planoDividas.pctPago > 0 ? `Já pagou ${fmt(planoDividas.pago)} (${planoDividas.pctPago}%). ` : ''}
-              {planoDividas.proxima ? <>Próxima a quitar: <b>{planoDividas.proxima.nome}</b> em {mesLabel(planoDividas.proxima.mes)}.</> : 'Informe a parcela ou o valor por mês para o app estimar a quitação.'}
-              {planoDividas.atrasadas > 0 ? ` ${planoDividas.atrasadas} ${planoDividas.atrasadas === 1 ? 'está atrasada' : 'estão atrasadas'}.` : ''}
-            </div>
-          </section>
-        )}
 
         <section className="ini-card ini-contas">
           <div className="ini-card-topo">
             <h2>Contas a pagar</h2>
             {d.contas.length > 0 && <span className="ini-card-dica">falta {fmt(d.aPagar)}</span>}
           </div>
+          {d.linha.marcas.length > 0 && (
+            <div className="ini-linha">
+              <div className="ini-sub-rotulo">Linha do mês <span>· toque numa bolinha para ver o dia</span></div>
+              <LinhaDoMes linha={d.linha} aberto={diaAberto} onAbrir={setDiaAberto} />
+            </div>
+          )}
           {d.contas.length === 0 && <div className="ini-vazio">Nenhuma conta neste mês.</div>}
           {d.contas.length > 0 && proximas.length === 0 && <div className="ini-vazio">Tudo pago neste mês 🎉</div>}
           {proximas.map((c) => (
-            <div key={c.chave} className="ini-conta">
+            <div key={c.chave} className={`ini-conta ${c.atrasada ? 'atrasada' : ''}`}>
               <span className="ini-conta-ic" aria-hidden="true">{ICONE_TIPO[c.tipo]}</span>
               <div className="ini-conta-meio">
                 <div className="ini-conta-nome">{c.nome}</div>
@@ -273,25 +248,76 @@ export default function Inicio({ store, irPara }) {
           <button className="ini-link" onClick={() => irPara('pagamentos')}>Ver tudo e marcar como pago →</button>
         </section>
 
-        <section className="ini-card ini-cats-card">
-          <div className="ini-card-topo"><h2>Gastos por categoria</h2></div>
-          {d.categorias.total === 0 ? <div className="ini-vazio">Sem gastos neste mês ainda.</div> : (
-            <div className="ini-cats">
-              <Rosca itens={d.categorias.itens} total={d.categorias.total} />
-              <ul className="ini-legenda">
-                {d.categorias.itens.map((c, i) => (
-                  <li key={c.nome}>
-                    <span className="ini-ponto" style={{ background: CORES[i % CORES.length] }} />
-                    <span className="ini-leg-nome">{c.nome}</span>
-                    <span className="ini-leg-valor mono">{fmt(c.valor)}</span>
-                    <span className="ini-leg-pct">{String(c.pct).replace('.', ',')}%</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+        <div className="ini-lateral">
+          <section className="ini-card ini-cats-card">
+            <div className="ini-card-topo"><h2>Gastos por categoria</h2></div>
+            {d.categorias.total === 0 ? <div className="ini-vazio">Sem gastos neste mês ainda.</div> : (
+              <div className="ini-cats">
+                <Rosca itens={d.categorias.itens} total={d.categorias.total} />
+                <ul className="ini-legenda">
+                  {d.categorias.itens.map((c, i) => (
+                    <li key={c.nome}>
+                      <span className="ini-ponto" style={{ background: CORES[i % CORES.length] }} />
+                      <span className="ini-leg-nome">{c.nome}</span>
+                      <span className="ini-leg-valor mono">{fmt(c.valor)}</span>
+                      <span className="ini-leg-pct">{String(c.pct).replace('.', ',')}%</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <button className="ini-link" onClick={() => irPara('dashboard')}>Detalhes por categoria →</button>
+          </section>
+
+          {aulasCard && (
+            <section className="ini-card ini-aulas">
+              <div className="ini-card-topo">
+                <h2>Aulas particulares</h2>
+                <button className="link-btn" onClick={() => irPara('aulas')}>Abrir aulas →</button>
+              </div>
+              {aulasCard.hoje.length > 0 ? (
+                <div className="ini-aulas-hoje">
+                  <div className="cad-sub">Hoje</div>
+                  {aulasCard.hoje.map(({ aula, aluno }) => (
+                    <div key={aula.id} className="ini-aula-linha">
+                      <span><b>{aula.horario ? `${aula.horario} · ` : ''}{aluno.nome}</b> <span className="cad-sub">{textoDuracao(aula.duracao_min)} · {fmt(valorAula(aula.valor_hora_centavos, aula.duracao_min) / 100)}</span></span>
+                      <button className="btn btn-primary btn-sm" onClick={() => realizarAula(aula)}>✓ Realizada</button>
+                    </div>
+                  ))}
+                </div>
+              ) : <div className="cad-sub">Nenhuma aula prevista para hoje.</div>}
+              {aulasCard.atrasadas > 0 && (
+                <button className="ini-aulas-aviso" onClick={() => irPara('aulas')}>⚠ {aulasCard.atrasadas} {aulasCard.atrasadas === 1 ? 'aula de dia passado ainda como prevista' : 'aulas de dias passados ainda como previstas'}: toque para atualizar</button>
+              )}
+              {(aulasCard.mes || aulasCard.aReceberFechado > 0) && (
+                <div className="ini-aulas-mes">
+                  {aulasCard.mes && <span>{mesLabel(mes)}: <b className="mono">{fmt(aulasCard.mes.valor)}</b> em aulas{aulasCard.mes.projetada ? ' (previsto)' : ''}</span>}
+                  {aulasCard.mes && aulasCard.mes.aReceber > 0.005 && <span>ainda não recebido <b className="mono">{fmt(aulasCard.mes.aReceber)}</b></span>}
+                  {aulasCard.aReceberFechado > 0 && <span style={{ color: 'var(--amber)' }}>{aulasCard.nFechadas} {aulasCard.nFechadas === 1 ? 'mês fechado' : 'meses fechados'} sem recebimento: <b className="mono">{fmt(aulasCard.aReceberFechado)}</b></span>}
+                </div>
+              )}
+            </section>
           )}
-          <button className="ini-link" onClick={() => irPara('dashboard')}>Detalhes por categoria →</button>
-        </section>
+
+          {planoDividas && (
+            <section className="ini-card ini-dividas">
+              <div className="ini-card-topo">
+                <h2>Dívidas</h2>
+                <button className="link-btn" onClick={() => irPara('dividas')}>Abrir o plano →</button>
+              </div>
+              <div className="ini-dividas-linha">
+                <div><div className="cad-sub">Você deve</div><div className="mono" style={{ fontSize: 18, fontWeight: 600, color: 'var(--red)' }}>{fmt(planoDividas.total)}</div></div>
+                <div style={{ textAlign: 'right' }}><div className="cad-sub">{planoDividas.livreMes ? 'Livre em' : 'Prazo'}</div><div className="mono" style={{ fontSize: 18, fontWeight: 600, color: 'var(--green)' }}>{planoDividas.livreMes ? mesLabel(planoDividas.livreMes) : '—'}</div></div>
+              </div>
+              <div className="aulas-meta-barra" role="progressbar" aria-valuenow={planoDividas.pctPago} aria-valuemin={0} aria-valuemax={100} aria-label="Já pago do total das dívidas"><span className="apur" style={{ width: `${planoDividas.pctPago}%` }} /></div>
+              <div className="cad-sub">
+                {planoDividas.pctPago > 0 ? `Já pagou ${fmt(planoDividas.pago)} (${planoDividas.pctPago}%). ` : ''}
+                {planoDividas.proxima ? <>Próxima a quitar: <b>{planoDividas.proxima.nome}</b> em {mesLabel(planoDividas.proxima.mes)}.</> : 'Informe a parcela ou o valor por mês para o app estimar a quitação.'}
+                {planoDividas.atrasadas > 0 ? ` ${planoDividas.atrasadas} ${planoDividas.atrasadas === 1 ? 'está atrasada' : 'estão atrasadas'}.` : ''}
+              </div>
+            </section>
+          )}
+        </div>
 
         <div className="ini-longo"><LongoPrazo store={store} irPara={irPara} compacto /></div>
       </div>
