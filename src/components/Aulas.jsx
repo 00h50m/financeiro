@@ -16,11 +16,15 @@ import { lerMeta, situacaoMeta } from '../lib/aulasMeta'
 import Relatorio from './aulas/Relatorio'
 import ModalConfigAulas from './aulas/ModalConfigAulas'
 import ModalPausas from './aulas/ModalPausas'
+import { nomeSerieCurto } from '../lib/alunosCiclo'
 import ModalFechamento from './aulas/ModalFechamento'
 import { achaFechamento, fechadoStatus, valorAlunoMes } from '../lib/aulasFechamento'
 
 const dataBr = (d) => d.split('-').reverse().join('/')
 const COR_STATUS = { prevista: 'badge-blue', realizada: 'badge-green', cancelada: 'badge-gray', nao_realizada: 'badge-amber' }
+
+const dataBrCurta = (d) => d.split('-').reverse().join('/').slice(0, 5) + '/' + d.slice(2, 4)
+const somarUmDia = (iso) => new Date(Date.parse(`${iso}T12:00:00Z`) + 86400000).toISOString().slice(0, 10)
 
 export default function Aulas({ store }) {
   const { alunos, aulasProg, aulas, aulasPrevInicial, aulasFech, aulasPausas, aulasOk, loading, config, definirConfig, gerarAulas, atualizarAula, excluirAula } = store
@@ -37,6 +41,7 @@ export default function Aulas({ store }) {
   const [lote, setLote] = useState(false)
   const [compAberto, setCompAberto] = useState(false)
   const [pausasAberto, setPausasAberto] = useState(false)
+  const [pausaAluno, setPausaAluno] = useState('') // aluno pré-selecionado ao abrir 'Pausar' pelo cadastro
   const [configAberta, setConfigAberta] = useState(false)
   const [fechando, setFechando] = useState(null) // aluno cujo fechamento está aberto
   const tentadas = useRef(new Set())
@@ -171,10 +176,10 @@ export default function Aulas({ store }) {
 
   return (
     <div className="page aulas-pg">
-      {modalAluno && <ModalAluno store={store} aluno={modalAluno.aluno} inicialAvulso={!!modalAluno.avulso} onClose={() => setModalAluno(null)} />}
+      {modalAluno && <ModalAluno store={store} aluno={modalAluno.aluno} inicialAvulso={!!modalAluno.avulso} onPausar={(al) => { setModalAluno(null); setPausaAluno(al.id); setPausasAberto(true) }} onClose={() => setModalAluno(null)} />}
       {lote && <ModalLote store={store} aulas={selAulas} alunoPorId={alunoPorId} onClose={(ok) => { setLote(false); if (ok) sairSel() }} />}
       {configAberta && <ModalConfigAulas modo={store.modoRendaAulas} definirConfig={definirConfig} onClose={() => setConfigAberta(false)} />}
-      {pausasAberto && <ModalPausas store={store} alunos={alunos} onClose={() => setPausasAberto(false)} />}
+      {pausasAberto && <ModalPausas store={store} alunos={alunos} alunoInicial={pausaAluno} onClose={() => { setPausasAberto(false); setPausaAluno('') }} />}
       {fechando && <ModalFechamento store={store} aluno={fechando} mes={mes} onClose={() => setFechando(null)} />}
       {dialogo && (
         <DialogosAula
@@ -261,7 +266,17 @@ export default function Aulas({ store }) {
                       <div className="aulas-aluno-topo">
                         <div style={{ minWidth: 0 }}>
                           <div className="cad-tile-nome">{al.nome}{al.ativo === false && <span className="badge badge-gray" style={{ marginLeft: 6 }}>inativo</span>}{!aulasProg.some((p) => p.aluno_id === al.id && !p.vigencia_fim) && <span className="badge badge-gray" style={{ marginLeft: 6 }} title="Sem dia fixo: as aulas são registradas como avulsas">avulso</span>}</div>
-                          <div className="cad-sub">{al.responsavel} · {fmt(centavosParaReais(al.valor_hora_centavos))}/h</div>
+                          <div className="cad-sub">{al.responsavel} · {fmt(centavosParaReais(al.valor_hora_centavos))}/h{al.serie ? ` · ${nomeSerieCurto(al.serie)}` : ''}</div>
+                          {(() => {
+                            const pausa = aulasPausas.find((x) => x.aluno_id === al.id && x.inicio <= hoje && x.fim >= hoje)
+                            return (
+                              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 }}>
+                                {pausa && <span className="badge badge-amber">pausado · volta {dataBrCurta(somarUmDia(pausa.fim))}</span>}
+                                {al.ativo !== false && al.saida_prevista && <span className="badge badge-amber">sai em {dataBrCurta(al.saida_prevista)}</span>}
+                                {al.ativo === false && al.motivo_encerramento && <span className="badge badge-gray">{al.motivo_encerramento}</span>}
+                              </div>
+                            )
+                          })()}
                         </div>
                         <button className="btn btn-ghost btn-sm" onClick={() => setModalAluno({ aluno: al })}>Editar</button>
                       </div>

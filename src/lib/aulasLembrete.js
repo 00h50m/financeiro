@@ -8,12 +8,13 @@ import { mesDe } from './aulas.js'
 import { achaFechamento, fechadoStatus } from './aulasFechamento.js'
 import { antesDoInicio } from './inicioApp.js'
 import { aulasDeHoje } from './aulasBot.js'
+import { followupsPausa, saidasProximas } from './alunosCiclo.js'
 
 const DIAS_FECHAR = [1, 3, 5, 7]
 const dataBr = (d) => `${d.slice(8, 10)}/${d.slice(5, 7)}`
 const somarDias = (iso, n) => new Date(Date.parse(`${iso}T12:00:00Z`) + n * 86400000).toISOString().slice(0, 10)
 
-export function pendenciasDeAulas({ alunos = [], aulas = [], aulasFech = [], inicioApp = null }, hoje) {
+export function pendenciasDeAulas({ alunos = [], aulas = [], aulasFech = [], inicioApp = null, pausas = [] }, hoje) {
   const nome = new Map(alunos.map((a) => [a.id, a.nome]))
   const mesAtual = hoje.slice(0, 7)
 
@@ -41,11 +42,16 @@ export function pendenciasDeAulas({ alunos = [], aulas = [], aulasFech = [], ini
       }
     }
   }
-  return { hoje: aulasDeHoje({ alunos, aulas, aulasFech, inicioApp }, hoje), atrasadas, fechar, receber }
+  // Follow-up de pausa: avisa quando falta ≤ 3 dias para voltar e, depois, toda segunda enquanto não for marcado como feito.
+  const seg = new Date(`${hoje}T12:00:00Z`).getUTCDay() === 1
+  const followups = followupsPausa(pausas, alunos, hoje, 3).concat(seg ? followupsPausa(pausas, alunos, hoje, 14).filter((x) => x.dias > 3) : [])
+  // Saída prevista: avisa no dia 1 de cada mês quando falta ≤ 60 dias.
+  const saidas = dia === 1 ? saidasProximas(alunos, hoje, 60) : []
+  return { hoje: aulasDeHoje({ alunos, aulas, aulasFech, inicioApp }, hoje), atrasadas, fechar, receber, followups, saidas }
 }
 
 export function textoLembreteAulas(p) {
-  if (!p.hoje?.length && !p.atrasadas.length && !p.fechar.length && !p.receber.length) return null
+  if (!p.hoje?.length && !p.atrasadas.length && !p.fechar.length && !p.receber.length && !p.followups?.length && !p.saidas?.length) return null
   const linhas = ['🎓 Aulas particulares']
   if (p.hoje?.length) {
     linhas.push('', 'Hoje:')
@@ -63,6 +69,14 @@ export function textoLembreteAulas(p) {
   if (p.receber.length) {
     linhas.push('', 'Fechado e ainda sem recebimento:')
     p.receber.forEach((r) => linhas.push(`• ${r.aluno} (${mesLabel(r.mes)}): ${fmt(r.valor)}`))
+  }
+  if (p.followups?.length) {
+    linhas.push('', 'Follow-up de alunos pausados:')
+    p.followups.forEach((x) => linhas.push(`• ${x.aluno.nome}: ${x.dias < 0 ? `devia voltar em ${dataBr(x.retorno)}` : x.dias === 0 ? 'volta hoje' : `volta em ${dataBr(x.retorno)}`}${x.pausa.motivo ? ` (${x.pausa.motivo})` : ''}`))
+  }
+  if (p.saidas?.length) {
+    linhas.push('', 'Saídas previstas:')
+    p.saidas.forEach((x) => linhas.push(`• ${x.aluno.nome}: ${dataBr(x.saida)}`))
   }
   if (p.atrasadas.length || p.hoje?.length) linhas.push('', 'Para atualizar por aqui: /aulas')
   linhas.push('', 'Para parar de receber avisos: /avisos off')
