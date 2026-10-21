@@ -267,3 +267,85 @@ describe('linhaConciliada', () => {
     expect(linhaConciliada({})).toBe(false)
   })
 })
+
+describe('cruzar data, nome no cartão e valor antes de dizer "já lançada"', () => {
+  const um = (l, compras, ctx = {}) => analisarLinhas([l], { compras, ...ctx })[0].correspondencia
+
+  it('mostra a evidência de cada critério (valor, data e nome)', () => {
+    const c = compra({ descricao: 'Padaria Central', valor_total: 25, data_compra: '2026-10-05' })
+    const r = um(linha({ descricao: 'Padaria Central', valor: '25', data: '2026-10-06' }), [c])
+    expect(r.tipo).toBe('exata')
+    expect(r.evidencias).toMatchObject({ valor: { ok: true, diferenca: 0 }, data: { dias: 1, ok: true }, nome: { sim: 1, ok: true } })
+  })
+
+  it('mesmo nome e valor, mas 5 dias de diferença: NÃO é a mesma compra', () => {
+    const c = compra({ descricao: 'Padaria Central', valor_total: 25, data_compra: '2026-10-01' })
+    expect(um(linha({ descricao: 'Padaria Central', valor: '25', data: '2026-10-06' }), [c])).toBeNull()
+  })
+
+  it('mesmo valor e data, mas nome diferente: NÃO é a mesma compra', () => {
+    const c = compra({ descricao: 'Posto Shell', valor_total: 25, data_compra: '2026-10-05' })
+    expect(um(linha({ descricao: 'Padaria Central', valor: '25', data: '2026-10-05' }), [c])).toBeNull()
+  })
+
+  it('nome só parecido não confirma sozinho: fica "parecida" e pendente até a pessoa decidir', () => {
+    const c = compra({ descricao: 'uber', valor_total: 32.5, data_compra: '2026-10-04' })
+    const r = um(linha({ descricao: 'UBER *TRIP 9911', valor: '32.50', data: '2026-10-04' }), [c])
+    expect(r.tipo).toBe('parecida')
+    expect(linhaConciliada({ correspondencia: r })).toBe(false)
+    expect(linhaConciliada({ correspondencia: r, decisao: 'mesma' })).toBe(true)
+  })
+
+  it('escolhe a compra certa quando o mesmo lugar tem duas compras de mesmo valor em dias diferentes', () => {
+    const a = compra({ descricao: 'Padaria Central', valor_total: 25, data_compra: '2026-10-02' })
+    const b = compra({ descricao: 'Padaria Central', valor_total: 25, data_compra: '2026-10-09' })
+    const r = analisarLinhas([linha({ descricao: 'Padaria Central', valor: '25', data: '2026-10-09' })], { compras: [a, b] })[0].correspondencia
+    expect(r.compra.id).toBe(b.id)
+  })
+
+  it('1ª parcela (1/3) com a data da compra muito longe é outra compra do mesmo lugar', () => {
+    const c = compra({ descricao: 'Notebook Dell', parcelas: 3, valor_total: 300, data_compra: '2026-08-01' })
+    expect(um(linha({ descricao: 'Notebook Dell', valor: '100', parcela_atual: '1', parcela_total: '3', data: '2026-09-15' }), [c])).toBeNull()
+  })
+
+  it('valor muito diferente em compra à vista (outro Uber no mesmo dia) não vira "valor diferente"', () => {
+    const c = compra({ descricao: 'Uber', valor_total: 12, data_compra: '2026-10-05' })
+    expect(um(linha({ descricao: 'Uber', valor: '60', data: '2026-10-05' }), [c])).toBeNull()
+  })
+
+  it('arredondamento de centavos no parcelamento (43,11 x 43,12) é o mesmo parcelamento', () => {
+    const c = compra({ descricao: 'EXCELARIS - NuPay', parcelas: 12, valor_total: 517.44, data_compra: '2026-09-08' })
+    const r = um(linha({ descricao: 'EXCELARIS - NuPay', valor: '43.11', parcela_atual: '2', parcela_total: '12' }), [c])
+    expect(r.tipo).toBe('parcelamento')
+  })
+
+  it('dois parcelamentos do mesmo lugar com valores diferentes casam cada um com o seu', () => {
+    const a = compra({ descricao: 'EXCELARIS - NuPay', parcelas: 12, valor_total: 517.44 })
+    const b = compra({ descricao: 'EXCELARIS - NuPay', parcelas: 12, valor_total: 690.24 })
+    const ls = [
+      linha({ descricao: 'EXCELARIS - NuPay', valor: '57.51', parcela_atual: '2', parcela_total: '12' }),
+      linha({ descricao: 'EXCELARIS - NuPay', valor: '43.11', parcela_atual: '2', parcela_total: '12' }),
+    ]
+    const r = analisarLinhas(ls, { compras: [a, b] })
+    expect(r[0].correspondencia.compra.id).toBe(b.id)
+    expect(r[1].correspondencia.compra.id).toBe(a.id)
+  })
+
+  describe('parcela em andamento: o app tem de esperar essa parcela neste mês', () => {
+    const notebook = compra({ descricao: 'Notebook Dell', parcelas: 3, valor_total: 300, data_compra: '2026-08-01' }) // ago=1, set=2, out=3
+    const l2de3 = linha({ descricao: 'Notebook Dell', valor: '100', parcela_atual: '2', parcela_total: '3' })
+    it('parcela certa para o mês da fatura: parcelamento já lançado', () => {
+      expect(um(l2de3, [notebook], { cartoes, mesFatura: '2026-09' }).tipo).toBe('parcelamento')
+    })
+    it('parcela errada para o mês: "parecida" com o aviso e a parcela esperada, a decidir', () => {
+      const r = um(l2de3, [notebook], { cartoes, mesFatura: '2026-10' })
+      expect(r.tipo).toBe('parecida')
+      expect(r.avisos).toContain('parcela_diferente')
+      expect(r.parcelaEsperada).toBe(3)
+      expect(linhaConciliada({ correspondencia: r })).toBe(false)
+    })
+    it('sem mês da fatura informado, mantém o comportamento anterior', () => {
+      expect(um(l2de3, [notebook]).tipo).toBe('parcelamento')
+    })
+  })
+})

@@ -29,8 +29,12 @@ function marcarDuplicatasNoCsv(linhas) {
 
 // Reavalia o que já está lançado (exata / parecida / parcelamento) e o que falta em cada linha,
 // sem desfazer o que a pessoa marcou ou editou: linhas que ela mesma marcou/desmarcou mantêm a escolha.
-function recalcular(linhas, compras, aliases, modo) {
-  const achados = analisarLinhas(linhas, { compras, aliases }, modo)
+// "É outra compra" (decisao === 'outra') tira a linha da análise: ela não pode mais reivindicar a compra parecida.
+function recalcular(linhas, compras, aliases, modo, ctx = {}) {
+  const indiceDecididas = linhas.map((l, i) => i).filter((i) => linhas[i].decisao !== 'outra')
+  const parciais = analisarLinhas(indiceDecididas.map((i) => linhas[i]), { compras, aliases, ...ctx }, modo)
+  const achados = linhas.map((l) => ({ chave: chaveEstabelecimento(l.descricao, indexarAliases(aliases)).chave, correspondencia: null }))
+  indiceDecididas.forEach((i, j) => { achados[i] = parciais[j] })
   const comFlags = linhas.map((l, i) => {
     const { chave, correspondencia } = achados[i]
     const emAndamento = Number(l.parcela_atual) > 1
@@ -45,7 +49,7 @@ function recalcular(linhas, compras, aliases, modo) {
       duplicataExistente: jaLancada,
       parcelaEncontrada: emAndamento ? parcelamentoJa : null,
       parcelaCompra: parcelamentoJa ? correspondencia.compra : null,
-      incluir: l.incluirManual ? l.incluir : !(jaLancada || parcelamentoJa),
+      incluir: l.incluirManual ? l.incluir : l.decisao === 'outra' || !(jaLancada || parcelamentoJa),
     }
   })
   return marcarDuplicatasNoCsv(comFlags)
@@ -53,6 +57,18 @@ function recalcular(linhas, compras, aliases, modo) {
 
 
 const fmtDia = (iso) => String(iso).slice(0, 10).split('-').reverse().slice(0, 2).join('/')
+
+// O cruzamento que sustenta "já lançada": valor, data e nome, cada um com o seu resultado.
+function EvidenciasCruzamento({ ev }) {
+  const chip = (ok, texto, dica) => <span className={`badge ${ok ? 'badge-green' : 'badge-amber'}`} style={{ fontSize: 10 }} title={dica}>{ok ? '✓' : '≠'} {texto}</span>
+  return (
+    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 }} aria-label="Cruzamento com a compra lançada">
+      {chip(ev.valor.ok, ev.valor.ok ? 'valor' : `valor ${ev.valor.diferenca > 0 ? '+' : '−'}${fmt(Math.abs(ev.valor.diferenca))}`, `No arquivo ${fmt(ev.valor.linha)} · lançado ${fmt(ev.valor.app)}`)}
+      {ev.data.dias != null && chip(ev.data.ok, ev.data.dias === 0 ? 'mesmo dia' : ev.data.ok ? 'data ±1 dia' : `data ${ev.data.dias} dias`, 'Diferença entre a data da linha e a da compra lançada')}
+      {chip(ev.nome.ok, ev.nome.ok ? 'nome' : `nome ≈ ${Math.round(ev.nome.sim * 100)}%`, 'Semelhança entre o nome no cartão e o nome da compra lançada')}
+    </div>
+  )
+}
 
 // "O que falta lançar?": compara o CSV com o que está lançado neste cartão e mês, nos dois sentidos.
 function PainelConferencia({ conf, cartaoNome, faturaReal, onEditar, onMover, faturaMesOk }) {
@@ -220,9 +236,9 @@ export default function ImportarFatura({ store }) {
   const [lendoPdf, setLendoPdf] = useState(false)
   const [infoPdf, setInfoPdf] = useState(null) // { totalFatura, descartadas } do último PDF lido
 
-  const reanalisar = (ls, m = modoValor) => recalcular(ls, compras, aliases, m)
+  const reanalisar = (ls, m = modoValor) => recalcular(ls, compras, aliases, m, { cartoes, mesFatura })
   // Se uma compra for editada/lançada enquanto o arquivo está aberto, refaz a conferência com os dados novos.
-  useEffect(() => { setLinhas((ls) => (ls.length ? recalcular(ls, compras, aliases, modoValor) : ls)) }, [compras])
+  useEffect(() => { setLinhas((ls) => (ls.length ? recalcular(ls, compras, aliases, modoValor, { cartoes, mesFatura }) : ls)) }, [compras, mesFatura])
 
   function limparTela() {
     setErroArquivo('')
@@ -363,7 +379,7 @@ export default function ImportarFatura({ store }) {
   }
 
   function atualizarLinha(id, patch) {
-    const reavaliar = ['cartao_id', 'data', 'descricao', 'valor'].some((k) => k in patch)
+    const reavaliar = ['cartao_id', 'data', 'descricao', 'valor', 'decisao'].some((k) => k in patch)
     if ('pessoa' in patch) patch = { ...patch, pessoaManual: true }
     else if ('cartao_id' in patch) patch = { ...patch, _trocouCartao: true }
     setLinhas((ls) => {
@@ -376,6 +392,14 @@ export default function ImportarFatura({ store }) {
       return reavaliar ? reanalisar(novo) : novo
     })
   }
+
+  // Correspondência incerta ("parece já lançada"): a pessoa decide. Nada incerto é confirmado sozinho.
+  //   mesma  -> é a compra já lançada (não importa de novo)
+  //   outra  -> é outra compra do mesmo lugar (importa)
+  //   null   -> volta ao que o app tinha sugerido
+  const decidirLinha = (id, decisao) => atualizarLinha(id, decisao === 'mesma'
+    ? { decisao, incluir: false, incluirManual: true }
+    : decisao === 'outra' ? { decisao, incluir: true, incluirManual: true } : { decisao: undefined, incluirManual: false })
 
   function mudarCategoria(id, categoria) {
     const subs = categorias.find((c) => c.nome === categoria)?.subcategorias || []
@@ -575,7 +599,7 @@ export default function ImportarFatura({ store }) {
             <div className="alert alert-blue">
               {resumo.novas} linha{resumo.novas !== 1 ? 's novas' : ' nova'}
               {resumo.jaLancadas > 0 && ` · ${resumo.jaLancadas} já lançada${resumo.jaLancadas !== 1 ? 's' : ''} em Compras (desmarcada${resumo.jaLancadas !== 1 ? 's' : ''})`}
-              {resumo.parecidas > 0 && ` · ${resumo.parecidas} só parecida${resumo.parecidas !== 1 ? 's' : ''} — confira`}
+              {resumo.parecidas > 0 && ` · ${resumo.parecidas} só parecida${resumo.parecidas !== 1 ? 's' : ''} (data, nome ou valor não batem por inteiro) — decida em cada uma`}
               {resumo.valoresDiferentes > 0 && ` · ${resumo.valoresDiferentes} com valor diferente do lançado — veja em "O que falta lançar"`}
               {resumo.repetidasNoArquivo > 0 && ` · ${resumo.repetidasNoArquivo} linha${resumo.repetidasNoArquivo !== 1 ? 's' : ''} repetida${resumo.repetidasNoArquivo !== 1 ? 's' : ''} dentro do próprio arquivo`}
             </div>
@@ -697,7 +721,9 @@ export default function ImportarFatura({ store }) {
                         <input value={l.descricao} onChange={(e) => atualizarLinha(l._id, { descricao: e.target.value })} />
                         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 }}>
                           {l.correspondencia?.tipo === 'exata' && <span className="badge badge-amber">já lançada</span>}
-                          {l.correspondencia?.tipo === 'parecida' && <span className="badge badge-amber" title="Mesmo valor e cartão, com nome ou data um pouco diferentes">parece já lançada</span>}
+                          {l.correspondencia?.tipo === 'parecida' && !l.decisao && <span className="badge badge-amber" title="Mesmo valor e cartão, com nome ou data um pouco diferentes: confirme se é a mesma compra">parece já lançada · confirme</span>}
+                          {l.correspondencia?.tipo === 'parecida' && l.decisao === 'mesma' && <span className="badge badge-green" title="Você confirmou que é a compra já lançada">é a mesma (confirmado)</span>}
+                          {l.decisao === 'outra' && <span className="badge badge-blue" title="Você marcou como outra compra: será importada">outra compra (você marcou)</span>}
                           {l.correspondencia?.tipo === 'valor_diferente' && <span className="badge badge-red" title="Parece a mesma compra, mas o valor lançado é diferente. Corrija a compra em vez de importar de novo.">valor diferente do lançado</span>}
                           {l.duplicataCsv && <span className="badge badge-gray" title="Há outra linha igual neste arquivo (pode ser uma compra repetida de verdade)">repetida no arquivo</span>}
                         </div>
@@ -706,6 +732,21 @@ export default function ImportarFatura({ store }) {
                             {l.correspondencia.tipo === 'parcelamento' ? 'parcelamento em Compras' : 'em Compras'}: {tituloCompra(c)} · {fmtData(c.data_compra)} · {fmt(c.valor_total)}
                             {Number(c.parcelas) > 1 ? ` (${c.parcelas}x)` : ''}{rotuloOrigem(c.origem) ? ` · ${rotuloOrigem(c.origem)}` : ''}
                           </div>
+                        )}
+                        {l.correspondencia?.evidencias && <EvidenciasCruzamento ev={l.correspondencia.evidencias} />}
+                        {l.correspondencia?.avisos?.includes('parcela_diferente') && (
+                          <div style={{ fontSize: 10, color: 'var(--amber)', marginTop: 3 }}>
+                            ⚠ no app, {mesLabel(mesFatura)} seria a parcela {l.correspondencia.parcelaEsperada}/{total} (o arquivo traz a {atual}/{total})
+                          </div>
+                        )}
+                        {l.correspondencia?.tipo === 'parecida' && !l.decisao && (
+                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
+                            <button className="btn btn-ghost btn-sm" onClick={() => decidirLinha(l._id, 'mesma')}>É a mesma</button>
+                            <button className="btn btn-ghost btn-sm" onClick={() => decidirLinha(l._id, 'outra')}>É outra compra</button>
+                          </div>
+                        )}
+                        {l.decisao && (
+                          <div style={{ marginTop: 4 }}><button className="link-btn" onClick={() => decidirLinha(l._id, null)}>desfazer minha decisão</button></div>
                         )}
                         {problemas.length > 0 && (
                           <div style={{ fontSize: 10, color: 'var(--red)', marginTop: 3 }}>⚠ {problemas.join(' · ')}</div>

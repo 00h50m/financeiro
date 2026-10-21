@@ -5,15 +5,37 @@ import { normBasico, normNome, round2 } from './normalizacao.js'
 import { sugerirIdentificacao } from './nomesAmigaveis.js'
 import { comprasComGruposSomados } from './divisaoCompra.js'
 import { itensDaFatura } from './financeiro.js'
-import { mesDaFatura } from './utils.js'
+import { mesDaFatura, gerarParcelas } from './utils.js'
 
 // Inteligência da importação de fatura (CSV): reconhecer o que já está lançado, sugerir categoria e nome.
 // Tudo puro e testável; a tela só mostra o resultado.
 
 const TOLERANCIA_VALOR = 0.02
+// "Mesma compra com valor diferente" em compra À VISTA: até R$ 3,00 ou 20% (o que for maior) — IOF, juros, valor digitado errado.
+// Acima disso é outra compra do mesmo lugar (ex.: dois Uber no mesmo dia). Parcelamento (mesmo nome e nº de parcelas) não tem limite.
+const LIMITE_DIFERENCA_MIN = 3
+const LIMITE_DIFERENCA_PCT = 0.2
 // Rede de segurança: mesmo que cada linha pareça casada, "tudo lançado" só vale se os TOTAIS também fecham.
 const TOLERANCIA_TOTAL = 0.1
 const diasEntre = (a, b) => Math.abs(Date.parse(String(a).slice(0, 10) + 'T12:00:00Z') - Date.parse(String(b).slice(0, 10) + 'T12:00:00Z')) / 86400000
+
+// O CRUZAMENTO que sustenta "já lançada": data x nome (no cartão) x valor, cada um com o seu resultado.
+//   valor: igual (até 2 centavos) ou quanto difere
+//   data:  dias entre a linha e a compra (null em parcela em andamento: a data da compra não é comparável)
+//   nome:  semelhança 0..1 entre o nome no cartão e o da compra (alias-aware)
+function evidenciasDe(l, c, { n, k, modo, chave, indice }) {
+  const parcelada = (Number(c.parcelas) || 1) > 1
+  const valorApp = parcelada && (k > 1 || n > 1) ? Number(c.valor_total) / Number(c.parcelas) : Number(c.valor_total)
+  const valorLinha = k > 1 || n > 1 ? valorParcelaLinha(l, modo) : valorTotalLinha(l, modo)
+  const diferenca = round2(valorLinha - valorApp)
+  const dias = k > 1 ? null : diasEntre(l.data, c.data_compra)
+  const sim = similaridadeEstabelecimento(chave, chaveEstabelecimento(c.descricao, indice).chave)
+  return {
+    valor: { linha: valorLinha, app: round2(valorApp), diferenca, ok: Math.abs(diferenca) < TOLERANCIA_VALOR },
+    data: { dias, ok: dias == null ? null : dias <= 1 },
+    nome: { sim, ok: sim >= 0.95 },
+  }
+}
 
 // modo: 'parcela' = a coluna valor do CSV é o valor de UMA parcela (padrão de fatura de cartão);
 //       'total'   = a coluna valor é o valor total da compra parcelada.
@@ -44,7 +66,7 @@ export function resolverCartaoPorNome(nome, cartoes) {
 //   parcelamento linha de parcela em andamento cujo parcelamento já está em Compras
 // Cada compra existente só "absorve" UMA linha: duas linhas iguais no arquivo e uma compra lançada
 // = uma já lançada e uma nova (antes, as duas eram marcadas como já lançadas).
-export function analisarLinhas(linhas, { compras: comprasLancadas = [], aliases = [] } = {}, modo = 'parcela') {
+export function analisarLinhas(linhas, { compras: comprasLancadas = [], aliases = [], cartoes = [], mesFatura = '' } = {}, modo = 'parcela') {
   // Compra dividida em categorias vale como UMA compra (soma das partes): a fatura traz a cobrança inteira.
   const compras = comprasComGruposSomados(comprasLancadas)
   const indice = indexarAliases(aliases)
@@ -66,7 +88,17 @@ export function analisarLinhas(linhas, { compras: comprasLancadas = [], aliases 
         Number(c.parcelas) === n && c.cartao_id === l.cartao_id &&
         (normNome(c.descricao) === normNome(l.descricao) || chaveEstabelecimento(c.descricao, indice).chave === chave) &&
         Math.abs(Number(c.valor_total) / Number(c.parcelas) - valorParcela) < TOLERANCIA_VALOR)
-      if (achada) { usadas.add(achada.id); resultado[idx] = { tipo: 'parcelamento', compra: achada, score: 1 } }
+      if (achada) {
+        usadas.add(achada.id)
+        const evidencias = evidenciasDe(l, achada, { n, k, modo, chave, indice })
+        // A data da parcela é o mês da fatura: o app tem de esperar exatamente a parcela k neste mês.
+        const esperada = cartoes.length && mesFatura ? gerarParcelas(achada, cartoes).find((x) => x.mes === mesFatura)?.num : undefined
+        if (esperada != null && esperada !== k) {
+          resultado[idx] = { tipo: 'parecida', compra: achada, score: 0.7, avisos: ['parcela_diferente'], parcelaEsperada: esperada, evidencias }
+        } else {
+          resultado[idx] = { tipo: 'parcelamento', compra: achada, score: 1, evidencias }
+        }
+      }
       return
     }
     const ev = {
@@ -76,11 +108,17 @@ export function analisarLinhas(linhas, { compras: comprasLancadas = [], aliases 
     let melhor = null
     for (const c of livres) {
       const p = pontuar(ev, c, indice)
-      if (p && p.score >= 0.5 && (!melhor || p.score > melhor.score)) melhor = p
+      if (!p || p.score < 0.5) continue
+      // 1ª parcela (1/N) mostra a data da compra: se estiver longe, é outra compra do mesmo lugar.
+      if (n > 1 && diasEntre(l.data, c.data_compra) > 3) continue
+      if (!melhor || p.score > melhor.score) melhor = p
     }
     if (melhor) {
       usadas.add(melhor.compra.id)
-      resultado[idx] = { tipo: melhor.exato ? 'exata' : 'parecida', compra: melhor.compra, score: melhor.score }
+      resultado[idx] = {
+        tipo: melhor.exato ? 'exata' : 'parecida', compra: melhor.compra, score: melhor.score,
+        evidencias: evidenciasDe(l, melhor.compra, { n, k, modo, chave, indice }),
+      }
     }
   })
 
@@ -92,12 +130,16 @@ export function analisarLinhas(linhas, { compras: comprasLancadas = [], aliases 
     const valorLinha = k > 1 ? valorParcelaLinha(l, modo) : valorTotalLinha(l, modo)
     const candidatas = compras
       .filter((c) => !usadas.has(c.id) && c.cartao_id === l.cartao_id && similaridadeEstabelecimento(chave, chaveEstabelecimento(c.descricao, indice).chave) >= 0.8)
-      .filter((c) => (k > 1 || n > 1 ? Number(c.parcelas) === n : (Number(c.parcelas) || 1) === 1 && diasEntre(l.data, c.data_compra) <= 3))
+      // Parcela em andamento (k>1): a data da compra não é comparável; o parcelamento é pelo nº de parcelas.
+      // À vista e 1ª parcela (1/N): a data da compra tem de bater (até 3 dias).
+      .filter((c) => (k > 1 ? Number(c.parcelas) === n : (n > 1 ? Number(c.parcelas) === n : (Number(c.parcelas) || 1) === 1) && diasEntre(l.data, c.data_compra) <= 3))
       .map((c) => ({ c, d: Math.abs((k > 1 ? Number(c.valor_total) / Number(c.parcelas) : Number(c.valor_total)) - valorLinha) }))
+      // Uma compra do mesmo lugar com valor MUITO diferente (ex.: outro Uber no mesmo dia) é outra compra, não esta com valor errado.
+      .filter((x) => k > 1 || n > 1 || x.d <= Math.max(LIMITE_DIFERENCA_MIN, LIMITE_DIFERENCA_PCT * Math.abs(valorLinha)))
       .sort((a, b) => a.d - b.d)
     if (!candidatas.length) return
     usadas.add(candidatas[0].c.id)
-    resultado[idx] = { tipo: 'valor_diferente', compra: candidatas[0].c, score: 0.6 }
+    resultado[idx] = { tipo: 'valor_diferente', compra: candidatas[0].c, score: 0.6, evidencias: evidenciasDe(l, candidatas[0].c, { n, k, modo, chave, indice }) }
   })
 
   return linhas.map((_, idx) => ({ chave: infos[idx].chave, correspondencia: resultado[idx] }))
@@ -235,6 +277,6 @@ export function conferirFatura({ linhas, compras, cartoes, fixos = [], cartaoId,
 }
 
 
-// Conciliada = a linha do CSV já existe em Compras (exata, parecida ou parcelamento já lançado).
-// "Valor diferente" fica como pendente: ainda precisa de uma decisão.
-export const linhaConciliada = (l) => ['exata', 'parecida', 'parcelamento'].includes(l.correspondencia?.tipo)
+// Conciliada = a linha do CSV já existe em Compras com data, nome e valor conferidos (exata ou parcelamento já lançado),
+// ou a pessoa confirmou que uma "parecida" é a mesma compra. "Parecida" e "valor diferente" ficam pendentes: precisam de decisão.
+export const linhaConciliada = (l) => ['exata', 'parcelamento'].includes(l.correspondencia?.tipo) || (l.correspondencia?.tipo === 'parecida' && l.decisao === 'mesma')
