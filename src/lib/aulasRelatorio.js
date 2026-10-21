@@ -4,7 +4,7 @@ import { valorAlunoMes, fechadoStatus } from './aulasFechamento.js'
 
 const mesesDoAno = (ano) => Array.from({ length: 12 }, (_, i) => `${ano}-${String(i + 1).padStart(2, '0')}`)
 
-function linhaAlunoMes(aulas, fechamentos, alunoId, mes) {
+export function linhaAlunoMes(aulas, fechamentos, alunoId, mes) {
   const doMes = aulasDoMes(aulas, mes, alunoId)
   const realizadas = doMes.filter((a) => a.status === 'realizada')
   const v = valorAlunoMes(aulas, fechamentos, alunoId, mes)
