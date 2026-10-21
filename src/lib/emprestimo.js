@@ -52,6 +52,32 @@ export function simular({ valor, taxaMes, prazo, sistema = 'price', iofPct = 0, 
   }
 }
 
+// Empréstimo "no cartão": passa-se no crédito um valor maior em N vezes e o banco desconta uma taxa (fixa + adicional por parcela) do total,
+// de modo que sobre `valor` líquido. taxaFixaPct/taxaParcelaPct em % (2,94 e 0,69). Devolve o mesmo formato de simular().
+export function simularNoCartao({ valor, prazo, taxaFixaPct = 0, taxaParcelaPct = 0 }) {
+  valor = Number(valor); prazo = Number(prazo)
+  const taxa = (Number(taxaFixaPct || 0) + Number(taxaParcelaPct || 0) * prazo) / 100
+  if (!(valor > 0) || !Number.isInteger(prazo) || prazo < 1 || !(taxa >= 0) || taxa >= 1) return null
+  const bruto = r2(valor / (1 - taxa))
+  const base = r2(bruto / prazo)
+  const parcelas = []
+  let saldo = bruto
+  for (let k = 1; k <= prazo; k++) {
+    const v = k === prazo ? r2(saldo) : base
+    saldo = r2(saldo - v)
+    parcelas.push({ n: k, juros: 0, amort: v, seguro: 0, valor: v, saldo: Math.max(0, saldo) })
+  }
+  const custo = r2(bruto - valor)
+  const jurosParc = r2(custo / prazo)
+  parcelas.forEach((p) => { p.juros = jurosParc; p.amort = r2(p.valor - jurosParc) })
+  const cet = cetMensal(valor, parcelas.map((p) => p.valor))
+  return {
+    valor, prazo, sistema: 'price', taxaMes: cet, noCartao: true, taxaTotal: taxa, taxaFixaPct: Number(taxaFixaPct || 0), taxaParcelaPct: Number(taxaParcelaPct || 0), financiarCustos: true, financiado: bruto, recebido: valor, iof: 0, tarifa: 0, parcelas,
+    primeira: parcelas[0].valor, ultima: parcelas[prazo - 1].valor,
+    total: bruto, custo, jurosTotal: custo, cetMes: cet, cetAno: taxaAnualDeMensal(cet),
+  }
+}
+
 // Quanto do mês já está comprometido e qual a renda (renda = 0 num mês futuro usa a última renda conhecida).
 // dadosDoMes(mes) -> { renda, comprometido }
 export function impactoMensal(sim, primeiroMes, dadosDoMes, rendaFallback = 0) {
@@ -123,7 +149,7 @@ export function analisar({ sim, primeiroMes, dadosDoMes, rendaFallback = 0, rese
 
   // Prazos alternativos (mesma taxa e custos)
   const alternativas = prazosAlternativos.filter((p) => p !== sim.prazo).concat([sim.prazo]).sort((a, b) => a - b).map((prazo) => {
-    const s = prazo === sim.prazo ? sim : simular({ valor: sim.valor, taxaMes: sim.taxaMes, prazo, sistema: sim.sistema, iofPct: sim.valor ? (sim.iof / sim.valor) * 100 : 0, tarifa: sim.tarifa, seguroMes: sim.parcelas[0].seguro, financiarCustos: sim.financiarCustos })
+    const s = prazo === sim.prazo ? sim : sim.noCartao ? simularNoCartao({ valor: sim.valor, prazo, taxaFixaPct: sim.taxaFixaPct, taxaParcelaPct: sim.taxaParcelaPct }) : simular({ valor: sim.valor, taxaMes: sim.taxaMes, prazo, sistema: sim.sistema, iofPct: sim.valor ? (sim.iof / sim.valor) * 100 : 0, tarifa: sim.tarifa, seguroMes: sim.parcelas[0].seguro, financiarCustos: sim.financiarCustos })
     const im = impactoMensal(s, primeiroMes, dadosDoMes, rendaFallback)
     const cabe = im.every((m) => m.renda > 0 && m.sobraDepois >= 0)
     const folgado = cabe && im.every((m) => m.sobraDepois >= m.renda * LIMITES.folgaMinima) && Math.max(...im.map((m) => m.pctParcela ?? 0)) <= LIMITES.parcelaSobreRenda

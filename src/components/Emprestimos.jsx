@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { fmt, fmtK, mesLabel, nowYM, addMonths, gerarParcelas } from '../lib/utils'
 import { resumoDoMes } from '../lib/financeiro'
 import { saldoMeta } from '../lib/metas'
-import { simular, analisar, melhorInicio, taxaMensalDeAnual, saldoDevedorEstimado, taxaDaObservacao, LIMITES } from '../lib/emprestimo'
+import { simular, simularNoCartao, analisar, melhorInicio, taxaMensalDeAnual, saldoDevedorEstimado, taxaDaObservacao, LIMITES } from '../lib/emprestimo'
 import { terminandoLogo } from '../lib/parcelamentos'
 
 const lerNum = (t) => {
@@ -29,7 +29,7 @@ export default function Emprestimos({ store, irPara }) {
   const hoje = nowYM()
   const [f, setF] = useState({
     nome: '', valor: '', tipoTaxa: 'mes', taxa: '', prazo: '24', sistema: 'price', iof: '', tarifa: '', seguro: '',
-    financiarCustos: true, primeiro: addMonths(hoje, 1), dia: '10', pessoa: pessoas[0]?.nome || '',
+    financiarCustos: true, noCartao: false, cartaoId: '', taxaFixa: '2,94', taxaParcela: '0,69', primeiro: addMonths(hoje, 1), dia: '10', pessoa: pessoas[0]?.nome || '',
   })
   const [salvando, setSalvando] = useState(false)
   // Propostas guardadas: na conta (tabela config) quando existe, para aparecerem no celular e no computador; senão só neste aparelho.
@@ -41,9 +41,10 @@ export default function Emprestimos({ store, irPara }) {
   const valor = lerNum(f.valor), prazo = Number(f.prazo), taxaIn = lerNum(f.taxa)
   const taxaMes = Number.isFinite(taxaIn) ? (f.tipoTaxa === 'ano' ? taxaMensalDeAnual(taxaIn / 100) : taxaIn / 100) : NaN
   const sim = useMemo(() => {
+    if (f.noCartao) return simularNoCartao({ valor, prazo, taxaFixaPct: lerNum(f.taxaFixa) || 0, taxaParcelaPct: lerNum(f.taxaParcela) || 0 })
     if (!(valor > 0) || !Number.isInteger(prazo) || prazo < 1 || prazo > 120 || !(taxaMes >= 0)) return null
     return simular({ valor, taxaMes, prazo, sistema: f.sistema, iofPct: lerNum(f.iof) || 0, tarifa: lerNum(f.tarifa) || 0, seguroMes: lerNum(f.seguro) || 0, financiarCustos: f.financiarCustos })
-  }, [valor, taxaMes, prazo, f.sistema, f.iof, f.tarifa, f.seguro, f.financiarCustos])
+  }, [valor, taxaMes, prazo, f.noCartao, f.taxaFixa, f.taxaParcela, f.sistema, f.iof, f.tarifa, f.seguro, f.financiarCustos])
 
   const analise = useMemo(() => {
     if (!sim || !/^\d{4}-\d{2}$/.test(f.primeiro)) return null
@@ -63,7 +64,8 @@ export default function Emprestimos({ store, irPara }) {
     if (!sim) return
     const nome = f.nome.trim() || 'Empréstimo'
     if (analise?.veredito === 'nao_cabe' && !confirm('A análise diz que essa parcela NÃO cabe no seu orçamento.\n\nQuer adicionar mesmo assim?')) return
-    if (!confirm(`Adicionar "${nome}" ao app?\n\n${sim.prazo} parcelas de ${fmt(sim.primeira)} a partir de ${mesLabel(f.primeiro)} (total ${fmt(sim.total)}). Elas passam a contar em Pagamentos, Parcelamentos e no Dashboard.${f.sistema === 'sac' ? '\n\nAtenção: no sistema SAC as parcelas diminuem, mas o app registra parcelas iguais (a média).' : ''}`)) return
+    if (f.noCartao && !f.cartaoId) { alert('Escolha em qual cartão o empréstimo foi passado.'); return }
+    if (!confirm(`Adicionar "${nome}" ao app?\n\n${sim.prazo} parcelas de ${fmt(sim.primeira)} a partir de ${mesLabel(f.primeiro)} (total ${fmt(sim.total)}). Elas passam a contar em Pagamentos, Parcelamentos e no Dashboard.${f.noCartao ? ' As parcelas entram na fatura do cartão escolhido.' : ''}${f.sistema === 'sac' ? '\n\nAtenção: no sistema SAC as parcelas diminuem, mas o app registra parcelas iguais (a média).' : ''}`)) return
     setSalvando(true)
     const cat = categorias.find((c) => c.nome === 'Financeiro') || categorias[0]
     const dia = String(Math.min(28, Math.max(1, Number(f.dia) || 10))).padStart(2, '0')
@@ -73,12 +75,14 @@ export default function Emprestimos({ store, irPara }) {
       categoria: cat?.nome || 'Financeiro',
       subcategoria: cat?.subcategorias?.includes('Empréstimos') ? 'Empréstimos' : cat?.subcategorias?.[0] || 'Outros',
       pessoa: f.pessoa || pessoas[0]?.nome || '',
-      cartao_id: null,
+      cartao_id: sim.noCartao ? Number(f.cartaoId) || null : null,
       valor_total: sim.total,
       parcelas: sim.prazo,
       origem: 'emprestimo',
       pago: false,
-      obs: `Empréstimo de ${fmt(sim.valor)} · taxa ${pctTxt(sim.taxaMes)} a.m. · CET ${pctTxt(sim.cetMes)} a.m. (${pctTxt(sim.cetAno, 1)} a.a.) · ${sim.sistema === 'sac' ? 'SAC' : 'Price'}`,
+      obs: sim.noCartao
+        ? `Empréstimo no cartão: recebe ${fmt(sim.valor)} · passa ${fmt(sim.total)} em ${sim.prazo}x · taxa do cartão ${pctTxt(sim.taxaTotal)} do total (${f.taxaFixa}% + ${f.taxaParcela}% × ${sim.prazo}) · CET ${pctTxt(sim.cetMes)} a.m. (${pctTxt(sim.cetAno, 1)} a.a.)`
+        : `Empréstimo de ${fmt(sim.valor)} · taxa ${pctTxt(sim.taxaMes)} a.m. · CET ${pctTxt(sim.cetMes)} a.m. (${pctTxt(sim.cetAno, 1)} a.a.) · ${sim.sistema === 'sac' ? 'SAC' : 'Price'}`,
     })
     setSalvando(false)
     if (ok) { alert('Empréstimo adicionado. Confira em Parcelamentos e Pagamentos.\n\nLembrete: o dinheiro que entrou na sua conta não é lançado como renda automaticamente — se quiser, registre em Renda.'); irPara?.('parcelamentos') }
@@ -91,7 +95,7 @@ export default function Emprestimos({ store, irPara }) {
   }
   const removerCenario = (id) => salvarCenarios(cenarios.filter((c) => c.id !== id))
 
-  const erroEntrada = !f.valor.trim() ? '' : !(valor > 0) ? 'Digite o valor que vai receber (ex.: 10000).' : !Number.isFinite(taxaIn) ? 'Digite a taxa de juros (ex.: 2,1).' : !Number.isInteger(prazo) || prazo < 1 || prazo > 120 ? 'O prazo deve ser de 1 a 120 meses.' : ''
+  const erroEntrada = !f.valor.trim() ? '' : f.noCartao ? (!(valor > 0) ? 'Digite o valor que vai receber (ex.: 10000).' : !Number.isInteger(prazo) || prazo < 1 || prazo > 120 ? 'As parcelas devem ser de 1 a 120.' : !sim ? 'A taxa total precisa ficar abaixo de 100%.' : '') : !(valor > 0) ? 'Digite o valor que vai receber (ex.: 10000).' : !Number.isFinite(taxaIn) ? 'Digite a taxa de juros (ex.: 2,1).' : !Number.isInteger(prazo) || prazo < 1 || prazo > 120 ? 'O prazo deve ser de 1 a 120 meses.' : ''
 
   return (
     <div className="page">
@@ -106,7 +110,33 @@ export default function Emprestimos({ store, irPara }) {
           <div className="form-group"><label>Nome / banco (opcional)</label><input value={f.nome} onChange={s('nome')} placeholder="Ex: Banco X — reforma" /></div>
           <div className="form-group"><label>Quanto você vai receber (R$)</label><input value={f.valor} onChange={s('valor')} inputMode="decimal" placeholder="10000" /></div>
         </div>
-        <div className="form-row cols2">
+        <div className="form-group" style={{ marginBottom: 10 }}>
+          <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13 }}>
+            <input type="checkbox" checked={f.noCartao} onChange={s('noCartao')} /> Pago passando no cartão de crédito (opcional)
+          </label>
+        </div>
+        {f.noCartao && (
+          <>
+            <div className="form-row cols2">
+              <div className="form-group">
+                <label>Cartão</label>
+                <select value={f.cartaoId} onChange={s('cartaoId')}>
+                  <option value="">Escolha…</option>
+                  {cartoes.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                </select>
+              </div>
+              <div className="form-group"><label>Parcelas no cartão</label><input type="number" min="1" max="120" value={f.prazo} onChange={s('prazo')} /></div>
+            </div>
+            <div className="form-row cols2">
+              <div className="form-group"><label>Taxa fixa (%)</label><input value={f.taxaFixa} onChange={s('taxaFixa')} inputMode="decimal" placeholder="2,94" /></div>
+              <div className="form-group"><label>Adicional por parcela (%)</label><input value={f.taxaParcela} onChange={s('taxaParcela')} inputMode="decimal" placeholder="0,69" /></div>
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 10 }}>
+              O banco desconta a taxa do total passado no cartão: o app calcula quanto passar para sobrar o valor acima e lança as parcelas na fatura do cartão.
+            </div>
+          </>
+        )}
+        {!f.noCartao && <div className="form-row cols2">
           <div className="form-group">
             <label>Taxa de juros (%)</label>
             <div style={{ display: 'flex', gap: 6 }}>
@@ -115,15 +145,15 @@ export default function Emprestimos({ store, irPara }) {
             </div>
           </div>
           <div className="form-group"><label>Prazo (meses)</label><input type="number" min="1" max="120" value={f.prazo} onChange={s('prazo')} /></div>
-        </div>
+        </div>}
         <div className="form-row cols2">
-          <div className="form-group">
+          {!f.noCartao && <div className="form-group">
             <label>Sistema de amortização</label>
             <select value={f.sistema} onChange={s('sistema')}>
               <option value="price">Parcelas iguais (Price) — o mais comum</option>
               <option value="sac">Parcelas decrescentes (SAC)</option>
             </select>
-          </div>
+          </div>}
           <div className="form-group"><label>1ª parcela em</label><input type="month" value={f.primeiro} onChange={s('primeiro')} min={hoje} /></div>
         </div>
         <details>

@@ -96,3 +96,17 @@ describe('quitar um empréstimo contratado', () => {
     expect(taxaDaObservacao('sem taxa')).toBeNull()
   })
 })
+
+import { simularNoCartao as _simCartao } from '../emprestimo.js'
+import { describe as _d, it as _it, expect as _e } from 'vitest'
+_d('simularNoCartao', () => {
+  _it('R$ 10 mil líquidos em 17x com 2,94% + 0,69%/parcela', () => {
+    const s = _simCartao({ valor: 10000, prazo: 17, taxaFixaPct: 2.94, taxaParcelaPct: 0.69 })
+    _e(s.total).toBe(11719.21)
+    _e(s.custo).toBe(1719.21)
+    _e(s.primeira).toBe(689.37)
+    _e(s.parcelas.reduce((t, p) => t + p.valor, 0)).toBeCloseTo(11719.21, 2)
+    _e(s.cetMes).toBeGreaterThan(0)
+  })
+  _it('rejeita taxa de 100% ou mais', () => { _e(_simCartao({ valor: 100, prazo: 12, taxaFixaPct: 99, taxaParcelaPct: 1 })).toBeNull() })
+})
