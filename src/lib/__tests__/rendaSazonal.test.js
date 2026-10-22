@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { proximoFator, perfilDeLinhas, fatorDe, temPerfil, rendaPrevista, projecaoRenda, planoDeReserva, rendaProjetada, mesesParaJuntar } from '../rendaSazonal'
+import { proximoFator, perfilDeLinhas, fatorDe, temPerfil, rendaPrevista, projecaoRenda, planoDeReserva, rendaProjetada, mesesParaJuntar, valorFixoDe, baseDaFonte, fatorParaValor, mesesComFerias, resumoDaProjecao } from '../rendaSazonal'
 
 const renda = (mes, o = {}) => ({ mes, giovanna: 0, sabrina: 0, extra_sabrina: 0, mesada: 0, outros: 0, ...o })
 
@@ -27,7 +27,7 @@ describe('rendaPrevista', () => {
   ])
   const rendas = [renda('2026-10', { giovanna: 5000, sabrina: 3000, extra_sabrina: 1000 })]
   it('mês cadastrado vale o cadastrado, sem estimar', () => {
-    expect(rendaPrevista(rendas, perfil, '2026-10')).toEqual({ valor: 9000, estimada: false })
+    expect(rendaPrevista(rendas, perfil, '2026-10')).toMatchObject({ valor: 9000, estimada: false })
   })
   it('mês sem renda aplica o fator de cada fonte', () => {
     const jan = rendaPrevista(rendas, perfil, '2027-01')
@@ -129,5 +129,98 @@ describe('mesesParaJuntar', () => {
     expect(mesesParaJuntar(meses, 3000)).toBe(5)
     expect(mesesParaJuntar(meses, 9999)).toBeNull()
     expect(mesesParaJuntar(meses, 0)).toBe(0)
+  })
+})
+
+describe('valores digitados por mês (em vez de só %)', () => {
+  const cad = [renda('2026-09', { sabrina: 5000 })]
+  it('valor digitado vale mais que valor normal × fator, e não muda quando a renda base muda', () => {
+    const p = perfilDeLinhas([{ campo: 'sabrina', mes_do_ano: 7, fator: 0.6, valor: 3000 }])
+    expect(valorFixoDe(p, 'sabrina', '2027-07')).toBe(3000)
+    expect(valorFixoDe(p, 'sabrina', '2027-08')).toBeNull()
+    expect(rendaPrevista(cad, p, '2027-07').porCampo.sabrina).toBe(3000)
+    // a renda normal sobe, mas o julho digitado continua 3.000
+    expect(rendaPrevista([renda('2026-09', { sabrina: 6500 })], p, '2027-07').porCampo.sabrina).toBe(3000)
+    // os outros meses continuam usando o valor normal
+    expect(rendaPrevista(cad, p, '2027-08').porCampo.sabrina).toBe(5000)
+  })
+  it('valor 0 digitado = não recebe', () => {
+    const p = perfilDeLinhas([{ campo: 'sabrina', mes_do_ano: 1, fator: 0, valor: 0 }])
+    expect(rendaPrevista(cad, p, '2027-01').porCampo.sabrina).toBe(0)
+  })
+  it('valor digitado vale até para fonte sem nenhum mês cadastrado (não depende de base)', () => {
+    const p = perfilDeLinhas([{ campo: 'mesada', mes_do_ano: 12, fator: 1, valor: 800 }])
+    expect(rendaPrevista(cad, p, '2026-12').porCampo.mesada).toBe(800)
+  })
+  it('só valor digitado já conta como "tem perfil"; perfil sem valores segue igual', () => {
+    expect(temPerfil(perfilDeLinhas([{ campo: 'mesada', mes_do_ano: 12, fator: 1, valor: 800 }]))).toBe(true)
+    expect(temPerfil(perfilDeLinhas([{ campo: 'mesada', mes_do_ano: 12, fator: 1 }]))).toBe(false)
+  })
+  it('base da fonte e fator equivalente ao valor digitado', () => {
+    expect(baseDaFonte(cad, {}, 'sabrina')).toBe(5000)
+    expect(baseDaFonte(cad, {}, 'giovanna')).toBe(0)
+    expect(fatorParaValor(3000, 5000)).toBe(0.6)
+    expect(fatorParaValor(20000, 5000)).toBe(2) // o banco aceita até 2× o normal
+    expect(fatorParaValor(0, 5000)).toBe(0)
+    expect(fatorParaValor(300, 0)).toBe(1) // sem base, 1
+  })
+  it('o valor "normal" (base) desfaz o fator do mês cadastrado', () => {
+    const p = perfilDeLinhas([{ campo: 'sabrina', mes_do_ano: 9, fator: 0.5 }])
+    expect(baseDaFonte([renda('2026-09', { sabrina: 2500 })], p, 'sabrina')).toBe(5000)
+  })
+})
+
+describe('mesesComFerias', () => {
+  it('lista todos os meses que o período toca, inclusive virando o ano', () => {
+    const ms = mesesComFerias([{ inicio: '2026-12-20', fim: '2027-01-10' }, { inicio: '2027-07-01', fim: '2027-07-31' }])
+    expect([...ms].sort()).toEqual(['2026-12', '2027-01', '2027-07'])
+  })
+  it('ignora período incompleto e lista vazia', () => {
+    expect(mesesComFerias([{ inicio: '2026-12-20' }, null]).size).toBe(0)
+    expect(mesesComFerias().size).toBe(0)
+  })
+})
+
+describe('fontes de renda no mês (extras e aulas aparecem)', () => {
+  const comAulas = (mes, o = {}) => ({ ...renda(mes, o), extra_aulas: o.extra_aulas })
+  it('mês cadastrado: cada fonte separada e as aulas à parte, fora do extra', () => {
+    const r = [comAulas('2026-10', { giovanna: 5000, extra_sabrina: 1300, extra_aulas: 300, mesada: 200 })]
+    const p = rendaPrevista(r, {}, '2026-10')
+    expect(p.porCampo).toMatchObject({ giovanna: 5000, extra_sabrina: 1000, mesada: 200, outros: 0 })
+    expect(p.aulas).toBe(300)
+    expect(p.valor).toBe(6500)
+  })
+  it('mês previsto: aulas separadas do extra e a soma fecha', () => {
+    const r = [renda('2026-10', { giovanna: 5000, extra_sabrina: 1000, mesada: 200 }), comAulas('2026-11', { extra_sabrina: 400, extra_aulas: 400 })]
+    const p = rendaPrevista(r, {}, '2026-11')
+    expect(p.porCampo).toMatchObject({ giovanna: 5000, extra_sabrina: 1000, mesada: 200 })
+    expect(p.aulas).toBe(400)
+    expect(p.valor).toBe(6600)
+    expect(Object.values(p.porCampo).reduce((t, v) => t + v, 0) + p.aulas).toBe(p.valor)
+  })
+  it('a projeção expõe fontes e aulas de cada mês', () => {
+    const base = { cartoes: [], compras: [], faturas: [], fixosPagamentos: [], saldoAjustes: [], comprasPagamentos: [], comprasPagamentosOk: true, fixos: [], rendas: [renda('2026-10', { giovanna: 5000, mesada: 200 })] }
+    const [m] = projecaoRenda(base, perfilDeLinhas([]), '2026-10', 1)
+    expect(m.fontes).toMatchObject({ giovanna: 5000, mesada: 200 })
+    expect(m.aulas).toBe(0)
+  })
+})
+
+describe('resumoDaProjecao', () => {
+  const meses = [
+    { mes: '2026-10', renda: 6000, sobra: 2000, estimada: false },
+    { mes: '2026-11', renda: 3000, sobra: -500, estimada: true },
+    { mes: '2026-12', renda: 3000, sobra: -300, estimada: true },
+    { mes: '2027-01', renda: 7000, sobra: 3000, estimada: true },
+  ]
+  it('total, média, mês mais apertado, meses no vermelho e quanto falta', () => {
+    const r = resumoDaProjecao(meses)
+    expect(r).toMatchObject({ total: 19000, media: 4750, vermelhos: 2, falta: 800, previstos: 3, n: 4 })
+    expect(r.pior.mes).toBe('2026-11')
+    expect(r.menorRenda.mes).toBe('2026-11')
+    expect(r.maiorRenda.mes).toBe('2027-01')
+  })
+  it('lista vazia não quebra', () => {
+    expect(resumoDaProjecao([])).toBeNull()
   })
 })

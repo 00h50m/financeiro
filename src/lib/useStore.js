@@ -556,10 +556,34 @@ export function useStore(email = null) {
   }
 
   // RENDA SAZONAL: fator de uma fonte de renda num mês do ano (1 = normal). Fator 1 apaga a linha (é o padrão).
-  const definirFatorSazonal = (campo, mesDoAno, fator) => op(async () => {
+  // `limparValor`: o mês tinha um valor digitado (coluna `valor`, inbox/32) e volta a valer o fator.
+  const definirFatorSazonal = (campo, mesDoAno, fator, { limparValor = false } = {}) => op(async () => {
     const r = Math.abs(fator - 1) < 0.005
       ? await sb.from('renda_sazonal').delete().eq('campo', campo).eq('mes_do_ano', mesDoAno)
-      : await sb.from('renda_sazonal').upsert({ campo, mes_do_ano: mesDoAno, fator, atualizado_em: new Date().toISOString() }, { onConflict: 'campo,mes_do_ano' })
+      : await sb.from('renda_sazonal').upsert({ campo, mes_do_ano: mesDoAno, fator, ...(limparValor ? { valor: null } : {}), atualizado_em: new Date().toISOString() }, { onConflict: 'campo,mes_do_ano' })
+    if (r.error) throw r.error
+  }, ['rendaSazonal'], 'salvar a renda sazonal')
+  // Valor digitado (R$) para a fonte naquele mês do ano. `fator` é o equivalente em % (o banco exige um fator).
+  const definirValorSazonal = (campo, mesDoAno, { valor, fator }) => op(async () => {
+    const r = await sb.from('renda_sazonal').upsert({ campo, mes_do_ano: mesDoAno, fator, valor, atualizado_em: new Date().toISOString() }, { onConflict: 'campo,mes_do_ano' })
+    if (r.error && (r.error.code === '42703' || r.error.code === 'PGRST204' || /valor/i.test(r.error.message || ''))) {
+      throw amigavel('Falta rodar a atualização 32 do banco (arquivo inbox/32_renda_sazonal_valor.sql no Supabase) para guardar valores digitados.')
+    }
+    if (r.error) throw r.error
+  }, ['rendaSazonal'], 'salvar a renda sazonal')
+  // Vários meses do ano de uma vez (atalhos da tela): sem `valor`/`fator` (ou fator 1 sem valor) apaga os meses e volta ao normal.
+  const definirSazonalEmLote = (campo, meses, { valor = null, fator = 1 } = {}) => op(async () => {
+    if (valor == null && Math.abs(fator - 1) < 0.005) {
+      const r = await sb.from('renda_sazonal').delete().eq('campo', campo).in('mes_do_ano', meses)
+      if (r.error) throw r.error
+      return
+    }
+    const agora = new Date().toISOString()
+    const linhas = meses.map((m) => ({ campo, mes_do_ano: m, fator, ...(valor != null ? { valor } : { valor: null }), atualizado_em: agora }))
+    const r = await sb.from('renda_sazonal').upsert(linhas, { onConflict: 'campo,mes_do_ano' })
+    if (r.error && valor != null && (r.error.code === '42703' || r.error.code === 'PGRST204' || /valor/i.test(r.error.message || ''))) {
+      throw amigavel('Falta rodar a atualização 32 do banco (arquivo inbox/32_renda_sazonal_valor.sql no Supabase) para guardar valores digitados.')
+    }
     if (r.error) throw r.error
   }, ['rendaSazonal'], 'salvar a renda sazonal')
 
@@ -1060,7 +1084,7 @@ export function useStore(email = null) {
     marcarFixoPago, marcarParcelaPaga, definirDataPagamentoFixo, definirDataPagamentoFatura, definirDataPagamentoParcela,
     juntarVersoes, apagarVersaoFixo, aviso, mostrarAviso, desfazivel, desfazerExclusao, dispensarDesfazer,
     fecharMes, reabrirMes, listarAuditoria, registrarAuditoria,
-    definirAjusteSaldo, definirFatorSazonal,
+    definirAjusteSaldo, definirFatorSazonal, definirValorSazonal, definirSazonalEmLote,
     adiarConta, adiarVarias, desfazerAdiamento, salvarDivida, removerDivida,
     fecharAluno, reabrirAluno, registrarRecebimento, desfazerRecebimento, historicoFechamento,
     criarPausa, removerPausa, marcarFollowup, salvarFonteReserva, removerFonteReserva,
