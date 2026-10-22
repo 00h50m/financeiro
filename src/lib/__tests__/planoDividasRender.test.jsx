@@ -19,3 +19,13 @@ describe('PlanoDividas (render)', () => {
     expect(html).toContain('Gerar meu plano')
   })
 })
+
+describe('PlanoDividas sem dívidas', () => {
+  it('ainda mostra o mês de verdade e o consultor (o mês no vermelho não depende de dívida)', () => {
+    const store = { dividas: [], dividasOk: true, rendas: [], rendaSazonal: [], compras: [], cartoes: [], fixos: [], faturas: [], adiamentos: [], fixosPagamentos: [], comprasPagamentos: [], config: {}, configOk: true, definirConfig: () => {}, salvarDivida: () => {}, removerDivida: () => {} }
+    const html = renderToString(<PlanoDividas store={store} />)
+    expect(html).toContain('Nenhuma dívida cadastrada')
+    expect(html).toContain('seu mês de verdade')
+    expect(html).toContain('Gerar meu plano')
+  })
+})
