@@ -68,6 +68,8 @@ export function useStore(email = null) {
   const [aulasFech, setAulasFech] = useState([])
   const [dividas, setDividas] = useState([])
   const [dividasOk, setDividasOk] = useState(false) // false = inbox/27_dividas.sql ainda não rodado
+  const [reservaFontes, setReservaFontes] = useState([])
+  const [reservaFontesOk, setReservaFontesOk] = useState(false) // false = inbox/31_reserva_fontes.sql ainda não rodado
   const [adiamentos, setAdiamentos] = useState([])
   const [adiamentosOk, setAdiamentosOk] = useState(false) // false = inbox/26_adiamentos.sql ainda não rodado
   const [aulasPausas, setAulasPausas] = useState([])
@@ -102,7 +104,7 @@ export function useStore(email = null) {
     if (!silent) setLoading(true)
     if (!silent) setError(null)
     try {
-      const [c, co, r, fx, fa, cat, fxp, fxv, sa, ps, orc, cfg, ev, rg, al, it, cp, fe, me, mm, dv, dr, rsz, al1, al2, al3, al4, al5, al6, adi, dvd] = await Promise.all([
+      const [c, co, r, fx, fa, cat, fxp, fxv, sa, ps, orc, cfg, ev, rg, al, it, cp, fe, me, mm, dv, dr, rsz, al1, al2, al3, al4, al5, al6, adi, dvd, rfo] = await Promise.all([
         quer('cartoes') ? sb.from('cartoes').select('*').order('created_at') : nada,
         quer('compras') ? lerTudo('compras', (q) => q.order('data_compra', { ascending: false }).order('id')) : nada,
         quer('rendas') ? sb.from('rendas').select('*').order('mes', { ascending: false }) : nada,
@@ -134,6 +136,7 @@ export function useStore(email = null) {
         quer('aulas') ? sb.from('aulas_pausas').select('*').order('inicio') : nada,
         quer('adiamentos') ? sb.from('adiamentos').select('*').order('criado_em') : nada,
         quer('dividas') ? sb.from('dividas').select('*').order('criada_em') : nada,
+        quer('reservaFontes') ? sb.from('reserva_fontes').select('*').order('criada_em') : nada,
       ])
       if (minha !== ultimaCarga.current) { if (!silent) setLoading(false); return true } // chegou uma recarga mais nova: ela cobre os grupos desta
       pendentes.current = new Set()
@@ -169,6 +172,7 @@ export function useStore(email = null) {
       // Aulas particulares são opcionais: sem o inbox/23 o app segue funcionando sem a aba.
       if (adi) { setAdiamentosOk(!adi.error); setAdiamentos(adi.error ? [] : adi.data || []) }
       if (dvd) { setDividasOk(!dvd.error); setDividas(dvd.error ? [] : dvd.data || []) }
+      if (rfo) { setReservaFontesOk(!rfo.error); setReservaFontes(rfo.error ? [] : rfo.data || []) }
       if (al1 && al2 && al3 && al4 && al5) {
         const ruim = [al1, al2, al3, al4, al5].some((x) => x.error)
         setAulasOk(!ruim)
@@ -623,6 +627,16 @@ export function useStore(email = null) {
     if (r.error) throw r.error
   }, ['dividas'], 'remover a dívida')
 
+  // RESERVA DE EMERGÊNCIA: onde está o dinheiro. O total é espelhado como "ajuste" na meta da reserva (ou em config), para o resto do app enxergar.
+  const salvarFonteReserva = (f) => op(async () => {
+    const r = f.id ? await sb.from('reserva_fontes').update(f).eq('id', f.id) : await sb.from('reserva_fontes').insert(f)
+    if (r.error) throw r.error
+  }, ['reservaFontes'], 'salvar o valor da reserva')
+  const removerFonteReserva = (id) => op(async () => {
+    const r = await sb.from('reserva_fontes').delete().eq('id', id)
+    if (r.error) throw r.error
+  }, ['reservaFontes'], 'remover o valor da reserva')
+
   // ADIAMENTOS: mover uma conta sem cartão (conta fixa ou parcela de compra sem cartão) de um mês para outro
   const adiarConta = (tipo, refId, mesOrigem, mesDestino, acrescimo = 0) => op(async () => {
     const r = await sb.from('adiamentos').upsert({ tipo, ref_id: refId, mes_origem: mesOrigem, mes_destino: mesDestino, acrescimo: Number(acrescimo) || 0 }, { onConflict: 'tipo,ref_id,mes_origem' })
@@ -1036,7 +1050,7 @@ export function useStore(email = null) {
     integracoesTelegram, gerarPareamento, pausarIntegracao, desconectarIntegracao,
     eventos, regras, aliases, inboxOk,
     confirmarEvento, vincularEvento, ignorarEvento, adicionarEventos, adicionarRegras,
-    inicioApp, cartoes, compras, rendas, rendasManuais, adiamentos, adiamentosOk, dividas, dividasOk, aulasMes, aulasMesBase, modoRendaAulas: modoRenda, aulasAReceber, fixos: fixosComValores, fixosValores, fixosValoresOk, definirValorFixo, faturas, categorias, fixosPagamentos, comprasPagamentos, comprasPagamentosOk, fechamentos, fechamentosOk, metas, metasMovimentos, metasOk, rendaSazonal, rendaSazonalOk, alunos, aulasProg, aulas, aulasPrevInicial, aulasFech, aulasPausas, aulasPausasOk, aulasOk, divisoes, divisoesRepasses, divisoesOk, saldoAjustes, pessoas, orcamentos, orcamentosOk, config, configOk,
+    inicioApp, cartoes, compras, rendas, rendasManuais, adiamentos, adiamentosOk, dividas, dividasOk, reservaFontes, reservaFontesOk, aulasMes, aulasMesBase, modoRendaAulas: modoRenda, aulasAReceber, fixos: fixosComValores, fixosValores, fixosValoresOk, definirValorFixo, faturas, categorias, fixosPagamentos, comprasPagamentos, comprasPagamentosOk, fechamentos, fechamentosOk, metas, metasMovimentos, metasOk, rendaSazonal, rendaSazonalOk, alunos, aulasProg, aulas, aulasPrevInicial, aulasFech, aulasPausas, aulasPausasOk, aulasOk, divisoes, divisoesRepasses, divisoesOk, saldoAjustes, pessoas, orcamentos, orcamentosOk, config, configOk,
     loading, syncState, error, loadAll,
     addCartao, updateCartao, delCartao,
     addCompra, updateCompra, salvarDivisao, updateComprasLote, delCompra,
@@ -1049,7 +1063,7 @@ export function useStore(email = null) {
     definirAjusteSaldo, definirFatorSazonal,
     adiarConta, adiarVarias, desfazerAdiamento, salvarDivida, removerDivida,
     fecharAluno, reabrirAluno, registrarRecebimento, desfazerRecebimento, historicoFechamento,
-    criarPausa, removerPausa, marcarFollowup,
+    criarPausa, removerPausa, marcarFollowup, salvarFonteReserva, removerFonteReserva,
     criarAluno, atualizarAluno, mudarProgramacao, gerarAulas, inserirAula, atualizarAula, atualizarAulasLote, excluirAula,
     atualizarRegra, esquecerRegra,
     addDivisao, delDivisao, marcarRepasse, desmarcarRepasse,
