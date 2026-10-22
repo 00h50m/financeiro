@@ -68,45 +68,8 @@ export default function PlanoDividas({ store }) {
     return <div className="page"><div className="alert alert-amber"><strong>Falta criar a tabela de dívidas.</strong> Rode o arquivo <code>inbox/27_dividas.sql</code> no SQL Editor do Supabase e recarregue esta página.</div></div>
   }
 
-  return (
-    <div className="page dividas-pg">
-      {modal && <ModalDivida divida={modal.divida} sugestao={modal.sugestao} onSalvar={salvarDivida} onRemover={removerDivida} onClose={() => setModal(null)} />}
-
-      <div className="aulas-acoes" style={{ marginBottom: 12 }}>
-        <button className="btn btn-primary" onClick={() => setModal({})}>+ Dívida</button>
-      </div>
-
-      {ativas.length === 0 ? (
-        <div className="card"><div className="empty">Nenhuma dívida cadastrada.{'\n'}Cadastre o cartão, os boletos atrasados, empréstimos e o que mais você deve. Só o nome e quanto deve já bastam; juros e parcela deixam a simulação mais exata.</div></div>
-      ) : (
-        <>
-          <div className="kpi-faixa" aria-label="Resumo das dívidas">
-            <div className="kpi"><div className="kpi-rotulo">Total devido</div><div className="kpi-valor vermelho">{fmtK(resumo.total)}</div><div className="kpi-sub">{resumo.qtd} {resumo.qtd === 1 ? 'dívida' : 'dívidas'}{resumo.atrasadas ? ` · ${resumo.atrasadas} atrasada${resumo.atrasadas > 1 ? 's' : ''}` : ''}</div></div>
-            <div className="kpi"><div className="kpi-rotulo">Mínimo por mês</div><div className="kpi-valor ambar">{fmtK(resumo.minimos)}</div><div className="kpi-sub">soma das parcelas informadas</div></div>
-            <div className="kpi"><div className="kpi-rotulo">Juros por mês</div><div className="kpi-valor">{resumo.jurosMes ? fmtK(resumo.jurosMes) : '—'}</div><div className="kpi-sub">{resumo.jurosMes ? 'o que a dívida cresce sozinha' : 'informe os juros para estimar'}</div></div>
-            <div className="kpi"><div className="kpi-rotulo">Livre em</div><div className="kpi-valor verde">{plano.livreMes ? mesLabel(plano.livreMes) : '—'}</div><div className="kpi-sub">{plano.livreEm != null ? `em ${prazo(plano.livreEm)} · ${ESTRATEGIAS[estrategia].split(' (')[0]}` : 'não quita no prazo com esse valor'}</div></div>
-          </div>
-
-          {inicialTotal > 0 && (
-            <div className="card" style={{ padding: 12 }}>
-              <div className="aulas-meta-barra" role="progressbar" aria-valuenow={Math.round((jaPago / inicialTotal) * 100)} aria-valuemin={0} aria-valuemax={100} aria-label="Já pago do total">
-                <span className="apur" style={{ width: `${Math.min(100, Math.round((jaPago / inicialTotal) * 100))}%` }} />
-              </div>
-              <div className="cad-sub">Já pagou <b>{fmt(jaPago)}</b> de {fmt(inicialTotal)} ({Math.round((jaPago / inicialTotal) * 100)}%). Quando pagar algo, toque em "Paguei" na dívida para atualizar.</div>
-            </div>
-          )}
-
-          <div className="card" style={{ padding: 14 }}>
-            <div style={{ fontWeight: 600, marginBottom: 6 }}>Quanto dá para pagar de dívida por mês?</div>
-            <Pilulas rotulo="Fonte do valor" valor={fonte} onChange={setFonte} opcoes={[['real', 'Sobra real'], ['projecao', 'Sobra projetada'], ['fixo', 'Valor fixo']]} />
-            {fonte === 'fixo'
-              ? <div className="form-group" style={{ marginTop: 10, maxWidth: 260 }}><label>Valor por mês (R$)</label><input inputMode="decimal" value={fixo} onChange={(e) => setFixo(e.target.value)} placeholder="Ex.: 800" /></div>
-              : fonte === 'real'
-                ? <div className="cad-sub" style={{ marginTop: 8 }}>Usa a sobra projetada <b>menos a reserva dos gastos do dia a dia</b> (combustível, mercado etc., pela média dos últimos 3 meses). Média dos próximos 12 meses: <b>{fmt(media)}</b> por mês (a projetada, sem reserva, seria {fmt(mediaProjetada)}). Mês no vermelho conta como zero.</div>
-                : <div className="cad-sub" style={{ marginTop: 8 }}>Usa a sobra que o app projeta para cada mês (renda menos o que já está comprometido, com os meses fracos da renda). Média dos próximos 12 meses: <b>{fmt(media)}</b> por mês. Mês no vermelho conta como zero.</div>}
-            {plano.faltas.length > 0 && <div className="alert alert-amber" style={{ marginTop: 10, marginBottom: 0 }}>⚠ Em {plano.faltas.slice(0, 3).map((x) => mesLabel(addMes(hoje, x.mes))).join(', ')}{plano.faltas.length > 3 ? ' e outros meses' : ''} o valor disponível não cobre nem os mínimos (faltam {fmt(plano.faltas[0].falta)} no primeiro). Renegociar ou adiar ajuda.</div>}
-          </div>
-
+  const painelMes = (
+    <>
           {fonte === 'real' && (
             <>
               <div className="section-label">seu mês de verdade</div>
@@ -143,8 +106,50 @@ export default function PlanoDividas({ store }) {
               </div>
             </>
           )}
-
           <ConsultorDividas montarContexto={() => montarContexto(store, { hoje: hojeSP(), real, reserva, estrategia, sobrasOrcamento: orcamento })} />
+    </>
+  )
+
+  return (
+    <div className="page dividas-pg">
+      {modal && <ModalDivida divida={modal.divida} sugestao={modal.sugestao} onSalvar={salvarDivida} onRemover={removerDivida} onClose={() => setModal(null)} />}
+
+      <div className="aulas-acoes" style={{ marginBottom: 12 }}>
+        <button className="btn btn-primary" onClick={() => setModal({})}>+ Dívida</button>
+      </div>
+
+      {ativas.length === 0 ? (
+        <><div className="card"><div className="empty">Nenhuma dívida cadastrada.{'\n'}Cadastre o cartão, os boletos atrasados, empréstimos e o que mais você deve. Só o nome e quanto deve já bastam; juros e parcela deixam a simulação mais exata.</div></div>{painelMes}</>
+      ) : (
+        <>
+          <div className="kpi-faixa" aria-label="Resumo das dívidas">
+            <div className="kpi"><div className="kpi-rotulo">Total devido</div><div className="kpi-valor vermelho">{fmtK(resumo.total)}</div><div className="kpi-sub">{resumo.qtd} {resumo.qtd === 1 ? 'dívida' : 'dívidas'}{resumo.atrasadas ? ` · ${resumo.atrasadas} atrasada${resumo.atrasadas > 1 ? 's' : ''}` : ''}</div></div>
+            <div className="kpi"><div className="kpi-rotulo">Mínimo por mês</div><div className="kpi-valor ambar">{fmtK(resumo.minimos)}</div><div className="kpi-sub">soma das parcelas informadas</div></div>
+            <div className="kpi"><div className="kpi-rotulo">Juros por mês</div><div className="kpi-valor">{resumo.jurosMes ? fmtK(resumo.jurosMes) : '—'}</div><div className="kpi-sub">{resumo.jurosMes ? 'o que a dívida cresce sozinha' : 'informe os juros para estimar'}</div></div>
+            <div className="kpi"><div className="kpi-rotulo">Livre em</div><div className="kpi-valor verde">{plano.livreMes ? mesLabel(plano.livreMes) : '—'}</div><div className="kpi-sub">{plano.livreEm != null ? `em ${prazo(plano.livreEm)} · ${ESTRATEGIAS[estrategia].split(' (')[0]}` : 'não quita no prazo com esse valor'}</div></div>
+          </div>
+
+          {inicialTotal > 0 && (
+            <div className="card" style={{ padding: 12 }}>
+              <div className="aulas-meta-barra" role="progressbar" aria-valuenow={Math.round((jaPago / inicialTotal) * 100)} aria-valuemin={0} aria-valuemax={100} aria-label="Já pago do total">
+                <span className="apur" style={{ width: `${Math.min(100, Math.round((jaPago / inicialTotal) * 100))}%` }} />
+              </div>
+              <div className="cad-sub">Já pagou <b>{fmt(jaPago)}</b> de {fmt(inicialTotal)} ({Math.round((jaPago / inicialTotal) * 100)}%). Quando pagar algo, toque em "Paguei" na dívida para atualizar.</div>
+            </div>
+          )}
+
+          <div className="card" style={{ padding: 14 }}>
+            <div style={{ fontWeight: 600, marginBottom: 6 }}>Quanto dá para pagar de dívida por mês?</div>
+            <Pilulas rotulo="Fonte do valor" valor={fonte} onChange={setFonte} opcoes={[['real', 'Sobra real'], ['projecao', 'Sobra projetada'], ['fixo', 'Valor fixo']]} />
+            {fonte === 'fixo'
+              ? <div className="form-group" style={{ marginTop: 10, maxWidth: 260 }}><label>Valor por mês (R$)</label><input inputMode="decimal" value={fixo} onChange={(e) => setFixo(e.target.value)} placeholder="Ex.: 800" /></div>
+              : fonte === 'real'
+                ? <div className="cad-sub" style={{ marginTop: 8 }}>Usa a sobra projetada <b>menos a reserva dos gastos do dia a dia</b> (combustível, mercado etc., pela média dos últimos 3 meses). Média dos próximos 12 meses: <b>{fmt(media)}</b> por mês (a projetada, sem reserva, seria {fmt(mediaProjetada)}). Mês no vermelho conta como zero.</div>
+                : <div className="cad-sub" style={{ marginTop: 8 }}>Usa a sobra que o app projeta para cada mês (renda menos o que já está comprometido, com os meses fracos da renda). Média dos próximos 12 meses: <b>{fmt(media)}</b> por mês. Mês no vermelho conta como zero.</div>}
+            {plano.faltas.length > 0 && <div className="alert alert-amber" style={{ marginTop: 10, marginBottom: 0 }}>⚠ Em {plano.faltas.slice(0, 3).map((x) => mesLabel(addMes(hoje, x.mes))).join(', ')}{plano.faltas.length > 3 ? ' e outros meses' : ''} o valor disponível não cobre nem os mínimos (faltam {fmt(plano.faltas[0].falta)} no primeiro). Renegociar ou adiar ajuda.</div>}
+          </div>
+
+          {painelMes}
 
           <div className="section-label">qual estratégia?</div>
           <div className="dividas-cmp">

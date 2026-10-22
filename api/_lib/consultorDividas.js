@@ -12,6 +12,7 @@ Regras:
 - Os valores estão em reais; "sobra_real" já desconta o dia a dia. Mês com sobra_real negativa está no vermelho.
 - Fase 1 "estabilizar": o que fazer para fechar o mês atual e os próximos 2 sem estourar (o que pagar primeiro, o que adiar com menor custo, o que cortar, quando renegociar).
 - Fase 2 "quitar": o caminho até quitar tudo, na ordem do plano mais barato, citando mês e dívida.
+- Se não houver dívidas cadastradas mas houver meses com sobra_real negativa (no vermelho), a fase 1 foca em fechar esses meses (adiar, cortar, renegociar contas) e a fase 2 em manter o mês no azul e formar reserva.
 - Priorize: 1) o que gera multa/juros altos ou corte de serviço essencial, 2) juros maiores, 3) o resto.
 - Cada passo precisa ser uma ação concreta, curta, com o motivo. Use o valor em reais do JSON quando existir (ou null).
 - Não prometa resultado, não recomende investimento, empréstimo novo nem cartão novo. Sugira negociar com o credor e usar feirões/canais oficiais de renegociação, sem citar empresas específicas.
