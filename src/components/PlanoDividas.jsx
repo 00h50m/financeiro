@@ -8,6 +8,7 @@ import { lerNum } from '../lib/adiamentoPref'
 import { atrasadasDoApp } from '../lib/dividasApp'
 import { terminandoLogo } from '../lib/parcelamentos'
 import { tituloCompra } from '../lib/utils'
+import { reservaVariavel, sobraReal, CHAVE_RESERVA_AJUSTES, SEMANAS_POR_MES } from '../lib/gastoVariavel'
 
 const MESES_PROJECAO = 24
 const prazo = (idx) => (idx == null ? null : `${idx + 1} ${idx + 1 === 1 ? 'mês' : 'meses'}`)
@@ -17,13 +18,28 @@ export default function PlanoDividas({ store }) {
   const { dividas, dividasOk, salvarDivida, removerDivida } = store
   const hoje = nowYM()
   const [modal, setModal] = useState(null) // { divida? } ou { sugestao } (conta atrasada do app a importar)
-  const [fonte, setFonte] = useState('projecao') // 'projecao' | 'fixo'
+  const [fonte, setFonte] = useState('real') // 'real' (sobra menos gastos do dia a dia) | 'projecao' | 'fixo'
+  const [ajustesLocal, setAjustesLocal] = useState({})
   const [fixo, setFixo] = useState('')
   const [estrategia, setEstrategia] = useState('avalanche')
   const perfil = useMemo(() => perfilDeLinhas(store.rendaSazonal), [store.rendaSazonal])
   const projecao = useMemo(() => projecaoRenda(store, perfil, hoje, MESES_PROJECAO), [store, perfil, hoje])
-  const sobras = projecao.map((m) => Math.max(0, m.sobra))
+  const ajustes = store.configOk && store.config?.[CHAVE_RESERVA_AJUSTES] && typeof store.config[CHAVE_RESERVA_AJUSTES] === 'object' ? store.config[CHAVE_RESERVA_AJUSTES] : ajustesLocal
+  const reserva = useMemo(() => reservaVariavel(store.compras, hoje, { ajustes }), [store.compras, hoje, ajustes])
+  const real = useMemo(() => sobraReal(projecao, reserva, hoje), [projecao, reserva, hoje])
+  const sobras = fonte === 'real' ? real.map((m) => Math.max(0, m.sobraReal)) : projecao.map((m) => Math.max(0, m.sobra))
   const media = sobras.slice(0, 12).reduce((t, v) => t + v, 0) / 12
+  const mediaProjetada = projecao.slice(0, 12).reduce((t, m) => t + Math.max(0, m.sobra), 0) / 12
+  const mesesVermelho = real.filter((m) => m.sobraReal < -0.005)
+  function ajustarReserva(cat) {
+    const atual = ajustes[cat.categoria] != null ? String(ajustes[cat.categoria]).replace('.', ',') : ''
+    const t = window.prompt(`Quanto você costuma gastar por mês com ${cat.categoria}? (R$; média dos últimos 3 meses: ${fmt(cat.media)}; deixe vazio para voltar à média)`, atual)
+    if (t == null) return
+    const novo = { ...ajustes }
+    if (t.trim() === '') delete novo[cat.categoria]
+    else { const v = lerNum(t); if (!(v >= 0)) { window.alert('Não entendi esse valor. Exemplo: 400 ou 400,50'); return } novo[cat.categoria] = v }
+    if (store.configOk) store.definirConfig(CHAVE_RESERVA_AJUSTES, novo); else setAjustesLocal(novo)
+  }
   const resumo = useMemo(() => resumoDividas(dividas), [dividas])
   const orcamento = fonte === 'fixo' ? lerNum(fixo) : sobras
   const cmp = useMemo(() => compararEstrategias(dividas, { orcamento, inicio: hoje }), [dividas, orcamento, hoje])
@@ -80,12 +96,51 @@ export default function PlanoDividas({ store }) {
 
           <div className="card" style={{ padding: 14 }}>
             <div style={{ fontWeight: 600, marginBottom: 6 }}>Quanto dá para pagar de dívida por mês?</div>
-            <Pilulas rotulo="Fonte do valor" valor={fonte} onChange={setFonte} opcoes={[['projecao', 'Sobra projetada'], ['fixo', 'Valor fixo']]} />
+            <Pilulas rotulo="Fonte do valor" valor={fonte} onChange={setFonte} opcoes={[['real', 'Sobra real'], ['projecao', 'Sobra projetada'], ['fixo', 'Valor fixo']]} />
             {fonte === 'fixo'
               ? <div className="form-group" style={{ marginTop: 10, maxWidth: 260 }}><label>Valor por mês (R$)</label><input inputMode="decimal" value={fixo} onChange={(e) => setFixo(e.target.value)} placeholder="Ex.: 800" /></div>
-              : <div className="cad-sub" style={{ marginTop: 8 }}>Usa a sobra que o app projeta para cada mês (renda menos o que já está comprometido, com os meses fracos da renda). Média dos próximos 12 meses: <b>{fmt(media)}</b> por mês. Mês no vermelho conta como zero.</div>}
+              : fonte === 'real'
+                ? <div className="cad-sub" style={{ marginTop: 8 }}>Usa a sobra projetada <b>menos a reserva dos gastos do dia a dia</b> (combustível, mercado etc., pela média dos últimos 3 meses). Média dos próximos 12 meses: <b>{fmt(media)}</b> por mês (a projetada, sem reserva, seria {fmt(mediaProjetada)}). Mês no vermelho conta como zero.</div>
+                : <div className="cad-sub" style={{ marginTop: 8 }}>Usa a sobra que o app projeta para cada mês (renda menos o que já está comprometido, com os meses fracos da renda). Média dos próximos 12 meses: <b>{fmt(media)}</b> por mês. Mês no vermelho conta como zero.</div>}
             {plano.faltas.length > 0 && <div className="alert alert-amber" style={{ marginTop: 10, marginBottom: 0 }}>⚠ Em {plano.faltas.slice(0, 3).map((x) => mesLabel(addMes(hoje, x.mes))).join(', ')}{plano.faltas.length > 3 ? ' e outros meses' : ''} o valor disponível não cobre nem os mínimos (faltam {fmt(plano.faltas[0].falta)} no primeiro). Renegociar ou adiar ajuda.</div>}
           </div>
+
+          {fonte === 'real' && (
+            <>
+              <div className="section-label">seu mês de verdade</div>
+              <div className="card" style={{ padding: 14 }}>
+                <div className="kpi-faixa" style={{ marginBottom: 10 }}>
+                  <div className="kpi"><div className="kpi-rotulo">Sobra projetada</div><div className="kpi-valor">{fmtK(mediaProjetada)}</div><div className="kpi-sub">renda − o que já está lançado</div></div>
+                  <div className="kpi"><div className="kpi-rotulo">Dia a dia</div><div className="kpi-valor ambar">−{fmtK(reserva.total)}</div><div className="kpi-sub">reservado por mês</div></div>
+                  <div className="kpi"><div className="kpi-rotulo">Sobra real</div><div className="kpi-valor verde">{fmtK(media)}</div><div className="kpi-sub">para dívida, por mês</div></div>
+                </div>
+                {reserva.categorias.length === 0 ? <div className="cad-sub">Sem gastos à vista nos últimos 3 meses para estimar o dia a dia. Lance as compras do dia a dia (combustível, mercado) para o app reservar.</div> : (
+                  <table className="tabela-compacta">
+                    <thead><tr><th>Gasto do dia a dia</th><th style={{ textAlign: 'right' }}>Média 3 meses</th><th style={{ textAlign: 'right' }}>Reservado/mês</th><th style={{ textAlign: 'right' }}>Teto/semana</th><th /></tr></thead>
+                    <tbody>
+                      {reserva.categorias.map((c) => (
+                        <tr key={c.categoria}>
+                          <td>{c.categoria}{c.ajuste != null && <span className="badge badge-blue" style={{ marginLeft: 6, fontSize: 10 }}>ajustado</span>}</td>
+                          <td className="mono" style={{ textAlign: 'right' }}>{fmt(c.media)}</td>
+                          <td className="mono" style={{ textAlign: 'right' }}>{fmt(c.reservado)}</td>
+                          <td className="mono" style={{ textAlign: 'right' }}>{fmt(c.porSemana)}</td>
+                          <td><button className="link-btn" onClick={() => ajustarReserva(c)}>ajustar</button></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+                <div className="cad-sub" style={{ marginTop: 8 }}>
+                  Conta só compras à vista ou em 1x (parcelamentos, empréstimos e contas fixas já estão lançados). Teto por semana = reservado ÷ {SEMANAS_POR_MES.toFixed(2).replace('.', ',')}. Passe disso e o plano atrasa.
+                </div>
+                {mesesVermelho.length > 0 && (
+                  <div className="alert alert-red" style={{ marginTop: 10, marginBottom: 0 }}>
+                    ⚠ Contando o dia a dia, {mesesVermelho.length === 1 ? 'este mês fica' : 'estes meses ficam'} no vermelho: {mesesVermelho.slice(0, 6).map((m) => `${mesLabel(m.mes)} (${fmt(m.sobraReal)})`).join(', ')}{mesesVermelho.length > 6 ? ' e outros' : ''}. Adiar contas, renegociar ou cortar uma categoria ajuda.
+                  </div>
+                )}
+              </div>
+            </>
+          )}
 
           <div className="section-label">qual estratégia?</div>
           <div className="dividas-cmp">
