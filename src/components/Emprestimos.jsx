@@ -8,7 +8,7 @@ import { terminandoLogo } from '../lib/parcelamentos'
 const lerNum = (t) => {
   const s = String(t ?? '').trim()
   if (!s) return NaN
-  return Number(s.includes(',') ? s.replace(/\./g, '').replace(',', '.') : s)
+  return Number(s.includes(',') ? s.replace(/\./g, '').replace(',', '.') : /^\d{1,3}(\.\d{3})+$/.test(s) ? s.replace(/\./g, '') : s) // "10.000" = dez mil
 }
 const pctTxt = (x, c = 2) => (x * 100).toFixed(c).replace('.', ',') + '%'
 const COR = { cabe: 'green', apertado: 'amber', nao_cabe: 'red', sem_dados: 'blue' }

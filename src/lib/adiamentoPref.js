@@ -19,7 +19,7 @@ export function gravarPrefAdiar(multa, juros) {
 export const lerNum = (t) => {
   const s = String(t ?? '').trim()
   if (!s) return 0
-  const n = Number(s.includes(',') ? s.replace(/\./g, '').replace(',', '.') : s)
+  const n = Number(s.includes(',') ? s.replace(/\./g, '').replace(',', '.') : /^\d{1,3}(\.\d{3})+$/.test(s) ? s.replace(/\./g, '') : s) // "2.540" = dois mil e quinhentos e quarenta
   return Number.isFinite(n) && n >= 0 ? n : 0
 }
 export const paraAcrescimo = (campo) => ({ tipo: campo.tipo, valor: lerNum(campo.texto) })
