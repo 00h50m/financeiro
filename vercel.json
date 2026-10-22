@@ -19,6 +19,9 @@
     },
     "api/consultor-dividas.js": {
       "maxDuration": 60
+    },
+    "api/expert-plano.js": {
+      "maxDuration": 60
     }
   }
 }

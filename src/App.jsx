@@ -12,6 +12,7 @@ import ImportarFatura from './components/ImportarFatura'
 import Renda from './components/Renda'
 import Cenario from './components/Cenario'
 import PlanoDividas from './components/PlanoDividas'
+import MeuPlano from './components/MeuPlano'
 import Aulas from './components/Aulas'
 import Fixos from './components/Fixos'
 import Simulador from './components/Simulador'
@@ -115,6 +116,7 @@ const GRUPOS = [
   {
     titulo: 'Planejamento',
     abas: [
+      { id: 'meuplano', label: 'Meu plano', Component: MeuPlano },
       { id: 'renda', label: 'Renda', Component: Renda },
       { id: 'aulas', label: 'Aulas particulares', Component: Aulas },
       { id: 'cenario', label: 'E se eu adiar?', Component: Cenario },

@@ -13,7 +13,7 @@ export const ORDEM_RESTAURACAO = [
   ['renda_sazonal', 'id', 'Renda sazonal'], ['alunos', 'id', 'Alunos (aulas)'], ['aulas_programacao', 'id', 'Programação das aulas'], ['aulas', 'id', 'Aulas'],
   ['aulas_previsao_inicial', 'id', 'Previsão inicial das aulas'], ['aulas_fechamentos', 'id', 'Fechamentos das aulas'], ['aulas_fechamentos_hist', 'id', 'Histórico dos fechamentos das aulas'],
   ['aulas_pausas', 'id', 'Períodos sem aula'], ['adiamentos', 'id', 'Contas adiadas'], ['dividas', 'id', 'Dívidas'],
-  ['reserva_fontes', 'id', 'Reserva de emergência (onde está)'],
+  ['reserva_fontes', 'id', 'Reserva de emergência (onde está)'], ['planos_vida', 'id', 'Meu plano (histórico do expert)'],
 ]
 export const OBRIGATORIAS = ['compras', 'cartoes', 'faturas', 'fixos', 'fixos_pagamentos', 'rendas', 'categorias', 'pessoas', 'saldo_ajustes']
 
