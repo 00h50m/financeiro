@@ -74,6 +74,8 @@ também lê a foto de uma notinha ou comprovante (valor, local e data) e mostra 
 completa o resto (ex.: `nubank gi`, `3x`). Usa o modelo Claude Sonnet 5.5 (centavos por foto); sem a chave, o bot avisa
 que não lê fotos. Só quem está pareado gasta a IA. Datas futuras ("amanhã") são recusadas.
 
+**Consultor de dívidas (opcional):** a mesma `ANTHROPIC_API_KEY` liga o botão "Gerar meu plano" no Plano de dívidas (`/api/consultor-dividas`, só para quem está logado). A IA recebe os números que o app já calculou e devolve um plano em duas fases e respostas de "e se…"; ela não calcula nem grava nada.
+
 **Recado de voz (opcional):** com a variável `GROQ_API_KEY` na Vercel (chave de [console.groq.com](https://console.groq.com)), o bot
 transcreve recados de voz de até 1 minuto (Whisper Large v3 Turbo, em português) e segue como se o texto tivesse sido
 digitado: mostra o que entendeu (`🎤 Entendi: ...`) e o resumo com **Confirmar**. Sem a chave, o bot avisa que não entende áudio.

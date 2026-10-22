@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { renderToString } from 'react-dom/server'
+vi.mock('../automacoes', () => ({ pedirConsultorDividas: async () => ({ ok: false, erro: 'x' }) }))
 import PlanoDividas from '../../components/PlanoDividas'
 
 const hoje = new Date().toISOString().slice(0, 7)
@@ -14,5 +15,7 @@ describe('PlanoDividas (render)', () => {
     const html = renderToString(<PlanoDividas store={store} />)
     expect(html).toContain('seu mês de verdade')
     expect(html).toContain('Combustível')
+    expect(html).toContain('consultor com IA')
+    expect(html).toContain('Gerar meu plano')
   })
 })
