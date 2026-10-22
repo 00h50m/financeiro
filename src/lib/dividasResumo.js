@@ -2,6 +2,7 @@
 import { compararEstrategias, resumoDividas } from './dividas.js'
 import { perfilDeLinhas, projecaoRenda } from './rendaSazonal.js'
 import { mesLabel } from './utils.js'
+import { reservaVariavel, sobraReal, CHAVE_RESERVA_AJUSTES } from './gastoVariavel.js'
 
 const r2 = (n) => Math.round(n * 100) / 100
 
@@ -11,7 +12,9 @@ export function resumoDoPlano(d, hoje, { estrategia = 'avalanche' } = {}) {
   if (!dividas.length) return null
   const mes = hoje.slice(0, 7)
   const perfil = perfilDeLinhas(d.rendaSazonal || [])
-  const sobras = projecaoRenda(d, perfil, mes, 24).map((m) => Math.max(0, m.sobra))
+  const ajustes = d.config?.[CHAVE_RESERVA_AJUSTES]
+  const reserva = reservaVariavel(d.compras || [], mes, { ajustes: ajustes && typeof ajustes === 'object' ? ajustes : {} })
+  const sobras = sobraReal(projecaoRenda(d, perfil, mes, 24), reserva, mes).map((m) => Math.max(0, m.sobraReal))
   const plano = compararEstrategias(d.dividas, { orcamento: sobras, inicio: mes })[estrategia]
   const base = resumoDividas(d.dividas)
   const inicial = (d.dividas || []).filter((x) => x.ativa !== false).reduce((t, x) => t + (Number(x.saldo_inicial) || Number(x.saldo)), 0)
