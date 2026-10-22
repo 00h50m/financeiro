@@ -168,3 +168,44 @@ describe('mês em que as aulas entram na renda', () => {
     expect(aulasAReceberPorMes(d)).toEqual({ '2026-11': 100 })
   })
 })
+
+describe('férias (períodos sem aula) tiram o valor previsto da renda', () => {
+  const aluno = { id: 'a1', nome: 'Lucas', ativo: true, inicio: '2026-09-01', valor_hora_centavos: 10000 }
+  const prog = [{ id: 'p1', aluno_id: 'a1', dia_semana: 2, duracao_min: 60, vigencia_inicio: '2026-09-01' }] // terças
+  const projetar = (pausas) => aulasPorMes([aluno], [], [], { programacoes: prog, pausas, desde: '2026-11', meses: 2 })
+
+  it('mês inteiro de férias: não entra nada previsto (o mês some da renda)', () => {
+    const m = projetar([{ inicio: '2026-12-01', fim: '2026-12-31', aluno_id: null }])
+    expect(m['2026-11'].valor).toBe(400)
+    expect(m['2026-12']).toBeUndefined()
+  })
+  it('férias no meio do mês: só deixam de contar as terças do período', () => {
+    const m = projetar([{ inicio: '2026-11-10', fim: '2026-11-24', aluno_id: null }]) // tira 10/11 e 17/11 e 24/11
+    expect(m['2026-11'].valor).toBe(100)
+  })
+  it('férias só de um aluno não mexem nos outros', () => {
+    const outro = { ...aluno, id: 'a2', nome: 'Ana' }
+    const m = aulasPorMes([aluno, outro], [], [], { programacoes: [...prog, { ...prog[0], id: 'p2', aluno_id: 'a2' }], pausas: [{ inicio: '2026-11-01', fim: '2026-11-30', aluno_id: 'a1' }], desde: '2026-11', meses: 1 })
+    expect(m['2026-11'].porAluno.map((p) => p.alunoId)).toEqual(['a2'])
+    expect(m['2026-11'].valor).toBe(400)
+  })
+  it('aula já gerada e ainda "prevista" dentro das férias (ex.: remarcada) não conta; a realizada conta', () => {
+    const pausa = [{ inicio: '2026-11-09', fim: '2026-11-15', aluno_id: null }]
+    const geradas = [
+      { id: 'g1', aluno_id: 'a1', data: '2026-11-03', data_original: '2026-11-03', duracao_min: 60, valor_hora_centavos: 10000, status: 'prevista' },
+      { id: 'g2', aluno_id: 'a1', data: '2026-11-11', data_original: '2026-11-10', duracao_min: 60, valor_hora_centavos: 10000, status: 'prevista' }, // remarcada para as férias
+      { id: 'g3', aluno_id: 'a1', data: '2026-11-12', data_original: '2026-11-12', duracao_min: 60, duracao_real_min: 60, valor_hora_centavos: 10000, valor_centavos: 10000, status: 'realizada' }, // aconteceu mesmo
+    ]
+    expect(valorAlunoMes(geradas, [], 'a1', '2026-11', pausa).valor).toBe(20000) // g1 + g3
+    expect(valorAlunoMes(geradas, [], 'a1', '2026-11').valor).toBe(30000) // sem informar as férias, como antes
+    const m = aulasPorMes([aluno], geradas, [], { programacoes: prog, pausas: pausa, desde: '2026-11', meses: 1 })
+    expect(m['2026-11'].valor).toBe(200)
+  })
+  it('a renda do mês acompanha: férias zeram a parte das aulas', () => {
+    const base = [{ id: 'r1', mes: '2026-10', giovanna: 0, sabrina: 3000, extra_sabrina: 0, mesada: 0, outros: 0 }]
+    const comFerias = rendasComAulas(base, aulasPorMes([aluno], [], [], { programacoes: prog, pausas: [{ inicio: '2026-11-01', fim: '2026-11-30', aluno_id: null }], desde: '2026-11', meses: 1 }))
+    expect(comFerias.find((r) => r.mes === '2026-11')).toBeUndefined()
+    const semFerias = rendasComAulas(base, aulasPorMes([aluno], [], [], { programacoes: prog, desde: '2026-11', meses: 1 }))
+    expect(semFerias.find((r) => r.mes === '2026-11').extra_aulas).toBe(400)
+  })
+})

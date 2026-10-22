@@ -1,12 +1,20 @@
 import { useMemo, useState } from 'react'
 import { RENDA_CAMPOS, fmt, fmtK, mesLabel, nowYM, rendaDigitada } from '../lib/utils'
-import { perfilDeLinhas, fatorDe, proximoFator, projecaoRenda, planoDeReserva, temPerfil } from '../lib/rendaSazonal'
+import { perfilDeLinhas, fatorDe, valorFixoDe, baseDaFonte, fatorParaValor, proximoFator, projecaoRenda, planoDeReserva, temPerfil, mesesComFerias } from '../lib/rendaSazonal'
+import { lerNum } from '../lib/adiamentoPref'
 import { saldoMeta } from '../lib/metas'
 import Secao from './Secao'
+import { Pilulas } from './NavMes'
 
 const MESES_CURTOS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
 const rotuloFator = (f) => (f === 0 ? '0' : `${Math.round(f * 100)}%`)
 const classeFator = (f) => (f >= 0.995 ? 'normal' : f === 0 ? 'zero' : f <= 0.5 ? 'fraco' : 'menos')
+const CHAVE_VISAO = 'renda_sazonal_visao'
+const lerVisao = () => { try { return localStorage.getItem(CHAVE_VISAO) === 'valor' ? 'valor' : 'percentual' } catch { return 'percentual' } }
+const gravarVisao = (v) => { try { localStorage.setItem(CHAVE_VISAO, v) } catch { /* segue sem lembrar */ } }
+// Texto digitado só vale se tiver algum dígito ("abc" não vira 0 sem querer).
+const textoValido = (t) => /\d/.test(String(t ?? ''))
+const emReais = (n) => Number(n).toLocaleString('pt-BR', { minimumFractionDigits: Number.isInteger(Number(n)) ? 0 : 2, maximumFractionDigits: 2 })
 
 // Reserva atual: saldo da meta de reserva ativa (tela Reserva), se existir.
 export function reservaAtualDe(store) {
@@ -22,45 +30,122 @@ export function useProjecaoSazonal(store, n = 12) {
   return { perfil, meses, plano, ativo: temPerfil(perfil) }
 }
 
+// Uma célula de mês no modo "valor": a pessoa digita o que espera receber naquele mês do ano.
+// Vazio = volta a valer o valor normal × fator. Salva ao sair do campo ou com Enter.
+function CelulaValor({ nome, esperado, digitado, desabilitado, onSalvar, rotuloAcessivel }) {
+  const [texto, setTexto] = useState(null) // null = não está editando
+  const mostrado = texto ?? (esperado == null ? '' : emReais(esperado))
+  const confirmar = () => {
+    if (texto === null) return
+    const t = texto.trim()
+    setTexto(null)
+    if (t === '') { if (digitado != null) onSalvar(null); return }
+    if (!textoValido(t)) return
+    const v = lerNum(t)
+    if (digitado == null || Math.abs(v - digitado) > 0.004) onSalvar(v)
+  }
+  return (
+    <label className={`rs-celula ${digitado != null ? 'digitado' : ''}`}>
+      <span>{nome}</span>
+      <input
+        inputMode="decimal" autoComplete="off" disabled={desabilitado}
+        value={mostrado} placeholder="—"
+        onFocus={(e) => { setTexto(esperado == null ? '' : emReais(esperado)); e.target.select() }}
+        onChange={(e) => setTexto(e.target.value)}
+        onBlur={confirmar}
+        onKeyDown={(e) => { if (e.key === 'Enter') { confirmar(); e.currentTarget.blur() } if (e.key === 'Escape') { setTexto(null); e.currentTarget.blur() } }}
+        aria-label={rotuloAcessivel}
+      />
+    </label>
+  )
+}
+
 export default function RendaSazonal({ store }) {
-  const { rendas, rendaSazonalOk, definirFatorSazonal } = store
+  const { rendas, rendaSazonal, rendaSazonalOk, definirFatorSazonal, definirValorSazonal, aulasPausas } = store
   const { perfil, meses, plano } = useProjecaoSazonal(store)
   const [abertas, setAbertas] = useState({ perfil: true, proj: true, plano: true })
+  const [visao, setVisaoEstado] = useState(lerVisao)
+  const setVisao = (v) => { setVisaoEstado(v); gravarVisao(v) }
   const alt = (k) => () => setAbertas((a) => ({ ...a, [k]: !a[k] }))
   const campos = RENDA_CAMPOS.filter(([k]) => rendas.some((r) => Number(r[k]) > 0))
   const maior = Math.max(1, ...meses.map((m) => Math.max(m.renda, m.comprometido)))
   const hoje = nowYM()
+  const ferias = useMemo(() => mesesComFerias(aulasPausas), [aulasPausas])
+  // Só há coluna "valor" no banco depois do inbox/32: se já existem linhas e nenhuma traz o campo, ainda não foi rodado.
+  const colunaValorOk = !(rendaSazonal || []).length || 'valor' in rendaSazonal[0]
 
   return (
     <div className="rs">
-      <Secao titulo="Como a renda muda ao longo do ano" info="toque no mês para alternar" aberto={abertas.perfil} onToggle={alt('perfil')}>
+      <Secao titulo="Como a renda muda ao longo do ano" info={visao === 'valor' ? 'digite o valor de cada mês' : 'toque no mês para alternar'} aberto={abertas.perfil} onToggle={alt('perfil')}>
         <div className="rs-corpo">
           {!rendaSazonalOk && (
             <div className="alert alert-amber">Para guardar os meses fracos, rode o arquivo <code>inbox/22_renda_sazonal.sql</code> no Supabase e recarregue a página.</div>
           )}
-          <p className="rs-ajuda">Cada toque muda o mês: <b>100%</b> (normal) → <b>70%</b> → <b>40%</b> (fraco) → <b>0</b> (não recebe). A projeção usa isso nos meses em que você ainda não cadastrou a renda.</p>
+          {rendaSazonalOk && !colunaValorOk && (
+            <div className="alert alert-amber">Para guardar <b>valores digitados</b> por mês, rode o arquivo <code>inbox/32_renda_sazonal_valor.sql</code> no Supabase e recarregue a página. Enquanto isso, o valor digitado vira uma porcentagem do valor normal.</div>
+          )}
+          <div className="rs-visao">
+            <Pilulas
+              rotulo="Como informar a renda de cada mês"
+              valor={visao} onChange={setVisao}
+              opcoes={[['percentual', 'Por porcentagem'], ['valor', 'Digitar o valor']]}
+            />
+          </div>
+          {visao === 'percentual' ? (
+            <p className="rs-ajuda">Cada toque muda o mês: <b>100%</b> (normal) → <b>70%</b> → <b>40%</b> (fraco) → <b>0</b> (não recebe). A projeção usa isso nos meses em que você ainda não cadastrou a renda. Prefere números? Mude para <b>Digitar o valor</b>.</p>
+          ) : (
+            <p className="rs-ajuda">Digite quanto você espera receber de cada fonte em cada mês (vale para todo ano; apague para voltar ao valor normal). O número que você digita é guardado como está, mesmo que a renda normal mude depois. O que aparece em cinza é a previsão automática.</p>
+          )}
           {campos.length === 0 && <div className="empty">Cadastre a renda de algum mês primeiro; depois você marca aqui os meses fracos de cada fonte.</div>}
-          {campos.map(([campo, rotulo]) => (
-            <div key={campo} className="rs-fonte">
-              <div className="rs-fonte-nome">{rotulo}</div>
-              <div className="rs-chips">
-                {MESES_CURTOS.map((nome, i) => {
-                  const f = fatorDe(perfil, campo, `2026-${String(i + 1).padStart(2, '0')}`)
-                  return (
-                    <button
-                      key={nome}
-                      className={`rs-chip ${classeFator(f)}`}
-                      disabled={!rendaSazonalOk}
-                      onClick={() => definirFatorSazonal(campo, i + 1, proximoFator(f))}
-                      aria-label={`${rotulo}, ${nome}: ${f === 0 ? 'não recebe' : rotuloFator(f)}. Toque para alterar`}
-                    >
-                      <span>{nome}</span><b>{rotuloFator(f)}</b>
-                    </button>
-                  )
-                })}
+          {campos.map(([campo, rotulo]) => {
+            const base = baseDaFonte(rendas, perfil, campo)
+            return (
+              <div key={campo} className="rs-fonte">
+                <div className="rs-fonte-nome">{rotulo}{base > 0 && <span className="rs-base"> · valor normal {fmt(base)}</span>}</div>
+                {visao === 'percentual' ? (
+                  <div className="rs-chips">
+                    {MESES_CURTOS.map((nome, i) => {
+                      const mesRef = `2026-${String(i + 1).padStart(2, '0')}`
+                      const f = fatorDe(perfil, campo, mesRef)
+                      const digitado = valorFixoDe(perfil, campo, mesRef)
+                      return (
+                        <button
+                          key={nome}
+                          className={`rs-chip ${classeFator(f)} ${digitado != null ? 'digitado' : ''}`}
+                          disabled={!rendaSazonalOk}
+                          // tocar num mês com valor digitado volta para o modo porcentagem (o valor digitado é apagado)
+                          onClick={() => definirFatorSazonal(campo, i + 1, proximoFator(f), { limparValor: digitado != null })}
+                          aria-label={`${rotulo}, ${nome}: ${digitado != null ? `${fmt(digitado)} digitado` : f === 0 ? 'não recebe' : rotuloFator(f)}. Toque para alterar`}
+                          title={digitado != null ? `Valor digitado: ${fmt(digitado)}. Tocar volta para porcentagem.` : undefined}
+                        >
+                          <span>{nome}</span><b>{digitado != null ? fmtK(digitado) : rotuloFator(f)}</b>
+                        </button>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <div className="rs-celulas">
+                    {MESES_CURTOS.map((nome, i) => {
+                      const mesRef = `2026-${String(i + 1).padStart(2, '0')}`
+                      const digitado = valorFixoDe(perfil, campo, mesRef)
+                      const automatico = base > 0 ? Math.round(base * fatorDe(perfil, campo, mesRef) * 100) / 100 : null
+                      return (
+                        <CelulaValor
+                          key={nome} nome={nome}
+                          esperado={digitado ?? automatico} digitado={digitado}
+                          desabilitado={!rendaSazonalOk}
+                          rotuloAcessivel={`${rotulo}, ${nome}: valor esperado em reais`}
+                          onSalvar={(v) => (v == null
+                            ? definirFatorSazonal(campo, i + 1, 1) // apagar = volta ao valor normal (a linha some)
+                            : definirValorSazonal(campo, i + 1, { valor: v, fator: fatorParaValor(v, base) }))}
+                        />
+                      )
+                    })}
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </Secao>
 
@@ -83,7 +168,10 @@ export default function RendaSazonal({ store }) {
             <tbody>
               {meses.map((m) => (
                 <tr key={m.mes}>
-                  <td>{mesLabel(m.mes)}{m.mes === hoje && <span className="badge badge-green" style={{ marginLeft: 6, fontSize: 10 }}>atual</span>}</td>
+                  <td>
+                    {mesLabel(m.mes)}{m.mes === hoje && <span className="badge badge-green" style={{ marginLeft: 6, fontSize: 10 }}>atual</span>}
+                    {ferias.has(m.mes) && <span className="badge badge-blue" style={{ marginLeft: 6, fontSize: 10 }} title="Há férias ou dias sem aula cadastrados neste mês (tela Aulas): as aulas desses dias não entram na renda prevista">férias nas aulas</span>}
+                  </td>
                   <td className="mono" style={{ textAlign: 'right' }}>{fmtK(m.renda)}{m.estimada && rendaDigitada(rendas.find((r) => r.mes === m.mes)) === 0 && <span className="rs-prev" title="Renda prevista pelos meses fracos que você marcou"> prev.</span>}</td>
                   <td className="mono col-opc" style={{ textAlign: 'right' }}>{fmtK(m.comprometido)}</td>
                   <td className="mono" style={{ textAlign: 'right', color: m.sobra < -0.005 ? 'var(--red)' : 'var(--green)' }}>{m.sobra < 0 ? '−' : '+'}{fmtK(Math.abs(m.sobra))}</td>
@@ -91,7 +179,7 @@ export default function RendaSazonal({ store }) {
               ))}
             </tbody>
           </table>
-          <div className="lp-nota">Meses futuros usam as parcelas já lançadas e as contas fixas ativas; compras novas e valores variáveis ainda não entram. Mês com renda cadastrada vale o cadastrado.</div>
+          <div className="lp-nota">Meses futuros usam as parcelas já lançadas e as contas fixas ativas; compras novas e valores variáveis ainda não entram. Mês com renda cadastrada vale o cadastrado. As aulas particulares entram pela agenda e <b>não contam</b> nos dias de férias cadastrados em Aulas.</div>
         </div>
       </Secao>
 

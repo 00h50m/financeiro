@@ -1,6 +1,6 @@
 // Fechamento das aulas por aluno e ligação com a Renda. Tudo em centavos (aulas) — a conversão para reais acontece só em
 // `aulasPorMes`/`rendasComAulas`, que alimentam o resto do app (que trabalha em reais).
-import { aulasDoMes, contaNaPrevisao, duracaoEfetiva, mesDe, valorDaAula, diaDaSemana, DIAS, textoDuracao, gerarOcorrencias, valorAula } from './aulas.js'
+import { aulasDoMes, contaNaPrevisao, duracaoEfetiva, mesDe, valorDaAula, diaDaSemana, DIAS, textoDuracao, gerarOcorrencias, valorAula, emPausa } from './aulas.js'
 
 export const fechadoStatus = (f) => !!f && (f.status === 'fechado' || f.status === 'sem_cobranca')
 export const achaFechamento = (fechamentos, alunoId, mes) => (fechamentos || []).find((f) => f.aluno_id === alunoId && f.mes === mes) || null
@@ -18,12 +18,14 @@ export function montarFechamento(aulas, alunoId, mes) {
 // Valor do aluno no mês, para a Renda.
 //  fechado → foto do fechamento · sem cobrança → 0 · senão → apurado + ainda previsto (competência).
 //  recebido só conta se o fechamento registrou recebimento; aReceber = valor − recebido (pode ser negativo se recebeu a mais).
-export function valorAlunoMes(aulas, fechamentos, alunoId, mes) {
+// `pausas` (férias/dias sem aula): aula só PREVISTA que cai dentro de um período sem aula não conta na renda, mesmo que ainda
+// exista (ex.: uma aula remarcada para dentro das férias). Aula já realizada conta sempre: o dinheiro foi ganho.
+export function valorAlunoMes(aulas, fechamentos, alunoId, mes, pausas = []) {
   const f = achaFechamento(fechamentos, alunoId, mes)
   let valor
   if (f && f.status === 'sem_cobranca') valor = 0
   else if (f && f.status === 'fechado') valor = Number(f.valor_centavos) || 0
-  else valor = aulasDoMes(aulas, mes, alunoId).filter(contaNaPrevisao).reduce((t, a) => t + valorDaAula(a), 0)
+  else valor = aulasDoMes(aulas, mes, alunoId).filter((a) => contaNaPrevisao(a) && !(a.status === 'prevista' && emPausa(pausas, alunoId, a.data))).reduce((t, a) => t + valorDaAula(a), 0)
   const recebido = f && f.recebido ? Number(f.recebido_centavos ?? f.valor_centavos) || 0 : 0
   return { valor, recebido, aReceber: valor - recebido, fechamento: f }
 }
@@ -51,7 +53,7 @@ export function aulasPorMes(alunos, aulas, fechamentos, { programacoes = [], pau
         if (prev) porAluno.push({ alunoId: al.id, nome: al.nome, valor: prev / 100, recebido: 0, aReceber: prev / 100, fechado: false, projetada: true })
         continue
       }
-      const v = valorAlunoMes(aulas || [], fechamentos || [], al.id, mes)
+      const v = valorAlunoMes(aulas || [], fechamentos || [], al.id, mes, pausas)
       if (v.valor || v.recebido) porAluno.push({ alunoId: al.id, nome: al.nome, valor: v.valor / 100, recebido: v.recebido / 100, aReceber: v.aReceber / 100, fechado: fechadoStatus(v.fechamento), projetada: false })
     }
     if (!porAluno.length) continue

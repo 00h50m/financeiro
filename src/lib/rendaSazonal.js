@@ -13,17 +13,59 @@ export const proximoFator = (f) => {
 const mesDoAno = (mes) => Number(mes.slice(5, 7))
 const r2 = (n) => Math.round(n * 100) / 100
 
-// linhas do banco ({campo, mes_do_ano, fator}) → { campo: { 1..12: fator } }
+// linhas do banco ({campo, mes_do_ano, fator, valor?}) → { campo: { 1..12: fator } }.
+// `valor` (opcional, em reais) é um valor DIGITADO para aquele mês do ano: quando existe, vale ele e não o fator × valor normal.
+// Os valores digitados ficam numa propriedade escondida (`__valores`), para quem só conhece fatores continuar funcionando.
 export function perfilDeLinhas(linhas = []) {
   const perfil = {}
+  const valores = {}
   for (const l of linhas) {
     if (!perfil[l.campo]) perfil[l.campo] = {}
     perfil[l.campo][Number(l.mes_do_ano)] = Number(l.fator)
+    if (l.valor != null && l.valor !== '' && !Number.isNaN(Number(l.valor))) {
+      if (!valores[l.campo]) valores[l.campo] = {}
+      valores[l.campo][Number(l.mes_do_ano)] = Number(l.valor)
+    }
   }
+  Object.defineProperty(perfil, '__valores', { value: valores, enumerable: false })
   return perfil
 }
 export const fatorDe = (perfil, campo, mes) => perfil?.[campo]?.[mesDoAno(mes)] ?? 1
-export const temPerfil = (perfil) => Object.values(perfil || {}).some((m) => Object.values(m).some((f) => Math.abs(f - 1) > 0.005))
+// Valor digitado (R$) para a fonte naquele mês do ano, ou null se não há (aí vale o fator).
+export const valorFixoDe = (perfil, campo, mes) => perfil?.__valores?.[campo]?.[mesDoAno(mes)] ?? null
+export const temPerfil = (perfil) =>
+  Object.values(perfil || {}).some((m) => Object.values(m).some((f) => Math.abs(f - 1) > 0.005))
+  || Object.values(perfil?.__valores || {}).some((m) => Object.keys(m).length > 0)
+
+// Valor "normal" de uma fonte: o último mês cadastrado antes de `antesDe` (padrão: o mais recente), desfeito o fator daquele mês.
+// 0 se a fonte nunca foi cadastrada. É a base sobre a qual os fatores (%) valem.
+export function baseDaFonte(rendas, perfil, campo, antesDe = '9999-12') {
+  const anteriores = (rendas || []).filter((r) => r.mes < antesDe && rendaDigitada(r) > 0).sort((a, b) => b.mes.localeCompare(a.mes))
+  for (const r of anteriores) {
+    const v = (Number(r[campo]) || 0) - (campo === 'extra_sabrina' ? Number(r.extra_aulas) || 0 : 0)
+    const f = fatorDe(perfil, campo, r.mes)
+    if (v > 0 && f > 0) return r2(v / f)
+  }
+  return 0
+}
+
+// Meses (AAAA-MM) que têm férias ou dias sem aula cadastrados em Aulas (pausas: { inicio, fim }). Serve para avisar na projeção.
+export function mesesComFerias(pausas = []) {
+  const out = new Set()
+  for (const p of pausas || []) {
+    if (!p?.inicio || !p?.fim) continue
+    let m = String(p.inicio).slice(0, 7)
+    const ultimo = String(p.fim).slice(0, 7)
+    for (let i = 0; m <= ultimo && i < 600; i++) { out.add(m); m = addMonths(m, 1) }
+  }
+  return out
+}
+
+// Fator equivalente a um valor digitado (limitado ao que o banco aceita: de 0 a 2 vezes o normal). Sem base, 1 ou 0.
+export function fatorParaValor(valor, base) {
+  if (!(base > 0)) return valor > 0 ? 1 : 0
+  return Math.min(2, Math.max(0, Math.round((valor / base) * 1e6) / 1e6))
+}
 
 // Renda de um mês. Mês com renda cadastrada vale o que foi cadastrado. Mês sem renda é PREVISTO: o valor "normal" de cada
 // fonte (último mês cadastrado antes dele, desfeito o fator daquele mês) vezes o fator do mês.
@@ -41,7 +83,9 @@ export function rendaPrevista(rendas, perfil, mes) {
       const f = fatorDe(perfil, campo, r.mes)
       if (v > 0 && f > 0) { base = v / f; break }
     }
-    const previsto = r2(base * fatorDe(perfil, campo, mes))
+    // Valor digitado para o mês do ano vale mais que "valor normal × fator".
+    const fixo = valorFixoDe(perfil, campo, mes)
+    const previsto = fixo != null ? r2(fixo) : r2(base * fatorDe(perfil, campo, mes))
     porCampo[campo] = previsto
     valor += previsto
   }
