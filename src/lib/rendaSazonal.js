@@ -72,7 +72,11 @@ export function fatorParaValor(valor, base) {
 export function rendaPrevista(rendas, perfil, mes) {
   const cadastrada = (rendas || []).find((r) => r.mes === mes)
   const aulas = Number(cadastrada?.extra_aulas) || 0 // aulas particulares: já refletem a agenda real do mês, sem fator
-  if (rendaDigitada(cadastrada) > 0) return { valor: totalRenda(cadastrada), estimada: false }
+  if (rendaDigitada(cadastrada) > 0) {
+    // `porCampo` = quanto cada fonte rende no mês; as aulas ficam à parte, em `aulas`, e não dentro de extra_sabrina
+    const porCampo = Object.fromEntries(RENDA_CAMPOS.map(([campo]) => [campo, r2((Number(cadastrada[campo]) || 0) - (campo === 'extra_sabrina' ? aulas : 0))]))
+    return { valor: totalRenda(cadastrada), estimada: false, porCampo, aulas }
+  }
   const anteriores = (rendas || []).filter((r) => r.mes < mes && rendaDigitada(r) > 0).sort((a, b) => b.mes.localeCompare(a.mes))
   let valor = aulas
   const porCampo = {}
@@ -89,8 +93,7 @@ export function rendaPrevista(rendas, perfil, mes) {
     porCampo[campo] = previsto
     valor += previsto
   }
-  if (aulas) porCampo.extra_sabrina = r2((porCampo.extra_sabrina || 0) + aulas)
-  return { valor: r2(valor), estimada: true, porCampo }
+  return { valor: r2(valor), estimada: true, porCampo, aulas }
 }
 
 // Próximos `n` meses: renda (cadastrada ou prevista), o que já está comprometido e o que sobra ou falta.
@@ -99,8 +102,24 @@ export function projecaoRenda(store, perfil, mes, n = 12) {
     const m = addMonths(mes, i)
     const renda = rendaPrevista(store.rendas, perfil, m)
     const comprometido = r2(detalhePagamentos(store, m).comprometido)
-    return { mes: m, renda: renda.valor, estimada: renda.estimada, comprometido, sobra: r2(renda.valor - comprometido) }
+    return { mes: m, renda: renda.valor, estimada: renda.estimada, fontes: renda.porCampo, aulas: renda.aulas, comprometido, sobra: r2(renda.valor - comprometido) }
   })
+}
+
+// Leitura rápida da projeção (topo da tela): total e média da renda, mês mais apertado e quantos meses ficam no vermelho.
+export function resumoDaProjecao(meses = []) {
+  if (!meses.length) return null
+  const soma = (f) => r2(meses.reduce((t, m) => t + f(m), 0))
+  const total = soma((m) => m.renda)
+  const pior = meses.reduce((a, b) => (b.sobra < a.sobra ? b : a))
+  const menorRenda = meses.reduce((a, b) => (b.renda < a.renda ? b : a))
+  const maiorRenda = meses.reduce((a, b) => (b.renda > a.renda ? b : a))
+  const vermelhos = meses.filter((m) => m.sobra < -0.005)
+  return {
+    total, media: r2(total / meses.length), pior, menorRenda, maiorRenda,
+    vermelhos: vermelhos.length, falta: soma((m) => (m.sobra < -0.005 ? -m.sobra : 0)),
+    previstos: meses.filter((m) => m.estimada).length, n: meses.length,
+  }
 }
 
 // Plano para atravessar os meses no vermelho. Cada período seguido de meses no vermelho ("janela") tem o seu plano:

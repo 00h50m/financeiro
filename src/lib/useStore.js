@@ -571,6 +571,21 @@ export function useStore(email = null) {
     }
     if (r.error) throw r.error
   }, ['rendaSazonal'], 'salvar a renda sazonal')
+  // Vários meses do ano de uma vez (atalhos da tela): sem `valor`/`fator` (ou fator 1 sem valor) apaga os meses e volta ao normal.
+  const definirSazonalEmLote = (campo, meses, { valor = null, fator = 1 } = {}) => op(async () => {
+    if (valor == null && Math.abs(fator - 1) < 0.005) {
+      const r = await sb.from('renda_sazonal').delete().eq('campo', campo).in('mes_do_ano', meses)
+      if (r.error) throw r.error
+      return
+    }
+    const agora = new Date().toISOString()
+    const linhas = meses.map((m) => ({ campo, mes_do_ano: m, fator, ...(valor != null ? { valor } : { valor: null }), atualizado_em: agora }))
+    const r = await sb.from('renda_sazonal').upsert(linhas, { onConflict: 'campo,mes_do_ano' })
+    if (r.error && valor != null && (r.error.code === '42703' || r.error.code === 'PGRST204' || /valor/i.test(r.error.message || ''))) {
+      throw amigavel('Falta rodar a atualização 32 do banco (arquivo inbox/32_renda_sazonal_valor.sql no Supabase) para guardar valores digitados.')
+    }
+    if (r.error) throw r.error
+  }, ['rendaSazonal'], 'salvar a renda sazonal')
 
   // AULAS PARTICULARES. Valores em centavos, duração em minutos, datas AAAA-MM-DD. Tudo grava e recarrega só o grupo 'aulas'.
   const criarAluno = async (aluno, programacao) => {
@@ -1069,7 +1084,7 @@ export function useStore(email = null) {
     marcarFixoPago, marcarParcelaPaga, definirDataPagamentoFixo, definirDataPagamentoFatura, definirDataPagamentoParcela,
     juntarVersoes, apagarVersaoFixo, aviso, mostrarAviso, desfazivel, desfazerExclusao, dispensarDesfazer,
     fecharMes, reabrirMes, listarAuditoria, registrarAuditoria,
-    definirAjusteSaldo, definirFatorSazonal, definirValorSazonal,
+    definirAjusteSaldo, definirFatorSazonal, definirValorSazonal, definirSazonalEmLote,
     adiarConta, adiarVarias, desfazerAdiamento, salvarDivida, removerDivida,
     fecharAluno, reabrirAluno, registrarRecebimento, desfazerRecebimento, historicoFechamento,
     criarPausa, removerPausa, marcarFollowup, salvarFonteReserva, removerFonteReserva,

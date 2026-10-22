@@ -1,12 +1,13 @@
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import { RENDA_CAMPOS, fmt, fmtK, mesLabel, nowYM, rendaDigitada } from '../lib/utils'
-import { perfilDeLinhas, fatorDe, valorFixoDe, baseDaFonte, fatorParaValor, proximoFator, projecaoRenda, planoDeReserva, temPerfil, mesesComFerias } from '../lib/rendaSazonal'
+import { perfilDeLinhas, fatorDe, valorFixoDe, baseDaFonte, fatorParaValor, proximoFator, projecaoRenda, planoDeReserva, resumoDaProjecao, temPerfil, mesesComFerias } from '../lib/rendaSazonal'
 import { lerNum } from '../lib/adiamentoPref'
 import { saldoMeta } from '../lib/metas'
 import Secao from './Secao'
 import { Pilulas } from './NavMes'
 
 const MESES_CURTOS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+const TODOS_OS_MESES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
 const rotuloFator = (f) => (f === 0 ? '0' : `${Math.round(f * 100)}%`)
 const classeFator = (f) => (f >= 0.995 ? 'normal' : f === 0 ? 'zero' : f <= 0.5 ? 'fraco' : 'menos')
 const CHAVE_VISAO = 'renda_sazonal_visao'
@@ -15,6 +16,17 @@ const gravarVisao = (v) => { try { localStorage.setItem(CHAVE_VISAO, v) } catch 
 // Texto digitado só vale se tiver algum dígito ("abc" não vira 0 sem querer).
 const textoValido = (t) => /\d/.test(String(t ?? ''))
 const emReais = (n) => Number(n).toLocaleString('pt-BR', { minimumFractionDigits: Number.isInteger(Number(n)) ? 0 : 2, maximumFractionDigits: 2 })
+const r2 = (n) => Math.round(n * 100) / 100
+// Nomes da tela (o "Extra" não inclui as aulas particulares, que têm linha própria).
+const ROTULOS = { extra_sabrina: 'Extra Sabrina (além das aulas)' }
+const rotuloDe = (campo, padrao) => ROTULOS[campo] || padrao
+// Fontes na ordem da projeção: as aulas particulares entram logo depois do extra.
+const FONTES_PROJECAO = [
+  ...RENDA_CAMPOS.slice(0, 3),
+  ['__aulas', 'Aulas particulares'],
+  ...RENDA_CAMPOS.slice(3),
+]
+const valorDaFonte = (m, campo) => (campo === '__aulas' ? m.aulas : m.fontes?.[campo]) || 0
 
 // Reserva atual: saldo da meta de reserva ativa (tela Reserva), se existir.
 export function reservaAtualDe(store) {
@@ -60,22 +72,97 @@ function CelulaValor({ nome, esperado, digitado, desabilitado, onSalvar, rotuloA
   )
 }
 
+// Atalho: o mesmo valor nos 12 meses (mesada, aluguel recebido, salário fixo...).
+function ValorNosDozeMeses({ rotulo, desabilitado, onAplicar }) {
+  const [texto, setTexto] = useState('')
+  const pronto = textoValido(texto)
+  const aplicar = () => { if (!pronto) return; onAplicar(lerNum(texto)); setTexto('') }
+  return (
+    <div className="rs-lote">
+      <input
+        inputMode="decimal" autoComplete="off" disabled={desabilitado} placeholder="mesmo valor em todos os meses"
+        value={texto} onChange={(e) => setTexto(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter') aplicar() }}
+        aria-label={`${rotulo}: valor para repetir nos 12 meses`}
+      />
+      <button type="button" className="btn btn-sm" disabled={desabilitado || !pronto} onClick={aplicar}>Aplicar aos 12 meses</button>
+    </div>
+  )
+}
+
 export default function RendaSazonal({ store }) {
-  const { rendas, rendaSazonal, rendaSazonalOk, definirFatorSazonal, definirValorSazonal, aulasPausas } = store
+  const { rendas, rendaSazonal, rendaSazonalOk, definirFatorSazonal, definirValorSazonal, definirSazonalEmLote, aulasPausas } = store
   const { perfil, meses, plano } = useProjecaoSazonal(store)
-  const [abertas, setAbertas] = useState({ perfil: true, proj: true, plano: true })
+  const [abertas, setAbertas] = useState({ resumo: true, perfil: true, proj: true, fontes: true, plano: true })
   const [visao, setVisaoEstado] = useState(lerVisao)
+  const [mesAberto, setMesAberto] = useState(null)
   const setVisao = (v) => { setVisaoEstado(v); gravarVisao(v) }
   const alt = (k) => () => setAbertas((a) => ({ ...a, [k]: !a[k] }))
-  const campos = RENDA_CAMPOS.filter(([k]) => rendas.some((r) => Number(r[k]) > 0))
   const maior = Math.max(1, ...meses.map((m) => Math.max(m.renda, m.comprometido)))
   const hoje = nowYM()
   const ferias = useMemo(() => mesesComFerias(aulasPausas), [aulasPausas])
+  const resumo = useMemo(() => resumoDaProjecao(meses), [meses])
   // Só há coluna "valor" no banco depois do inbox/32: se já existem linhas e nenhuma traz o campo, ainda não foi rodado.
   const colunaValorOk = !(rendaSazonal || []).length || 'valor' in rendaSazonal[0]
 
+  // Todas as fontes de renda aparecem, mesmo as que ainda não têm nada cadastrado (extra, mesada, outros).
+  const fontes = RENDA_CAMPOS.map(([campo, rotuloPadrao]) => {
+    const base = baseDaFonte(rendas, perfil, campo)
+    const personalizado = TODOS_OS_MESES.some((m) => Math.abs(fatorDe(perfil, campo, `2026-${String(m).padStart(2, '0')}`) - 1) > 0.005 || valorFixoDe(perfil, campo, `2026-${String(m).padStart(2, '0')}`) != null)
+    const esperadoNoMes = (i) => {
+      const mesRef = `2026-${String(i + 1).padStart(2, '0')}`
+      const fixo = valorFixoDe(perfil, campo, mesRef)
+      return fixo != null ? fixo : (base > 0 ? r2(base * fatorDe(perfil, campo, mesRef)) : 0)
+    }
+    const ano = r2(TODOS_OS_MESES.reduce((t, _, i) => t + esperadoNoMes(i), 0))
+    return { campo, rotulo: rotuloDe(campo, rotuloPadrao), base, personalizado, ano, semValor: base <= 0 && ano <= 0 }
+  })
+  const semValor = fontes.filter((f) => f.semValor).map((f) => f.rotulo.replace(' (além das aulas)', ''))
+  const temAulas = !!store.aulasOk && ((store.alunos || []).length > 0 || meses.some((m) => m.aulas > 0))
+  const mesesFeriasNaProjecao = meses.filter((m) => ferias.has(m.mes)).map((m) => mesLabel(m.mes))
+
+  // Quanto cada fonte rende nos 12 meses projetados (quem não rende nada some da lista).
+  const porFonte = FONTES_PROJECAO
+    .map(([campo, rotulo]) => ({ campo, rotulo: rotuloDe(campo, rotulo), total: r2(meses.reduce((t, m) => t + valorDaFonte(m, campo), 0)) }))
+    .filter((f) => f.total > 0)
+  const totalFontes = porFonte.reduce((t, f) => t + f.total, 0)
+
   return (
     <div className="rs">
+      {resumo && (
+        <Secao titulo="Resumo dos próximos 12 meses" info={resumo.vermelhos ? `${resumo.vermelhos} ${resumo.vermelhos === 1 ? 'mês' : 'meses'} no vermelho` : 'nenhum mês no vermelho'} aberto={abertas.resumo} onToggle={alt('resumo')}>
+          <div className="rs-corpo">
+            <div className="kpi-faixa rs-kpis">
+              <div className="kpi">
+                <span className="kpi-rotulo">Renda média</span>
+                <span className="kpi-valor">{fmtK(resumo.media)}</span>
+                <span className="kpi-sub">por mês · {fmtK(resumo.total)} no total</span>
+              </div>
+              <div className="kpi">
+                <span className="kpi-rotulo">Mês mais apertado</span>
+                <span className={`kpi-valor ${resumo.pior.sobra < -0.005 ? 'vermelho' : 'verde'}`}>{resumo.pior.sobra < 0 ? '−' : '+'}{fmtK(Math.abs(resumo.pior.sobra))}</span>
+                <span className="kpi-sub">{mesLabel(resumo.pior.mes)} · renda {fmtK(resumo.pior.renda)}</span>
+              </div>
+              <div className="kpi">
+                <span className="kpi-rotulo">Meses no vermelho</span>
+                <span className={`kpi-valor ${resumo.vermelhos ? 'vermelho' : 'verde'}`}>{resumo.vermelhos} de {resumo.n}</span>
+                <span className={`kpi-sub ${resumo.vermelhos ? 'ruim' : ''}`}>{resumo.vermelhos ? `faltam ${fmtK(resumo.falta)} no total` : 'tudo coberto'}</span>
+              </div>
+              <div className="kpi">
+                <span className="kpi-rotulo">Renda mais fraca</span>
+                <span className="kpi-valor ambar">{fmtK(resumo.menorRenda.renda)}</span>
+                <span className="kpi-sub">{mesLabel(resumo.menorRenda.mes)} · a melhor é {fmtK(resumo.maiorRenda.renda)} em {mesLabel(resumo.maiorRenda.mes)}</span>
+              </div>
+            </div>
+            <ul className="rs-atencao">
+              {resumo.previstos > 0 && <li>{resumo.previstos} de {resumo.n} meses ainda não têm renda cadastrada: valem a <b>previsão</b> (valor normal × a sua marcação de cada mês).</li>}
+              {semValor.length > 0 && <li>Sem nenhum valor: <b>{semValor.join(', ')}</b>. Contam R$ 0 na projeção; se você recebe, digite abaixo.</li>}
+              {mesesFeriasNaProjecao.length > 0 && <li>Férias ou dias sem aula em <b>{mesesFeriasNaProjecao.join(', ')}</b>: as aulas desses dias saem da renda.</li>}
+            </ul>
+          </div>
+        </Secao>
+      )}
+
       <Secao titulo="Como a renda muda ao longo do ano" info={visao === 'valor' ? 'digite o valor de cada mês' : 'toque no mês para alternar'} aberto={abertas.perfil} onToggle={alt('perfil')}>
         <div className="rs-corpo">
           {!rendaSazonalOk && (
@@ -96,39 +183,44 @@ export default function RendaSazonal({ store }) {
           ) : (
             <p className="rs-ajuda">Digite quanto você espera receber de cada fonte em cada mês (vale para todo ano; apague para voltar ao valor normal). O número que você digita é guardado como está, mesmo que a renda normal mude depois. O que aparece em cinza é a previsão automática.</p>
           )}
-          {campos.length === 0 && <div className="empty">Cadastre a renda de algum mês primeiro; depois você marca aqui os meses fracos de cada fonte.</div>}
-          {campos.map(([campo, rotulo]) => {
-            const base = baseDaFonte(rendas, perfil, campo)
-            return (
-              <div key={campo} className="rs-fonte">
-                <div className="rs-fonte-nome">{rotulo}{base > 0 && <span className="rs-base"> · valor normal {fmt(base)}</span>}</div>
-                {visao === 'percentual' ? (
-                  <div className="rs-chips">
-                    {MESES_CURTOS.map((nome, i) => {
-                      const mesRef = `2026-${String(i + 1).padStart(2, '0')}`
-                      const f = fatorDe(perfil, campo, mesRef)
-                      const digitado = valorFixoDe(perfil, campo, mesRef)
-                      return (
-                        <button
-                          key={nome}
-                          className={`rs-chip ${classeFator(f)} ${digitado != null ? 'digitado' : ''}`}
-                          disabled={!rendaSazonalOk}
-                          // tocar num mês com valor digitado volta para o modo porcentagem (o valor digitado é apagado)
-                          onClick={() => definirFatorSazonal(campo, i + 1, proximoFator(f), { limparValor: digitado != null })}
-                          aria-label={`${rotulo}, ${nome}: ${digitado != null ? `${fmt(digitado)} digitado` : f === 0 ? 'não recebe' : rotuloFator(f)}. Toque para alterar`}
-                          title={digitado != null ? `Valor digitado: ${fmt(digitado)}. Tocar volta para porcentagem.` : undefined}
-                        >
-                          <span>{nome}</span><b>{digitado != null ? fmtK(digitado) : rotuloFator(f)}</b>
-                        </button>
-                      )
-                    })}
-                  </div>
-                ) : (
+          {fontes.map(({ campo, rotulo, base, personalizado, ano, semValor: vazia }) => (
+            <div key={campo} className="rs-fonte">
+              <div className="rs-fonte-nome">
+                <span>{rotulo}{base > 0 && <span className="rs-base"> · valor normal {fmt(base)}</span>}</span>
+                {ano > 0 && <span className="rs-base rs-ano">{fmtK(ano)} no ano</span>}
+              </div>
+              {visao === 'percentual' && vazia ? (
+                <div className="rs-vazia">
+                  Ainda sem valor. <button type="button" className="link-btn" onClick={() => setVisao('valor')}>Digitar o valor</button> ou cadastre a renda de um mês na tela Renda.
+                </div>
+              ) : visao === 'percentual' ? (
+                <div className="rs-chips">
+                  {MESES_CURTOS.map((nome, i) => {
+                    const mesRef = `2026-${String(i + 1).padStart(2, '0')}`
+                    const f = fatorDe(perfil, campo, mesRef)
+                    const digitado = valorFixoDe(perfil, campo, mesRef)
+                    return (
+                      <button
+                        key={nome}
+                        className={`rs-chip ${classeFator(f)} ${digitado != null ? 'digitado' : ''}`}
+                        disabled={!rendaSazonalOk}
+                        // tocar num mês com valor digitado volta para o modo porcentagem (o valor digitado é apagado)
+                        onClick={() => definirFatorSazonal(campo, i + 1, proximoFator(f), { limparValor: digitado != null })}
+                        aria-label={`${rotulo}, ${nome}: ${digitado != null ? `${fmt(digitado)} digitado` : f === 0 ? 'não recebe' : rotuloFator(f)}. Toque para alterar`}
+                        title={digitado != null ? `Valor digitado: ${fmt(digitado)}. Tocar volta para porcentagem.` : undefined}
+                      >
+                        <span>{nome}</span><b>{digitado != null ? fmtK(digitado) : rotuloFator(f)}</b>
+                      </button>
+                    )
+                  })}
+                </div>
+              ) : (
+                <>
                   <div className="rs-celulas">
                     {MESES_CURTOS.map((nome, i) => {
                       const mesRef = `2026-${String(i + 1).padStart(2, '0')}`
                       const digitado = valorFixoDe(perfil, campo, mesRef)
-                      const automatico = base > 0 ? Math.round(base * fatorDe(perfil, campo, mesRef) * 100) / 100 : null
+                      const automatico = base > 0 ? r2(base * fatorDe(perfil, campo, mesRef)) : null
                       return (
                         <CelulaValor
                           key={nome} nome={nome}
@@ -142,10 +234,37 @@ export default function RendaSazonal({ store }) {
                       )
                     })}
                   </div>
-                )}
+                  <ValorNosDozeMeses
+                    rotulo={rotulo} desabilitado={!rendaSazonalOk}
+                    onAplicar={(v) => definirSazonalEmLote(campo, TODOS_OS_MESES, { valor: v, fator: fatorParaValor(v, base) })}
+                  />
+                </>
+              )}
+              {personalizado && (
+                <button type="button" className="link-btn rs-limpar" disabled={!rendaSazonalOk} onClick={() => definirSazonalEmLote(campo, TODOS_OS_MESES)}>
+                  Limpar {rotulo.replace(' (além das aulas)', '')} e voltar tudo ao normal
+                </button>
+              )}
+            </div>
+          ))}
+
+          {temAulas && (
+            <div className="rs-fonte">
+              <div className="rs-fonte-nome">
+                <span>Aulas particulares <span className="rs-base"> · pela agenda, sem precisar digitar</span></span>
+                {resumo && <span className="rs-base rs-ano">{fmtK(r2(meses.reduce((t, m) => t + (m.aulas || 0), 0)))} em 12 meses</span>}
               </div>
-            )
-          })}
+              <div className="rs-celulas">
+                {meses.map((m) => (
+                  <div key={m.mes} className={`rs-celula rs-aula ${ferias.has(m.mes) ? 'ferias' : ''}`} title={ferias.has(m.mes) ? 'Há férias ou dias sem aula neste mês' : undefined}>
+                    <span>{mesLabel(m.mes)}{ferias.has(m.mes) && <em> · férias</em>}</span>
+                    <b className="mono">{m.aulas > 0 ? fmtK(m.aulas) : '—'}</b>
+                  </div>
+                ))}
+              </div>
+              <p className="rs-ajuda rs-aula-nota">Vem dos alunos e horários da tela Aulas e já desconta as férias que você cadastrou lá. Para mudar, altere a agenda ou as férias em Aulas.</p>
+            </div>
+          )}
         </div>
       </Secao>
 
@@ -164,24 +283,69 @@ export default function RendaSazonal({ store }) {
           </div>
           <div className="lp-leg"><span><i className="rs-lg renda" />renda</span><span><i className="rs-lg comp" />comprometido</span><span><i className="rs-lg neg" />mês no vermelho</span></div>
           <table className="tabela-compacta lp-tabela">
-            <thead><tr><th>Mês</th><th style={{ textAlign: 'right' }}>Renda</th><th style={{ textAlign: 'right' }} className="col-opc">Comprometido</th><th style={{ textAlign: 'right' }}>Sobra / falta</th></tr></thead>
+            <thead><tr><th>Mês <span className="rs-prev">(toque para ver as fontes)</span></th><th style={{ textAlign: 'right' }}>Renda</th><th style={{ textAlign: 'right' }} className="col-opc">Comprometido</th><th style={{ textAlign: 'right' }}>Sobra / falta</th></tr></thead>
             <tbody>
-              {meses.map((m) => (
-                <tr key={m.mes}>
-                  <td>
-                    {mesLabel(m.mes)}{m.mes === hoje && <span className="badge badge-green" style={{ marginLeft: 6, fontSize: 10 }}>atual</span>}
-                    {ferias.has(m.mes) && <span className="badge badge-blue" style={{ marginLeft: 6, fontSize: 10 }} title="Há férias ou dias sem aula cadastrados neste mês (tela Aulas): as aulas desses dias não entram na renda prevista">férias nas aulas</span>}
-                  </td>
-                  <td className="mono" style={{ textAlign: 'right' }}>{fmtK(m.renda)}{m.estimada && rendaDigitada(rendas.find((r) => r.mes === m.mes)) === 0 && <span className="rs-prev" title="Renda prevista pelos meses fracos que você marcou"> prev.</span>}</td>
-                  <td className="mono col-opc" style={{ textAlign: 'right' }}>{fmtK(m.comprometido)}</td>
-                  <td className="mono" style={{ textAlign: 'right', color: m.sobra < -0.005 ? 'var(--red)' : 'var(--green)' }}>{m.sobra < 0 ? '−' : '+'}{fmtK(Math.abs(m.sobra))}</td>
-                </tr>
-              ))}
+              {meses.map((m) => {
+                const aberto = mesAberto === m.mes
+                const detalhe = FONTES_PROJECAO.map(([campo, rotulo]) => ({ campo, rotulo: rotuloDe(campo, rotulo), valor: valorDaFonte(m, campo) })).filter((f) => f.valor > 0)
+                return (
+                  <Fragment key={m.mes}>
+                    <tr>
+                      <td>
+                        <button type="button" className="rs-linha-btn" aria-expanded={aberto} onClick={() => setMesAberto(aberto ? null : m.mes)}>
+                          <span className="rs-seta" aria-hidden="true">{aberto ? '▾' : '▸'}</span>{mesLabel(m.mes)}
+                        </button>
+                        {m.mes === hoje && <span className="badge badge-green" style={{ marginLeft: 6, fontSize: 10 }}>atual</span>}
+                        {ferias.has(m.mes) && <span className="badge badge-blue" style={{ marginLeft: 6, fontSize: 10 }} title="Há férias ou dias sem aula cadastrados neste mês (tela Aulas): as aulas desses dias não entram na renda prevista">férias nas aulas</span>}
+                      </td>
+                      <td className="mono" style={{ textAlign: 'right' }}>{fmtK(m.renda)}{m.estimada && rendaDigitada(rendas.find((r) => r.mes === m.mes)) === 0 && <span className="rs-prev" title="Renda prevista pelos meses fracos que você marcou"> prev.</span>}</td>
+                      <td className="mono col-opc" style={{ textAlign: 'right' }}>{fmtK(m.comprometido)}</td>
+                      <td className="mono" style={{ textAlign: 'right', color: m.sobra < -0.005 ? 'var(--red)' : 'var(--green)' }}>{m.sobra < 0 ? '−' : '+'}{fmtK(Math.abs(m.sobra))}</td>
+                    </tr>
+                    {aberto && (
+                      <tr className="rs-detalhe">
+                        <td colSpan={4}>
+                          {detalhe.length === 0 ? <span className="rs-prev">Nenhuma fonte de renda neste mês.</span> : detalhe.map((f) => (
+                            <span key={f.campo} className="rs-fonte-chip">{f.rotulo} <b className="mono">{fmtK(f.valor)}</b></span>
+                          ))}
+                          <span className="rs-fonte-chip comp">Comprometido <b className="mono">{fmtK(m.comprometido)}</b></span>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                )
+              })}
             </tbody>
+            {resumo && (
+              <tfoot>
+                <tr>
+                  <td><b>12 meses</b></td>
+                  <td className="mono" style={{ textAlign: 'right' }}><b>{fmtK(resumo.total)}</b></td>
+                  <td className="mono col-opc" style={{ textAlign: 'right' }}><b>{fmtK(r2(meses.reduce((t, m) => t + m.comprometido, 0)))}</b></td>
+                  <td className="mono" style={{ textAlign: 'right' }}><b>{fmtK(r2(meses.reduce((t, m) => t + m.sobra, 0)))}</b></td>
+                </tr>
+              </tfoot>
+            )}
           </table>
           <div className="lp-nota">Meses futuros usam as parcelas já lançadas e as contas fixas ativas; compras novas e valores variáveis ainda não entram. Mês com renda cadastrada vale o cadastrado. As aulas particulares entram pela agenda e <b>não contam</b> nos dias de férias cadastrados em Aulas.</div>
         </div>
       </Secao>
+
+      {porFonte.length > 0 && (
+        <Secao titulo="De onde vem a renda" info="soma dos próximos 12 meses" aberto={abertas.fontes} onToggle={alt('fontes')}>
+          <div className="rs-corpo">
+            {porFonte.map((f) => (
+              <div key={f.campo} className="rs-origem">
+                <div className="rs-origem-topo">
+                  <span>{f.rotulo}</span>
+                  <span className="mono">{fmtK(f.total)} <span className="rs-prev">· {Math.round((f.total / totalFontes) * 100)}%</span></span>
+                </div>
+                <div className="kpi-barra"><div className="ok" style={{ width: `${(f.total / totalFontes) * 100}%` }} /></div>
+              </div>
+            ))}
+          </div>
+        </Secao>
+      )}
 
       <Secao titulo="Plano de reserva" info={plano.tem ? 'tem mês no vermelho' : 'tudo coberto'} destaque={plano.tem && plano.precisa > 0 ? `guardar ${fmt(plano.precisa)}` : null} aberto={abertas.plano} onToggle={alt('plano')}>
         <div className="rs-corpo rs-plano">

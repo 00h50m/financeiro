@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { proximoFator, perfilDeLinhas, fatorDe, temPerfil, rendaPrevista, projecaoRenda, planoDeReserva, rendaProjetada, mesesParaJuntar, valorFixoDe, baseDaFonte, fatorParaValor, mesesComFerias } from '../rendaSazonal'
+import { proximoFator, perfilDeLinhas, fatorDe, temPerfil, rendaPrevista, projecaoRenda, planoDeReserva, rendaProjetada, mesesParaJuntar, valorFixoDe, baseDaFonte, fatorParaValor, mesesComFerias, resumoDaProjecao } from '../rendaSazonal'
 
 const renda = (mes, o = {}) => ({ mes, giovanna: 0, sabrina: 0, extra_sabrina: 0, mesada: 0, outros: 0, ...o })
 
@@ -27,7 +27,7 @@ describe('rendaPrevista', () => {
   ])
   const rendas = [renda('2026-10', { giovanna: 5000, sabrina: 3000, extra_sabrina: 1000 })]
   it('mês cadastrado vale o cadastrado, sem estimar', () => {
-    expect(rendaPrevista(rendas, perfil, '2026-10')).toEqual({ valor: 9000, estimada: false })
+    expect(rendaPrevista(rendas, perfil, '2026-10')).toMatchObject({ valor: 9000, estimada: false })
   })
   it('mês sem renda aplica o fator de cada fonte', () => {
     const jan = rendaPrevista(rendas, perfil, '2027-01')
@@ -178,5 +178,49 @@ describe('mesesComFerias', () => {
   it('ignora período incompleto e lista vazia', () => {
     expect(mesesComFerias([{ inicio: '2026-12-20' }, null]).size).toBe(0)
     expect(mesesComFerias().size).toBe(0)
+  })
+})
+
+describe('fontes de renda no mês (extras e aulas aparecem)', () => {
+  const comAulas = (mes, o = {}) => ({ ...renda(mes, o), extra_aulas: o.extra_aulas })
+  it('mês cadastrado: cada fonte separada e as aulas à parte, fora do extra', () => {
+    const r = [comAulas('2026-10', { giovanna: 5000, extra_sabrina: 1300, extra_aulas: 300, mesada: 200 })]
+    const p = rendaPrevista(r, {}, '2026-10')
+    expect(p.porCampo).toMatchObject({ giovanna: 5000, extra_sabrina: 1000, mesada: 200, outros: 0 })
+    expect(p.aulas).toBe(300)
+    expect(p.valor).toBe(6500)
+  })
+  it('mês previsto: aulas separadas do extra e a soma fecha', () => {
+    const r = [renda('2026-10', { giovanna: 5000, extra_sabrina: 1000, mesada: 200 }), comAulas('2026-11', { extra_sabrina: 400, extra_aulas: 400 })]
+    const p = rendaPrevista(r, {}, '2026-11')
+    expect(p.porCampo).toMatchObject({ giovanna: 5000, extra_sabrina: 1000, mesada: 200 })
+    expect(p.aulas).toBe(400)
+    expect(p.valor).toBe(6600)
+    expect(Object.values(p.porCampo).reduce((t, v) => t + v, 0) + p.aulas).toBe(p.valor)
+  })
+  it('a projeção expõe fontes e aulas de cada mês', () => {
+    const base = { cartoes: [], compras: [], faturas: [], fixosPagamentos: [], saldoAjustes: [], comprasPagamentos: [], comprasPagamentosOk: true, fixos: [], rendas: [renda('2026-10', { giovanna: 5000, mesada: 200 })] }
+    const [m] = projecaoRenda(base, perfilDeLinhas([]), '2026-10', 1)
+    expect(m.fontes).toMatchObject({ giovanna: 5000, mesada: 200 })
+    expect(m.aulas).toBe(0)
+  })
+})
+
+describe('resumoDaProjecao', () => {
+  const meses = [
+    { mes: '2026-10', renda: 6000, sobra: 2000, estimada: false },
+    { mes: '2026-11', renda: 3000, sobra: -500, estimada: true },
+    { mes: '2026-12', renda: 3000, sobra: -300, estimada: true },
+    { mes: '2027-01', renda: 7000, sobra: 3000, estimada: true },
+  ]
+  it('total, média, mês mais apertado, meses no vermelho e quanto falta', () => {
+    const r = resumoDaProjecao(meses)
+    expect(r).toMatchObject({ total: 19000, media: 4750, vermelhos: 2, falta: 800, previstos: 3, n: 4 })
+    expect(r.pior.mes).toBe('2026-11')
+    expect(r.menorRenda.mes).toBe('2026-11')
+    expect(r.maiorRenda.mes).toBe('2027-01')
+  })
+  it('lista vazia não quebra', () => {
+    expect(resumoDaProjecao([])).toBeNull()
   })
 })
