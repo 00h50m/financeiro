@@ -7,7 +7,9 @@ import { perfilDeLinhas, projecaoRenda } from '../lib/rendaSazonal'
 import { lerNum } from '../lib/adiamentoPref'
 import { atrasadasDoApp } from '../lib/dividasApp'
 import { terminandoLogo } from '../lib/parcelamentos'
-import { tituloCompra } from '../lib/utils'
+import { tituloCompra, hojeSP } from '../lib/utils'
+import ConsultorDividas from './ConsultorDividas'
+import { montarContexto } from '../lib/consultorDividas'
 import { reservaVariavel, sobraReal, CHAVE_RESERVA_AJUSTES, SEMANAS_POR_MES } from '../lib/gastoVariavel'
 
 const MESES_PROJECAO = 24
@@ -141,6 +143,8 @@ export default function PlanoDividas({ store }) {
               </div>
             </>
           )}
+
+          <ConsultorDividas montarContexto={() => montarContexto(store, { hoje: hojeSP(), real, reserva, estrategia, sobrasOrcamento: orcamento })} />
 
           <div className="section-label">qual estratégia?</div>
           <div className="dividas-cmp">

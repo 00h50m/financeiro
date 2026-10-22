@@ -38,3 +38,23 @@ export async function lerFaturaPdf(pdfBase64) {
   const j = await r.json()
   return j.ok ? j : { ok: false, erro: j.erro || 'Não consegui ler o PDF.' }
 }
+
+// Pede ao consultor de dívidas (api/consultor-dividas.js) um plano ou a resposta de um "e se...". -> { ok, tipo, plano | resposta, impacto } ou { ok: false, erro }.
+export async function pedirConsultorDividas(contexto, pergunta = '') {
+  const { data } = await sb.auth.getSession()
+  const token = data.session?.access_token
+  let r
+  try {
+    r = await fetch('/api/consultor-dividas', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+      body: JSON.stringify({ contexto, pergunta }),
+    })
+  } catch {
+    return { ok: false, erro: 'Sem conexão com o servidor. Tente de novo.' }
+  }
+  const tipo = r.headers.get('content-type') || ''
+  if (!tipo.includes('json')) return { ok: false, erro: 'O consultor só funciona no site publicado.' }
+  const j = await r.json()
+  return j.ok ? j : { ok: false, erro: j.erro || 'Não consegui falar com o consultor.' }
+}
