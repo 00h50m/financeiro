@@ -24,3 +24,16 @@ describe('SQL de instalação nova', () => {
     expect(est).toContain("where nome = 'Giovanna' and exists")
   })
 })
+
+describe('função de restauração de backup nos SQLs', () => {
+  it('a lista de tabelas de cada versão da função não repete nenhuma tabela', async () => {
+    const { readFileSync } = await import('node:fs')
+    for (const f of arquivosDeInstalacao().filter((x) => x.startsWith('inbox/'))) {
+      const t = readFileSync(`${raiz}${f}`, 'utf8')
+      const i = t.indexOf('v_ordem text[][] := array[')
+      if (i < 0) continue
+      const nomes = [...t.slice(i, t.indexOf('];', i)).matchAll(/\['(\w+)','\w+'\]/g)].map((m) => m[1])
+      expect(nomes.filter((n, k) => nomes.indexOf(n) !== k), f).toEqual([])
+    }
+  })
+})

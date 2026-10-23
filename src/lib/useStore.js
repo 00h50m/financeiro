@@ -79,6 +79,8 @@ export function useStore(email = null) {
   const [produtos, setProdutos] = useState([])
   const [vendasProdutos, setVendasProdutos] = useState([])
   const [pacotesOk, setPacotesOk] = useState(false) // false = inbox/35_atendimentos_pacotes.sql ainda não rodado
+  const [planosVida, setPlanosVida] = useState([])
+  const [planosVidaOk, setPlanosVidaOk] = useState(false) // false = inbox/36_planos_vida.sql ainda não rodado
   const [reservaFontes, setReservaFontes] = useState([])
   const [reservaFontesOk, setReservaFontesOk] = useState(false) // false = inbox/31_reserva_fontes.sql ainda não rodado
   const [adiamentos, setAdiamentos] = useState([])
@@ -115,7 +117,7 @@ export function useStore(email = null) {
     if (!silent) setLoading(true)
     if (!silent) setError(null)
     try {
-      const [c, co, r, fx, fa, cat, fxp, fxv, sa, ps, orc, cfg, ev, rg, al, it, cp, fe, me, mm, dv, dr, rsz, al1, al2, al3, al4, al5, al6, adi, dvd, rfo, cli, srv, atd, pac, prd, vnd] = await Promise.all([
+      const [c, co, r, fx, fa, cat, fxp, fxv, sa, ps, orc, cfg, ev, rg, al, it, cp, fe, me, mm, dv, dr, rsz, al1, al2, al3, al4, al5, al6, adi, dvd, rfo, cli, srv, atd, pac, prd, vnd, pvd] = await Promise.all([
         quer('cartoes') ? sb.from('cartoes').select('*').order('created_at') : nada,
         quer('compras') ? lerTudo('compras', (q) => q.order('data_compra', { ascending: false }).order('id')) : nada,
         quer('rendas') ? sb.from('rendas').select('*').order('mes', { ascending: false }) : nada,
@@ -154,6 +156,7 @@ export function useStore(email = null) {
         perfil.atendimentos && quer('atendimentos') ? sb.from('pacotes').select('*').order('data_venda', { ascending: false }) : nada,
         perfil.atendimentos && quer('atendimentos') ? sb.from('produtos').select('*').order('nome') : nada,
         perfil.atendimentos && quer('atendimentos') ? lerTudo('vendas_produtos', (q) => q.order('data', { ascending: false }).order('id')) : nada,
+        quer('planosVida') ? sb.from('planos_vida').select('*').order('criado_em', { ascending: false }).limit(50) : nada,
       ])
       if (minha !== ultimaCarga.current) { if (!silent) setLoading(false); return true } // chegou uma recarga mais nova: ela cobre os grupos desta
       pendentes.current = new Set()
@@ -203,6 +206,7 @@ export function useStore(email = null) {
         setProdutos(ruim ? [] : prd.data || [])
         setVendasProdutos(ruim ? [] : vnd.data || [])
       }
+      if (pvd) { setPlanosVidaOk(!pvd.error); setPlanosVida(pvd.error ? [] : pvd.data || []) }
       if (rfo) { setReservaFontesOk(!rfo.error); setReservaFontes(rfo.error ? [] : rfo.data || []) }
       if (al1 && al2 && al3 && al4 && al5) {
         const ruim = [al1, al2, al3, al4, al5].some((x) => x.error)
@@ -722,6 +726,14 @@ export function useStore(email = null) {
     }
   }, ['atendimentos'], 'apagar a venda')
 
+  // MEU PLANO (expert): cada plano gerado vira o plano atual e os anteriores ficam no histórico.
+  const salvarPlanoVida = (p) => op(async () => {
+    const a = await sb.from('planos_vida').update({ ativo: false }).eq('ativo', true)
+    if (a.error) throw a.error
+    const r = await sb.from('planos_vida').insert({ ...p, ativo: true })
+    if (r.error) throw r.error
+  }, ['planosVida'], 'salvar o plano')
+
   // RESERVA DE EMERGÊNCIA: onde está o dinheiro. O total é espelhado como "ajuste" na meta da reserva (ou em config), para o resto do app enxergar.
   const salvarFonteReserva = (f) => op(async () => {
     const r = f.id ? await sb.from('reserva_fontes').update(f).eq('id', f.id) : await sb.from('reserva_fontes').insert(f)
@@ -1147,7 +1159,7 @@ export function useStore(email = null) {
     integracoesTelegram, gerarPareamento, pausarIntegracao, desconectarIntegracao,
     eventos, regras, aliases, inboxOk,
     confirmarEvento, vincularEvento, ignorarEvento, adicionarEventos, adicionarRegras,
-    inicioApp, cartoes, compras, rendas, rendasManuais, adiamentos, adiamentosOk, dividas, dividasOk, reservaFontes, reservaFontesOk, clientes, servicos, atendimentos, atendimentosOk, pacotes, produtos, vendasProdutos, pacotesOk, aulasMes, aulasMesBase: entradaMesBase, modoRendaAulas: modoRenda, aulasAReceber, fixos: fixosComValores, fixosValores, fixosValoresOk, definirValorFixo, faturas, categorias, fixosPagamentos, comprasPagamentos, comprasPagamentosOk, fechamentos, fechamentosOk, metas, metasMovimentos, metasOk, rendaSazonal, rendaSazonalOk, alunos, aulasProg, aulas, aulasPrevInicial, aulasFech, aulasPausas, aulasPausasOk, aulasOk, divisoes, divisoesRepasses, divisoesOk, saldoAjustes, pessoas, orcamentos, orcamentosOk, config, configOk,
+    inicioApp, cartoes, compras, rendas, rendasManuais, adiamentos, adiamentosOk, dividas, dividasOk, reservaFontes, reservaFontesOk, planosVida, planosVidaOk, clientes, servicos, atendimentos, atendimentosOk, pacotes, produtos, vendasProdutos, pacotesOk, aulasMes, aulasMesBase: entradaMesBase, modoRendaAulas: modoRenda, aulasAReceber, fixos: fixosComValores, fixosValores, fixosValoresOk, definirValorFixo, faturas, categorias, fixosPagamentos, comprasPagamentos, comprasPagamentosOk, fechamentos, fechamentosOk, metas, metasMovimentos, metasOk, rendaSazonal, rendaSazonalOk, alunos, aulasProg, aulas, aulasPrevInicial, aulasFech, aulasPausas, aulasPausasOk, aulasOk, divisoes, divisoesRepasses, divisoesOk, saldoAjustes, pessoas, orcamentos, orcamentosOk, config, configOk,
     loading, syncState, error, loadAll,
     addCartao, updateCartao, delCartao,
     addCompra, updateCompra, salvarDivisao, updateComprasLote, delCompra,
@@ -1160,7 +1172,7 @@ export function useStore(email = null) {
     definirAjusteSaldo, definirFatorSazonal, definirValorSazonal, definirSazonalEmLote,
     adiarConta, adiarVarias, desfazerAdiamento, salvarDivida, removerDivida,
     fecharAluno, reabrirAluno, registrarRecebimento, desfazerRecebimento, historicoFechamento,
-    criarPausa, removerPausa, marcarFollowup, salvarFonteReserva, removerFonteReserva, salvarCliente, salvarServico, salvarAtendimento, removerCliente, removerServico, removerAtendimento, salvarPacote, removerPacote, salvarProduto, removerProduto, registrarVendaProduto, removerVendaProduto, salvarVendaProduto,
+    criarPausa, removerPausa, marcarFollowup, salvarFonteReserva, removerFonteReserva, salvarPlanoVida, salvarCliente, salvarServico, salvarAtendimento, removerCliente, removerServico, removerAtendimento, salvarPacote, removerPacote, salvarProduto, removerProduto, registrarVendaProduto, removerVendaProduto, salvarVendaProduto,
     criarAluno, atualizarAluno, mudarProgramacao, gerarAulas, inserirAula, atualizarAula, atualizarAulasLote, excluirAula,
     atualizarRegra, esquecerRegra,
     addDivisao, delDivisao, marcarRepasse, desmarcarRepasse,
