@@ -5,6 +5,7 @@ import { lerNum } from '../lib/adiamentoPref'
 import { saldoMeta } from '../lib/metas'
 import Secao from './Secao'
 import { Pilulas } from './NavMes'
+import { perfil, rotuloRenda } from '../lib/perfil'
 
 const MESES_CURTOS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
 const TODOS_OS_MESES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
@@ -18,7 +19,7 @@ const textoValido = (t) => /\d/.test(String(t ?? ''))
 const emReais = (n) => Number(n).toLocaleString('pt-BR', { minimumFractionDigits: Number.isInteger(Number(n)) ? 0 : 2, maximumFractionDigits: 2 })
 const r2 = (n) => Math.round(n * 100) / 100
 // Nomes da tela (o "Extra" não inclui as aulas particulares, que têm linha própria).
-const ROTULOS = { extra_sabrina: 'Extra Sabrina (além das aulas)' }
+const ROTULOS = { extra_sabrina: perfil.aulas ? 'Extra Sabrina (além das aulas)' : rotuloRenda('extra_sabrina', 'Extra') }
 const rotuloDe = (campo, padrao) => ROTULOS[campo] || padrao
 // Fontes na ordem da projeção: as aulas particulares entram logo depois do extra.
 const FONTES_PROJECAO = [

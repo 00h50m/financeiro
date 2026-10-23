@@ -18,7 +18,7 @@ export default async function handler(req, res) {
     const tg = criarTelegram(amb.token)
     const r = await enviarLembretesVencimento({ db, tg })
     // lembrete das aulas é à parte: se falhar, não derruba o dos vencimentos
-    const aulas = await enviarLembretesAulas({ db, tg }).catch((e) => { console.error('cron-vencimentos: aulas', e.message); return { enviados: 0, falhas: 1 } })
+    const aulas = !amb.perfil.aulas ? { enviados: 0, falhas: 0 } : await enviarLembretesAulas({ db, tg }).catch((e) => { console.error('cron-vencimentos: aulas', e.message); return { enviados: 0, falhas: 1 } })
     return res.status(200).json({ ok: true, ...r, aulas })
   } catch (e) {
     console.error('cron-vencimentos: erro', e.message)

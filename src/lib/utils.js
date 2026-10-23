@@ -1,4 +1,5 @@
 import { chaveConta } from './fixosVersoes.js'
+import { rotuloRenda } from './perfil.js'
 // Compra tem `descricao` (nome como aparece no cartão) e `identificacao` (o que é, escrito pela usuária).
 export const tituloCompra = (c) => c.identificacao || c.descricao
 export const subtituloCompra = (c) => (c.identificacao ? c.descricao : '')
@@ -17,9 +18,9 @@ const CSS_VAR_COR = { purple: 'var(--purple)', blue: 'var(--blue)', green: 'var(
 export const corPessoaCss = (pessoas, nome) => CSS_VAR_COR[corPessoa(pessoas, nome)] || CSS_VAR_COR.gray
 
 export const RENDA_CAMPOS = [
-  ['giovanna', 'Salário Giovanna'],
-  ['sabrina', 'Salário Sabrina'],
-  ['extra_sabrina', 'Extra Sabrina'],
+  ['giovanna', rotuloRenda('giovanna', 'Salário Giovanna')],
+  ['sabrina', rotuloRenda('sabrina', 'Salário Sabrina')],
+  ['extra_sabrina', rotuloRenda('extra_sabrina', 'Extra Sabrina')],
   ['mesada', 'Mesada'],
   ['outros', 'Outros'],
 ]

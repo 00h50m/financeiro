@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { perfil } from '../lib/perfil'
 import { corPessoa, fmt, fmtK, limiteUsado, nowYM } from '../lib/utils'
 
 export default function Cartoes({ store }) {
@@ -82,7 +83,7 @@ export default function Cartoes({ store }) {
             <div className="form-row cols2">
               <div className="form-group">
                 <label>Nome do cartão</label>
-                <input placeholder="Ex: Nubank Giovanna" value={form.nome} onChange={s('nome')} autoFocus />
+                <input placeholder={`Ex: ${perfil.exemploCartao}`} value={form.nome} onChange={s('nome')} autoFocus />
               </div>
               <div className="form-group">
                 <label>Titular</label>

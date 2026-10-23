@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import RendaSazonal from './RendaSazonal'
+import { lerNum } from '../lib/adiamentoPref'
+import { perfil, rotuloRenda } from '../lib/perfil'
 import { fmt, fmtK, mesLabel, nowYM, addMonths, RENDA_CAMPOS, totalRenda } from '../lib/utils'
 
 // Rótulo curto de cada fonte de renda: 'Salário Giovanna' → 'Giovanna' (antes os dois salários viravam 'Salário' repetido).
@@ -14,15 +16,16 @@ export default function Renda({ store, irPara }) {
   const [inicio, setInicio] = useState(-3) // primeiro mês da lista, em meses a partir de hoje
   const s = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
 
+  const paraCampo = (v) => (v ? String(v).replace('.', ',') : '')
   function abrir(m) {
     const r = rendasManuais.find((x) => x.mes === m) || {}
     setForm({
       mes: m,
-      giovanna: r.giovanna || '',
-      sabrina: r.sabrina || '',
-      extra_sabrina: r.extra_sabrina || '',
-      mesada: r.mesada || '',
-      outros: r.outros || '',
+      giovanna: paraCampo(r.giovanna),
+      sabrina: paraCampo(r.sabrina),
+      extra_sabrina: paraCampo(r.extra_sabrina),
+      mesada: paraCampo(r.mesada),
+      outros: paraCampo(r.outros),
     })
     setEditMes(m)
   }
@@ -31,11 +34,11 @@ export default function Renda({ store, irPara }) {
     setSaving(true)
     const ok = await upsertRenda({
       ...form,
-      giovanna: Number(form.giovanna || 0),
-      sabrina: Number(form.sabrina || 0),
-      extra_sabrina: Number(form.extra_sabrina || 0),
-      mesada: Number(form.mesada || 0),
-      outros: Number(form.outros || 0),
+      giovanna: lerNum(form.giovanna),
+      sabrina: lerNum(form.sabrina),
+      extra_sabrina: lerNum(form.extra_sabrina),
+      mesada: lerNum(form.mesada),
+      outros: lerNum(form.outros),
     })
     setSaving(false)
     if (ok) setEditMes(null) // se deu erro, mantém o formulário
@@ -70,28 +73,28 @@ export default function Renda({ store, irPara }) {
             <div className="modal-title">Renda de {mesLabel(editMes)}</div>
             <div className="form-row cols2">
               <div className="form-group">
-                <label>Salário Giovanna</label>
-                <input type="number" step="0.01" value={form.giovanna} onChange={s('giovanna')} placeholder="0,00" autoFocus />
+                <label>{rotuloRenda('giovanna', 'Salário Giovanna')}</label>
+                <input inputMode="decimal" value={form.giovanna} onChange={s('giovanna')} placeholder="0,00" autoFocus />
               </div>
               <div className="form-group">
-                <label>Salário Sabrina</label>
-                <input type="number" step="0.01" value={form.sabrina} onChange={s('sabrina')} placeholder="0,00" />
+                <label>{rotuloRenda('sabrina', 'Salário Sabrina')}</label>
+                <input inputMode="decimal" value={form.sabrina} onChange={s('sabrina')} placeholder="0,00" />
               </div>
             </div>
             <div className="form-row cols2">
               <div className="form-group">
-                <label>Extra Sabrina <span style={{ fontWeight: 400, color: 'var(--text3)' }}>(sem as aulas particulares: elas entram sozinhas)</span></label>
-                <input type="number" step="0.01" value={form.extra_sabrina} onChange={s('extra_sabrina')} placeholder="0,00" />
+                <label>{rotuloRenda('extra_sabrina', 'Extra Sabrina')} {perfil.aulas && <span style={{ fontWeight: 400, color: 'var(--text3)' }}>(sem as aulas particulares: elas entram sozinhas)</span>}</label>
+                <input inputMode="decimal" value={form.extra_sabrina} onChange={s('extra_sabrina')} placeholder="0,00" />
               </div>
               <div className="form-group">
                 <label>Mesada</label>
-                <input type="number" step="0.01" value={form.mesada} onChange={s('mesada')} placeholder="0,00" />
+                <input inputMode="decimal" value={form.mesada} onChange={s('mesada')} placeholder="0,00" />
               </div>
             </div>
             <div className="form-row">
               <div className="form-group">
                 <label>Outros (extras, reembolsos, presentes...)</label>
-                <input type="number" step="0.01" value={form.outros} onChange={s('outros')} placeholder="0,00" />
+                <input inputMode="decimal" value={form.outros} onChange={s('outros')} placeholder="0,00" />
               </div>
             </div>
             <div className="modal-footer">
