@@ -52,3 +52,28 @@ describe('rota expert-plano', () => {
     const r2 = res(); await rota({ method: 'POST', headers: {}, body: { contexto: { meses: [] } } }, r2); expect(r2.code).toBe(401)
   })
 })
+
+describe('perguntas ao expert', () => {
+  it('limparResposta', async () => {
+    const { limparResposta } = await import('../expertPlano.js')
+    expect(limparResposta({ veredito: 'pode', resposta: ' Cabe: sobram R$ 40 no mercado. ', impacto: 'resta R$ 40' })).toEqual({ veredito: 'pode', resposta: 'Cabe: sobram R$ 40 no mercado.', impacto: 'resta R$ 40' })
+    expect(limparResposta({ veredito: 'xpto', resposta: 'ok', impacto: null }).veredito).toBe('informacao')
+    expect(limparResposta({ resposta: '  ' })).toBeNull()
+    expect(limparResposta(null)).toBeNull()
+  })
+  it('perguntar manda a semana no prompt e a rota responde', async () => {
+    let enviado
+    const client = { messages: { create: async (a) => { enviado = a; return { stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify({ veredito: 'com_cuidado', resposta: 'Cabe, mas aperta.', impacto: null }) }] } } } }
+    const r = await criarExpert('k', { client }).perguntar({ semana_atual: { total: { resta: 120 } }, meses: [] }, 'posso gastar 100 no mercado?')
+    expect(enviado.system).toContain('CURTO')
+    expect(enviado.messages[0].content).toContain('"resta":120')
+    expect(enviado.messages[0].content).toContain('posso gastar 100 no mercado?')
+    expect(r.veredito).toBe('com_cuidado')
+    const cortado = { messages: { create: async () => ({ stop_reason: 'max_tokens', content: [] }) } }
+    expect(await criarExpert('k', { client: cortado }).perguntar({ meses: [] }, 'x')).toBeNull()
+  })
+  it('rota: com pergunta devolve a resposta; sem login, 401', async () => {
+    process.env.SUPABASE_URL = 'http://localhost:54321'; process.env.SUPABASE_SERVICE_ROLE_KEY = 'k'
+    const r1 = res(); await rota({ method: 'POST', headers: {}, body: { contexto: { meses: [] }, pergunta: 'x' } }, r1); expect(r1.code).toBe(401)
+  })
+})

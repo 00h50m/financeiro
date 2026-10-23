@@ -60,7 +60,7 @@ export async function pedirConsultorDividas(contexto, pergunta = '') {
 }
 
 // Pede ao expert (api/expert-plano.js) o plano para voltar a sobrar. -> { ok, plano } ou { ok: false, erro }.
-export async function pedirExpertPlano(contexto) {
+export async function pedirExpertPlano(contexto, pergunta = '') {
   const { data } = await sb.auth.getSession()
   const token = data.session?.access_token
   let r
@@ -68,7 +68,7 @@ export async function pedirExpertPlano(contexto) {
     r = await fetch('/api/expert-plano', {
       method: 'POST',
       headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-      body: JSON.stringify({ contexto }),
+      body: JSON.stringify({ contexto, pergunta }),
     })
   } catch {
     return { ok: false, erro: 'Sem conexão com o servidor. Tente de novo.' }

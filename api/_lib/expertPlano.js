@@ -21,6 +21,22 @@ Regras:
 - Não prometa resultado, não recomende investimento, empréstimo novo nem cartão novo. Para dívidas, oriente negociar com o credor e usar canais oficiais de renegociação, sem citar empresas.
 - Decisões pessoais (vender algo, trabalhar mais) apresente como opção.`
 
+const SISTEMA_CHAT = `Você é o consultor financeiro pessoal da pessoa, no app dela. Ela está seguindo um plano para voltar a sobrar e pergunta se pode fazer um gasto ou como lidar com uma situação do dia a dia. Responda em português do Brasil, direto, gentil e CURTO (até 4 frases).
+Você recebe um JSON com os números do app: a semana atual (teto, gasto e quanto resta por categoria), a sobra real dos próximos meses, as contas, as dívidas e o plano atual.
+Regras:
+- Use SOMENTE os números do JSON e o valor que a pessoa citar na pergunta. Contas simples entre eles (somar, subtrair, comparar com o que resta) são bem-vindas; não invente nenhum outro valor.
+- veredito: "pode" (cabe sem atrapalhar), "com_cuidado" (cabe, mas aperta o teto da semana ou a sobra do mês), "melhor_nao" (estoura o teto ou a sobra, ou piora o mês no vermelho) ou "informacao" (não é pedido de decisão).
+- Sempre diga o efeito: quanto resta no teto da categoria na semana e, se fizer sentido, na sobra real do mês.
+- Se não der para decidir por falta de dado (categoria sem teto, compra não lançada), diga o que falta.
+- Se for dizer não, ofereça uma alternativa concreta (adiar para a próxima semana, reduzir o valor, trocar por algo mais barato).
+- Não recomende empréstimo, cartão novo nem investimento. Não prometa resultado.`
+
+const SCHEMA_CHAT = {
+  type: 'object',
+  properties: { veredito: { type: 'string', enum: ['pode', 'com_cuidado', 'melhor_nao', 'informacao'] }, resposta: { type: 'string' }, impacto: { anyOf: [{ type: 'string' }, { type: 'null' }] } },
+  required: ['veredito', 'resposta', 'impacto'], additionalProperties: false,
+}
+
 const nulo = (tipo) => ({ anyOf: [{ type: tipo }, { type: 'null' }] })
 const ACAO = {
   type: 'object',
@@ -69,8 +85,24 @@ export function limparPlanoVida(j) {
   }
 }
 
+export function limparResposta(j) {
+  const resposta = txt(j?.resposta, 900)
+  if (!resposta) return null
+  return { veredito: ['pode', 'com_cuidado', 'melhor_nao', 'informacao'].includes(j.veredito) ? j.veredito : 'informacao', resposta, impacto: j.impacto ? txt(j.impacto, 240) : null }
+}
+
 export function criarExpert(apiKey, { client = new Anthropic({ apiKey, maxRetries: 1, timeout: 55000 }) } = {}) {
   return {
+    async perguntar(contexto, pergunta) {
+      const r = await client.messages.create({
+        model: MODELO, max_tokens: 1500, system: SISTEMA_CHAT,
+        output_config: { effort: 'low', format: { type: 'json_schema', schema: SCHEMA_CHAT } },
+        messages: [{ role: 'user', content: `Dados do app (JSON):\n${JSON.stringify(contexto)}\n\nPergunta da pessoa: ${JSON.stringify(txt(pergunta, 300))}` }],
+      })
+      if (r.stop_reason === 'refusal' || r.stop_reason === 'max_tokens') return null
+      const texto = r.content.find((b) => b.type === 'text')?.text
+      try { return limparResposta(JSON.parse(texto)) } catch { return null }
+    },
     async plano(contexto) {
       const r = await client.messages.create({
         model: MODELO, max_tokens: 6000, system: SISTEMA,

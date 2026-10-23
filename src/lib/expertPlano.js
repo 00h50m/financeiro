@@ -24,6 +24,20 @@ export function montarContextoExpert(store, { hoje, real, reserva, sobrasOrcamen
   }
 }
 
+// Contexto da pergunta ("posso gastar X?"): o contexto geral + a semana atual contra os tetos + o plano atual.
+export function contextoDaPergunta(base, { acompanhamento, plano }) {
+  return {
+    ...base,
+    semana_atual: {
+      inicio: acompanhamento.semana.inicio, fim: acompanhamento.semana.fim, dias_restantes: acompanhamento.semana.diasRestantes,
+      categorias: acompanhamento.itens.map((i) => ({ categoria: i.categoria, teto: i.teto, gasto: i.gasto, resta: i.restante, status: i.status })),
+      gasto_sem_teto: acompanhamento.semTeto,
+      total: { teto: acompanhamento.total.teto, gasto: acompanhamento.total.gasto, resta: acompanhamento.total.restante },
+    },
+    plano_atual: plano ? { resumo: plano.resumo, meta: plano.meta, tetos_semanais: plano.tetos_semanais, acoes: (plano.acoes || []).slice(0, 8).map((a) => ({ acao: a.acao, tipo: a.tipo, valor: a.valor, quando: a.quando })) } : null,
+  }
+}
+
 // Retrato dos números na hora em que o plano foi gerado (vai para planos_vida.snapshot).
 export function snapshotDoPlano(store, { real, reserva }) {
   const vermelho = real.filter((m) => m.sobraReal < -0.005)

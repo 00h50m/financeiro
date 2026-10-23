@@ -28,3 +28,21 @@ describe('MeuPlano (render)', () => {
     expect(html).toContain('histórico de planos')
   })
 })
+
+describe('MeuPlano: acompanhamento da semana', () => {
+  it('mostra o gasto da semana contra o teto do plano e o campo de perguntas', () => {
+    const hoje = new Date().toISOString().slice(0, 10)
+    const plano2 = { ...plano, tetos_semanais: [{ categoria: 'Mercado', valor: 200 }] }
+    const store = { ...base, planosVidaOk: true, planosVida: [{ id: '1', criado_em: '2026-10-22T10:00:00Z', ativo: true, resumo: 'Atual', plano: plano2, snapshot: null }],
+      compras: [{ id: 1, data_compra: hoje, categoria: 'Mercado', valor_total: 80, parcelas: 1 }] }
+    const html = renderToString(<MeuPlano store={store} />).replace(/<!-- -->/g, '')
+    expect(html).toContain('esta semana')
+    expect(html).toContain('Mercado')
+    expect(html).toContain('do seu plano')
+    expect(html).toContain('Pergunte antes de gastar')
+  })
+  it('sem plano usa a média reservada e avisa', () => {
+    const html = renderToString(<MeuPlano store={{ ...base, planosVidaOk: true, planosVida: [] }} />)
+    expect(html).toContain('Ainda não há tetos por semana')
+  })
+})
