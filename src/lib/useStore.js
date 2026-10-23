@@ -10,6 +10,7 @@ import { anexarValores, chaveConta } from './fixosVersoes.js'
 import { gerarCodigo, hashCodigo } from './pareamento.js'
 import { perfil } from './perfil.js'
 import { atendimentosPorMes, somarPorMes } from './atendimentos.js'
+import { novoEstoque } from './atendimentosExtra.js'
 import { aulasPorMes, rendasComAulas, aulasAReceberPorMes, montarFechamento, modoRendaAulas, deslocarMeses } from './aulasFechamento.js'
 
 const POR_PAGINA = 1000 // o Supabase devolve no máximo 1000 linhas por consulta
@@ -74,6 +75,10 @@ export function useStore(email = null) {
   const [servicos, setServicos] = useState([])
   const [atendimentos, setAtendimentos] = useState([])
   const [atendimentosOk, setAtendimentosOk] = useState(false) // false = inbox/34_atendimentos.sql ainda não rodado
+  const [pacotes, setPacotes] = useState([])
+  const [produtos, setProdutos] = useState([])
+  const [vendasProdutos, setVendasProdutos] = useState([])
+  const [pacotesOk, setPacotesOk] = useState(false) // false = inbox/35_atendimentos_pacotes.sql ainda não rodado
   const [reservaFontes, setReservaFontes] = useState([])
   const [reservaFontesOk, setReservaFontesOk] = useState(false) // false = inbox/31_reserva_fontes.sql ainda não rodado
   const [adiamentos, setAdiamentos] = useState([])
@@ -110,7 +115,7 @@ export function useStore(email = null) {
     if (!silent) setLoading(true)
     if (!silent) setError(null)
     try {
-      const [c, co, r, fx, fa, cat, fxp, fxv, sa, ps, orc, cfg, ev, rg, al, it, cp, fe, me, mm, dv, dr, rsz, al1, al2, al3, al4, al5, al6, adi, dvd, rfo, cli, srv, atd] = await Promise.all([
+      const [c, co, r, fx, fa, cat, fxp, fxv, sa, ps, orc, cfg, ev, rg, al, it, cp, fe, me, mm, dv, dr, rsz, al1, al2, al3, al4, al5, al6, adi, dvd, rfo, cli, srv, atd, pac, prd, vnd] = await Promise.all([
         quer('cartoes') ? sb.from('cartoes').select('*').order('created_at') : nada,
         quer('compras') ? lerTudo('compras', (q) => q.order('data_compra', { ascending: false }).order('id')) : nada,
         quer('rendas') ? sb.from('rendas').select('*').order('mes', { ascending: false }) : nada,
@@ -146,6 +151,9 @@ export function useStore(email = null) {
         perfil.atendimentos && quer('atendimentos') ? sb.from('clientes').select('*').order('nome') : nada,
         perfil.atendimentos && quer('atendimentos') ? sb.from('servicos').select('*').order('nome') : nada,
         perfil.atendimentos && quer('atendimentos') ? lerTudo('atendimentos', (q) => q.order('data', { ascending: false }).order('id')) : nada,
+        perfil.atendimentos && quer('atendimentos') ? sb.from('pacotes').select('*').order('data_venda', { ascending: false }) : nada,
+        perfil.atendimentos && quer('atendimentos') ? sb.from('produtos').select('*').order('nome') : nada,
+        perfil.atendimentos && quer('atendimentos') ? lerTudo('vendas_produtos', (q) => q.order('data', { ascending: false }).order('id')) : nada,
       ])
       if (minha !== ultimaCarga.current) { if (!silent) setLoading(false); return true } // chegou uma recarga mais nova: ela cobre os grupos desta
       pendentes.current = new Set()
@@ -187,6 +195,13 @@ export function useStore(email = null) {
         setClientes(ruim ? [] : cli.data || [])
         setServicos(ruim ? [] : srv.data || [])
         setAtendimentos(ruim ? [] : atd.data || [])
+      }
+      if (pac && prd && vnd) { // parte 2 dos atendimentos: opcional
+        const ruim = [pac, prd, vnd].some((x) => x.error)
+        setPacotesOk(!ruim)
+        setPacotes(ruim ? [] : pac.data || [])
+        setProdutos(ruim ? [] : prd.data || [])
+        setVendasProdutos(ruim ? [] : vnd.data || [])
       }
       if (rfo) { setReservaFontesOk(!rfo.error); setReservaFontes(rfo.error ? [] : rfo.data || []) }
       if (al1 && al2 && al3 && al4 && al5) {
@@ -682,6 +697,30 @@ export function useStore(email = null) {
   const removerCliente = apagar('clientes', 'remover a cliente')
   const removerServico = apagar('servicos', 'remover o serviço')
   const removerAtendimento = apagar('atendimentos', 'remover o atendimento')
+  const salvarPacote = gravar('pacotes', 'salvar o pacote')
+  const removerPacote = apagar('pacotes', 'remover o pacote')
+  const salvarProduto = gravar('produtos', 'salvar o produto')
+  const removerProduto = apagar('produtos', 'remover o produto')
+  // Venda de produto: grava a venda e tira do estoque; apagar a venda devolve ao estoque.
+  const salvarVendaProduto = gravar('vendas_produtos', 'salvar a venda')
+  const registrarVendaProduto = (v) => op(async () => {
+    const r = await sb.from('vendas_produtos').insert(v)
+    if (r.error) throw r.error
+    const p = produtos.find((x) => x.id === v.produto_id)
+    if (p) {
+      const e = await sb.from('produtos').update({ estoque: novoEstoque(p, Number(v.quantidade) || 0) }).eq('id', p.id)
+      if (e.error) throw e.error
+    }
+  }, ['atendimentos'], 'registrar a venda')
+  const removerVendaProduto = (v) => op(async () => {
+    const r = await sb.from('vendas_produtos').delete().eq('id', v.id)
+    if (r.error) throw r.error
+    const p = produtos.find((x) => x.id === v.produto_id)
+    if (p) {
+      const e = await sb.from('produtos').update({ estoque: novoEstoque(p, -(Number(v.quantidade) || 0)) }).eq('id', p.id)
+      if (e.error) throw e.error
+    }
+  }, ['atendimentos'], 'apagar a venda')
 
   // RESERVA DE EMERGÊNCIA: onde está o dinheiro. O total é espelhado como "ajuste" na meta da reserva (ou em config), para o resto do app enxergar.
   const salvarFonteReserva = (f) => op(async () => {
@@ -1098,7 +1137,7 @@ export function useStore(email = null) {
   // por mês em que a aula acontece (telas de Aulas) e por mês em que entra na renda (Renda, disponível, resumos)
   const aulasMesBase = useMemo(() => (aulasOk ? aulasPorMes(alunos, aulas, aulasFech, { programacoes: aulasProg, pausas: aulasPausas, desde: deslocamento ? addMonths(nowYM(), -1) : nowYM() }) : {}), [aulasOk, alunos, aulas, aulasFech, aulasProg, aulasPausas, deslocamento])
   // Perfil com Atendimentos: o que se atende entra na renda do mês pelo mesmo caminho das aulas (e respeita 'mesmo mês'/'mês seguinte').
-  const entradaMesBase = useMemo(() => (perfil.atendimentos ? somarPorMes(aulasMesBase, atendimentosPorMes(atendimentos)) : aulasMesBase), [aulasMesBase, atendimentos])
+  const entradaMesBase = useMemo(() => (perfil.atendimentos ? somarPorMes(aulasMesBase, atendimentosPorMes(atendimentos, { pacotes, vendas: vendasProdutos })) : aulasMesBase), [aulasMesBase, atendimentos, pacotes, vendasProdutos])
   const aulasMes = useMemo(() => deslocarMeses(entradaMesBase, deslocamento), [entradaMesBase, deslocamento])
   const rendas = useMemo(() => rendasComAulas(rendasManuais, aulasMes), [rendasManuais, aulasMes])
   const aulasAReceber = useMemo(() => aulasAReceberPorMes(aulasMes), [aulasMes])
@@ -1108,7 +1147,7 @@ export function useStore(email = null) {
     integracoesTelegram, gerarPareamento, pausarIntegracao, desconectarIntegracao,
     eventos, regras, aliases, inboxOk,
     confirmarEvento, vincularEvento, ignorarEvento, adicionarEventos, adicionarRegras,
-    inicioApp, cartoes, compras, rendas, rendasManuais, adiamentos, adiamentosOk, dividas, dividasOk, reservaFontes, reservaFontesOk, clientes, servicos, atendimentos, atendimentosOk, aulasMes, aulasMesBase: entradaMesBase, modoRendaAulas: modoRenda, aulasAReceber, fixos: fixosComValores, fixosValores, fixosValoresOk, definirValorFixo, faturas, categorias, fixosPagamentos, comprasPagamentos, comprasPagamentosOk, fechamentos, fechamentosOk, metas, metasMovimentos, metasOk, rendaSazonal, rendaSazonalOk, alunos, aulasProg, aulas, aulasPrevInicial, aulasFech, aulasPausas, aulasPausasOk, aulasOk, divisoes, divisoesRepasses, divisoesOk, saldoAjustes, pessoas, orcamentos, orcamentosOk, config, configOk,
+    inicioApp, cartoes, compras, rendas, rendasManuais, adiamentos, adiamentosOk, dividas, dividasOk, reservaFontes, reservaFontesOk, clientes, servicos, atendimentos, atendimentosOk, pacotes, produtos, vendasProdutos, pacotesOk, aulasMes, aulasMesBase: entradaMesBase, modoRendaAulas: modoRenda, aulasAReceber, fixos: fixosComValores, fixosValores, fixosValoresOk, definirValorFixo, faturas, categorias, fixosPagamentos, comprasPagamentos, comprasPagamentosOk, fechamentos, fechamentosOk, metas, metasMovimentos, metasOk, rendaSazonal, rendaSazonalOk, alunos, aulasProg, aulas, aulasPrevInicial, aulasFech, aulasPausas, aulasPausasOk, aulasOk, divisoes, divisoesRepasses, divisoesOk, saldoAjustes, pessoas, orcamentos, orcamentosOk, config, configOk,
     loading, syncState, error, loadAll,
     addCartao, updateCartao, delCartao,
     addCompra, updateCompra, salvarDivisao, updateComprasLote, delCompra,
@@ -1121,7 +1160,7 @@ export function useStore(email = null) {
     definirAjusteSaldo, definirFatorSazonal, definirValorSazonal, definirSazonalEmLote,
     adiarConta, adiarVarias, desfazerAdiamento, salvarDivida, removerDivida,
     fecharAluno, reabrirAluno, registrarRecebimento, desfazerRecebimento, historicoFechamento,
-    criarPausa, removerPausa, marcarFollowup, salvarFonteReserva, removerFonteReserva, salvarCliente, salvarServico, salvarAtendimento, removerCliente, removerServico, removerAtendimento,
+    criarPausa, removerPausa, marcarFollowup, salvarFonteReserva, removerFonteReserva, salvarCliente, salvarServico, salvarAtendimento, removerCliente, removerServico, removerAtendimento, salvarPacote, removerPacote, salvarProduto, removerProduto, registrarVendaProduto, removerVendaProduto, salvarVendaProduto,
     criarAluno, atualizarAluno, mudarProgramacao, gerarAulas, inserirAula, atualizarAula, atualizarAulasLote, excluirAula,
     atualizarRegra, esquecerRegra,
     addDivisao, delDivisao, marcarRepasse, desmarcarRepasse,

@@ -42,7 +42,10 @@ const TABELAS = [
   ['reserva_fontes', 'Reserva de emergência (onde está)', 'id', true],
   ['clientes', 'Clientes (atendimentos)', 'id', true],
   ['servicos', 'Serviços (atendimentos)', 'id', true],
+  ['pacotes', 'Pacotes de sessões', 'id', true],
   ['atendimentos', 'Atendimentos', 'id', true],
+  ['produtos', 'Produtos', 'id', true],
+  ['vendas_produtos', 'Vendas de produtos', 'id', true],
 ]
 const ORDEM = Object.fromEntries(TABELAS.map(([t, , o]) => [t, o]))
 
@@ -278,7 +281,7 @@ export default function Backup({ store }) {
     fechamentos: store.fechamentos.length, metas: store.metas.length, metas_movimentos: store.metasMovimentos.length,
     regras_categorizacao: store.regras.length, estabelecimento_aliases: store.aliases.length, eventos_financeiros: store.eventos.length,
     renda_sazonal: store.rendaSazonal.length, alunos: store.alunos.length, aulas_programacao: store.aulasProg.length, aulas: store.aulas.length,
-    aulas_previsao_inicial: store.aulasPrevInicial.length, adiamentos: store.adiamentos.length, dividas: store.dividas.length, reserva_fontes: store.reservaFontes.length, clientes: store.clientes.length, servicos: store.servicos.length, atendimentos: store.atendimentos.length, aulas_fechamentos: store.aulasFech.length, aulas_pausas: store.aulasPausas.length,
+    aulas_previsao_inicial: store.aulasPrevInicial.length, adiamentos: store.adiamentos.length, dividas: store.dividas.length, reserva_fontes: store.reservaFontes.length, clientes: store.clientes.length, servicos: store.servicos.length, atendimentos: store.atendimentos.length, pacotes: store.pacotes.length, produtos: store.produtos.length, vendas_produtos: store.vendasProdutos.length, aulas_fechamentos: store.aulasFech.length, aulas_pausas: store.aulasPausas.length,
   }
 
   function registrar() {
