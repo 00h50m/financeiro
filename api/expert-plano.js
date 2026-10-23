@@ -19,7 +19,12 @@ export default async function handler(req, res, { expert } = {}) {
   if (!contexto || typeof contexto !== 'object' || !Array.isArray(contexto.meses)) return res.status(400).json({ ok: false, erro: 'Faltam os dados do mês.' })
   if (JSON.stringify(contexto).length > MAX_CONTEXTO) return res.status(413).json({ ok: false, erro: 'Dados grandes demais.' })
 
+  const pergunta = typeof req.body?.pergunta === 'string' ? req.body.pergunta.trim() : ''
   try {
+    if (pergunta) {
+      const r = await (expert || criarExpert(amb.anthropicKey)).perguntar(contexto, pergunta)
+      return r ? res.status(200).json({ ok: true, tipo: 'resposta', ...r }) : res.status(422).json({ ok: false, erro: 'Não consegui responder agora. Tente reescrever a pergunta.' })
+    }
     const plano = await (expert || criarExpert(amb.anthropicKey)).plano(contexto)
     return plano ? res.status(200).json({ ok: true, plano }) : res.status(422).json({ ok: false, erro: 'Não consegui montar o plano agora. Tente de novo.' })
   } catch (e) {
