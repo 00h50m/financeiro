@@ -11,7 +11,9 @@ describe('perfil da instalação', () => {
   })
   it('padrão mantém aulas e os rótulos de hoje; esteticista esconde aulas e neutraliza os nomes', () => {
     expect(PERFIS.padrao.aulas).toBe(true)
-    expect(PERFIS.padrao.abasOcultas).toEqual([])
+    expect(PERFIS.padrao.abasOcultas).toEqual(['atendimentos'])
+    expect(PERFIS.padrao.atendimentos).toBe(false)
+    expect(PERFIS.esteticista.atendimentos).toBe(true)
     expect(rotuloRenda('giovanna', 'Salário Giovanna', PERFIS.padrao)).toBe('Salário Giovanna')
     expect(PERFIS.esteticista.aulas).toBe(false)
     expect(PERFIS.esteticista.abasOcultas).toContain('aulas')

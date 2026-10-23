@@ -8,8 +8,15 @@ Perfis disponíveis (variável `VITE_PERFIL`, e `PERFIL` nas funções do servid
 
 | Perfil | O que muda |
 |---|---|
-| `padrao` (ou vazio) | O app como é: com Aulas particulares |
-| `esteticista` | Sem Aulas particulares; nomes de renda neutros ("Renda principal"); uma pessoa só ("Eu") |
+| `padrao` (ou vazio) | O app como é: com Aulas particulares (a aba Atendimentos fica escondida) |
+| `esteticista` | Com **Atendimentos** (clientes, serviços e agenda) no lugar de Aulas particulares; nomes de renda neutros ("Renda principal"); uma pessoa só ("Eu") |
+
+## Os dados nunca se misturam
+
+- Cada instalação tem **o próprio projeto no Supabase** (banco e logins) e **o próprio site na Vercel**, com as próprias variáveis.
+  Não existe nenhum lugar onde duas instalações compartilhem dados: o que uma pessoa lança não aparece na outra, nem para quem administra o código.
+- O código é o mesmo, então as **tabelas existem em todas as instalações**, mas ficam vazias onde não são usadas (a aba correspondente nem aparece).
+- Só há mistura se alguém **colocar as chaves do mesmo Supabase nos dois sites**: confira `VITE_SUPABASE_URL` ao configurar cada um.
 
 ## 1. Conta e projeto no Supabase (grátis)
 
