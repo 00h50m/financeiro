@@ -20,6 +20,7 @@ export function arquivosDeInstalacao(dir = raiz) {
 export const SQL_DO_PERFIL = {
   esteticista: `-- Perfil esteticista: uma pessoa só ("Eu"); dá para renomear e adicionar mais depois, na tela Pessoas.
 delete from public.pessoas where nome = 'Sabrina';
+delete from public.pessoas where nome = 'Giovanna' and exists (select 1 from public.pessoas where nome = 'Eu'); -- rodando de novo: o schema recria a Giovanna
 update public.pessoas set nome = 'Eu', apelidos = array['eu'] where nome = 'Giovanna';
 `,
 }

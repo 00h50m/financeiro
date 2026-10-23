@@ -121,8 +121,8 @@ export default function Renda({ store, irPara }) {
         </div>
         {aulasAtual > 0 && (
           <div className="ini-hero-sub" style={{ marginTop: 10 }}>
-            Inclui <b>{fmt(aulasAtual)}</b> de aulas particulares{aulasMes[mes].mesAulas ? ` dadas em ${mesLabel(aulasMes[mes].mesAulas)}` : ''}{aulasMes[mes].projetada ? ' (previstas pela agenda)' : ''} ({fmt(aulasMes[mes].recebido)} recebidos{aulasMes[mes].aReceber > 0 ? `, ${fmt(aulasMes[mes].aReceber)} a receber` : ''}).{' '}
-            {irPara && <button className="link-btn" onClick={() => irPara('aulas')}>Ver aulas →</button>}
+            Inclui <b>{fmt(aulasAtual)}</b> de {perfil.entradaRotulo}{aulasMes[mes].mesAulas ? ` dadas em ${mesLabel(aulasMes[mes].mesAulas)}` : ''}{aulasMes[mes].projetada ? ' (previstas pela agenda)' : ''} ({fmt(aulasMes[mes].recebido)} recebidos{aulasMes[mes].aReceber > 0 ? `, ${fmt(aulasMes[mes].aReceber)} a receber` : ''}).{' '}
+            {irPara && <button className="link-btn" onClick={() => irPara(perfil.aulas ? 'aulas' : 'atendimentos')}>Ver {perfil.aulas ? 'aulas' : 'atendimentos'} →</button>}
           </div>
         )}
         {media3 > 0 && <div className="ini-hero-sub" style={{ marginTop: 10 }}>Média dos últimos meses cadastrados: <b>{fmtK(media3)}</b></div>}
@@ -159,7 +159,7 @@ export default function Renda({ store, irPara }) {
                   {RENDA_CAMPOS.map(([k]) => (
                     <td key={k} className="col-opc" style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 12, color: r?.[k] && Number(r[k]) > 0 ? 'var(--text)' : 'var(--text3)' }}>
                       {r?.[k] && Number(r[k]) > 0 ? fmt(r[k]) : '—'}
-                      {k === 'extra_sabrina' && r?.extra_aulas > 0 && <div style={{ fontSize: 10, color: 'var(--text3)' }}>aulas {fmt(r.extra_aulas)}{r.aulas_projetadas ? ' (prev.)' : ''}</div>}
+                      {k === 'extra_sabrina' && r?.extra_aulas > 0 && <div style={{ fontSize: 10, color: 'var(--text3)' }}>{perfil.aulas ? 'aulas' : 'atendimentos'} {fmt(r.extra_aulas)}{r.aulas_projetadas ? ' (prev.)' : ''}</div>}
                     </td>
                   ))}
                   <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13, fontWeight: 500, color: tot > 0 ? 'var(--green)' : 'var(--text3)' }}>

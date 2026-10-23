@@ -1,12 +1,12 @@
 // Perfil da instalação: mesmo código, instalações separadas (cada uma com o seu banco). Escolhido por VITE_PERFIL no site e PERFIL nas funções /api.
 //  padrao       → o app como é hoje (inclui Aulas particulares)
-//  esteticista  → sem Aulas particulares; textos de renda neutros (sem nomes de pessoas)
-const COMUM = { aulas: true, abasOcultas: [], rendaRotulos: {}, exemploCartao: 'Nubank Giovanna' }
+//  esteticista  → sem Aulas particulares, com Atendimentos; textos de renda neutros (sem nomes de pessoas)
+const COMUM = { aulas: true, atendimentos: false, abasOcultas: ['atendimentos'], rendaRotulos: {}, exemploCartao: 'Nubank Giovanna', entradaRotulo: 'aulas particulares' }
 
 export const PERFIS = {
   padrao: { ...COMUM },
   esteticista: {
-    ...COMUM, aulas: false, abasOcultas: ['aulas'],
+    ...COMUM, aulas: false, atendimentos: true, abasOcultas: ['aulas'], entradaRotulo: 'atendimentos',
     rendaRotulos: { giovanna: 'Renda principal', sabrina: 'Outra renda fixa', extra_sabrina: 'Extra' },
     exemploCartao: 'Nubank',
   },

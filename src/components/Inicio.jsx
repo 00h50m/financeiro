@@ -4,6 +4,7 @@ import { fmt, fmtK, mesLabel, nowYM, hojeSP } from '../lib/utils'
 import { resumoDoPlano } from '../lib/dividasResumo'
 import { cartaoAulasInicio } from '../lib/aulasInicio'
 import { perfil } from '../lib/perfil'
+import { atendimentosDoMes, resumoMes as resumoAtendimentos, aReceber as atendimentoAReceber, porData } from '../lib/atendimentos'
 import { patchRealizar, textoDuracao, valorAula } from '../lib/aulas'
 import { mesFechado } from '../lib/fechamento'
 import ModalCompra from './ModalCompra'
@@ -92,6 +93,15 @@ export default function Inicio({ store, irPara }) {
   const d = useMemo(() => montarInicio(store, mes), [store, mes])
   // Aulas particulares: as de hoje, o que falta atualizar e o que ainda não foi recebido no mês
   const hojeISO = hojeSP()
+  // Atendimentos (perfil esteticista): os de hoje e o que ainda não foi recebido no mês
+  const atendCard = useMemo(() => {
+    if (!perfil.atendimentos || !store.atendimentosOk || !(store.atendimentos || []).length || mes !== hojeISO.slice(0, 7)) return null
+    const hojeLista = store.atendimentos.filter((a) => a.data === hojeISO && a.status !== 'cancelado').sort(porData)
+    const atrasados = store.atendimentos.filter((a) => a.status === 'agendado' && a.data < hojeISO).length
+    const r = resumoAtendimentos(atendimentosDoMes(store.atendimentos, mes))
+    const receber = store.atendimentos.filter(atendimentoAReceber).reduce((t, a) => t + Number(a.valor), 0)
+    return hojeLista.length || atrasados || receber > 0 || r.faturado || r.previsto ? { hoje: hojeLista, atrasados, r, receber } : null
+  }, [store.atendimentosOk, store.atendimentos, mes, hojeISO])
   const aulasCard = useMemo(() => (perfil.aulas ? cartaoAulasInicio(store, hojeISO, mes) : null), [store.aulasOk, store.alunos, store.aulas, store.aulasFech, store.aulasMesBase, store.aulasPausas, store.inicioApp, mes, hojeISO]) // eslint-disable-line react-hooks/exhaustive-deps
   const realizarAula = (a) => store.atualizarAula(a.id, patchRealizar(a, a.duracao_min, new Date().toISOString()))
   const planoDividas = useMemo(() => (store.dividas?.length ? resumoDoPlano(store, hojeSP()) : null), [store.dividas, store.rendas, store.fixos, store.compras, store.faturas, store.fixosPagamentos, store.comprasPagamentos, store.adiamentos, store.rendaSazonal]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -269,6 +279,30 @@ export default function Inicio({ store, irPara }) {
             )}
             <button className="ini-link" onClick={() => irPara('dashboard')}>Detalhes por categoria →</button>
           </section>
+
+          {atendCard && (
+            <section className="ini-card ini-aulas">
+              <div className="ini-card-topo">
+                <h2>Atendimentos</h2>
+                <button className="link-btn" onClick={() => irPara('atendimentos')}>Abrir agenda →</button>
+              </div>
+              {atendCard.hoje.length > 0 ? (
+                <div className="ini-aulas-hoje">
+                  <div className="cad-sub">Hoje</div>
+                  {atendCard.hoje.map((a) => (
+                    <div key={a.id} className="ini-aula-linha">
+                      <span><b>{a.horario ? `${a.horario} · ` : ''}{(store.clientes || []).find((c) => c.id === a.cliente_id)?.nome || '—'}</b> <span className="cad-sub">{a.servico_nome} · {fmt(a.valor)}{a.status === 'realizado' ? ' · feito' : a.status === 'faltou' ? ' · faltou' : ''}</span></span>
+                    </div>
+                  ))}
+                </div>
+              ) : <div className="cad-sub">Nenhum atendimento hoje.</div>}
+              {atendCard.atrasados > 0 && <button className="ini-aulas-aviso" onClick={() => irPara('atendimentos')}>⚠ {atendCard.atrasados} {atendCard.atrasados === 1 ? 'atendimento de dia passado ainda agendado' : 'atendimentos de dias passados ainda agendados'}: toque para atualizar</button>}
+              <div className="ini-aulas-mes">
+                <span>{mesLabel(mes)}: <b className="mono">{fmt(atendCard.r.faturado)}</b> feitos{atendCard.r.previsto > 0 ? <> + <b className="mono">{fmt(atendCard.r.previsto)}</b> agendados</> : null}</span>
+                {atendCard.receber > 0 && <span style={{ color: 'var(--amber)' }}>a receber <b className="mono">{fmt(atendCard.receber)}</b></span>}
+              </div>
+            </section>
+          )}
 
           {aulasCard && (
             <section className="ini-card ini-aulas">

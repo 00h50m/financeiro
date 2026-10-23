@@ -21,5 +21,6 @@ describe('SQL de instalação nova', () => {
     expect(padrao).not.toContain("update public.pessoas set nome = 'Eu'")
     expect(est.startsWith(padrao)).toBe(true)
     expect(est).toContain("update public.pessoas set nome = 'Eu'")
+    expect(est).toContain("where nome = 'Giovanna' and exists")
   })
 })

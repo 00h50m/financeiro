@@ -12,6 +12,7 @@ import ImportarFatura from './components/ImportarFatura'
 import Renda from './components/Renda'
 import Cenario from './components/Cenario'
 import PlanoDividas from './components/PlanoDividas'
+import Atendimentos from './components/Atendimentos'
 import Aulas from './components/Aulas'
 import Fixos from './components/Fixos'
 import Simulador from './components/Simulador'
@@ -118,6 +119,7 @@ const TODOS_GRUPOS = [
     abas: [
       { id: 'renda', label: 'Renda', Component: Renda },
       { id: 'aulas', label: 'Aulas particulares', Component: Aulas },
+      { id: 'atendimentos', label: 'Atendimentos', Component: Atendimentos },
       { id: 'cenario', label: 'E se eu adiar?', Component: Cenario },
       { id: 'dividas', label: 'Plano de dívidas', Component: PlanoDividas },
       { id: 'fixos', label: 'Contas fixas', Component: Fixos },

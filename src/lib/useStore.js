@@ -8,6 +8,8 @@ import { amigavel, explicarErro } from './erros.js'
 import { avisoTeto } from './alertaTeto.js'
 import { anexarValores, chaveConta } from './fixosVersoes.js'
 import { gerarCodigo, hashCodigo } from './pareamento.js'
+import { perfil } from './perfil.js'
+import { atendimentosPorMes, somarPorMes } from './atendimentos.js'
 import { aulasPorMes, rendasComAulas, aulasAReceberPorMes, montarFechamento, modoRendaAulas, deslocarMeses } from './aulasFechamento.js'
 
 const POR_PAGINA = 1000 // o Supabase devolve no máximo 1000 linhas por consulta
@@ -68,6 +70,10 @@ export function useStore(email = null) {
   const [aulasFech, setAulasFech] = useState([])
   const [dividas, setDividas] = useState([])
   const [dividasOk, setDividasOk] = useState(false) // false = inbox/27_dividas.sql ainda não rodado
+  const [clientes, setClientes] = useState([])
+  const [servicos, setServicos] = useState([])
+  const [atendimentos, setAtendimentos] = useState([])
+  const [atendimentosOk, setAtendimentosOk] = useState(false) // false = inbox/34_atendimentos.sql ainda não rodado
   const [reservaFontes, setReservaFontes] = useState([])
   const [reservaFontesOk, setReservaFontesOk] = useState(false) // false = inbox/31_reserva_fontes.sql ainda não rodado
   const [adiamentos, setAdiamentos] = useState([])
@@ -104,7 +110,7 @@ export function useStore(email = null) {
     if (!silent) setLoading(true)
     if (!silent) setError(null)
     try {
-      const [c, co, r, fx, fa, cat, fxp, fxv, sa, ps, orc, cfg, ev, rg, al, it, cp, fe, me, mm, dv, dr, rsz, al1, al2, al3, al4, al5, al6, adi, dvd, rfo] = await Promise.all([
+      const [c, co, r, fx, fa, cat, fxp, fxv, sa, ps, orc, cfg, ev, rg, al, it, cp, fe, me, mm, dv, dr, rsz, al1, al2, al3, al4, al5, al6, adi, dvd, rfo, cli, srv, atd] = await Promise.all([
         quer('cartoes') ? sb.from('cartoes').select('*').order('created_at') : nada,
         quer('compras') ? lerTudo('compras', (q) => q.order('data_compra', { ascending: false }).order('id')) : nada,
         quer('rendas') ? sb.from('rendas').select('*').order('mes', { ascending: false }) : nada,
@@ -137,6 +143,9 @@ export function useStore(email = null) {
         quer('adiamentos') ? sb.from('adiamentos').select('*').order('criado_em') : nada,
         quer('dividas') ? sb.from('dividas').select('*').order('criada_em') : nada,
         quer('reservaFontes') ? sb.from('reserva_fontes').select('*').order('criada_em') : nada,
+        perfil.atendimentos && quer('atendimentos') ? sb.from('clientes').select('*').order('nome') : nada,
+        perfil.atendimentos && quer('atendimentos') ? sb.from('servicos').select('*').order('nome') : nada,
+        perfil.atendimentos && quer('atendimentos') ? lerTudo('atendimentos', (q) => q.order('data', { ascending: false }).order('id')) : nada,
       ])
       if (minha !== ultimaCarga.current) { if (!silent) setLoading(false); return true } // chegou uma recarga mais nova: ela cobre os grupos desta
       pendentes.current = new Set()
@@ -172,6 +181,13 @@ export function useStore(email = null) {
       // Aulas particulares são opcionais: sem o inbox/23 o app segue funcionando sem a aba.
       if (adi) { setAdiamentosOk(!adi.error); setAdiamentos(adi.error ? [] : adi.data || []) }
       if (dvd) { setDividasOk(!dvd.error); setDividas(dvd.error ? [] : dvd.data || []) }
+      if (cli && srv && atd) {
+        const ruim = [cli, srv, atd].some((x) => x.error)
+        setAtendimentosOk(!ruim)
+        setClientes(ruim ? [] : cli.data || [])
+        setServicos(ruim ? [] : srv.data || [])
+        setAtendimentos(ruim ? [] : atd.data || [])
+      }
       if (rfo) { setReservaFontesOk(!rfo.error); setReservaFontes(rfo.error ? [] : rfo.data || []) }
       if (al1 && al2 && al3 && al4 && al5) {
         const ruim = [al1, al2, al3, al4, al5].some((x) => x.error)
@@ -651,6 +667,22 @@ export function useStore(email = null) {
     if (r.error) throw r.error
   }, ['dividas'], 'remover a dívida')
 
+  // ATENDIMENTOS (perfil esteticista): clientes, serviços e agenda. Valores em reais; tudo grava e recarrega só o grupo 'atendimentos'.
+  const gravar = (tabela, rotulo) => (d) => op(async () => {
+    const r = d.id ? await sb.from(tabela).update(d).eq('id', d.id) : await sb.from(tabela).insert(d)
+    if (r.error) throw r.error
+  }, ['atendimentos'], rotulo)
+  const apagar = (tabela, rotulo) => (id) => op(async () => {
+    const r = await sb.from(tabela).delete().eq('id', id)
+    if (r.error) throw r.error
+  }, ['atendimentos'], rotulo)
+  const salvarCliente = gravar('clientes', 'salvar a cliente')
+  const salvarServico = gravar('servicos', 'salvar o serviço')
+  const salvarAtendimento = gravar('atendimentos', 'salvar o atendimento')
+  const removerCliente = apagar('clientes', 'remover a cliente')
+  const removerServico = apagar('servicos', 'remover o serviço')
+  const removerAtendimento = apagar('atendimentos', 'remover o atendimento')
+
   // RESERVA DE EMERGÊNCIA: onde está o dinheiro. O total é espelhado como "ajuste" na meta da reserva (ou em config), para o resto do app enxergar.
   const salvarFonteReserva = (f) => op(async () => {
     const r = f.id ? await sb.from('reserva_fontes').update(f).eq('id', f.id) : await sb.from('reserva_fontes').insert(f)
@@ -1065,7 +1097,9 @@ export function useStore(email = null) {
   const deslocamento = modoRenda === 'proximo' ? 1 : 0
   // por mês em que a aula acontece (telas de Aulas) e por mês em que entra na renda (Renda, disponível, resumos)
   const aulasMesBase = useMemo(() => (aulasOk ? aulasPorMes(alunos, aulas, aulasFech, { programacoes: aulasProg, pausas: aulasPausas, desde: deslocamento ? addMonths(nowYM(), -1) : nowYM() }) : {}), [aulasOk, alunos, aulas, aulasFech, aulasProg, aulasPausas, deslocamento])
-  const aulasMes = useMemo(() => deslocarMeses(aulasMesBase, deslocamento), [aulasMesBase, deslocamento])
+  // Perfil com Atendimentos: o que se atende entra na renda do mês pelo mesmo caminho das aulas (e respeita 'mesmo mês'/'mês seguinte').
+  const entradaMesBase = useMemo(() => (perfil.atendimentos ? somarPorMes(aulasMesBase, atendimentosPorMes(atendimentos)) : aulasMesBase), [aulasMesBase, atendimentos])
+  const aulasMes = useMemo(() => deslocarMeses(entradaMesBase, deslocamento), [entradaMesBase, deslocamento])
   const rendas = useMemo(() => rendasComAulas(rendasManuais, aulasMes), [rendasManuais, aulasMes])
   const aulasAReceber = useMemo(() => aulasAReceberPorMes(aulasMes), [aulasMes])
 
@@ -1074,7 +1108,7 @@ export function useStore(email = null) {
     integracoesTelegram, gerarPareamento, pausarIntegracao, desconectarIntegracao,
     eventos, regras, aliases, inboxOk,
     confirmarEvento, vincularEvento, ignorarEvento, adicionarEventos, adicionarRegras,
-    inicioApp, cartoes, compras, rendas, rendasManuais, adiamentos, adiamentosOk, dividas, dividasOk, reservaFontes, reservaFontesOk, aulasMes, aulasMesBase, modoRendaAulas: modoRenda, aulasAReceber, fixos: fixosComValores, fixosValores, fixosValoresOk, definirValorFixo, faturas, categorias, fixosPagamentos, comprasPagamentos, comprasPagamentosOk, fechamentos, fechamentosOk, metas, metasMovimentos, metasOk, rendaSazonal, rendaSazonalOk, alunos, aulasProg, aulas, aulasPrevInicial, aulasFech, aulasPausas, aulasPausasOk, aulasOk, divisoes, divisoesRepasses, divisoesOk, saldoAjustes, pessoas, orcamentos, orcamentosOk, config, configOk,
+    inicioApp, cartoes, compras, rendas, rendasManuais, adiamentos, adiamentosOk, dividas, dividasOk, reservaFontes, reservaFontesOk, clientes, servicos, atendimentos, atendimentosOk, aulasMes, aulasMesBase: entradaMesBase, modoRendaAulas: modoRenda, aulasAReceber, fixos: fixosComValores, fixosValores, fixosValoresOk, definirValorFixo, faturas, categorias, fixosPagamentos, comprasPagamentos, comprasPagamentosOk, fechamentos, fechamentosOk, metas, metasMovimentos, metasOk, rendaSazonal, rendaSazonalOk, alunos, aulasProg, aulas, aulasPrevInicial, aulasFech, aulasPausas, aulasPausasOk, aulasOk, divisoes, divisoesRepasses, divisoesOk, saldoAjustes, pessoas, orcamentos, orcamentosOk, config, configOk,
     loading, syncState, error, loadAll,
     addCartao, updateCartao, delCartao,
     addCompra, updateCompra, salvarDivisao, updateComprasLote, delCompra,
@@ -1087,7 +1121,7 @@ export function useStore(email = null) {
     definirAjusteSaldo, definirFatorSazonal, definirValorSazonal, definirSazonalEmLote,
     adiarConta, adiarVarias, desfazerAdiamento, salvarDivida, removerDivida,
     fecharAluno, reabrirAluno, registrarRecebimento, desfazerRecebimento, historicoFechamento,
-    criarPausa, removerPausa, marcarFollowup, salvarFonteReserva, removerFonteReserva,
+    criarPausa, removerPausa, marcarFollowup, salvarFonteReserva, removerFonteReserva, salvarCliente, salvarServico, salvarAtendimento, removerCliente, removerServico, removerAtendimento,
     criarAluno, atualizarAluno, mudarProgramacao, gerarAulas, inserirAula, atualizarAula, atualizarAulasLote, excluirAula,
     atualizarRegra, esquecerRegra,
     addDivisao, delDivisao, marcarRepasse, desmarcarRepasse,
