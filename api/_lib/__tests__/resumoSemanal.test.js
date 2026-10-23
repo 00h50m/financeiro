@@ -69,3 +69,26 @@ describe('endereço do cron', () => {
     expect(r2.codigo).toBe(405)
   })
 })
+
+describe('check-in do plano junto do resumo de domingo', () => {
+  const plano = { criado_em: '2026-10-10T10:00:00Z', plano: { resumo: 'x', meta: { sobra_mensal_alvo: null, mes_de_volta_ao_azul: null }, tetos_semanais: [{ categoria: 'Alimentação', valor: 40 }], acoes: [{ acao: 'Cortar delivery', por_que: 'x', tipo: 'cortar', valor: 100, quando: null }] } }
+  it('manda o check-in como segunda mensagem para quem ligou os avisos', async () => {
+    db = criarFakeDb({ comprasIniciais: [compra({ valor_total: 55, data_compra: '2026-10-15' })], planoVida: plano })
+    await rodar(msg(GI, '/avisos on'))
+    const r = await enviarResumosSemanais({ db, tg, agora: () => DOMINGO })
+    expect(r.enviados).toBe(1)
+    const textos = tg.enviadas.map((m) => m.text)
+    expect(textos.some((t) => t.includes('Resumo da semana'))).toBe(true)
+    const checkin = textos.find((t) => t.includes('Check-in do plano'))
+    expect(checkin).toContain('Alimentação: R$ 55,00 de R$ 40,00')
+    expect(checkin).toContain('Cortar delivery')
+  })
+  it('se montar o check-in falhar, o resumo sai do mesmo jeito', async () => {
+    db = criarFakeDb({ comprasIniciais: [compra({})], planoVida: plano })
+    db.planoVidaAtivo = async () => { throw new Error('boom') }
+    await rodar(msg(GI, '/avisos on'))
+    const r = await enviarResumosSemanais({ db, tg, agora: () => DOMINGO })
+    expect(r).toEqual({ enviados: 1, falhas: 0 })
+    expect(tg.enviadas.some((m) => m.text.includes('Check-in do plano'))).toBe(false)
+  })
+})
