@@ -37,6 +37,7 @@ import Fechamento from './components/Fechamento'
 import Login from './components/Login'
 import { Marca, Nome } from './components/Marca'
 import { sb } from './lib/supabase'
+import { perfil } from './lib/perfil'
 import { InicioContext } from './lib/InicioContext'
 import { useVoltar } from './lib/useVoltar'
 
@@ -88,7 +89,7 @@ function Icone({ nome, size = 18 }) {
   )
 }
 
-const GRUPOS = [
+const TODOS_GRUPOS = [
   {
     titulo: 'Visão geral',
     abas: [
@@ -143,6 +144,8 @@ const GRUPOS = [
   },
 ]
 
+// O perfil da instalação pode esconder abas (ex.: esteticista não tem Aulas particulares).
+const GRUPOS = TODOS_GRUPOS.map((g) => ({ ...g, abas: g.abas.filter((a) => !perfil.abasOcultas.includes(a.id)) }))
 const ABAS = GRUPOS.flatMap((g) => g.abas)
 
 function lerLocal(chave, padrao) {
@@ -239,7 +242,7 @@ function AppLogado({ email }) {
   }
 
   const pendentesInbox = store.eventos.filter((e) => e.status === 'pendente' || e.status === 'aguardando_dados').length
-  const atual = ABAS.find((a) => a.id === aba)
+  const atual = ABAS.find((a) => a.id === aba) || ABAS[0] // aba escondida pelo perfil cai no Início
   const { Component } = atual
   const sync = store.syncState === 'syncing' ? 'syncing' : store.syncState === 'error' ? 'error' : ''
   const syncTexto = store.syncState === 'ok' ? 'Sincronizado' : store.syncState === 'syncing' ? 'Salvando...' : 'Erro ao sincronizar'

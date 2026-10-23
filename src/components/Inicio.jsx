@@ -3,6 +3,7 @@ import { montarInicio } from '../lib/inicio'
 import { fmt, fmtK, mesLabel, nowYM, hojeSP } from '../lib/utils'
 import { resumoDoPlano } from '../lib/dividasResumo'
 import { cartaoAulasInicio } from '../lib/aulasInicio'
+import { perfil } from '../lib/perfil'
 import { patchRealizar, textoDuracao, valorAula } from '../lib/aulas'
 import { mesFechado } from '../lib/fechamento'
 import ModalCompra from './ModalCompra'
@@ -91,7 +92,7 @@ export default function Inicio({ store, irPara }) {
   const d = useMemo(() => montarInicio(store, mes), [store, mes])
   // Aulas particulares: as de hoje, o que falta atualizar e o que ainda não foi recebido no mês
   const hojeISO = hojeSP()
-  const aulasCard = useMemo(() => cartaoAulasInicio(store, hojeISO, mes), [store.aulasOk, store.alunos, store.aulas, store.aulasFech, store.aulasMesBase, store.aulasPausas, store.inicioApp, mes, hojeISO]) // eslint-disable-line react-hooks/exhaustive-deps
+  const aulasCard = useMemo(() => (perfil.aulas ? cartaoAulasInicio(store, hojeISO, mes) : null), [store.aulasOk, store.alunos, store.aulas, store.aulasFech, store.aulasMesBase, store.aulasPausas, store.inicioApp, mes, hojeISO]) // eslint-disable-line react-hooks/exhaustive-deps
   const realizarAula = (a) => store.atualizarAula(a.id, patchRealizar(a, a.duracao_min, new Date().toISOString()))
   const planoDividas = useMemo(() => (store.dividas?.length ? resumoDoPlano(store, hojeSP()) : null), [store.dividas, store.rendas, store.fixos, store.compras, store.faturas, store.fixosPagamentos, store.comprasPagamentos, store.adiamentos, store.rendaSazonal]) // eslint-disable-line react-hooks/exhaustive-deps
   const sazonal = useProjecaoSazonal(store, 12)

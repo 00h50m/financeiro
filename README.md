@@ -54,6 +54,8 @@ Rode no SQL Editor do Supabase:
 
 Usuários: crie em **Authentication → Users** e deixe o cadastro aberto desligado.
 
+Quer uma instalação para outra pessoa (banco e site separados, perfil sem Aulas)? Veja [`docs/nova-instalacao.md`](docs/nova-instalacao.md).
+
 ## Telegram (lançar gastos por mensagem)
 
 Mensagens como `gastei 89,90 no Outback no Nubank`, `mercado 187,40 inter gi` ou `uber 32,50` viram um

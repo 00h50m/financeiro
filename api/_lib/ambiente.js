@@ -1,4 +1,5 @@
 import crypto from 'node:crypto'
+import { doPerfil } from '../../src/lib/perfil.js'
 
 // Variáveis de ambiente obrigatórias (nomes, nunca valores, podem aparecer em respostas).
 export const NECESSARIAS = ['TELEGRAM_BOT_TOKEN', 'TELEGRAM_WEBHOOK_SECRET', 'SUPABASE_SERVICE_ROLE_KEY']
@@ -13,6 +14,7 @@ export function lerAmbiente(env = process.env) {
     segredo: env.TELEGRAM_WEBHOOK_SECRET,
     serviceKey: env.SUPABASE_SERVICE_ROLE_KEY,
     appUrl: env.APP_URL || null,
+    perfil: doPerfil(env.PERFIL), // PERFIL=esteticista desliga o que é de aulas particulares (lembretes)
     groqKey: env.GROQ_API_KEY || null, // opcional: sem ela, o bot só não entende áudio
     anthropicKey: env.ANTHROPIC_API_KEY || null, // opcional: sem ela, o bot só não lê fotos
   }
