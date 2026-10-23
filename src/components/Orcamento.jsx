@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
 import { historicoPorCategoria, sugerirTetos } from '../lib/orcamentoSugestao'
 import { comprasLiquidas, fixosLiquidos } from '../lib/divisoes'
-import NavMes from './NavMes'
+import NavMes, { Pilulas } from './NavMes'
+import { reaisParaCentavos } from '../lib/aulas'
 import { fmt, fmtK, mesLabel, nowYM, totalRenda, gastosPorCategoria, statusTeto } from '../lib/utils'
 
 const ORDEM = { estourou: 0, perto: 1, ok: 2, sem: 3 }
@@ -17,6 +18,7 @@ export default function Orcamento({ store }) {
   const { compras, cartoes, fixos, divisoes, categorias, rendas, orcamentos, orcamentosOk, definirOrcamento, definirOrcamentos } = store
   const [mes, setMes] = useState(nowYM())
   const [rascunho, setRascunho] = useState({}) // categoria -> texto digitado, enquanto não salvou
+  const [filtro, setFiltro] = useState('tudo') // tudo | atencao | com | sem
   const [painel, setPainel] = useState(null) // sugestões abertas: [{ ...sugestão, marcada, valor }]
   const historico = useMemo(() => historicoPorCategoria({ ...store, compras: store.compras }, mes, 6), [store, mes])
 
@@ -49,13 +51,27 @@ export default function Orcamento({ store }) {
   const gastoSemTeto = linhas.filter((l) => !l.teto).reduce((s, l) => s + l.gasto, 0)
   const renda = totalRenda(rendas.find((r) => r.mes === mes))
   const estouradas = linhas.filter((l) => l.status === 'estourou').length
+  const gastoTotal = gastoComTeto + gastoSemTeto
+  const mediaDe = (cat) => { const h = (historico[cat] || []).slice(-3); const m = h.reduce((t, v) => t + v, 0) / 3; return m >= 1 ? m : 0 }
+  const ordenada = [...linhas].map((l) => ({ ...l, media: mediaDe(l.categoria) })).sort((x, y) => ORDEM[x.status] - ORDEM[y.status] || y.gasto - x.gasto)
+  const comTeto = ordenada.filter((l) => l.teto > 0)
+  const semTeto = ordenada.filter((l) => !l.teto && l.gasto > 0).sort((a, b) => b.gasto - a.gasto)
+  const semGasto = ordenada.filter((l) => !l.teto && !(l.gasto > 0))
+  const atencao = comTeto.filter((l) => l.status === 'estourou' || l.status === 'perto')
+  const maiores = [...semTeto].slice(0, 3)
+  const maxSem = Math.max(1, ...semTeto.map((l) => l.gasto))
+  const listaCom = filtro === 'atencao' ? atencao : comTeto
+  const listaSem = semTeto
+  const mostraCom = filtro !== 'sem' && (comTeto.length > 0 || filtro === 'com' || filtro === 'atencao')
+  const mostraSem = filtro === 'tudo' || filtro === 'sem'
 
   function salvar(categoria) {
     const texto = rascunho[categoria]
     if (texto === undefined) return
     setRascunho((r) => { const n = { ...r }; delete n[categoria]; return n })
-    const valor = texto.trim() === '' ? 0 : Number(texto)
-    if (Number.isNaN(valor) || valor < 0) return
+    const c = texto.trim() === '' ? 0 : reaisParaCentavos(texto)
+    if (c == null) { alert('Não entendi esse valor. Exemplo: 800 ou 1.200,50'); return }
+    const valor = c / 100
     if (valor !== tetoDe(categoria)) definirOrcamento(categoria, valor)
   }
 
@@ -83,7 +99,7 @@ export default function Orcamento({ store }) {
     <div className="page">
       <div className="pag-topo">
         <NavMes mes={mes} onChange={setMes} />
-        <button className="btn btn-ghost btn-sm" onClick={abrirSugestoes}>Sugerir tetos pelo histórico</button>
+        {totalTeto > 0 && <button className="btn btn-ghost btn-sm" onClick={abrirSugestoes}>Sugerir tetos pelo histórico</button>}
       </div>
 
       {painel && (
@@ -126,77 +142,119 @@ export default function Orcamento({ store }) {
         </div>
       )}
 
+      {totalTeto === 0 && (
+        <div className="orc-intro">
+          <div style={{ fontWeight: 600, marginBottom: 4 }}>Você ainda não definiu nenhum teto</div>
+          <div className="cad-sub" style={{ lineHeight: 1.6 }}>
+            Um teto é quanto você aceita gastar por mês numa categoria. O app avisa quando chega perto de 80% e quando estoura.
+            {maiores.length > 0 && <> Comece pelas que mais pesam: <b>{maiores.map((l) => l.categoria).join(', ')}</b>.</>}
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+            <button className="btn btn-primary btn-sm" onClick={abrirSugestoes}>Sugerir tetos pelo histórico</button>
+          </div>
+        </div>
+      )}
+
       <div className="metric-grid">
         <div className="metric">
           <div className="metric-label">Total dos tetos</div>
           <div className="metric-val blue">{totalTeto > 0 ? fmtK(totalTeto) : '—'}</div>
-          {renda > 0 && totalTeto > 0 && (
-            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 6 }}>{Math.round((totalTeto / renda) * 100)}% da renda do mês</div>
-          )}
+          <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 6 }}>{totalTeto > 0 ? (renda > 0 ? `${Math.round((totalTeto / renda) * 100)}% da renda do mês` : `${linhas.filter((l) => l.teto > 0).length} categorias`) : 'defina abaixo'}</div>
         </div>
         <div className="metric">
           <div className="metric-label">Gasto (com teto)</div>
-          <div className="metric-val amber">{fmtK(gastoComTeto)}</div>
+          <div className="metric-val amber">{gastoComTeto > 0 ? fmtK(gastoComTeto) : '—'}</div>
+          {totalTeto > 0 && <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 6 }}>{Math.round((gastoComTeto / totalTeto) * 100)}% do que você planejou</div>}
         </div>
         <div className="metric">
           <div className="metric-label">Ainda pode gastar</div>
-          <div className={`metric-val ${totalTeto - gastoComTeto >= 0 ? 'green' : 'red'}`}>
-            {totalTeto > 0 ? fmtK(totalTeto - gastoComTeto) : '—'}
-          </div>
+          <div className={`metric-val ${totalTeto - gastoComTeto >= 0 ? 'green' : 'red'}`}>{totalTeto > 0 ? fmtK(totalTeto - gastoComTeto) : '—'}</div>
         </div>
         <div className="metric">
           <div className="metric-label">Gasto sem teto</div>
           <div className="metric-val">{fmtK(gastoSemTeto)}</div>
+          {gastoTotal > 0 && <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 6 }}>{Math.round((gastoSemTeto / gastoTotal) * 100)}% do gasto do mês</div>}
         </div>
       </div>
 
       {estouradas > 0 && (
         <div className="alert alert-red">
-          {estouradas === 1 ? '1 categoria estourou' : `${estouradas} categorias estouraram`} o teto em {mesLabel(mes)}.
+          {estouradas === 1 ? '1 categoria estourou' : `${estouradas} categorias estouraram`} o teto em {mesLabel(mes)}: {linhas.filter((l) => l.status === 'estourou').map((l) => l.categoria).join(', ')}.
         </div>
       )}
 
-      <div className="orc-grade">
-        {[...linhas].sort((x, y) => ORDEM[x.status] - ORDEM[y.status] || y.gasto - x.gasto).map((l) => {
-          const pct = l.teto > 0 ? Math.round((l.gasto / l.teto) * 100) : 0
-          const st = STATUS[l.status]
-          const valorInput = rascunho[l.categoria] ?? (l.teto > 0 ? String(l.teto) : '')
-          const media = (() => { const h = (historico[l.categoria] || []).slice(-3); const m = h.reduce((t, v) => t + v, 0) / 3; return m >= 1 ? m : 0 })()
-          return (
-            <article key={l.categoria} className={`orc-card ${l.status}`}>
-              <div className="orc-topo">
-                <div className="orc-nome">{l.categoria}</div>
-                <span className={`badge ${st.badge}`}>{st.texto}</span>
-              </div>
-              {l.teto > 0 && (
-                <div className="orc-barra-linha">
-                  <div className="prog-bar" style={{ flex: 1 }}><div className="prog-fill" style={{ width: Math.min(100, pct) + '%', background: st.cor }} /></div>
-                  <span className="orc-pct">{pct}%</span>
-                </div>
-              )}
-              <div className="orc-nums">
-                <span>Gasto <b className="mono">{l.gasto ? fmt(l.gasto) : '—'}</b></span>
-                {l.teto > 0 && <span style={{ color: st.cor }}>{l.restante >= 0 ? 'Restam' : 'Acima'} <b className="mono">{fmt(Math.abs(l.restante))}</b></span>}
-                {media > 0 && <span style={{ color: 'var(--text3)' }}>Média 3 meses <b className="mono">{fmt(media)}</b></span>}
-              </div>
-              <label className="orc-teto">
-                <span>Teto mensal</span>
-                <input
-                  type="number" min="0" step="10" placeholder="sem teto"
-                  value={valorInput}
-                  onChange={(e) => setRascunho((r) => ({ ...r, [l.categoria]: e.target.value }))}
-                  onBlur={() => salvar(l.categoria)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
-                  aria-label={`Teto mensal de ${l.categoria}`}
-                />
-              </label>
-            </article>
-          )
-        })}
-      </div>
+      <Pilulas rotulo="Filtrar categorias" valor={filtro} onChange={setFiltro} opcoes={[['tudo', 'Todas'], ['atencao', `Atenção${atencao.length ? ` (${atencao.length})` : ''}`], ['com', `Com teto (${comTeto.length})`], ['sem', `Sem teto (${semTeto.length})`]]} />
+
+      {mostraCom && (
+        <>
+          <div className="section-label">com teto</div>
+          {listaCom.length === 0 ? <div className="card"><div className="empty" style={{ padding: 14 }}>Nenhuma categoria com teto{filtro === 'atencao' ? ' perto de estourar' : ''}.</div></div> : (
+            <div className="orc-grade">
+              {listaCom.map((l) => {
+                const pct = l.teto > 0 ? Math.round((l.gasto / l.teto) * 100) : 0
+                const st = STATUS[l.status]
+                const valorInput = rascunho[l.categoria] ?? String(l.teto).replace('.', ',')
+                return (
+                  <article key={l.categoria} className={`orc-card ${l.status}`}>
+                    <div className="orc-topo">
+                      <div className="orc-nome">{l.categoria}</div>
+                      <span className={`badge ${st.badge}`}>{st.texto}</span>
+                    </div>
+                    <div className="orc-barra-linha">
+                      <div className="prog-bar" style={{ flex: 1 }}><div className="prog-fill" style={{ width: Math.min(100, pct) + '%', background: st.cor }} /></div>
+                      <span className="orc-pct">{pct}%</span>
+                    </div>
+                    <div className="orc-nums">
+                      <span>Gasto <b className="mono">{l.gasto ? fmt(l.gasto) : '—'}</b></span>
+                      <span style={{ color: st.cor }}>{l.restante >= 0 ? 'Restam' : 'Acima'} <b className="mono">{fmt(Math.abs(l.restante))}</b></span>
+                      {l.media > 0 && <span style={{ color: 'var(--text3)' }}>Média 3 meses <b className="mono">{fmt(l.media)}</b></span>}
+                    </div>
+                    <label className="orc-teto">
+                      <span>Teto mensal</span>
+                      <input inputMode="decimal" placeholder="sem teto" value={valorInput} onChange={(e) => setRascunho((r) => ({ ...r, [l.categoria]: e.target.value }))} onBlur={() => salvar(l.categoria)} onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }} aria-label={`Teto mensal de ${l.categoria}`} />
+                    </label>
+                  </article>
+                )
+              })}
+            </div>
+          )}
+        </>
+      )}
+
+      {mostraSem && (
+        <>
+          <div className="section-label">sem teto{semTeto.length ? ' · do que mais pesa para o que menos pesa' : ''}</div>
+          {listaSem.length === 0 ? <div className="card"><div className="empty" style={{ padding: 14 }}>Todas as categorias com gasto já têm teto. 🎉</div></div> : (
+            <div className="card orc-lista">
+              {listaSem.map((l) => {
+                const sugestao = l.media > 0 ? Math.ceil((l.media * 1.1) / 10) * 10 : 0
+                const digitado = rascunho[l.categoria]
+                return (
+                  <div key={l.categoria} className="orc-linha">
+                    <div className="orc-linha-nome">
+                      <b>{l.categoria}</b>
+                      <div className="orc-mini"><div style={{ width: `${Math.max(2, Math.round((l.gasto / maxSem) * 100))}%` }} /></div>
+                    </div>
+                    <div className="orc-linha-num">
+                      <span className="mono">{fmt(l.gasto)}</span>
+                      <span className="cad-sub">{l.media > 0 ? `média ${fmt(l.media)}` : 'sem histórico'}</span>
+                    </div>
+                    <div className="orc-linha-acao">
+                      <input inputMode="decimal" placeholder="Teto R$" value={digitado ?? ''} onChange={(e) => setRascunho((r) => ({ ...r, [l.categoria]: e.target.value }))} onBlur={() => salvar(l.categoria)} onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }} aria-label={`Definir teto mensal de ${l.categoria}`} />
+                      {sugestao > 0 && digitado === undefined && <button className="link-btn" onClick={() => definirOrcamento(l.categoria, sugestao)} title="Média dos últimos 3 meses + 10%, arredondada">usar {fmt(sugestao)}</button>}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+          {semGasto.length > 0 && <div className="cad-sub" style={{ margin: '6px 2px 14px' }}>{semGasto.length} {semGasto.length === 1 ? 'categoria sem gasto' : 'categorias sem gasto'} em {mesLabel(mes)}: {semGasto.slice(0, 8).map((l) => l.categoria).join(', ')}{semGasto.length > 8 ? '…' : ''}. Defina o teto quando precisar.</div>}
+        </>
+      )}
+
       <div style={{ fontSize: 12, color: 'var(--text3)', lineHeight: 1.6 }}>
         O teto vale para todos os meses. O gasto soma as parcelas do mês e as contas fixas categorizadas (o mesmo cálculo do Dashboard).
-        "Perto do teto" aparece a partir de 80%. Para tirar um teto, apague o valor e saia do campo.
+        "Perto do teto" aparece a partir de 80%. Para tirar um teto, apague o valor e saia do campo. Dá para digitar 1.200 ou 1.200,50.
       </div>
     </div>
   )
