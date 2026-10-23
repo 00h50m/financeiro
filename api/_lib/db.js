@@ -124,7 +124,7 @@ export function criarDb({ url, serviceKey }) {
     },
     async comprasPeriodo(de, ate) {
       const [compras, divisoes] = await Promise.all([
-        todas('compras', 'id,data_compra,valor_total,categoria,subcategoria,descricao,identificacao,pessoa',
+        todas('compras', 'id,data_compra,valor_total,categoria,subcategoria,descricao,identificacao,pessoa,parcelas,origem',
           (q) => q.gte('data_compra', de).lte('data_compra', ate).order('id')),
         divisoesOuVazio(),
       ])
@@ -152,6 +152,13 @@ export function criarDb({ url, serviceKey }) {
       return Object.fromEntries((r.error ? [] : r.data || []).map((l) => [l.chave, l.valor]))
     },
     async inicioApp() { return inicioDoApp(await this.configMapa()) },
+    // Plano mais recente do "Meu plano" (tabela opcional: sem ela, null). Só o JSON do plano e a data.
+    async planoVidaAtivo() {
+      try {
+        const r = dados(await sb.from('planos_vida').select('criado_em,plano').order('criado_em', { ascending: false }).limit(1))
+        return r[0] || null
+      } catch { return null }
+    },
     // Alunos, aulas e fechamentos (tabelas opcionais: sem elas, null e nenhum lembrete).
     async dadosAulas() {
       const opcional = async (t, o) => { try { return await todas(t, '*', o) } catch { return [] } }

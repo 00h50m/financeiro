@@ -23,10 +23,10 @@ export const REGRAS = [
 ]
 
 // Banco em memória com a mesma interface de api/_lib/db.js.
-export function criarFakeDb({ comprasIniciais = [], regras = REGRAS } = {}) {
+export function criarFakeDb({ comprasIniciais = [], regras = REGRAS, planoVida = null } = {}) {
   const s = {
     updates: new Map(), integracoes: new Map([[GI, { telegram_user_id: GI, chat_id: GI, pessoa_id: 'p-gi', ativo: true }], [SA, { telegram_user_id: SA, chat_id: SA, pessoa_id: 'p-sa', ativo: true }]]),
-    pareamentos: [], eventos: [], compras: [...comprasIniciais], vinculos: [], proxId: 1,
+    pareamentos: [], eventos: [], compras: [...comprasIniciais], vinculos: [], proxId: 1, planoVida,
   }
   const abertos = (e) => ['pendente', 'aguardando_dados'].includes(e.status)
   const db = {
@@ -112,6 +112,7 @@ export function criarFakeDb({ comprasIniciais = [], regras = REGRAS } = {}) {
     },
     async comprasDeCartao() { return s.compras.filter((c) => c.cartao_id) },
     async comprasPeriodo(de, ate) { return s.compras.filter((c) => c.data_compra >= de && c.data_compra <= ate) },
+    async planoVidaAtivo() { return s.planoVida },
     async ultimaConfirmada(uid) {
       return [...s.eventos].reverse().find((e) => e.status === 'confirmado' && e.compra_id && e.contexto.telegram_user_id === uid) || null
     },
