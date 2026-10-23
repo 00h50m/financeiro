@@ -69,7 +69,7 @@ export function useStore(email = null) {
   const [dividas, setDividas] = useState([])
   const [dividasOk, setDividasOk] = useState(false) // false = inbox/27_dividas.sql ainda não rodado
   const [planosVida, setPlanosVida] = useState([])
-  const [planosVidaOk, setPlanosVidaOk] = useState(false) // false = inbox/32_planos_vida.sql ainda não rodado
+  const [planosVidaOk, setPlanosVidaOk] = useState(false) // false = inbox/33_planos_vida.sql ainda não rodado
   const [reservaFontes, setReservaFontes] = useState([])
   const [reservaFontesOk, setReservaFontesOk] = useState(false) // false = inbox/31_reserva_fontes.sql ainda não rodado
   const [adiamentos, setAdiamentos] = useState([])

@@ -1,4 +1,4 @@
--- Inbox 32 · Meu plano: histórico dos planos de mudança financeira gerados pelo expert (IA). Repetível.
+-- Inbox 33 · Meu plano: histórico dos planos de mudança financeira gerados pelo expert (IA). Repetível.
 -- Inclui a atualização da função de restauração de backup. `plano` é o JSON do plano; `snapshot` guarda os números da época.
 
 create table if not exists planos_vida (

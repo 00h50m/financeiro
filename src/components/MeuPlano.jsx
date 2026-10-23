@@ -127,7 +127,7 @@ export default function MeuPlano({ store }) {
         <div className="kpi"><div className="kpi-rotulo">Dia a dia reservado</div><div className="kpi-valor ambar">{fmtK(reserva.total)}</div><div className="kpi-sub">por mês (média dos gastos)</div></div>
       </div>
 
-      {!planosVidaOk && <div className="alert alert-blue"><strong>Quer guardar o histórico dos planos?</strong> Rode o arquivo <code>inbox/32_planos_vida.sql</code> no SQL Editor do Supabase e recarregue a página. Sem ele, o plano aparece mas não fica salvo.</div>}
+      {!planosVidaOk && <div className="alert alert-blue"><strong>Quer guardar o histórico dos planos?</strong> Rode o arquivo <code>inbox/33_planos_vida.sql</code> no SQL Editor do Supabase e recarregue a página. Sem ele, o plano aparece mas não fica salvo.</div>}
 
       <div className="card" style={{ padding: 14 }}>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>

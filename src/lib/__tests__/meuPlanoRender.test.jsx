@@ -14,7 +14,7 @@ describe('MeuPlano (render)', () => {
   it('sem plano e sem a tabela: convite e aviso do SQL', () => {
     const html = renderToString(<MeuPlano store={{ ...base, planosVida: [], planosVidaOk: false }} />)
     expect(html).toContain('Montar meu plano')
-    expect(html).toContain('inbox/32_planos_vida.sql')
+    expect(html).toContain('inbox/33_planos_vida.sql')
   })
   it('com plano salvo: mostra ações, cronograma, tetos e histórico', () => {
     const html = renderToString(<MeuPlano store={{ ...base, planosVidaOk: true, planosVida: [
