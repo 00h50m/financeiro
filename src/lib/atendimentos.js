@@ -28,15 +28,19 @@ export function resumoMes(lista) {
 }
 
 // Mesmo formato de aulasPorMes (reais): { 'AAAA-MM': { valor, recebido, aReceber, projetada, porAluno: [] } }.
-// valor = realizados + agendados do mês; é o que a Renda soma como entrada do mês.
-export function atendimentosPorMes(lista = []) {
-  const meses = [...new Set(lista.filter(contaNaReceita).map((a) => mesDe(a.data)))]
+// valor = realizados + agendados do mês + pacotes vendidos no mês + produtos vendidos no mês; é o que a Renda soma como entrada do mês.
+// Sessão de pacote tem valor 0 (a receita é a venda do pacote).
+export function atendimentosPorMes(lista = [], { pacotes = [], vendas = [] } = {}) {
+  const itens = [
+    ...lista.filter(contaNaReceita).map((a) => ({ mes: mesDe(a.data), valor: Number(a.valor) || 0, recebido: a.status === 'realizado' && a.pago, receber: aReceber(a) })),
+    ...pacotes.filter((p) => p.ativo !== false).map((p) => ({ mes: mesDe(p.data_venda), valor: Number(p.valor) || 0, recebido: !!p.pago, receber: !p.pago })),
+    ...vendas.map((v) => ({ mes: mesDe(v.data), valor: r2((Number(v.quantidade) || 0) * (Number(v.valor_unit) || 0)), recebido: !!v.pago, receber: !v.pago })),
+  ]
+  const meses = [...new Set(itens.map((i) => i.mes))]
   return Object.fromEntries(meses.map((mes) => {
-    const doMes = atendimentosDoMes(lista, mes).filter(contaNaReceita)
-    const valor = r2(doMes.reduce((t, a) => t + Number(a.valor), 0))
-    const recebido = r2(doMes.filter((a) => a.status === 'realizado' && a.pago).reduce((t, a) => t + Number(a.valor), 0))
-    const receber = r2(doMes.filter(aReceber).reduce((t, a) => t + Number(a.valor), 0))
-    return [mes, { valor, recebido, aReceber: receber, projetada: false, porAluno: [] }]
+    const doMes = itens.filter((i) => i.mes === mes)
+    const soma = (f) => r2(doMes.filter(f).reduce((t, i) => t + i.valor, 0))
+    return [mes, { valor: soma(() => true), recebido: soma((i) => i.recebido), aReceber: soma((i) => i.receber), projetada: false, porAluno: [] }]
   }))
 }
 

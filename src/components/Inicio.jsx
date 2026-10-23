@@ -4,6 +4,7 @@ import { fmt, fmtK, mesLabel, nowYM, hojeSP } from '../lib/utils'
 import { resumoDoPlano } from '../lib/dividasResumo'
 import { cartaoAulasInicio } from '../lib/aulasInicio'
 import { perfil } from '../lib/perfil'
+import { retornosPendentes, aniversariantes } from '../lib/atendimentosExtra'
 import { atendimentosDoMes, resumoMes as resumoAtendimentos, aReceber as atendimentoAReceber, porData } from '../lib/atendimentos'
 import { patchRealizar, textoDuracao, valorAula } from '../lib/aulas'
 import { mesFechado } from '../lib/fechamento'
@@ -100,8 +101,10 @@ export default function Inicio({ store, irPara }) {
     const atrasados = store.atendimentos.filter((a) => a.status === 'agendado' && a.data < hojeISO).length
     const r = resumoAtendimentos(atendimentosDoMes(store.atendimentos, mes))
     const receber = store.atendimentos.filter(atendimentoAReceber).reduce((t, a) => t + Number(a.valor), 0)
-    return hojeLista.length || atrasados || receber > 0 || r.faturado || r.previsto ? { hoje: hojeLista, atrasados, r, receber } : null
-  }, [store.atendimentosOk, store.atendimentos, mes, hojeISO])
+    const retornos = store.pacotesOk ? retornosPendentes({ clientes: store.clientes || [], atendimentos: store.atendimentos, servicos: store.servicos || [], hoje: hojeISO, antes: 3 }) : []
+    const aniv = aniversariantes(store.clientes || [], hojeISO, 7)
+    return hojeLista.length || atrasados || receber > 0 || r.faturado || r.previsto || retornos.length || aniv.length ? { hoje: hojeLista, atrasados, r, receber, retornos, aniv } : null
+  }, [store.atendimentosOk, store.atendimentos, store.clientes, store.servicos, store.pacotesOk, mes, hojeISO])
   const aulasCard = useMemo(() => (perfil.aulas ? cartaoAulasInicio(store, hojeISO, mes) : null), [store.aulasOk, store.alunos, store.aulas, store.aulasFech, store.aulasMesBase, store.aulasPausas, store.inicioApp, mes, hojeISO]) // eslint-disable-line react-hooks/exhaustive-deps
   const realizarAula = (a) => store.atualizarAula(a.id, patchRealizar(a, a.duracao_min, new Date().toISOString()))
   const planoDividas = useMemo(() => (store.dividas?.length ? resumoDoPlano(store, hojeSP()) : null), [store.dividas, store.rendas, store.fixos, store.compras, store.faturas, store.fixosPagamentos, store.comprasPagamentos, store.adiamentos, store.rendaSazonal]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -297,6 +300,8 @@ export default function Inicio({ store, irPara }) {
                 </div>
               ) : <div className="cad-sub">Nenhum atendimento hoje.</div>}
               {atendCard.atrasados > 0 && <button className="ini-aulas-aviso" onClick={() => irPara('atendimentos')}>⚠ {atendCard.atrasados} {atendCard.atrasados === 1 ? 'atendimento de dia passado ainda agendado' : 'atendimentos de dias passados ainda agendados'}: toque para atualizar</button>}
+              {atendCard.retornos.length > 0 && <button className="ini-aulas-aviso" onClick={() => irPara('atendimentos')}>📞 Para chamar: {atendCard.retornos.slice(0, 4).map((x) => x.cliente.nome.split(' ')[0]).join(', ')}{atendCard.retornos.length > 4 ? ` e mais ${atendCard.retornos.length - 4}` : ''}</button>}
+              {atendCard.aniv.length > 0 && <button className="ini-aulas-aviso" onClick={() => irPara('atendimentos')}>🎂 Aniversário: {atendCard.aniv.map((x) => `${x.cliente.nome.split(' ')[0]} (${x.dias === 0 ? 'hoje' : x.data.split('-').reverse().slice(0, 2).join('/')})`).join(', ')}</button>}
               <div className="ini-aulas-mes">
                 <span>{mesLabel(mes)}: <b className="mono">{fmt(atendCard.r.faturado)}</b> feitos{atendCard.r.previsto > 0 ? <> + <b className="mono">{fmt(atendCard.r.previsto)}</b> agendados</> : null}</span>
                 {atendCard.receber > 0 && <span style={{ color: 'var(--amber)' }}>a receber <b className="mono">{fmt(atendCard.receber)}</b></span>}

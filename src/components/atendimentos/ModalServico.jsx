@@ -4,8 +4,8 @@ import { reaisParaCentavos } from '../../lib/aulas'
 import SeletorDuracao from '../aulas/SeletorDuracao'
 
 // Serviço do catálogo: preço, duração e quanto de material ele gasta (para mostrar quanto sobra de cada atendimento).
-export default function ModalServico({ servico, onSalvar, onRemover, onClose }) {
-  const [f, setF] = useState(() => ({ nome: servico?.nome || '', preco: servico ? String(servico.preco).replace('.', ',') : '', duracao: servico?.duracao_min || 60, material: servico ? String(servico.custo_material).replace('.', ',') : '' }))
+export default function ModalServico({ servico, comRetorno = false, onSalvar, onRemover, onClose }) {
+  const [f, setF] = useState(() => ({ nome: servico?.nome || '', preco: servico ? String(servico.preco).replace('.', ',') : '', duracao: servico?.duracao_min || 60, material: servico ? String(servico.custo_material).replace('.', ',') : '', retorno: servico?.retorno_dias || '' }))
   const [salvando, setSalvando] = useState(false)
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.value }))
   const preco = reaisParaCentavos(f.preco), material = f.material.trim() ? reaisParaCentavos(f.material) : 0
@@ -13,7 +13,7 @@ export default function ModalServico({ servico, onSalvar, onRemover, onClose }) 
   async function salvar() {
     if (!valido) return
     setSalvando(true)
-    const ok = await onSalvar({ ...(servico?.id ? { id: servico.id } : {}), nome: f.nome.trim(), preco: preco / 100, duracao_min: Number(f.duracao), custo_material: material / 100 })
+    const ok = await onSalvar({ ...(servico?.id ? { id: servico.id } : {}), nome: f.nome.trim(), preco: preco / 100, duracao_min: Number(f.duracao), custo_material: material / 100, ...(comRetorno ? { retorno_dias: Number(f.retorno) > 0 ? Math.floor(Number(f.retorno)) : null } : {}) })
     setSalvando(false)
     if (ok) onClose()
   }
@@ -35,6 +35,7 @@ export default function ModalServico({ servico, onSalvar, onRemover, onClose }) 
           <div className="form-group"><label>Duração</label><SeletorDuracao valor={f.duracao} onChange={(m) => setF((x) => ({ ...x, duracao: m }))} /></div>
         </div>
         <div className="form-group"><label>Material gasto por atendimento (R$) <span style={{ fontWeight: 400, color: 'var(--text3)' }}>(opcional)</span></label><input inputMode="decimal" value={f.material} onChange={set('material')} placeholder="Ex.: 25" /></div>
+        {comRetorno && <div className="form-group" style={{ maxWidth: 260 }}><label>Costuma voltar a cada (dias) <span style={{ fontWeight: 400, color: 'var(--text3)' }}>(opcional)</span></label><input type="number" min="1" max="730" value={f.retorno} onChange={set('retorno')} placeholder="Ex.: 30" /></div>}
         {preco != null && <div className="cad-sub">Sobra por atendimento: <b>{fmt(Math.max(0, (preco - (material || 0)) / 100))}</b></div>}
         <div className="modal-footer">
           {servico?.id && (
