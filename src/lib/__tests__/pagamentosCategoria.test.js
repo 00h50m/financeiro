@@ -38,6 +38,17 @@ describe('pagamentos por categoria', () => {
     expect(por['Vestuário'].total).toBe(100) // 1 de 3 parcelas
     expect(por['Comunicação'].total).toBe(120) // fixo pago no cartão entra na fatura
   })
+  it('"de onde vem": itens de cada categoria, com a parte da fatura e as compras dentro dela', () => {
+    const s2 = { ...store, compras: [...store.compras, { id: 'c5', data_compra: '2026-10-08', descricao: 'Reforma', categoria: 'Moradia', valor_total: 400, parcelas: 1, cartao_id: 'cn' }], faturas: [{ cartao_id: 'cn', mes, pago: true }] }
+    const det = detalhePagamentos(s2, mes)
+    const moradia = pagamentosPorCategoria(det, s2, mes).categorias.find((c) => c.categoria === 'Moradia')
+    expect(moradia.itens.map((i) => [i.tipo, i.nome, i.valor, i.pago])).toEqual([
+      ['fixo', 'Aluguel', 2000, true], ['fatura', 'Fatura Nubank', 400, true], ['fixo', 'Luz', 300, false],
+    ])
+    expect(moradia.itens[1].compras).toEqual([{ titulo: 'Reforma', valor: 400 }])
+    expect(moradia.itens.reduce((t, i) => t + i.valor, 0)).toBe(moradia.total)
+    expect(pagamentosPorCategoria(det, s2, mes).categorias.find((c) => c.categoria === 'Comunicação').itens[0].compras[0].titulo).toContain('conta fixa no cartão')
+  })
   it('fatura paga conta tudo como pago; valor real do banco redistribui proporcionalmente', () => {
     const s2 = { ...store, faturas: [{ cartao_id: 'cn', mes, valor_real: 1640, pago: true }] }
     const det = detalhePagamentos(s2, mes)

@@ -1015,3 +1015,6 @@ input[type="month"], input[type="date"] { max-width: 100%; }
   .pag-cat-nome { grid-column: 1 / -1; }
   .pag-cat-num { text-align: left; }
 }
+.pag-cat-origem { grid-column: 1 / -1; background: var(--bg3); border-radius: 10px; padding: 6px 12px; margin-top: 2px; }
+.pag-cat-item { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; font-size: 12px; }
+.pag-cat-sub { padding-left: 18px; color: var(--text3); font-size: 11px; }

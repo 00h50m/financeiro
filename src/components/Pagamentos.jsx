@@ -32,6 +32,7 @@ export default function Pagamentos({ store, irPara }) {
   const [secoes, setSecoes] = useState({}) // seção → aberta; sem valor: abre quando ainda há algo a pagar
   const [extratoAberto, setExtratoAberto] = useState(false)
   const [categoriasAberto, setCategoriasAberto] = useState(true)
+  const [catExpandida, setCatExpandida] = useState(null) // categoria cujo "de onde vem" está aberto
   const [adiando, setAdiando] = useState(null) // { tipo, refId, titulo, valor, mesOrigem, destinoAtual }
   const [divida, setDivida] = useState(null) // sugestão de dívida criada a partir de uma conta
   const { adiamentosOk, adiarConta, desfazerAdiamento, dividasOk, salvarDivida, removerDivida } = store
@@ -241,12 +242,26 @@ export default function Pagamentos({ store, irPara }) {
             {porCategoria.categorias.map((c) => (
               <div key={c.categoria} className={`pag-cat-linha ${c.pendente <= 0.005 ? 'quitada' : ''}`}>
                 <div className="pag-cat-nome">
-                  <button className="link-btn" onClick={() => { setBusca(c.categoria); setFiltroPago('') }} title="Ver as contas desta categoria" style={{ fontWeight: 600, textAlign: 'left' }}>{c.categoria}</button>
+                  <button className="link-btn" onClick={() => setCatExpandida(catExpandida === c.categoria ? null : c.categoria)} aria-expanded={catExpandida === c.categoria} title="Ver de onde vem este valor" style={{ fontWeight: 600, textAlign: 'left' }}>{catExpandida === c.categoria ? '▾' : '▸'} {c.categoria}</button>
                   <div className="pag-cat-barra" role="progressbar" aria-valuenow={Math.round(c.pct * 100)} aria-valuemin={0} aria-valuemax={100} aria-label={`${c.categoria}: ${Math.round(c.pct * 100)}% pago`}><div style={{ width: `${Math.round(c.pct * 100)}%` }} /></div>
                 </div>
                 <div className="pag-cat-num"><span className="cad-sub">total</span><b className="mono">{fmt(c.total)}</b></div>
                 <div className="pag-cat-num"><span className="cad-sub">pago</span><span className="mono" style={{ color: 'var(--green)' }}>{c.pago > 0.005 ? fmt(c.pago) : '—'}</span></div>
                 <div className="pag-cat-num"><span className="cad-sub">falta</span>{c.pendente > 0.005 ? <b className="mono" style={{ color: 'var(--amber)' }}>{fmt(c.pendente)}</b> : <span style={{ color: 'var(--green)' }}>✓ quitada</span>}</div>
+                {catExpandida === c.categoria && (
+                  <div className="pag-cat-origem">
+                    {c.itens.map((it, i) => (
+                      <div key={i}>
+                        <div className="pag-cat-item">
+                          <span>{it.tipo === 'fixo' ? 'Conta fixa' : it.tipo === 'fatura' ? '💳' : 'Conta'} · <b>{it.nome}</b>{it.tipo === 'fatura' && <span className="cad-sub"> (parte desta categoria{it.ajustada ? ', ajustada ao valor real da fatura' : ''})</span>}</span>
+                          <span className="mono">{fmt(it.valor)} <span style={{ color: it.pago ? 'var(--green)' : 'var(--amber)' }}>{it.pago ? '✓ pago' : 'a pagar'}</span></span>
+                        </div>
+                        {(it.compras || []).slice(0, 8).map((x, j) => <div key={j} className="pag-cat-item pag-cat-sub"><span>{x.titulo}</span><span className="mono">{fmt(x.valor)}</span></div>)}
+                        {(it.compras || []).length > 8 && <div className="pag-cat-item pag-cat-sub"><span>+ {it.compras.length - 8} compras</span></div>}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
             <div className="pag-cat-linha pag-cat-total">
@@ -256,7 +271,7 @@ export default function Pagamentos({ store, irPara }) {
               <div className="pag-cat-num"><span className="cad-sub">falta</span><b className="mono" style={{ color: 'var(--amber)' }}>{fmt(porCategoria.pendente)}</b></div>
             </div>
           </div>
-          <div className="cad-sub" style={{ padding: '4px 18px 14px' }}>Atualiza sozinho conforme você marca os pagamentos. A fatura do cartão é dividida pelas categorias das compras lançadas nela. Toque no nome da categoria para ver só as contas dela.</div>
+          <div className="cad-sub" style={{ padding: '4px 18px 14px' }}>Atualiza sozinho conforme você marca os pagamentos. A fatura do cartão é dividida pelas categorias das compras lançadas nela. Toque no nome da categoria para ver de onde vem o valor (contas fixas, contas avulsas e a parte de cada fatura de cartão).</div>
         </Secao>
       )}
 
