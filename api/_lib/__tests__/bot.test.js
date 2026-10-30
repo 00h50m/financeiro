@@ -246,3 +246,41 @@ describe('aviso de teto ao confirmar', () => {
     expect(db.s.compras).toHaveLength(1)
   })
 })
+
+describe('aviso de teto da semana (plano) ao confirmar', () => {
+  const roda = (u) => processarUpdate(u, { db, tg, agora: () => new Date('2026-10-04T15:00:00Z') }) // domingo: semana 28/09 a 04/10
+  const plano = { criado_em: '2026-09-30T10:00:00Z', plano: { tetos_semanais: [{ categoria: 'Alimentação', valor: 100 }] } }
+  it('estourou o teto da semana: avisa quem lançou e quem ligou os avisos', async () => {
+    db.s.planoVida = plano
+    await roda(msg(SA, '/avisos on'))
+    await roda(msg(GI, 'mercado 150 nubank'))
+    expect((await roda(clicar(GI, tg, 'Confirmar'))).acao).toBe('confirmado')
+    const paraGi = tg.enviadas.filter((m) => m.chat === GI).map((m) => m.text)
+    expect(paraGi.some((t) => t.includes('Alimentação nesta semana') && t.includes('passou do teto da semana em R$ 50,00'))).toBe(true)
+    const paraSa = tg.enviadas.filter((m) => m.chat === SA).map((m) => m.text)
+    expect(paraSa.some((t) => t.includes('👥') && t.includes('passou do teto da semana'))).toBe(true)
+  })
+  it('perto do teto: só quem lançou é avisado', async () => {
+    db.s.planoVida = plano
+    await roda(msg(SA, '/avisos on'))
+    await roda(msg(GI, 'mercado 85 nubank'))
+    await roda(clicar(GI, tg, 'Confirmar'))
+    expect(tg.enviadas.filter((m) => m.chat === GI).some((t) => t.text.includes('chegou perto do teto da semana'))).toBe(true)
+    expect(tg.enviadas.filter((m) => m.chat === SA).some((t) => t.text.includes('teto da semana'))).toBe(false)
+  })
+  it('sem plano ou sem teto da categoria: nenhum aviso semanal', async () => {
+    await roda(msg(GI, 'mercado 150 nubank'))
+    await roda(clicar(GI, tg, 'Confirmar'))
+    expect(tg.enviadas.some((m) => m.text.includes('teto da semana'))).toBe(false)
+    db.s.planoVida = { criado_em: '2026-09-30T10:00:00Z', plano: { tetos_semanais: [{ categoria: 'Lazer', valor: 10 }] } }
+    await roda(msg(GI, 'mercado 150 nubank'))
+    await roda(clicar(GI, tg, 'Confirmar'))
+    expect(tg.enviadas.some((m) => m.text.includes('teto da semana'))).toBe(false)
+  })
+  it('se o plano der erro, a compra continua lançada', async () => {
+    db.planoVidaAtivo = async () => { throw new Error('banco fora') }
+    await roda(msg(GI, 'mercado 150 nubank'))
+    expect((await roda(clicar(GI, tg, 'Confirmar'))).acao).toBe('confirmado')
+    expect(db.s.compras).toHaveLength(1)
+  })
+})
