@@ -4,6 +4,7 @@ import { mediaRecente, pendenciasValorVariavel } from '../lib/fixosVariaveis'
 import ValorDoMes from './ValorDoMes'
 import Secao from './Secao'
 import { pagamentosPorCategoria } from '../lib/pagamentosCategoria'
+import { reaisParaCentavos } from '../lib/aulas'
 import ModalAdiar from './ModalAdiar'
 import ModalDivida from './ModalDivida'
 import NavMes, { PilulasPago } from './NavMes'
@@ -150,6 +151,42 @@ export default function Pagamentos({ store, irPara }) {
     await marcarFixoPago(fixo.id, fixo.mesPagamento || mes, !atual) // conta adiada: o pagamento fica no mês de origem
   }
 
+  // Ajustar o valor de um item na lista da categoria ("às vezes acaba sendo mais"): só aquele mês.
+  async function ajustarValor(it) {
+    const invalido = () => window.alert('Não entendi esse valor. Exemplo: 312,40 ou 1.200')
+    if (it.tipo === 'fixo') {
+      const f = it.ref
+      const mesPag = f.mesPagamento || mes
+      const padrao = Number(store.fixos.find((x) => x.id === f.id)?.valor ?? f.valor)
+      const t = window.prompt(`Valor real de "${f.nome}" em ${mesLabel(mesPag)} (R$). Vale só para este mês.\nDeixe vazio para voltar ao valor padrão (${fmt(padrao)}).`, String(f.valor).replace('.', ','))
+      if (t === null) return
+      if (t.trim() === '') { await definirValorFixo(f.id, mesPag, null); return }
+      const c = reaisParaCentavos(t)
+      if (c == null) { invalido(); return }
+      await definirValorFixo(f.id, mesPag, c / 100)
+      return
+    }
+    if (it.tipo === 'fatura') {
+      const l = it.ref
+      if (mesFechado(store.fechamentos, mes)) { window.alert(`${mesLabel(mes)} está fechado. Reabra o fechamento para mexer nessa fatura.`); return }
+      const t = window.prompt(`Valor real da fatura ${l.nome} em ${mesLabel(mes)} (R$): o que o banco cobra.\nDeixe vazio para voltar ao valor lançado no app (${fmt(l.lancado)}).`, String(l.valor).replace('.', ','))
+      if (t === null) return
+      if (t.trim() === '') { await upsertFatura({ cartao_id: l.cartao_id, mes, valor_real: null }); return }
+      const c = reaisParaCentavos(t)
+      if (c == null) { invalido(); return }
+      await upsertFatura({ cartao_id: l.cartao_id, mes, valor_real: c / 100 })
+      return
+    }
+    const compra = it.ref
+    if (compra.adiadoDe) { window.alert('Essa conta foi adiada com multa/juros. Use "mudar de mês" na lista de Outras contas para ajustar o acréscimo.'); return }
+    if (Number(compra.parcelas) > 1) { window.alert('Essa conta é parcelada. Para mudar o valor, edite a compra na tela Compras (o novo valor vale para as parcelas).'); return }
+    const t = window.prompt(`Valor de "${tituloCompra(compra)}" (R$):`, String(compra.valorParcela).replace('.', ','))
+    if (t === null) return
+    const c = reaisParaCentavos(t)
+    if (c == null || c <= 0) { invalido(); return }
+    await updateCompra(compra.id, { valor_total: c / 100 })
+  }
+
   async function toggleCartao(linha) {
     await upsertFatura({
       cartao_id: linha.cartao_id,
@@ -259,6 +296,7 @@ export default function Pagamentos({ store, irPara }) {
                         <span style={{ flex: 1, minWidth: 0 }}>{it.tipo === 'fixo' ? 'Conta fixa' : it.tipo === 'fatura' ? '💳' : 'Conta'} · <b>{it.nome}</b>{it.tipo === 'fatura' && <span className="cad-sub"> (parte desta categoria{it.ajustada ? ', ajustada ao valor real' : ''}; marcar paga a fatura inteira, {fmt(it.valorFatura)})</span>}</span>
                         <span className="mono">{fmt(it.valor)}</span>
                       </label>
+                      <div className="pag-cat-acoes"><button className="link-btn" onClick={() => ajustarValor(it)}>{it.tipo === 'fatura' ? 'ajustar valor da fatura' : 'ajustar valor'}</button></div>
                       {(it.compras || []).slice(0, 8).map((x, j) => <div key={j} className="pag-cat-item pag-cat-sub"><span>{x.titulo}</span><span className="mono">{fmt(x.valor)}</span></div>)}
                       {(it.compras || []).length > 8 && <div className="pag-cat-item pag-cat-sub"><span>+ {it.compras.length - 8} compras</span></div>}
                     </div>
