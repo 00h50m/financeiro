@@ -15,6 +15,8 @@ describe('Orçamento (render)', () => {
   it('sem tetos: explica, sugere por onde começar e lista as categorias sem teto do maior para o menor', () => {
     const html = renderToString(<Orcamento store={{ ...base, orcamentos: [] }} />).replace(/<!-- -->/g, '')
     expect(html).toContain('Você ainda não definiu nenhum teto')
+    expect(html).toContain('Sugerir tetos pelo gasto de')
+    expect(html).not.toContain('Sugerir tetos pelo histórico')
     expect(html).toContain('Moradia, Alimentação, Lazer')
     expect(html.indexOf('Moradia')).toBeLessThan(html.indexOf('Lazer'))
     expect(html).toContain('Definir teto mensal de Moradia')

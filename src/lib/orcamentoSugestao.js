@@ -12,6 +12,18 @@ export function historicoPorCategoria(d, mes, n = 6) {
   return Object.fromEntries([...cats].map((c) => [c, serie.map((l) => r2(l.porCategoria?.[c] || 0))]))
 }
 
+// Sem meses anteriores: sugere pelo gasto do próprio mês (`gastos`: { categoria: valor }) com a mesma folga e arredondamento.
+// Mesmo formato de sugerirTetos; `base: 'mes'` avisa a tela de que é uma base de um mês só.
+export function sugerirTetosDoMes(gastos, tetos = {}, { margem = 0.1 } = {}) {
+  return Object.entries(gastos).map(([categoria, g]) => {
+    const gasto = r2(Number(g) || 0)
+    const sugerido = gasto > 0 ? arredondar10(gasto * (1 + margem)) : 0
+    const atual = Number(tetos[categoria]) || 0
+    const nota = atual && sugerido ? (sugerido > atual * 1.15 ? 'gasto do mês acima do teto atual' : sugerido < atual * 0.85 ? 'teto atual folgado para o gasto do mês' : 'teto atual condiz com o gasto do mês') : 'base: só este mês'
+    return { categoria, atual, media3: gasto, media6: gasto, maximo: gasto, mesesComGasto: 1, irregular: false, sugerido, nota, base: 'mes' }
+  }).filter((s) => s.sugerido > 0).sort((a, b) => b.media3 - a.media3)
+}
+
 const media = (xs) => (xs.length ? xs.reduce((t, x) => t + x, 0) / xs.length : 0)
 
 // hist: saída de historicoPorCategoria; tetos: { categoria: valor }. margem: folga sobre a média (0.1 = +10%).

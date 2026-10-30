@@ -20,3 +20,15 @@ describe('sugestão de tetos', () => {
   })
   it('ordena pela maior média', () => { expect(r.map((x) => x.categoria)[0]).toBe('Mercado') })
 })
+
+import { sugerirTetosDoMes } from '../orcamentoSugestao'
+describe('sugestão pelo gasto do mês (sem histórico)', () => {
+  it('gasto + 10% arredondado para cima de 10 em 10, só com gasto, do maior para o menor', () => {
+    const r = sugerirTetosDoMes({ Moradia: 6526.16, Lazer: 515.23, Seguros: 0, Viagens: 75 }, { Lazer: 400 })
+    expect(r.map((x) => x.categoria)).toEqual(['Moradia', 'Lazer', 'Viagens'])
+    expect(r[0]).toMatchObject({ sugerido: 7180, atual: 0, base: 'mes', irregular: false, nota: 'base: só este mês' })
+    expect(r[1]).toMatchObject({ sugerido: 570, atual: 400, nota: 'gasto do mês acima do teto atual' })
+    expect(r[2].sugerido).toBe(90)
+  })
+  it('vazio quando não há gasto', () => { expect(sugerirTetosDoMes({ A: 0 })).toEqual([]) })
+})

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { historicoPorCategoria, sugerirTetos } from '../lib/orcamentoSugestao'
+import { historicoPorCategoria, sugerirTetos, sugerirTetosDoMes } from '../lib/orcamentoSugestao'
 import { comprasLiquidas, fixosLiquidos } from '../lib/divisoes'
 import NavMes, { Pilulas } from './NavMes'
 import { reaisParaCentavos } from '../lib/aulas'
@@ -19,7 +19,8 @@ export default function Orcamento({ store }) {
   const [mes, setMes] = useState(nowYM())
   const [rascunho, setRascunho] = useState({}) // categoria -> texto digitado, enquanto não salvou
   const [filtro, setFiltro] = useState('tudo') // tudo | atencao | com | sem
-  const [painel, setPainel] = useState(null) // sugestões abertas: [{ ...sugestão, marcada, valor }]
+  const [painel, setPainel] = useState(null)
+  const [avisoSug, setAvisoSug] = useState('') // aviso dentro da tela (em vez de alert do navegador) // sugestões abertas: [{ ...sugestão, marcada, valor }]
   const historico = useMemo(() => historicoPorCategoria({ ...store, compras: store.compras }, mes, 6), [store, mes])
 
   if (!orcamentosOk) {
@@ -50,6 +51,8 @@ export default function Orcamento({ store }) {
   const gastoComTeto = linhas.filter((l) => l.teto > 0).reduce((s, l) => s + l.gasto, 0)
   const gastoSemTeto = linhas.filter((l) => !l.teto).reduce((s, l) => s + l.gasto, 0)
   const renda = totalRenda(rendas.find((r) => r.mes === mes))
+  const temHistorico = Object.values(historico).some((v) => v.some((x) => x > 0))
+  const rotuloSugerir = temHistorico ? 'Sugerir tetos pelo histórico' : `Sugerir tetos pelo gasto de ${mesLabel(mes)}`
   const estouradas = linhas.filter((l) => l.status === 'estourou').length
   const gastoTotal = gastoComTeto + gastoSemTeto
   const mediaDe = (cat) => { const h = (historico[cat] || []).slice(-3); const m = h.reduce((t, v) => t + v, 0) / 3; return m >= 1 ? m : 0 }
@@ -78,12 +81,13 @@ export default function Orcamento({ store }) {
   // Sugestões pelo histórico: abre um painel para revisar, editar e aplicar só o que fizer sentido.
   function abrirSugestoes() {
     const tetos = Object.fromEntries(orcamentos.map((o) => [o.categoria, Number(o.valor)]))
+    setAvisoSug('')
     const lista = sugerirTetos(historico, tetos).filter((s) => s.sugerido > 0)
-    if (!lista.length) {
-      alert('Ainda não há gastos nos meses anteriores a ' + mesLabel(mes) + ' para sugerir tetos.\n\nQuando houver pelo menos um mês de histórico, a sugestão aparece aqui.')
-      return
-    }
-    setPainel(lista.map((s) => ({ ...s, valor: String(s.sugerido), marcada: !s.atual && !s.irregular })))
+    if (lista.length) { setPainel(lista.map((s) => ({ ...s, valor: String(s.sugerido), marcada: !s.atual && !s.irregular }))); return }
+    // Sem meses anteriores (app novo): sugere pelo gasto deste mês.
+    const doMes = sugerirTetosDoMes(Object.fromEntries(linhas.map((l) => [l.categoria, l.gasto])), tetos)
+    if (!doMes.length) { setAvisoSug(`Ainda não há gastos em ${mesLabel(mes)} nem em meses anteriores para sugerir tetos. Lance as compras e fixos do mês e tente de novo, ou digite os tetos direto nas categorias.`); return }
+    setPainel(doMes.map((s) => ({ ...s, valor: String(s.sugerido), marcada: !s.atual })))
   }
   const mudarSugestao = (categoria, patch) => setPainel((l) => l.map((x) => (x.categoria === categoria ? { ...x, ...patch } : x)))
   function aplicarSugestoes() {
@@ -99,16 +103,25 @@ export default function Orcamento({ store }) {
     <div className="page">
       <div className="pag-topo">
         <NavMes mes={mes} onChange={setMes} />
-        {totalTeto > 0 && <button className="btn btn-ghost btn-sm" onClick={abrirSugestoes}>Sugerir tetos pelo histórico</button>}
+        {totalTeto > 0 && <button className="btn btn-ghost btn-sm" onClick={abrirSugestoes}>{rotuloSugerir}</button>}
       </div>
+
+      {avisoSug && <div className="alert alert-amber" role="status">{avisoSug}</div>}
 
       {painel && (
         <div className="card" style={{ padding: 16, overflow: 'visible' }}>
-          <div style={{ fontWeight: 500, marginBottom: 4 }}>Sugestão de tetos pelo histórico</div>
-          <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 10, lineHeight: 1.6 }}>
-            Base: média dos 3 meses anteriores a {mesLabel(mes)} + 10% de folga, arredondada para cima de 10 em 10. Você pode editar cada valor. Por padrão só vêm marcadas as categorias <b>sem teto e com gasto regular</b>;
-            as de gasto irregular (aparecem em menos de 2 dos 3 meses) ficam desmarcadas para você decidir.
-          </div>
+          <div style={{ fontWeight: 500, marginBottom: 4 }}>{painel[0]?.base === 'mes' ? `Sugestão de tetos pelo gasto de ${mesLabel(mes)}` : 'Sugestão de tetos pelo histórico'}</div>
+          {painel[0]?.base === 'mes' ? (
+            <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 10, lineHeight: 1.6 }}>
+              Você ainda não tem meses anteriores no app, então a base é <b>o gasto de {mesLabel(mes)}</b> + 10% de folga, arredondada para cima de 10 em 10.
+              {mes === nowYM() && ' O mês ainda não terminou: o gasto pode subir, então vale conferir cada valor.'} Edite o que quiser e aplique só o que fizer sentido; quando houver histórico, a sugestão passa a usar a média de 3 meses.
+            </div>
+          ) : (
+            <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 10, lineHeight: 1.6 }}>
+              Base: média dos 3 meses anteriores a {mesLabel(mes)} + 10% de folga, arredondada para cima de 10 em 10. Você pode editar cada valor. Por padrão só vêm marcadas as categorias <b>sem teto e com gasto regular</b>;
+              as de gasto irregular (aparecem em menos de 2 dos 3 meses) ficam desmarcadas para você decidir.
+            </div>
+          )}
           <div className="orc-sug">
             {painel.map((s) => (
               <div key={s.categoria} className={`orc-sug-item ${s.marcada ? 'marcada' : ''}`}>
@@ -119,8 +132,8 @@ export default function Orcamento({ store }) {
                 </label>
                 <div className="orc-sug-linha">
                   <span>Teto atual <b className="mono">{s.atual ? fmt(s.atual) : '—'}</b></span>
-                  <span>Média 3 meses <b className="mono">{fmt(s.media3)}</b></span>
-                  <span>Maior mês <b className="mono">{fmt(s.maximo)}</b></span>
+                  <span>{s.base === 'mes' ? 'Gasto do mês' : 'Média 3 meses'} <b className="mono">{fmt(s.media3)}</b></span>
+                  {s.base !== 'mes' && <span>Maior mês <b className="mono">{fmt(s.maximo)}</b></span>}
                 </div>
                 {s.nota && <div className="orc-sug-nota" style={{ color: s.irregular ? 'var(--amber)' : 'var(--text3)' }}>{s.nota}</div>}
               </div>
@@ -150,7 +163,7 @@ export default function Orcamento({ store }) {
             {maiores.length > 0 && <> Comece pelas que mais pesam: <b>{maiores.map((l) => l.categoria).join(', ')}</b>.</>}
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
-            <button className="btn btn-primary btn-sm" onClick={abrirSugestoes}>Sugerir tetos pelo histórico</button>
+            <button className="btn btn-primary btn-sm" onClick={abrirSugestoes}>{rotuloSugerir}</button>
           </div>
         </div>
       )}
