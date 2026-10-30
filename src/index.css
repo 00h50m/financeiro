@@ -1018,3 +1018,8 @@ input[type="month"], input[type="date"] { max-width: 100%; }
 .pag-cat-origem { grid-column: 1 / -1; background: var(--bg3); border-radius: 10px; padding: 6px 12px; margin-top: 2px; }
 .pag-cat-item { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; font-size: 12px; }
 .pag-cat-sub { padding-left: 18px; color: var(--text3); font-size: 11px; }
+.pag-cat-subtitulo { font-size: 12px; font-weight: 600; margin: 4px 0 2px; }
+.pag-cat-marcar { align-items: center; cursor: pointer; }
+.pag-cat-marcar input[type="checkbox"] { width: 18px; min-height: 0; flex-shrink: 0; }
+.pag-cat-pagas { margin-top: 6px; }
+.pag-cat-pagas > summary { cursor: pointer; font-size: 12px; color: var(--text2); padding: 4px 0; }
