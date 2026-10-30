@@ -19,8 +19,8 @@ export function pagamentosPorCategoria(det, { compras = [], cartoes = [], fixos 
     if (pago) e.pago += valor
     mapa.set(k, e)
   }
-  for (const f of det.fixosLista) somar(f.categoria, Number(f.valor), !!det.fixoPagamento(f)?.pago, { tipo: 'fixo', nome: f.nome })
-  for (const c of det.outrasContas) somar(c.categoria, Number(c.valorParcela), !!c.pago, { tipo: 'conta', nome: `${tituloCompra(c)}${c.parcelaTotal > 1 ? ` (${c.parcelaNum}/${c.parcelaTotal})` : ''}` })
+  for (const f of det.fixosLista) somar(f.categoria, Number(f.valor), !!det.fixoPagamento(f)?.pago, { tipo: 'fixo', nome: f.nome, ref: f })
+  for (const c of det.outrasContas) somar(c.categoria, Number(c.valorParcela), !!c.pago, { tipo: 'conta', nome: `${tituloCompra(c)}${c.parcelaTotal > 1 ? ` (${c.parcelaNum}/${c.parcelaTotal})` : ''}`, ref: c })
 
   const categoriaDoFixo = new Map(fixos.map((f) => [f.id, f.categoria]))
   for (const l of det.linhasCartao) {
@@ -40,8 +40,8 @@ export function pagamentosPorCategoria(det, { compras = [], cartoes = [], fixos 
     const valor = Number(l.valor)
     if (lancado > 0.005) {
       const fator = valor / lancado // 1 quando a fatura bate com o lançado
-      for (const [cat, e] of partes) somar(cat, e.valor * fator, !!l.pago, { tipo: 'fatura', nome: `Fatura ${l.nome}`, compras: e.compras.sort((a, b) => b.valor - a.valor), ajustada: Math.abs(fator - 1) > 0.005 })
-    } else if (valor > 0.005) somar(SEM_LANCAMENTO, valor, !!l.pago, { tipo: 'fatura', nome: `Fatura ${l.nome}`, compras: [] })
+      for (const [cat, e] of partes) somar(cat, e.valor * fator, !!l.pago, { tipo: 'fatura', nome: `Fatura ${l.nome}`, compras: e.compras.sort((a, b) => b.valor - a.valor), ajustada: Math.abs(fator - 1) > 0.005, ref: l, valorFatura: r2(valor) })
+    } else if (valor > 0.005) somar(SEM_LANCAMENTO, valor, !!l.pago, { tipo: 'fatura', nome: `Fatura ${l.nome}`, compras: [], ref: l, valorFatura: r2(valor) })
   }
 
   const categorias = [...mapa.values()].map((e) => {

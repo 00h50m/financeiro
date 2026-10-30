@@ -248,20 +248,38 @@ export default function Pagamentos({ store, irPara }) {
                 <div className="pag-cat-num"><span className="cad-sub">total</span><b className="mono">{fmt(c.total)}</b></div>
                 <div className="pag-cat-num"><span className="cad-sub">pago</span><span className="mono" style={{ color: 'var(--green)' }}>{c.pago > 0.005 ? fmt(c.pago) : '—'}</span></div>
                 <div className="pag-cat-num"><span className="cad-sub">falta</span>{c.pendente > 0.005 ? <b className="mono" style={{ color: 'var(--amber)' }}>{fmt(c.pendente)}</b> : <span style={{ color: 'var(--green)' }}>✓ quitada</span>}</div>
-                {catExpandida === c.categoria && (
-                  <div className="pag-cat-origem">
-                    {c.itens.map((it, i) => (
-                      <div key={i}>
-                        <div className="pag-cat-item">
-                          <span>{it.tipo === 'fixo' ? 'Conta fixa' : it.tipo === 'fatura' ? '💳' : 'Conta'} · <b>{it.nome}</b>{it.tipo === 'fatura' && <span className="cad-sub"> (parte desta categoria{it.ajustada ? ', ajustada ao valor real da fatura' : ''})</span>}</span>
-                          <span className="mono">{fmt(it.valor)} <span style={{ color: it.pago ? 'var(--green)' : 'var(--amber)' }}>{it.pago ? '✓ pago' : 'a pagar'}</span></span>
-                        </div>
-                        {(it.compras || []).slice(0, 8).map((x, j) => <div key={j} className="pag-cat-item pag-cat-sub"><span>{x.titulo}</span><span className="mono">{fmt(x.valor)}</span></div>)}
-                        {(it.compras || []).length > 8 && <div className="pag-cat-item pag-cat-sub"><span>+ {it.compras.length - 8} compras</span></div>}
-                      </div>
-                    ))}
-                  </div>
-                )}
+                {catExpandida === c.categoria && (() => {
+                  const aPagar = c.itens.filter((it) => !it.pago)
+                  const pagas = c.itens.filter((it) => it.pago)
+                  const marcar = (it) => (it.tipo === 'fixo' ? toggleFixo(it.ref) : it.tipo === 'fatura' ? toggleCartao(it.ref) : toggleOutraConta(it.ref))
+                  const linha = (it, i) => (
+                    <div key={`${it.tipo}-${it.nome}-${i}`}>
+                      <label className="pag-cat-item pag-cat-marcar">
+                        <input type="checkbox" checked={!!it.pago} onChange={() => marcar(it)} aria-label={`${it.pago ? 'Desmarcar' : 'Marcar como pago'}: ${it.nome}`} />
+                        <span style={{ flex: 1, minWidth: 0 }}>{it.tipo === 'fixo' ? 'Conta fixa' : it.tipo === 'fatura' ? '💳' : 'Conta'} · <b>{it.nome}</b>{it.tipo === 'fatura' && <span className="cad-sub"> (parte desta categoria{it.ajustada ? ', ajustada ao valor real' : ''}; marcar paga a fatura inteira, {fmt(it.valorFatura)})</span>}</span>
+                        <span className="mono">{fmt(it.valor)}</span>
+                      </label>
+                      {(it.compras || []).slice(0, 8).map((x, j) => <div key={j} className="pag-cat-item pag-cat-sub"><span>{x.titulo}</span><span className="mono">{fmt(x.valor)}</span></div>)}
+                      {(it.compras || []).length > 8 && <div className="pag-cat-item pag-cat-sub"><span>+ {it.compras.length - 8} compras</span></div>}
+                    </div>
+                  )
+                  return (
+                    <div className="pag-cat-origem">
+                      {aPagar.length > 0 ? (
+                        <>
+                          <div className="pag-cat-subtitulo" style={{ color: 'var(--amber)' }}>A pagar · {aPagar.length} {aPagar.length === 1 ? 'item' : 'itens'} · {fmt(c.pendente)}</div>
+                          {aPagar.map(linha)}
+                        </>
+                      ) : <div className="pag-cat-subtitulo" style={{ color: 'var(--green)' }}>✓ Tudo pago nesta categoria</div>}
+                      {pagas.length > 0 && (
+                        <details className="pag-cat-pagas" open={aPagar.length === 0}>
+                          <summary>Pagas · {pagas.length} {pagas.length === 1 ? 'item' : 'itens'} · {fmt(c.pago)}</summary>
+                          {pagas.map(linha)}
+                        </details>
+                      )}
+                    </div>
+                  )
+                })()}
               </div>
             ))}
             <div className="pag-cat-linha pag-cat-total">

@@ -46,6 +46,13 @@ describe('pagamentos por categoria', () => {
       ['fixo', 'Aluguel', 2000, true], ['fatura', 'Fatura Nubank', 400, true], ['fixo', 'Luz', 300, false],
     ])
     expect(moradia.itens[1].compras).toEqual([{ titulo: 'Reforma', valor: 400 }])
+    // cada item guarda a conta original, para marcar como pago direto da lista
+    expect(moradia.itens[0].ref.id).toBe('f1')
+    expect(moradia.itens[1]).toMatchObject({ valorFatura: 1220 }) // a fatura inteira: 600 + 100 + 400 + 120
+    expect(moradia.itens[1].ref.cartao_id).toBe('cn')
+    const educ = pagamentosPorCategoria(det, s2, mes).categorias.find((c) => c.categoria === 'Educação')
+    expect(educ.itens[0]).toMatchObject({ tipo: 'conta', pago: false })
+    expect(educ.itens[0].ref.id).toBe('c3')
     expect(moradia.itens.reduce((t, i) => t + i.valor, 0)).toBe(moradia.total)
     expect(pagamentosPorCategoria(det, s2, mes).categorias.find((c) => c.categoria === 'Comunicação').itens[0].compras[0].titulo).toContain('conta fixa no cartão')
   })
