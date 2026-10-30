@@ -3,6 +3,7 @@ import { compilar } from '../lib/filtro'
 import { mediaRecente, pendenciasValorVariavel } from '../lib/fixosVariaveis'
 import ValorDoMes from './ValorDoMes'
 import Secao from './Secao'
+import { pagamentosPorCategoria } from '../lib/pagamentosCategoria'
 import ModalAdiar from './ModalAdiar'
 import ModalDivida from './ModalDivida'
 import NavMes, { PilulasPago } from './NavMes'
@@ -30,6 +31,7 @@ export default function Pagamentos({ store, irPara }) {
   const [filtroPago, setFiltroPago] = useState('') // 'pagas' | 'apagar'
   const [secoes, setSecoes] = useState({}) // seção → aberta; sem valor: abre quando ainda há algo a pagar
   const [extratoAberto, setExtratoAberto] = useState(false)
+  const [categoriasAberto, setCategoriasAberto] = useState(true)
   const [adiando, setAdiando] = useState(null) // { tipo, refId, titulo, valor, mesOrigem, destinoAtual }
   const [divida, setDivida] = useState(null) // sugestão de dívida criada a partir de uma conta
   const { adiamentosOk, adiarConta, desfazerAdiamento, dividasOk, salvarDivida, removerDivida } = store
@@ -119,6 +121,7 @@ export default function Pagamentos({ store, irPara }) {
   const secFixos = resumoSecao('fixos', fixosVis, (f) => fixoPagamento(f)?.pago, (f) => f.valor)
   const secCartoes = resumoSecao('cartoes', cartoesVis, (l) => l.pago, (l) => l.valor)
   const secOutras = resumoSecao('outras', outrasVis, (c) => c.pago, (c) => c.valorParcela)
+  const porCategoria = pagamentosPorCategoria(resumo.detalhe, { compras, cartoes, fixos }, mes)
   const pctPago = comprometido > 0 ? Math.min(100, Math.round((pago / comprometido) * 100)) : 0
 
   async function acertar() {
@@ -230,6 +233,31 @@ export default function Pagamentos({ store, irPara }) {
           <div className="pag-progresso-barra"><div style={{ width: `${pctPago}%` }} /></div>
           <span>{pctPago}% pago · falta {fmt(totalDividas)}</span>
         </div>
+      )}
+
+      {porCategoria.categorias.length > 0 && (
+        <Secao titulo="Por categoria" info={`${porCategoria.categorias.filter((c) => c.pendente > 0.005).length} com pendência`} destaque={`falta ${fmt(porCategoria.pendente)}`} aberto={categoriasAberto} onToggle={() => setCategoriasAberto((v) => !v)}>
+          <div className="pag-cat">
+            {porCategoria.categorias.map((c) => (
+              <div key={c.categoria} className={`pag-cat-linha ${c.pendente <= 0.005 ? 'quitada' : ''}`}>
+                <div className="pag-cat-nome">
+                  <button className="link-btn" onClick={() => { setBusca(c.categoria); setFiltroPago('') }} title="Ver as contas desta categoria" style={{ fontWeight: 600, textAlign: 'left' }}>{c.categoria}</button>
+                  <div className="pag-cat-barra" role="progressbar" aria-valuenow={Math.round(c.pct * 100)} aria-valuemin={0} aria-valuemax={100} aria-label={`${c.categoria}: ${Math.round(c.pct * 100)}% pago`}><div style={{ width: `${Math.round(c.pct * 100)}%` }} /></div>
+                </div>
+                <div className="pag-cat-num"><span className="cad-sub">total</span><b className="mono">{fmt(c.total)}</b></div>
+                <div className="pag-cat-num"><span className="cad-sub">pago</span><span className="mono" style={{ color: 'var(--green)' }}>{c.pago > 0.005 ? fmt(c.pago) : '—'}</span></div>
+                <div className="pag-cat-num"><span className="cad-sub">falta</span>{c.pendente > 0.005 ? <b className="mono" style={{ color: 'var(--amber)' }}>{fmt(c.pendente)}</b> : <span style={{ color: 'var(--green)' }}>✓ quitada</span>}</div>
+              </div>
+            ))}
+            <div className="pag-cat-linha pag-cat-total">
+              <div className="pag-cat-nome"><b>Total do mês</b></div>
+              <div className="pag-cat-num"><span className="cad-sub">total</span><b className="mono">{fmt(porCategoria.total)}</b></div>
+              <div className="pag-cat-num"><span className="cad-sub">pago</span><span className="mono" style={{ color: 'var(--green)' }}>{fmt(porCategoria.pago)}</span></div>
+              <div className="pag-cat-num"><span className="cad-sub">falta</span><b className="mono" style={{ color: 'var(--amber)' }}>{fmt(porCategoria.pendente)}</b></div>
+            </div>
+          </div>
+          <div className="cad-sub" style={{ padding: '4px 18px 14px' }}>Atualiza sozinho conforme você marca os pagamentos. A fatura do cartão é dividida pelas categorias das compras lançadas nela. Toque no nome da categoria para ver só as contas dela.</div>
+        </Secao>
       )}
 
       <Secao titulo="Dinheiro disponível" info="de onde vem" destaque={fmt(dinheiroDisponivel)} aberto={extratoAberto} onToggle={() => setExtratoAberto((v) => !v)}>
