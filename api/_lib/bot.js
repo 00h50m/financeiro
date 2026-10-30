@@ -8,6 +8,8 @@ import { textoResumoDoMes } from './resumoMensal.js'
 import { periodoDe, interpretarPergunta, filtroDe, calcularResumo, formatarResumo } from '../../src/lib/resumo.js'
 import { faturasAbertas, filtrarCartoes, formatarFaturas, proximasFaturas, formatarProximas } from '../../src/lib/fatura.js'
 import { avisoTeto } from '../../src/lib/alertaTeto.js'
+import { avisoTetoSemanal } from '../../src/lib/alertaTetoSemanal.js'
+import { semanaDe } from '../../src/lib/semanaPlano.js'
 import { lerNotificacao, cartaoDaNotificacao } from '../../src/lib/notificacaoCompra.js'
 import { gerarTokenAndroid, hashToken } from './tokenAndroid.js'
 import { motivoNaoLancarSozinho } from '../../src/lib/categorizacao.js'
@@ -334,17 +336,42 @@ async function responderResumoMes(c, texto) {
   return { acao: 'resumo_mes' }
 }
 
-// Aviso extra depois de lançar: nunca atrapalha a confirmação (qualquer erro aqui é ignorado).
+// Avisos extras depois de lançar: teto do MÊS (Orçamento) e teto da SEMANA (plano do "Meu plano"). Nunca atrapalham a confirmação
+// (qualquer erro aqui é ignorado). Quem lançou recebe os dois; quando estoura, quem mais ligou os avisos (/avisos on) também fica sabendo.
 async function avisarTeto(c, base, ev) {
   try {
     if (!ev.categoria) return
-    const [a] = c.hoje.split('-')
-    const dados = await c.db.dadosTeto(ev.categoria, `${Number(a) - 4}-01-01`)
-    const aviso = avisoTeto({
-      compra: { data_compra: ev.data_evento, valor_total: ev.valor, parcelas: ev.parcelas, cartao_id: ev.cartao_id, categoria: ev.categoria },
-      compras: dados.compras, cartoes: base.cartoes, fixos: dados.fixos, orcamentos: dados.orcamentos,
-    })
-    if (aviso) await c.tg.enviar(c.chat.id, aviso)
+    const avisos = [] // { texto, grave }
+    try {
+      const [a] = c.hoje.split('-')
+      const dados = await c.db.dadosTeto(ev.categoria, `${Number(a) - 4}-01-01`)
+      const aviso = avisoTeto({
+        compra: { data_compra: ev.data_evento, valor_total: ev.valor, parcelas: ev.parcelas, cartao_id: ev.cartao_id, categoria: ev.categoria },
+        compras: dados.compras, cartoes: base.cartoes, fixos: dados.fixos, orcamentos: dados.orcamentos,
+      })
+      if (aviso) avisos.push({ texto: aviso, grave: aviso.includes('passou') })
+    } catch (e) { console.error('bot: aviso de teto mensal falhou', e?.message) }
+    try {
+      const plano = c.db.planoVidaAtivo ? await c.db.planoVidaAtivo() : null
+      const tetos = plano?.plano?.tetos_semanais
+      if (tetos?.length) {
+        const semana = semanaDe(c.hoje)
+        const daSemana = (await c.db.comprasPeriodo(semana.inicio, semana.fim)).filter((x) => x.categoria === ev.categoria)
+        const r = avisoTetoSemanal({ compra: { data_compra: ev.data_evento, valor_total: ev.valor, parcelas: ev.parcelas, categoria: ev.categoria }, compras: daSemana, tetos, hoje: c.hoje })
+        if (r) avisos.push(r)
+      }
+    } catch (e) { console.error('bot: aviso de teto semanal falhou', e?.message) }
+    for (const a of avisos) await c.tg.enviar(c.chat.id, a.texto)
+    const graves = avisos.filter((a) => a.grave)
+    if (graves.length) {
+      const quem = nomeCurto(base.pessoas.find((p) => p.id === ev.pessoa_id))
+      const outros = (await c.db.destinatariosResumo()).filter((d) => String(d.chat_id) !== String(c.chat.id))
+      for (const d of outros) {
+        for (const g of graves) {
+          try { await c.tg.enviar(d.chat_id, `👥 ${quem} lançou ${fmt(ev.valor)} em ${ev.descricao_original}.\n${g.texto}`) } catch (e) { console.error('bot: aviso de teto para outra pessoa falhou', e?.message) }
+        }
+      }
+    }
   } catch (e) {
     console.error('bot: aviso de teto falhou', e?.message)
   }

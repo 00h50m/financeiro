@@ -6,6 +6,7 @@ import { mesesFechadosTocados, mesFechado } from './fechamento.js'
 import { mesesAfetadosPelaFatura } from './faturaEdicao.js'
 import { amigavel, explicarErro } from './erros.js'
 import { avisoTeto } from './alertaTeto.js'
+import { avisoTetoSemanal } from './alertaTetoSemanal.js'
 import { anexarValores, chaveConta } from './fixosVersoes.js'
 import { gerarCodigo, hashCodigo } from './pareamento.js'
 import { perfil } from './perfil.js'
@@ -345,7 +346,10 @@ export function useStore(email = null) {
     if (ok) {
       // mesmo aviso do Telegram: categoria que chegou perto (80%) ou passou do teto com esta compra
       try {
-        const texto = avisoTeto({ compra: data, compras: [...compras, data], cartoes, fixos: fixosComValores, orcamentos })
+        const mensal = avisoTeto({ compra: data, compras: [...compras, data], cartoes, fixos: fixosComValores, orcamentos })
+        const tetosPlano = planosVida.find((p) => p.ativo)?.plano?.tetos_semanais
+        const semanal = tetosPlano?.length ? avisoTetoSemanal({ compra: data, compras: [...compras, data].filter((x) => x.categoria === data.categoria), tetos: tetosPlano, hoje: hojeSP() }) : null
+        const texto = [mensal, semanal?.texto].filter(Boolean).join('\n')
         if (texto) mostrarAviso(texto, texto.includes('passou') ? 'red' : 'amber')
       } catch { /* aviso é só um extra: nunca atrapalha o salvamento */ }
     }
