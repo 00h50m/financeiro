@@ -277,3 +277,18 @@ describe('detalhe da diferença', () => {
     expect(d.seResolvido).toBe(Math.round((a.painel.diferenca + 60 - 77) * 100) / 100)
   })
 })
+
+describe('rede de segurança contra duplicidade', () => {
+  it('avisa quando uma compra nova tem mesmo valor e data próxima de algo que só está no app', () => {
+    const compras = [compra({ id: 'no-app', descricao: 'Livraria Cultura', valor_total: 88, data_compra: '2026-09-10' })]
+    const a = analisar([linha({ descricao: 'Loja Outra Cidade', descricaoOriginal: 'LOJA OUTRA', valor: 88, data: '2026-09-11' })], compras)
+    const d = detalheDiferenca(a)
+    expect(d.possiveisDuplicadas).toHaveLength(1)
+    expect(d.possiveisDuplicadas[0].noApp).toBe('Livraria Cultura')
+  })
+  it('não avisa com valor diferente, data distante ou linha que não será criada', () => {
+    const compras = [compra({ id: 'no-app', descricao: 'Livraria Cultura', valor_total: 88, data_compra: '2026-09-02' })]
+    expect(detalheDiferenca(analisar([linha({ descricao: 'Loja X', valor: 88, data: '2026-09-20' })], compras)).possiveisDuplicadas).toHaveLength(0)
+    expect(detalheDiferenca(analisar([linha({ descricao: 'Loja X', valor: 90, data: '2026-09-03' })], compras)).possiveisDuplicadas).toHaveLength(0)
+  })
+})

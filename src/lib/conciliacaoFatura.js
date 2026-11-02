@@ -188,5 +188,12 @@ export function detalheDiferenca(analise, modo = 'parcela') {
   const totais = { revisao: soma(revisao), deixadas: soma(deixadas), soNoApp: soma(soNoApp), leitura }
   // estimativa: importar tudo o que está em aberto e tirar o que só está no app (supondo que seja de outra fatura)
   const seResolvido = r2(p.diferenca + totais.revisao + totais.deixadas - totais.soNoApp)
-  return { revisao, deixadas, soNoApp, totais, seResolvido, diferenca: p.diferenca, baseDiferenca: p.baseDiferenca }
+  // rede de segurança: linha nova que será CRIADA com mesmo valor e data próxima (até 3 dias) de algo que já está no app e não está no arquivo
+  const dias = (a, b) => Math.abs(Math.round((new Date(`${String(a).slice(0, 10)}T12:00:00Z`) - new Date(`${String(b).slice(0, 10)}T12:00:00Z`)) / 86400000))
+  const possiveisDuplicadas = []
+  analise.grupos.novas.filter((l) => l.selecionada).forEach((l) => {
+    const par = soNoApp.find((x) => x.compra && Math.abs(x.valor - v(l)) < 0.02 && x.data && dias(l.data, x.data) <= 3)
+    if (par) possiveisDuplicadas.push({ id: l._id, nome: l.identificacao?.trim() || l.descricao, data: l.data, valor: v(l), noApp: par.nome, noAppData: par.data })
+  })
+  return { revisao, deixadas, soNoApp, totais, seResolvido, possiveisDuplicadas, diferenca: p.diferenca, baseDiferenca: p.baseDiferenca }
 }
