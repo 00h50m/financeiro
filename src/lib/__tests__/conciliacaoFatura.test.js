@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { analisarLinhas } from '../importacao'
-import { naturezaDaLinha, decisaoPatch, classificarLinha, analisarFatura } from '../conciliacaoFatura'
+import { naturezaDaLinha, decisaoPatch, classificarLinha, analisarFatura, detalheDiferenca } from '../conciliacaoFatura'
 
 const categorias = [{ nome: 'Alimentação', subcategorias: ['Mercado', 'Delivery'] }, { nome: 'Transporte', subcategorias: ['Uber/99/Táxi'] }]
 const cartoes = [{ id: 'c1', nome: 'Nubank' }]
@@ -258,5 +258,22 @@ describe('colocar na fatura (mover)', () => {
     expect(a.painel).toMatchObject({ totalApp: 0, ajusteMover: 100, projetado: 100, diferenca: 0 })
     expect(a.statusProjetado).toBe('conciliada')
     expect(a.statusAtual).toBe('parcial') // enquanto o movimento não é gravado, a compra ainda está na outra fatura
+  })
+})
+
+describe('detalhe da diferença', () => {
+  it('lista o que está em aberto, soma cada grupo e explica a diferença com o total do banco', () => {
+    const compras = [compra({ id: 'so-app', descricao: 'Loja só no app', valor_total: 77, data_compra: '2026-09-08' })]
+    const ls = [linha({ descricao: 'Compra nova qualquer', descricaoOriginal: 'COMPRA NOVA', valor: 60, incluirManual: true, incluir: false })]
+    const a = analisar(ls, compras, { totalBanco: 500 })
+    const d = detalheDiferenca(a)
+    expect(d.soNoApp.map((x) => x.nome)).toEqual(['Loja só no app'])
+    expect(d.totais.soNoApp).toBe(77)
+    expect(d.deixadas).toHaveLength(1)
+    expect(d.totais.deixadas).toBe(60)
+    expect(d.totais.leitura).toBe(60 - 500) // arquivo (60) − banco (500)
+    expect(d.diferenca).toBe(a.painel.diferenca)
+    // importando a deixada e tirando a que só está no app, a diferença muda exatamente por esses valores
+    expect(d.seResolvido).toBe(Math.round((a.painel.diferenca + 60 - 77) * 100) / 100)
   })
 })
