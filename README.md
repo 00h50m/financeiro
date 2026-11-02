@@ -13,7 +13,7 @@ Sistema financeiro pessoal (React + Vite + Supabase), com login, instalável no 
 - **Parcelamentos** — compras parceladas em andamento, progresso, valor restante e término.
 - **Faturas** — valor real de cada fatura (por cartão/mês) comparado ao que foi lançado.
 - **Pagamentos** — controle do que está pago e a pagar no mês (contas fixas, faturas, contas sem cartão), total de dívidas, dinheiro disponível (renda + sobra do mês anterior − pago) e acerto com o saldo real da conta.
-- **Importar fatura** — CSV da fatura → revisão editável → salva. Detecta duplicatas, confere parcelas e valor da fatura, sugere categoria pelo histórico e lança parcelas em andamento. Reconhece o que já está em Compras mesmo com nome ou data diferentes (lançado à mão, pelo Telegram ou por notificação), cada compra casa com uma linha só, avisa quando o arquivo parece já ter sido importado, sugere nome (Identificação) e categoria e guarda o texto original da fatura.
+- **Importar fatura** — assistente de 4 etapas (selecionar o PDF ou CSV, analisar, revisar pendências, confirmar). Nada é gravado até a confirmação, que é atômica e idempotente (`inbox/37` e `inbox/38`). Reconhece o que já está em Compras (só o exato e um-para-um é automático; o resto pede revisão com os dois registros lado a lado), trata valor diferente, compra em outra fatura, parcelas em andamento (com prévia), estornos, encargos e pagamentos, e mostra a conciliação (banco × arquivo × app) separada do status da importação. O trabalho fica salvo como rascunho para retomar. Teste de ponta a ponta: `bash scripts/e2e/rodar-importacao.sh`.
 
 **Planejamento**
 - **Renda** — renda por mês (salários, extras, mesada, outros).

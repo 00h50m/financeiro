@@ -80,6 +80,9 @@ describe('texto do resultado: importação e conciliação são coisas diferente
     expect(t.titulo).toBe('Importação concluída: 13 lançamentos gravados.')
     expect(t.detalhe).toContain('conciliação com a fatura ainda está pendente')
     expect(t.detalhe).not.toContain('Fatura conciliada')
+    expect(textoResultado({ criadas: 2, atualizadas: 1, movidas: 2, status_conciliacao: 'parcial' }).titulo).toBe('Importação concluída: 2 lançamentos gravados, 1 valor atualizado, 2 compras movidas de fatura.')
+    expect(textoResultado({ criadas: 2, status_conciliacao: 'parcial' }).detalhe).toContain('Conciliação parcial')
+    expect(textoResultado({ criadas: 2, status_conciliacao: 'conciliada' }).detalhe).toContain('Fatura conciliada')
     expect(textoResultado({ criadas: 1, status_conciliacao: 'pendente' }).titulo).toContain('1 lançamento gravado.')
   })
   it('repetida: avisa e diz que nada foi gravado; sem proteção: pede o SQL', () => {

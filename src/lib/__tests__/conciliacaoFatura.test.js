@@ -249,3 +249,14 @@ describe('decisaoPatch', () => {
     expect(JSON.stringify(l)).toBe(copia)
   })
 })
+
+describe('colocar na fatura (mover)', () => {
+  it('compra lançada em outra fatura: mover conta no projetado e vira registrada', () => {
+    const c = compra({ data_compra: '2026-09-12', fatura_mes: '2026-10', valor_total: 100 })
+    const a = analisar([{ ...linha({ descricao: 'Mercado Extra', valor: 100 }), ...decisaoPatch('mover') }], [c], { totalBanco: 100 })
+    expect(a.linhas[0]).toMatchObject({ grupo: 'registrada', moverParaEstaFatura: true })
+    expect(a.painel).toMatchObject({ totalApp: 0, ajusteMover: 100, projetado: 100, diferenca: 0 })
+    expect(a.statusProjetado).toBe('conciliada')
+    expect(a.statusAtual).toBe('parcial') // enquanto o movimento não é gravado, a compra ainda está na outra fatura
+  })
+})

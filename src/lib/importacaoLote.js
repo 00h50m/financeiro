@@ -58,11 +58,30 @@ export async function aplicarImportacao(sb, { importacaoId, dados, usuario = nul
   const r = await sb.rpc('aplicar_importacao', { p_importacao: importacaoId, p_dados: dados, p_usuario: usuario })
   if (!r.error) return r.data
   if (!semFuncao(r.error)) throw r.error
+  if ((dados.atualizar || []).length || (dados.mover || []).length) throw new Error('Para atualizar valores ou mover compras de fatura, rode o arquivo inbox/38_importacao_assistente.sql no Supabase.')
   // Banco sem a atualização 37: grava como antes (uma única inserção), avisando que não há proteção contra repetição.
   const origem = dados.origem_leitura === 'pdf' ? 'pdf' : 'csv'
   const ins = await sb.from('compras').insert(dados.compras.map((c) => ({ ...c, origem })))
   if (ins.error) throw ins.error
   return { status_importacao: 'concluida', status_conciliacao: 'pendente', criadas: dados.compras.length, semProtecao: true }
+}
+
+// Rascunho: guarda o trabalho em andamento no lote para retomar depois. Devolve { ok, indisponivel }: sem a atualização 38 do banco,
+// o assistente funciona do mesmo jeito, só não retoma e não atualiza valores nem move compras de fatura.
+export async function salvarRascunho(sb, { importacaoId, dados, usuario = null }) {
+  const r = await sb.rpc('salvar_rascunho_importacao', { p_importacao: importacaoId, p_dados: dados, p_usuario: usuario })
+  if (!r.error) return { ok: !r.data?.ignorado, indisponivel: false }
+  if (semFuncao(r.error)) return { ok: false, indisponivel: true }
+  throw r.error
+}
+export async function descartarRascunho(sb, importacaoId) {
+  const r = await sb.rpc('descartar_rascunho_importacao', { p_importacao: importacaoId })
+  if (r.error && !semFuncao(r.error)) throw r.error
+}
+// Rascunhos em andamento (mais recente primeiro). Vazio quando o banco não tem a atualização.
+export async function listarRascunhos(sb) {
+  const r = await sb.from('importacoes_fatura').select('id,cartao_id,mes,arquivo_nome,origem_leitura,total_banco,linhas,decisoes,atualizado_em').eq('status_importacao', 'rascunho').order('atualizado_em', { ascending: false }).limit(10)
+  return r.error ? [] : r.data || []
 }
 
 // Texto do resultado para a tela: importação e conciliação são coisas diferentes.
@@ -71,10 +90,14 @@ export function textoResultado(r) {
     const quando = r.concluida_em ? ` em ${String(r.concluida_em).slice(0, 10).split('-').reverse().join('/')}` : ''
     return { tipo: 'aviso', titulo: `Esta fatura já foi importada${quando}.`, detalhe: 'Nada foi gravado de novo. Se alguma linha for outra compra, marque-a manualmente e importe só ela.' }
   }
+  const partes = [`${r.criadas} lançamento${r.criadas === 1 ? '' : 's'} gravado${r.criadas === 1 ? '' : 's'}`]
+  if (r.atualizadas) partes.push(`${r.atualizadas} valor${r.atualizadas === 1 ? '' : 'es'} atualizado${r.atualizadas === 1 ? '' : 's'}`)
+  if (r.movidas) partes.push(`${r.movidas} compra${r.movidas === 1 ? '' : 's'} movida${r.movidas === 1 ? '' : 's'} de fatura`)
+  const conc = { conciliada: 'Fatura conciliada: todas as linhas estão resolvidas e os valores fecham.', parcial: 'Conciliação parcial: ainda há pendências ou diferenças para investigar.' }
   return {
     tipo: 'ok',
-    titulo: `Importação concluída: ${r.criadas} lançamento${r.criadas === 1 ? '' : 's'} gravado${r.criadas === 1 ? '' : 's'}.`,
-    detalhe: r.status_conciliacao === 'conciliada' ? 'Fatura conciliada.' : 'A conciliação com a fatura ainda está pendente: confira em "O que falta lançar" abaixo.',
+    titulo: `Importação concluída: ${partes.join(', ')}.`,
+    detalhe: conc[r.status_conciliacao] || 'A conciliação com a fatura ainda está pendente.',
     aviso: r.semProtecao ? 'Seu banco ainda não tem a atualização 37: a importação foi gravada sem a proteção contra repetição. Rode o arquivo inbox/37_importacao_nucleo.sql no Supabase.' : null,
   }
 }
