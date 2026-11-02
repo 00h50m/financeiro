@@ -292,3 +292,16 @@ describe('rede de segurança contra duplicidade', () => {
     expect(detalheDiferenca(analisar([linha({ descricao: 'Loja X', valor: 90, data: '2026-09-03' })], compras)).possiveisDuplicadas).toHaveLength(0)
   })
 })
+
+describe('linhas ignoradas e natureza manual', () => {
+  it('"não é pagamento" devolve a linha para a fatura e ela entra no total do arquivo', () => {
+    const pag = linha({ descricao: 'Saldo restante da fatura anterior', descricaoOriginal: 'SALDO RESTANTE DA FATURA ANTERIOR', valor: 84.33 })
+    const antes = analisar([pag], [], { totalBanco: 84.33 })
+    expect(antes.contadores.ignoradas).toBe(1)
+    expect(antes.painel.totalExtraido).toBe(0)
+    expect(detalheDiferenca(antes).ignoradas[0].bateComFalta).toBe(true) // o valor da linha ignorada é exatamente o que falta
+    const depois = analisar([{ ...pag, naturezaManual: 'encargo' }], [], { totalBanco: 84.33 })
+    expect(depois.contadores.ignoradas).toBe(0)
+    expect(depois.painel.totalExtraido).toBe(84.33)
+  })
+})

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import CartaoLinha from './CartaoLinha'
 import PainelConciliacao from './PainelConciliacao'
+import LinhaManual from './LinhaManual'
 import { fmt, mesLabel } from '../../lib/utils'
 import { valorParcelaLinha, resumirAnalise } from '../../lib/importacao'
 import { reaisParaCentavos } from '../../lib/aulas'
@@ -172,6 +173,7 @@ export function EtapaRevisar({ a, filtroInicial, abrirCompra }) {
   return (
     <div className="imp-etapa">
       <PainelConciliacao analise={analise} modo={a.modoValor} aoResolver={a.aoResolver} />
+      <LinhaManual a={a} valorSugerido={analise.painel.totalBanco != null && analise.painel.totalExtraido < analise.painel.totalBanco - 0.1 ? Math.round((analise.painel.totalBanco - analise.painel.totalExtraido) * 100) / 100 : null} aoAdicionar={() => setFiltro('novas')} />
       <div className="imp-filtros" role="group" aria-label="Grupos de lançamentos">
         {pills.map(([k, rot]) => <button key={k} type="button" className={`btn btn-sm ${filtro === k ? 'btn-primary' : 'btn-ghost'}`} aria-pressed={filtro === k} onClick={() => setFiltro(k)}>{rot}</button>)}
       </div>
@@ -287,8 +289,14 @@ export function EtapaConfirmar({ a }) {
             {det.baseDiferenca === 'banco' && Math.abs(det.totais.leitura) > 0.1 && <li>O <b>arquivo</b> traz {fmt(Math.abs(det.totais.leitura))} {det.totais.leitura < 0 ? 'a menos' : 'a mais'} que o total do banco{det.totais.leitura < 0 ? ': pode ter linha que não foi lida (confira o PDF).' : '.'}</li>}
             {det.revisao.length > 0 && <li><b>{det.revisao.length} em revisão</b>: {fmt(det.totais.revisao)}. Se forem compras que faltam, entram na conta quando você as importar.</li>}
             {det.deixadas.length > 0 && <li><b>{det.deixadas.length} deixada{det.deixadas.length === 1 ? '' : 's'} de fora</b>: {fmt(det.totais.deixadas)}.</li>}
+            {det.ignoradas.length > 0 && <li><b>{det.ignoradas.length} linha{det.ignoradas.length === 1 ? '' : 's'} ignorada{det.ignoradas.length === 1 ? '' : 's'}</b> por parecer{det.ignoradas.length === 1 ? '' : 'em'} pagamento ou saldo anterior (não entram no total do arquivo):
+              <ul className="imp-lista">{det.ignoradas.map((i) => (
+                <li key={i.id} className={i.bateComFalta ? 'imp-suspeita' : ''}>{i.data && <span className="cad-sub">{String(i.data).slice(8, 10)}/{String(i.data).slice(5, 7)} · </span>}{i.nome} <span className="mono">{fmt(i.valor)}</span>{i.bateComFalta && <b> · tem exatamente o valor que falta</b>} <button type="button" className="link-btn" onClick={() => { a.atualizarLinha(i.id, { naturezaManual: i.valor < 0 ? 'credito' : 'encargo' }); a.aoResolver('revisao') }}>não é pagamento: contar na fatura</button></li>
+              ))}</ul></li>}
+            {(a.arquivo?.descartadas || 0) > 0 && <li><b>{a.arquivo.descartadas} linha{a.arquivo.descartadas === 1 ? '' : 's'} descartada{a.arquivo.descartadas === 1 ? '' : 's'} na leitura do PDF</b> por vir{a.arquivo.descartadas === 1 ? '' : 'em'} sem data, descrição ou valor. Confira no PDF.</li>}
             {det.soNoApp.length > 0 && <li><b>{det.soNoApp.length} só no app</b>: {fmt(det.totais.soNoApp)}. Estão somadas no app, mas não na fatura (podem ser de outra fatura).</li>}
           </ul>
+          <LinhaManual a={a} valorSugerido={det.baseDiferenca === 'banco' && det.totais.leitura < -0.1 ? Math.abs(det.totais.leitura) : null} aoAdicionar={() => a.aoResolver('novas')} />
           {(det.revisao.length > 0 || det.deixadas.length > 0 || det.soNoApp.length > 0) && <p className="cad-sub">Se tudo em aberto fosse importado e o que está só no app fosse de outra fatura, a diferença seria de cerca de <b className="mono">{fmt(det.seResolvido)}</b>. É uma estimativa para você investigar, não uma garantia.</p>}
         </section>
       )}
