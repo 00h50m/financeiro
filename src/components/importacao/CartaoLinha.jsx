@@ -2,13 +2,15 @@ import { useState } from 'react'
 import Comparativo from './Comparativo'
 import { fmt, mesLabel } from '../../lib/utils'
 import { MOTIVO } from '../../lib/conciliacaoFatura'
-import { previaParcelamento, ehCompraDividida } from '../../lib/planoImportacao'
+import ParcelamentoPrevia from './ParcelamentoPrevia'
+import { ehCompraDividida } from '../../lib/planoImportacao'
+import { opcaoDaLinha } from '../../lib/parcelamentoImportacao'
 import { gerarParcelas } from '../../lib/utils'
 
 const dm = (d) => String(d || '').slice(0, 10).split('-').reverse().slice(0, 2).join('/')
 const ROTULO_MOTIVO = {
   correspondencia_provavel: 'Parece já lançada', valor_diferente: 'Valor diferente', parcelamento_ambiguo: 'Parcela diferente do esperado',
-  parcelamento_sem_registro: 'Parcelamento não está no app', outra_fatura: 'Está em outra fatura', dados_incompletos: 'Faltam dados',
+  parcelamento_sem_registro: 'Parcelamento não está no app', parcelamento_inconsistente: 'Parcela não cai neste mês', outra_fatura: 'Está em outra fatura', dados_incompletos: 'Faltam dados',
 }
 
 function situacao(l) {
@@ -24,9 +26,9 @@ function situacao(l) {
   return ['badge-amber', ROTULO_MOTIVO[l.motivos[0]] || 'Revisar']
 }
 
-export default function CartaoLinha({ l, aberto: abertoInicial, valorLinha, mesFatura, cartaoId, cartoes, categorias, pessoas, bancoV2, modoValor, acoes }) {
+export default function CartaoLinha({ l, aberto: abertoInicial, valorLinha, mesFatura, cartaoId, cartoes, fechamentos = [], categorias, pessoas, bancoV2, modoValor, acoes }) {
   const [aberto, setAberto] = useState(abertoInicial)
-  const { atualizarLinha, decidir, confirmarParcelamento, mudarCategoria } = acoes
+  const { atualizarLinha, decidir, escolherParcelamento, mudarCategoria } = acoes
   const [cor, texto] = situacao(l)
   const corr = l.correspondencia
   const nome = l.identificacao?.trim() || l.descricao
@@ -63,7 +65,14 @@ export default function CartaoLinha({ l, aberto: abertoInicial, valorLinha, mesF
 
           {/* ações por tipo de pendência */}
           {l.grupo === 'revisao' && (motivo === 'correspondencia_provavel' || motivo === 'parcelamento_ambiguo') && (
-            <div className="imp-acoes">{botao('É a mesma compra', 'mesma', { primario: true, dica: 'Vincula ao lançamento existente, sem criar outro' })}{botao('É outra compra', 'outra', { dica: 'Cria um novo lançamento' })}{botao('Revisar depois', 'depois')}</div>
+            l.motivos.includes('parcelamento_ambiguo') ? (
+              <>
+                <p className="imp-explica" style={{ margin: 0 }}>Esta é a parcela {l.parcela_atual} de {l.parcela_total}. O aplicativo identificou um <b>possível parcelamento existente</b> ({corr.compra.identificacao || corr.compra.descricao}, {corr.compra.parcelas}x), mas o calendário dele não bate com esta fatura. Confirme se deseja vincular esta parcela a ele ou criar um novo parcelamento.</p>
+                <div className="imp-acoes">{botao('Vincular a este parcelamento', 'mesma', { primario: true, dica: 'Não cria nada: a parcela fica ligada ao parcelamento existente' })}{botao('Criar novo parcelamento', 'outra', { dica: 'Trata como um parcelamento diferente e mostra as opções de registro' })}{botao('Revisar depois', 'depois')}</div>
+              </>
+            ) : (
+              <div className="imp-acoes">{botao('É a mesma compra', 'mesma', { primario: true, dica: 'Vincula ao lançamento existente, sem criar outro' })}{botao('É outra compra', 'outra', { dica: 'Cria um novo lançamento' })}{botao('Revisar depois', 'depois')}</div>
+            )
           )}
           {l.grupo === 'revisao' && motivo === 'valor_diferente' && (
             <>
@@ -81,30 +90,20 @@ export default function CartaoLinha({ l, aberto: abertoInicial, valorLinha, mesF
               {botao('Deixar como está', 'mesma', { dica: 'É a mesma compra e fica na outra fatura' })}{botao('Revisar depois', 'depois')}
             </div>
           )}
-          {l.grupo === 'revisao' && motivo === 'parcelamento_sem_registro' && (() => {
-            const p = previaParcelamento(l, mesFatura, modoValor)
-            return (
-              <div className="imp-previa-parcela">
-                <p><b>Esta é a parcela {p.parcelaAtual} de {p.total}</b> ({fmt(p.valorParcela)} cada) e não encontrei esse parcelamento no app.</p>
-                <p className="cad-sub">Se confirmar, o app registra o parcelamento inteiro: {p.anteriores} parcela{p.anteriores === 1 ? '' : 's'} anterior{p.anteriores === 1 ? '' : 'es'} no passado ({mesLabel(p.primeiraParcela)}{p.anteriores > 1 ? ' em diante' : ''}) e {p.restantes} daqui para frente, até {mesLabel(p.ultimaParcela)}. Total {fmt(p.valorTotal)}. A data da compra original não consta na fatura: usamos o dia 1 do mês da primeira parcela (estimada).</p>
-                <div className="imp-acoes">
-                  <button type="button" className="btn btn-sm btn-primary" onClick={() => confirmarParcelamento(l._id, true)}>Confirmar parcelamento</button>
-                  {botao('Revisar depois', 'depois')}
-                </div>
-              </div>
-            )
-          })()}
+          {l.grupo === 'revisao' && (motivo === 'parcelamento_sem_registro' || motivo === 'parcelamento_inconsistente') && <ParcelamentoPrevia l={l} mesFatura={mesFatura} modoValor={modoValor} cartoes={cartoes} fechamentos={fechamentos} inconsistente={motivo === 'parcelamento_inconsistente'} escolher={escolherParcelamento} decidir={decidir} />}
           {l.grupo === 'revisao' && motivo === 'dados_incompletos' && <p className="imp-erro">Para importar, complete: {l.bloqueios.join(' · ')}.</p>}
 
           {l.decisao && l.grupo !== 'nova' && <button type="button" className="link-btn" onClick={() => decidir(l._id, null)}>desfazer minha decisão</button>}
           {l.decisao === 'outra' && <button type="button" className="link-btn" onClick={() => decidir(l._id, null)}>desfazer: voltar a comparar com o lançamento existente</button>}
-          {l.parcelamentoConfirmado && l.grupo === 'nova' && <button type="button" className="link-btn" onClick={() => confirmarParcelamento(l._id, false)}>desfazer a confirmação do parcelamento</button>}
+          {l.grupo === 'nova' && opcaoDaLinha(l) && <p className="cad-sub" style={{ margin: 0 }}>Parcelamento: {opcaoDaLinha(l) === 'completo' ? 'será criado por completo' : 'será registrada só esta parcela'}. <button type="button" className="link-btn" onClick={() => escolherParcelamento(l._id, null)}>alterar a escolha</button></p>}
 
           {/* edição: só do que ainda pode virar lançamento */}
           {(l.grupo === 'nova' || motivo === 'dados_incompletos' || motivo === 'parcelamento_sem_registro') && (
             <div className="imp-campos">
-              <label className="imp-importar"><input type="checkbox" checked={l.incluir !== false} onChange={(e) => atualizarLinha(l._id, { incluir: e.target.checked, incluirManual: true })} /> Importar esta linha</label>
-              <div className="imp-grade-campos">
+              {l.grupo === 'nova' && <label className="imp-importar"><input type="checkbox" checked={l.incluir !== false} onChange={(e) => atualizarLinha(l._id, { incluir: e.target.checked, incluirManual: true })} /> Importar esta linha</label>}
+              <details className="imp-editar" open={motivo === 'dados_incompletos'}>
+                <summary>Editar dados da compra</summary>
+                <div className="imp-grade-campos">
                 <label>Nome (o que é) <span className="cad-sub">opcional</span><input value={l.identificacao} onChange={(e) => atualizarLinha(l._id, { identificacao: e.target.value, identificacaoSugerida: false })} placeholder={l.descricao} /></label>
                 <label>Descrição no cartão<input value={l.descricao} onChange={(e) => atualizarLinha(l._id, { descricao: e.target.value })} /></label>
                 <label>Data<input type="date" value={l.data} onChange={(e) => atualizarLinha(l._id, { data: e.target.value })} /></label>
@@ -116,7 +115,8 @@ export default function CartaoLinha({ l, aberto: abertoInicial, valorLinha, mesF
                 <label>Subcategoria<select value={l.subcategoria} disabled={!l.categoria} onChange={(e) => atualizarLinha(l._id, { subcategoria: e.target.value, sugerida: false })}>{subs.map((s) => <option key={s}>{s}</option>)}</select></label>
                 <label>Pessoa<select value={l.pessoa} onChange={(e) => atualizarLinha(l._id, { pessoa: e.target.value })}>{pessoas.map((p) => <option key={p.id}>{p.nome}</option>)}</select></label>
                 <label>Observação<input value={l.observacao} onChange={(e) => atualizarLinha(l._id, { observacao: e.target.value })} /></label>
-              </div>
+                </div>
+              </details>
             </div>
           )}
           <p className="cad-sub imp-original">No cartão: {l.descricaoOriginal || l.descricao}</p>

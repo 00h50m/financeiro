@@ -1,7 +1,9 @@
 // Importação de fatura: lote, chave de repetição e gravação atômica (função do banco `aplicar_importacao`, inbox/37).
 // A leitura e a análise nunca gravam; só a confirmação chama o banco, uma vez, com tudo.
 import { normBasico } from './normalizacao.js'
-import { addMonths, calcMesInicio } from './utils.js'
+import { calcMesInicio } from './utils.js'
+import { opcaoDaLinha, compraDoParcelamento } from './parcelamentoImportacao.js'
+import { valorParcelaLinha } from './importacao.js'
 import { limparDescricao } from './normalizacao.js'
 
 const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100
@@ -26,9 +28,23 @@ export function montarCompras(prontas, { mesFatura, cartoes, faturaMesOk, valorT
   return prontas.map((l) => {
     const n = Number(l.parcela_total) || 1
     const k = Number(l.parcela_atual) || 1
-    const dataCompra = k > 1 ? `${addMonths(mesFatura, -(k - 1))}-01` : l.data
-    const nota = k > 1 ? `Parcela ${k}/${n} na importação (início estimado pela fatura de ${mesFatura.split('-').reverse().join('/')})` : ''
+    const soEsta = k > 1 && opcaoDaLinha(l) === 'so_esta'
+    const completo = k > 1 && !soEsta
     const cartao = cartoes.find((c) => c.id === l.cartao_id)
+    const mesF = mesFatura.split('-').reverse().join('/')
+    // completo: 1ª parcela k-1 meses antes (ancorada por fatura_mes); só esta: uma compra de uma vez, com a data da própria linha
+    const dataCompra = completo ? compraDoParcelamento(l, { mesFatura, modoValor }).data_compra : l.data
+    const nota = soEsta ? `Parcela ${k}/${n}: registrada só esta parcela na importação da fatura de ${mesF}` : completo ? `Parcela ${k}/${n} na importação (início estimado pela fatura de ${mesF})` : ''
+    if (soEsta) {
+      return {
+        descricao_original: l.descricaoOriginal || l.descricao, data_compra: dataCompra, descricao: limparDescricao(l.descricao),
+        ...(l.identificacao.trim() ? { identificacao: l.identificacao.trim() } : {}),
+        categoria: l.categoria, subcategoria: l.subcategoria, pessoa: l.pessoa, cartao_id: l.cartao_id,
+        valor_total: r2(valorParcelaLinha(l, modoValor)), parcelas: 1,
+        ...(faturaMesOk && mesFatura ? { fatura_mes: mesFatura } : {}),
+        obs: [l.observacao, nota].filter(Boolean).join(' · ') || undefined,
+      }
+    }
     return {
       descricao_original: l.descricaoOriginal || l.descricao,
       data_compra: dataCompra,
@@ -40,7 +56,7 @@ export function montarCompras(prontas, { mesFatura, cartoes, faturaMesOk, valorT
       cartao_id: l.cartao_id,
       valor_total: valorTotalLinha(l, modoValor),
       parcelas: n,
-      ...(faturaMesOk && mesFatura && k === 1 && cartao && calcMesInicio(l.data, cartao) !== mesFatura ? { fatura_mes: mesFatura } : {}),
+      ...(faturaMesOk && completo ? { fatura_mes: compraDoParcelamento(l, { mesFatura, modoValor }).fatura_mes } : faturaMesOk && mesFatura && k === 1 && cartao && calcMesInicio(l.data, cartao) !== mesFatura ? { fatura_mes: mesFatura } : {}),
       obs: [l.observacao, nota].filter(Boolean).join(' · ') || undefined,
     }
   })

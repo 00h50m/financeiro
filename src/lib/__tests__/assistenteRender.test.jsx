@@ -62,7 +62,9 @@ describe('assistente de importação (render)', () => {
     expect(h).toContain('Manter o valor lançado')
     expect(h).toContain('Atualizar para')
     expect(h).toContain('Esta é a parcela 3 de 10')
-    expect(h).toContain('Confirmar parcelamento')
+    expect(h).toContain('Criar parcelamento completo')
+    expect(h).toContain('Registrar só esta parcela')
+    expect(h).toContain('data estimada')
     expect(h).toContain('No cartão: Padaria Sao Joao') // descrição original preservada
   })
   it('etapa 4: separa o que será gravado do que continua em aberto e os dois estados', () => {

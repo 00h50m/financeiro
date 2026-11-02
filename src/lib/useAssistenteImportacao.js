@@ -12,7 +12,7 @@ import { chaveDoArquivo, novoIdImportacao, salvarRascunho, descartarRascunho, li
 import { nowYM } from './utils'
 
 const MAX_PDF = 3 * 1024 * 1024
-const CAMPOS_DE_TRABALHO = ['_id', 'data', 'descricao', 'descricaoOriginal', 'identificacao', 'identificacaoSugerida', 'valor', 'categoria', 'subcategoria', 'sugerida', 'fonteSugestao', 'parcela_atual', 'parcela_total', 'cartaoNome', 'cartao_id', 'pessoa', 'pessoaManual', 'observacao', 'incluir', 'incluirManual', 'decisao', 'parcelamentoConfirmado']
+const CAMPOS_DE_TRABALHO = ['_id', 'data', 'descricao', 'descricaoOriginal', 'identificacao', 'identificacaoSugerida', 'valor', 'categoria', 'subcategoria', 'sugerida', 'fonteSugestao', 'parcela_atual', 'parcela_total', 'cartaoNome', 'cartao_id', 'pessoa', 'pessoaManual', 'observacao', 'incluir', 'incluirManual', 'decisao', 'parcelamentoConfirmado', 'parcelamentoOpcao']
 const enxuta = (l) => Object.fromEntries(CAMPOS_DE_TRABALHO.filter((k) => l[k] !== undefined).map((k) => [k, l[k]]))
 const maisComum = (xs) => { const c = {}; xs.filter(Boolean).forEach((x) => { c[x] = (c[x] || 0) + 1 }); return Object.entries(c).sort((a, b) => b[1] - a[1])[0]?.[0] || '' }
 
@@ -128,7 +128,8 @@ export function useAssistenteImportacao(store, inicial = null) {
     })
   }
   const decidir = (id, decisao) => atualizarLinha(id, decisaoPatch(decisao))
-  const confirmarParcelamento = (id, sim = true) => atualizarLinha(id, { parcelamentoConfirmado: sim })
+  // opcao: 'completo' | 'so_esta' | null (desfaz)
+  const escolherParcelamento = (id, opcao) => atualizarLinha(id, { parcelamentoOpcao: opcao || undefined, parcelamentoConfirmado: false })
   const mudarCategoria = (id, categoria) => atualizarLinha(id, { categoria, subcategoria: categorias.find((c) => c.nome === categoria)?.subcategorias?.[0] || '', sugerida: false })
 
   // ---- análise e plano (calculados na hora, a cada decisão) ----
@@ -137,7 +138,7 @@ export function useAssistenteImportacao(store, inicial = null) {
     return analisarFatura({ linhas, compras, cartoes, fixos, cartaoId, mes: mesFatura, aliases, modo: modoValor, categorias, totalBanco: arquivo?.totalBanco ?? null })
   }, [linhas, compras, cartoes, fixos, cartaoId, mesFatura, aliases, modoValor, categorias, arquivo?.totalBanco])
 
-  const plano = useMemo(() => (analise ? montarPlano({ analise, mesFatura, cartoes, faturaMesOk, modoValor, cartaoId, arquivo: arquivo || {}, linhasDoArquivo: linhas }) : null), [analise, mesFatura, cartoes, faturaMesOk, modoValor, cartaoId, arquivo, linhas])
+  const plano = useMemo(() => (analise ? montarPlano({ analise, mesFatura, cartoes, faturaMesOk, modoValor, cartaoId, arquivo: arquivo || {}, linhasDoArquivo: linhas, fechamentos: store.fechamentos || [] }) : null), [analise, mesFatura, cartoes, faturaMesOk, modoValor, cartaoId, arquivo, linhas, store.fechamentos])
 
   // ---- rascunho: salva as decisões no lote (sem gravar compras) ----
   const planoRef = useRef(plano)
@@ -198,7 +199,7 @@ export function useAssistenteImportacao(store, inicial = null) {
 
   return {
     etapa, maxEtapa, irPara, arquivo, linhas, cartaoId, mesFatura, modoValor, importacaoId, lendo, erro, setErro, confirmando, resultado, rascunhos, bancoV2, salvoEm, faturaMesOk,
-    analise, plano, cartoes, categorias, pessoas,
-    abrirCsv, abrirPdf, definirCartao, definirMes, definirModo, definirTotalBanco, atualizarLinha, decidir, confirmarParcelamento, mudarCategoria, retomar, descartar, confirmar, limpar,
+    analise, plano, cartoes, categorias, pessoas, fechamentos: store.fechamentos || [],
+    abrirCsv, abrirPdf, definirCartao, definirMes, definirModo, definirTotalBanco, atualizarLinha, decidir, escolherParcelamento, mudarCategoria, retomar, descartar, confirmar, limpar,
   }
 }
