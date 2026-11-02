@@ -112,7 +112,7 @@ export default function CartaoLinha({ l, aberto: abertoInicial, valorLinha, mesF
                   <select value={l.categoria} onChange={(e) => mudarCategoria(l._id, e.target.value)}><option value="">Selecione…</option>{categorias.map((c) => <option key={c.id}>{c.nome}</option>)}</select>
                   {l.sugerida && <span className="cad-sub">sugerida {l.fonteSugestao === 'historico' ? 'pelo histórico' : 'pelo nome'}</span>}
                 </label>
-                <label>Subcategoria<select value={l.subcategoria} disabled={!l.categoria} onChange={(e) => atualizarLinha(l._id, { subcategoria: e.target.value, sugerida: false })}>{subs.map((s) => <option key={s}>{s}</option>)}</select></label>
+                <label>Subcategoria<select value={l.subcategoria} disabled={!l.categoria} onChange={(e) => atualizarLinha(l._id, { subcategoria: e.target.value, sugerida: false })}><option value="">{l.categoria ? 'Escolha a subcategoria…' : 'Escolha a categoria antes'}</option>{subs.map((s) => <option key={s}>{s}</option>)}</select></label>
                 <label>Pessoa<select value={l.pessoa} onChange={(e) => atualizarLinha(l._id, { pessoa: e.target.value })}>{pessoas.map((p) => <option key={p.id}>{p.nome}</option>)}</select></label>
                 <label>Observação<input value={l.observacao} onChange={(e) => atualizarLinha(l._id, { observacao: e.target.value })} /></label>
                 </div>

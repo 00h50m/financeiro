@@ -132,7 +132,12 @@ export function useAssistenteImportacao(store, inicial = null) {
   const decidir = (id, decisao) => atualizarLinha(id, decisaoPatch(decisao))
   // opcao: 'completo' | 'so_esta' | null (desfaz)
   const escolherParcelamento = (id, opcao) => atualizarLinha(id, { parcelamentoOpcao: opcao || undefined, parcelamentoConfirmado: false })
-  const mudarCategoria = (id, categoria) => atualizarLinha(id, { categoria, subcategoria: categorias.find((c) => c.nome === categoria)?.subcategorias?.[0] || '', sugerida: false })
+  // Troca de categoria: a subcategoria fica em branco para a pessoa escolher (a linha continua em revisão até lá).
+  // Só preenche sozinha quando a categoria tem uma única subcategoria.
+  const mudarCategoria = (id, categoria) => {
+    const subs = categorias.find((c) => c.nome === categoria)?.subcategorias || []
+    atualizarLinha(id, { categoria, subcategoria: subs.length === 1 ? subs[0] : '', sugerida: false })
+  }
 
   // ---- análise e plano (calculados na hora, a cada decisão) ----
   const analise = useMemo(() => {
