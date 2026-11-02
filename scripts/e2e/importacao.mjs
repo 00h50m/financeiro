@@ -160,10 +160,14 @@ ok(await page.locator('.imp-linha.revisao').count() === 0, 'sem pendências de r
 
 // desfazer uma decisão
 await page.getByRole('button', { name: /Registradas/ }).click()
-await page.locator('.imp-linha', { hasText: 'Padaria' }).locator('.imp-linha-topo').click()
-await page.getByRole('button', { name: 'desfazer minha decisão' }).click()
+if (!(await page.locator('.imp-linha', { hasText: 'Padaria' }).getByRole('button', { name: 'desfazer minha decisão' }).isVisible())) await page.locator('.imp-linha', { hasText: 'Padaria' }).locator('.imp-linha-topo').click()
+await page.locator('.imp-linha', { hasText: 'Padaria' }).getByRole('button', { name: 'desfazer minha decisão' }).click()
 await page.getByRole('button', { name: /Revisão \(1\)/ }).waitFor()
 ok(true, 'desfazer a decisão devolve a linha para a revisão')
+// a linha resolvida na revisão continua na tela (marcada como pronta) em vez de sumir
+await page.getByRole('button', { name: /Revisão/ }).click()
+ok(await page.locator('.imp-linha.nova', { hasText: 'Loja Sem Categoria' }).count() === 1, 'linha resolvida continua visível na aba Revisão (não some como se tivesse sido lançada)')
+ok(/Nada é gravado agora/.test(await page.locator('.imp-etapa').innerText()), 'a tela avisa que nada é gravado antes de confirmar')
 await page.getByRole('button', { name: /Revisão/ }).click()
 await page.locator('.imp-linha.revisao', { hasText: 'Padaria' }).getByRole('button', { name: 'Revisar depois' }).click()
 ok(/Revisar depois/.test(await page.locator('.imp-linha.revisao', { hasText: 'Padaria' }).innerText()), '"Revisar depois" mantém a pendência')
