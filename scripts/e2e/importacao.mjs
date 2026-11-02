@@ -158,6 +158,13 @@ console.log('painel depois das decisões:', pend1)
 ok(pend0 !== pend1, 'o painel de conciliação se atualiza a cada decisão')
 ok(await page.locator('.imp-linha.revisao').count() === 0, 'sem pendências de revisão depois das decisões')
 
+// aba "Só no app": o cartão não pode esticar (a classe "app" colidia com o contêiner do app) e a aba explica o que é
+await page.getByRole('button', { name: /Só no app/ }).click()
+const cartaoApp = page.locator('.imp-linha.so-app').first()
+await cartaoApp.waitFor()
+ok((await cartaoApp.boundingBox()).height < 200, 'aba "Só no app": o cartão tem altura normal (não ocupa a tela)')
+ok(/O que é esta aba/.test(await page.locator('.imp-so-app-explica').innerText()), 'aba "Só no app" explica o que ela mostra')
+
 // desfazer uma decisão
 await page.getByRole('button', { name: /Registradas/ }).click()
 if (!(await page.locator('.imp-linha', { hasText: 'Padaria' }).getByRole('button', { name: 'desfazer minha decisão' }).isVisible())) await page.locator('.imp-linha', { hasText: 'Padaria' }).locator('.imp-linha-topo').click()
