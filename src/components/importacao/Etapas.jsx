@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import CartaoLinha from './CartaoLinha'
 import PainelConciliacao from './PainelConciliacao'
 import { fmt, mesLabel } from '../../lib/utils'
@@ -147,11 +147,23 @@ export function EtapaAnalise({ a, aoAbrirGrupo }) {
 export function EtapaRevisar({ a, filtroInicial, abrirCompra }) {
   const { analise } = a
   const [filtro, setFiltro] = useState(filtroInicial || (analise?.contadores.revisao ? 'revisao' : 'novas'))
+  // Linhas que estavam em revisão e foram resolvidas aqui continuam visíveis (marcadas como prontas) até sair da tela:
+  // sumir de repente dava a impressão de que a compra tinha sido lançada. Nada é gravado antes de "Confirmar importação".
+  const [resolvidas, setResolvidas] = useState(() => new Set((analise?.grupos.revisao || []).map((l) => l._id)))
+  useEffect(() => {
+    const ids = analise?.grupos.revisao.map((l) => l._id) || []
+    if (ids.some((id) => !resolvidas.has(id))) setResolvidas((r) => new Set([...r, ...ids]))
+  }, [analise, resolvidas])
   const lista = useMemo(() => {
     if (!analise) return []
     const g = analise.grupos
-    return { revisao: g.revisao, novas: g.novas, registradas: g.registradas, ignoradas: g.ignoradas, app: [] }[filtro] || []
-  }, [analise, filtro])
+    if (filtro === 'revisao') {
+      const todas = [...g.revisao, ...g.novas, ...g.registradas].filter((l) => resolvidas.has(l._id))
+      const ordem = new Map(a.linhas.map((l, i) => [l._id, i]))
+      return todas.sort((x, y) => ordem.get(x._id) - ordem.get(y._id))
+    }
+    return { novas: g.novas, registradas: g.registradas, ignoradas: g.ignoradas, app: [] }[filtro] || []
+  }, [analise, filtro, resolvidas, a.linhas])
   if (!analise) return null
   const c = analise.contadores
   const pills = [['revisao', `Revisão (${c.revisao})`], ['novas', `Novas (${c.novas})`], ['registradas', `Registradas (${c.registradas})`], ['app', `Só no app (${c.divergenciasApp})`], ...(c.ignoradas ? [['ignoradas', `Ignoradas (${c.ignoradas})`]] : [])]
@@ -163,7 +175,8 @@ export function EtapaRevisar({ a, filtroInicial, abrirCompra }) {
         {pills.map(([k, rot]) => <button key={k} type="button" className={`btn btn-sm ${filtro === k ? 'btn-primary' : 'btn-ghost'}`} aria-pressed={filtro === k} onClick={() => setFiltro(k)}>{rot}</button>)}
       </div>
 
-      {filtro === 'revisao' && c.revisao === 0 && <div className="card"><div className="empty" style={{ padding: 14 }}>Nenhuma pendência de revisão. ✓</div></div>}
+      {filtro === 'revisao' && c.revisao === 0 && <div className="card"><div className="empty" style={{ padding: 14 }}>Nenhuma pendência de revisão. ✓{lista.length > 0 && ' As linhas que você resolveu continuam aqui até confirmar.'}</div></div>}
+      {filtro === 'revisao' && lista.length > 0 && <p className="cad-sub">Nada é gravado agora: as compras só entram quando você confirmar a importação, no último passo.</p>}
       {filtro === 'app' ? (
         analise.grupos.divergenciasApp.length === 0 ? <div className="card"><div className="empty" style={{ padding: 14 }}>Tudo o que está lançado neste cartão e mês aparece na fatura. ✓</div></div> : (
           <>
