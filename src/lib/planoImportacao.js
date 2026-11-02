@@ -62,7 +62,7 @@ export function montarPlano({ analise, mesFatura, cartoes, faturaMesOk, modoValo
   }
 
   const dados = {
-    cartao_id: cartaoId || null, mes: mesFatura, arquivo_nome: arquivo.nome || '', origem_leitura: arquivo.origem || 'csv',
+    cartao_id: cartaoId || null, mes: mesFatura, arquivo_nome: arquivo.nome || '', origem_leitura: arquivo.origem || 'csv', chave: arquivo.chave || '',
     total_banco: analise.painel.totalBanco, total_extraido: analise.painel.totalExtraido,
     linhas: linhasLidas(linhasDoArquivo), compras,
     atualizar: atualizar.filter((a) => !a.dividida).map(({ compra_id, valor_anterior, valor_total }) => ({ compra_id, valor_anterior, valor_total })),
