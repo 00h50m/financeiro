@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import Comparativo from './Comparativo'
-import { fmt, mesLabel } from '../../lib/utils'
+import { fmt, mesLabel, corPessoa } from '../../lib/utils'
 import { MOTIVO, ROTULO_MOTIVO } from '../../lib/conciliacaoFatura'
 import ParcelamentoPrevia from './ParcelamentoPrevia'
 import { ehCompraDividida } from '../../lib/planoImportacao'
@@ -50,7 +50,7 @@ export default function CartaoLinha({ l, aberto: abertoInicial, valorLinha, mesF
       </button>
       <div className="imp-linha-meta">
         <span className="cad-sub">{l.categoria ? `${l.categoria}${l.subcategoria ? ` › ${l.subcategoria}` : ''}` : 'sem categoria'}{emAndamento ? ` · parcela ${l.parcela_atual}/${l.parcela_total}` : Number(l.parcela_total) > 1 ? ` · 1/${l.parcela_total}` : ''}{l.natureza === 'credito' ? ' · estorno/crédito' : l.natureza === 'encargo' ? ' · encargo' : ''}{l.repetidaNoArquivo ? ' · repetida no arquivo' : ''}</span>
-        <span className={`badge ${cor}`}>{texto}</span>
+        <span className="imp-selos">{l.pessoa && <span className={`badge badge-${corPessoa(pessoas, l.pessoa)}`} title="Pessoa do lançamento">{l.pessoa}</span>}<span className={`badge ${cor}`}>{texto}</span></span>
       </div>
 
       {aberto && (

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import CartaoLinha from './CartaoLinha'
 import PainelConciliacao from './PainelConciliacao'
 import LinhaManual from './LinhaManual'
-import { fmt, mesLabel } from '../../lib/utils'
+import { fmt, mesLabel, corPessoa } from '../../lib/utils'
 import { valorParcelaLinha, resumirAnalise } from '../../lib/importacao'
 import { reaisParaCentavos } from '../../lib/aulas'
 import { pendenciasDoLote } from '../../lib/importacaoLote'
@@ -195,7 +195,7 @@ export function EtapaRevisar({ a, filtroInicial, abrirCompra }) {
                   <span className="imp-nome"><b>{d.compra ? (d.compra.identificacao || d.compra.descricao) : d.fixo.nome}</b><small>{d.compra ? `${d.compra.categoria}${d.compra.subcategoria ? ` › ${d.compra.subcategoria}` : ''}${d.compra.pessoa ? ` · ${d.compra.pessoa}` : ''}${Number(d.compra.parcelas) > 1 ? ` · parcela ${d.parcela}/${d.de}` : ''}` : 'conta fixa neste cartão'}</small></span>
                   <span className="imp-valor mono">{fmt(d.valor)}</span>
                 </div>
-                {d.compra && <div className="imp-linha-meta"><span className="cad-sub">Lançada no app, fora do arquivo</span><button type="button" className="btn btn-ghost btn-sm" onClick={() => abrirCompra(d.compra)}>Editar a compra</button></div>}
+                {d.compra && <div className="imp-linha-meta"><span className="imp-selos">{d.compra.pessoa && <span className={`badge badge-${corPessoa(a.pessoas, d.compra.pessoa)}`} title="Pessoa do lançamento">{d.compra.pessoa}</span>}<span className="cad-sub">Lançada no app, fora do arquivo</span></span><button type="button" className="btn btn-ghost btn-sm" onClick={() => abrirCompra(d.compra)}>Editar a compra</button></div>}
               </article>
             ))}
           </>
