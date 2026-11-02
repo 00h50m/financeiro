@@ -1107,3 +1107,14 @@ input[type="month"], input[type="date"] { max-width: 100%; }
   .imp-painel-grade.resumido { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .imp-painel-grade.resumido .imp-detalhe { display: none; }
 }
+.imp-parcelamento { display: grid; gap: 10px; }
+.imp-opcoes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+@media (max-width: 700px) { .imp-opcoes { grid-template-columns: 1fr; } }
+.imp-opcao { border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; display: grid; gap: 4px; align-content: start; }
+.imp-opcao.recomendada { border-color: var(--brand); }
+.imp-opcao p { margin: 0; }
+.imp-cronograma summary { cursor: pointer; font-size: 12px; color: var(--text2); padding: 4px 0; }
+.imp-cronograma tr.esta { color: var(--brand); font-weight: 600; }
+.imp-opcao > .badge { justify-self: start; }
+.imp-editar summary { cursor: pointer; font-size: 12px; color: var(--text2); padding: 4px 0; }
+.imp-editar .imp-grade-campos { margin-top: 6px; }

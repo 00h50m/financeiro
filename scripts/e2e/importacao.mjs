@@ -28,8 +28,10 @@ const ok = (cond, msg) => { console.log(`${cond ? 'OK ' : 'ERRO'} ${msg}`); if (
 const CART = { id: 'c1', nome: 'Nubank', titular: 'Giovanna', fechamento: null, vencimento: 10, ativo: true }
 const CATS = [{ id: 'k1', nome: 'Alimentação', subcategorias: ['Mercado', 'Delivery'] }, { id: 'k2', nome: 'Transporte', subcategorias: ['Combustível'] }]
 const PESSOAS = [{ id: 'p1', nome: 'Giovanna', cor: 'purple', apelidos: [] }]
-const compra = (o) => ({ id: o.id, data_compra: dia(10), descricao: 'X', categoria: 'Alimentação', subcategoria: 'Mercado', pessoa: 'Giovanna', cartao_id: 'c1', valor_total: 10, parcelas: 1, origem: 'manual', pago: false, ...o })
+const compra = (o) => ({ id: o.id, data_compra: dia(10), descricao: 'X', categoria: 'Alimentação', subcategoria: 'Mercado', pessoa: 'Giovanna', cartao_id: 'c1', valor_total: 10, parcelas: 1, origem: 'manual', pago: false, fatura_mes: null, ...o })
+const mesAnt = (() => { const d = new Date(`${mes}-15T12:00:00Z`); d.setUTCMonth(d.getUTCMonth() - 1); return d.toISOString().slice(0, 7) })()
 const COMPRAS = [
+  compra({ id: 'g0', data_compra: `${mesAnt}-16`, descricao: 'GELADEIRA BRASTEMP', valor_total: 250 }), // possível parcela anterior lançada à parte
   compra({ id: 'e1', data_compra: dia(3), descricao: 'MERCADO EXTRA', valor_total: 100 }),            // exata
   compra({ id: 'p-1', data_compra: dia(12), descricao: 'Padaria Sao Joao Ltda', valor_total: 40 }),   // parecida (nome/data diferentes)
   compra({ id: 'v1', data_compra: dia(5), descricao: 'POSTO SHELL', categoria: 'Transporte', subcategoria: 'Combustível', valor_total: 200 }), // valor diferente (fatura traz 205)
@@ -44,6 +46,7 @@ const CSV = [
   `${dia(16)},Geladeira Brastemp,250,,3,10,Nubank,`,
   `${dia(17)},Pagamento recebido,-2000,,,,Nubank,`,
   `${dia(18)},Estorno Loja Y,-30,Alimentação,,,Nubank,`,
+  `${dia(19)},LOJA SEM CATEGORIA XYZ,9,,,,Nubank,`, // sem categoria e sem histórico: bloqueia só esta linha
 ].join('\n')
 writeFileSync(join(TMP, 'fatura.csv'), CSV)
 
@@ -96,7 +99,7 @@ await page.screenshot({ path: join(TMP, '1-selecionar.png') })
 // --- etapa 1: sobe o CSV
 await page.locator('input[type=file][accept=".csv"]').setInputFiles(join(TMP, 'fatura.csv'))
 await page.waitForSelector('.imp-config', { timeout: 10000 })
-ok(await page.getByText('7', { exact: true }).first().isVisible(), 'resumo da leitura mostra 7 lançamentos')
+ok(await page.getByText('8', { exact: true }).first().isVisible(), 'resumo da leitura mostra 8 lançamentos')
 const cartaoSel = await page.locator('.imp-config select').first().inputValue()
 ok(cartaoSel === 'c1', 'cartão identificado automaticamente (Nubank)')
 ok(/^\d{4}-\d{2}$/.test(await page.locator('.imp-config input[type=month]').inputValue()), 'mês da fatura inferido')
@@ -122,7 +125,12 @@ ok(/Parece já lançada/.test(await textoPag()), 'correspondência provável apa
 ok(await page.locator('.imp-comp').count() >= 2, 'comparação lado a lado (fatura × aplicativo) aparece')
 ok(/É a mesma compra/.test(await textoPag()) && /É outra compra/.test(await textoPag()) && /Revisar depois/.test(await textoPag()), 'as 3 ações da correspondência provável')
 ok(/Manter o valor lançado/.test(await textoPag()) && /Atualizar para/.test(await textoPag()), 'as ações do valor diferente')
-ok(/Esta é a parcela 3 de 10/.test(await textoPag()) && /Confirmar parcelamento/.test(await textoPag()), 'parcela intermediária pede confirmação com prévia')
+ok(/Esta é a parcela 3 de 10/.test(await textoPag()) && /Criar parcelamento completo/.test(await textoPag()) && /Registrar só esta parcela/.test(await textoPag()), 'parcela intermediária oferece as duas opções, com prévia')
+ok(/Já existem lançamentos parecidos de meses anteriores/.test(await textoPag()), 'avisa que as parcelas anteriores podem já estar lançadas à parte')
+ok(/data estimada/.test(await textoPag()) && /muda o total deles/.test(await textoPag()), 'explica a data estimada e o efeito nos meses passados')
+await page.locator('.imp-linha.revisao', { hasText: 'Geladeira' }).locator('.imp-cronograma summary').click()
+ok(await page.locator('.imp-linha.revisao', { hasText: 'Geladeira' }).locator('.imp-cronograma tr').count() === 10, 'cronograma lista as 10 parcelas')
+ok(/recomendado/.test(await page.locator('.imp-linha.revisao', { hasText: 'Geladeira' }).locator('.imp-opcao').nth(1).innerText()), '"só esta parcela" é a recomendada quando há evidência de parcelas avulsas')
 await page.screenshot({ path: join(TMP, '4-revisao.png'), fullPage: true })
 const painel = async () => (await page.locator('.imp-painel').innerText()).replace(/\s+/g, ' ')
 const pend0 = await painel()
@@ -132,10 +140,11 @@ console.log('painel inicial:', pend0)
 await page.locator('.imp-linha.revisao', { hasText: 'Padaria' }).getByRole('button', { name: 'É a mesma compra' }).click()
 await page.locator('.imp-linha.registrada, .imp-linha.revisao').first().waitFor()
 await page.locator('.imp-linha.revisao', { hasText: 'POSTO' }).getByRole('button', { name: /Atualizar para/ }).click()
-await page.locator('.imp-linha.revisao', { hasText: 'Geladeira' }).getByRole('button', { name: 'Confirmar parcelamento' }).click()
-// a geladeira veio sem categoria: continua em revisão ("faltam dados") até completar, e só ela fica bloqueada
-ok(/Faltam dados|Para importar, complete/.test(await page.locator('.imp-linha.revisao', { hasText: 'Geladeira' }).innerText()), 'linha sem categoria fica bloqueada em revisão (só ela)')
-await page.locator('.imp-linha.revisao', { hasText: 'Geladeira' }).locator('select').first().selectOption('Alimentação')
+await page.locator('.imp-linha.revisao', { hasText: 'Geladeira' }).getByRole('button', { name: 'Criar parcelamento completo' }).click()
+// a loja sem categoria (e sem histórico) fica bloqueada em revisão ("faltam dados"): só ela; as outras seguem
+ok(/Faltam dados|Para importar, complete/.test(await page.locator('.imp-linha.revisao', { hasText: 'LOJA SEM CATEGORIA' }).innerText()), 'linha sem categoria fica bloqueada em revisão (só ela)')
+ok(await page.locator('.imp-linha.revisao').count() === 1, 'só a linha incompleta continua bloqueando; as demais já estão resolvidas')
+await page.locator('.imp-linha.revisao', { hasText: 'LOJA SEM CATEGORIA' }).locator('select').first().selectOption('Alimentação')
 const pend1 = await painel()
 console.log('painel depois das decisões:', pend1)
 ok(pend0 !== pend1, 'o painel de conciliação se atualiza a cada decisão')
@@ -162,7 +171,7 @@ await page.waitForSelector('.imp-confirmar-grade')
 const prev = await textoPag()
 ok(/Será gravado/.test(prev) && /Continua em aberto/.test(prev), 'prévia separa o que será gravado do que continua em aberto')
 ok(/1 valor atualizado/.test(prev) && /→/.test(prev), 'prévia mostra a atualização de valor (antes → depois)')
-ok(/1 parcelamento reconstruído/.test(prev) && /data estimada/.test(prev), 'prévia mostra o parcelamento com data estimada')
+ok(/1 parcelamento reconstruído/.test(prev) && /data estimada/.test(prev) && /cria 10 parcelas/.test(prev), 'prévia mostra o parcelamento completo com data estimada')
 ok(/Divergências não resolvidas não serão corrigidas automaticamente/.test(prev), 'aviso de que divergências não são corrigidas sozinhas')
 ok(/Importação:/.test(prev) && /Conciliação depois de gravar:/.test(prev) && /Conciliação parcial/.test(prev), 'estados de importação e conciliação separados (parcial)')
 await page.screenshot({ path: join(TMP, '6-confirmar.png'), fullPage: true })
@@ -180,6 +189,17 @@ await page.locator('.imp-progresso li').nth(3).getByRole('button').click()
 await page.waitForSelector('.imp-confirmar-grade')
 ok(/1 parcelamento reconstruído/.test(await textoPag()), 'avançar de novo mantém as decisões')
 
+// muda de ideia: registrar só esta parcela (nada nos meses passados)
+await page.getByRole('button', { name: '← Voltar' }).click()
+await page.getByRole('button', { name: /Novas/ }).click()
+await page.locator('.imp-linha', { hasText: 'Geladeira' }).locator('.imp-linha-topo').click()
+await page.getByRole('button', { name: 'alterar a escolha' }).click()
+await page.getByRole('button', { name: /Revisão/ }).click()
+await page.locator('.imp-linha.revisao', { hasText: 'Geladeira' }).getByRole('button', { name: 'Registrar só esta parcela' }).click()
+await page.getByRole('button', { name: /Continuar para confirmar/ }).click()
+await page.waitForSelector('.imp-confirmar-grade')
+ok(/só esta parcela/.test(await textoPag()) && !/cria 10 parcelas/.test(await textoPag()), 'prévia reflete a escolha "só esta parcela"')
+
 // confirma
 await page.getByRole('button', { name: 'Confirmar importação' }).click()
 await page.waitForSelector('text=Importação concluída', { timeout: 8000 })
@@ -187,8 +207,8 @@ const aplic = chamadas.rpc.filter(([n]) => n === 'aplicar_importacao')
 ok(aplic.length === 1, 'confirmar chama a gravação exatamente uma vez')
 const d = aplic[0][1].p_dados
 console.log('payload: criar', d.compras.map((c) => c.descricao), 'atualizar', JSON.stringify(d.atualizar), 'mover', d.mover.length, 'status', d.status_conciliacao)
-ok(d.compras.length === 3, 'cria 3 compras (delivery novo, geladeira confirmada, estorno)')
-ok(d.compras.some((c) => c.descricao.toLowerCase().includes('geladeira') && c.parcelas === 10 && c.valor_total === 2500), 'parcelamento reconstruído: 10x, total 2.500')
+ok(d.compras.length === 4, 'cria 4 compras (delivery novo, geladeira só esta parcela, estorno, loja completada)')
+ok(d.compras.some((c) => c.descricao.toLowerCase().includes('geladeira') && c.parcelas === 1 && c.valor_total === 250 && c.fatura_mes === mes), 'só esta parcela: 1 compra de 250 na fatura em tela (sem criar as 10 parcelas)')
 ok(d.compras.some((c) => Number(c.valor_total) === -30), 'estorno entra como crédito (valor negativo)')
 ok(!d.compras.some((c) => /pagamento/i.test(c.descricao)), 'pagamento da fatura anterior NÃO é importado')
 ok(d.atualizar.length === 1 && d.atualizar[0].compra_id === 'v1' && d.atualizar[0].valor_anterior === 200 && d.atualizar[0].valor_total === 205, 'atualiza o POSTO de 200 para 205 com o valor anterior (controle de concorrência)')
@@ -196,7 +216,7 @@ ok(!d.compras.some((c) => /padaria/i.test(c.descricao)), 'a padaria (revisar dep
 ok(d.status_conciliacao === 'parcial', 'status de conciliação enviado: parcial')
 ok(typeof aplic[0][1].p_importacao === 'string' && aplic[0][1].p_importacao.length === 36, 'a gravação leva o id do lote')
 const fim = await textoPag()
-ok(/Importação concluída: 3 lançamentos gravados, 1 valor atualizado/.test(fim) && /Conciliação parcial/.test(fim), 'resultado: importação concluída e conciliação parcial, separados')
+ok(/Importação concluída: 4 lançamentos gravados, 1 valor atualizado/.test(fim) && /Conciliação parcial/.test(fim), 'resultado: importação concluída e conciliação parcial, separados')
 ok(/pendências abertas/i.test(fim), 'resultado mostra as pendências abertas')
 await page.screenshot({ path: join(TMP, '7-resultado.png'), fullPage: true })
 

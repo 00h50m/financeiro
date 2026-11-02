@@ -5,6 +5,7 @@
 import { conferirFatura, problemasDaLinha, valorParcelaLinha } from './importacao.js'
 import { normalizarData } from './csvFormato.js'
 import { normBasico } from './normalizacao.js'
+import { opcaoDaLinha, cronogramaParcelamento, parcelasAvulsasParecidas } from './parcelamentoImportacao.js'
 
 const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100
 export const TOLERANCIA_CONCILIACAO = 0.1
@@ -42,7 +43,7 @@ export function decisaoPatch(decisao) {
 // ---------- classificação de uma linha ----------
 // grupos: registrada | nova | revisao | ignorada
 // motivos (revisão): correspondencia_provavel | valor_diferente | parcelamento_ambiguo | parcelamento_sem_registro | outra_fatura | dados_incompletos
-export function classificarLinha(l, { foraDoMesIds = new Set(), contaFixaIds = new Set(), categorias = [], mesFatura = '' } = {}) {
+export function classificarLinha(l, { foraDoMesIds = new Set(), contaFixaIds = new Set(), categorias = [], mesFatura = '', parcelamentoOk = null } = {}) {
   const natureza = naturezaDaLinha(l)
   const base = { natureza, motivos: [], confirmada: false, adiada: false, bloqueios: [] }
   if (natureza === 'pagamento') return { ...base, grupo: 'ignorada', acao: 'ignorar', selecionada: false }
@@ -78,7 +79,10 @@ export function classificarLinha(l, { foraDoMesIds = new Set(), contaFixaIds = n
   // sem correspondência: compra nova — se os dados estão completos e (parcela em andamento) o parcelamento foi confirmado
   const problemas = problemasDaLinha(l, categorias, mesFatura, { normalizarData })
   const emAndamento = (Number(l.parcela_atual) || 1) > 1
-  if (emAndamento && !l.parcelamentoConfirmado) return revisao(['parcelamento_sem_registro', ...(problemas.length ? ['dados_incompletos'] : [])], 'confirmar_parcelamento')
+  const opcao = opcaoDaLinha(l)
+  if (emAndamento && !opcao) return revisao(['parcelamento_sem_registro', ...(problemas.length ? ['dados_incompletos'] : [])], 'confirmar_parcelamento')
+  // parcelamento completo: a parcela desta fatura tem de cair mesmo neste mês (senão não grava nada sem a pessoa decidir)
+  if (emAndamento && opcao === 'completo' && parcelamentoOk && !parcelamentoOk(l)) return revisao(['parcelamento_inconsistente'], 'confirmar_parcelamento')
   if (problemas.length && l.incluir !== false) return { ...revisao(['dados_incompletos'], 'completar'), bloqueios: problemas }
   const selecionada = l.incluir !== false && problemas.length === 0
   return { ...base, grupo: 'nova', acao: selecionada ? 'importar' : 'deixada_de_fora', selecionada, bloqueios: problemas, repetidaNoArquivo: !!l.duplicataCsv }
@@ -92,13 +96,15 @@ export function analisarFatura({ linhas, compras, cartoes, fixos = [], cartaoId,
     foraDoMesIds: new Set(conf.foraDoMes.map((x) => x.linha._id)),
     contaFixaIds: new Set(conf.contaFixa.map((x) => x.linha._id)),
     categorias, mesFatura: mes,
+    parcelamentoOk: (l) => cronogramaParcelamento(l, { mesFatura: mes, modoValor: modo, cartoes }).bate,
   }
   const doCartao = linhas.filter((l) => l.cartao_id === cartaoId && l.valor !== '' && !Number.isNaN(Number(l.valor)))
   // linhas idênticas dentro do próprio arquivo (duas compras iguais no mesmo dia): não bloqueia, só avisa
   const chaveDe = (l) => `${String(l.data).slice(0, 10)}|${normBasico(l.descricao)}|${Number(l.valor)}`
   const vezes = new Map()
   doCartao.forEach((l) => vezes.set(chaveDe(l), (vezes.get(chaveDe(l)) || 0) + 1))
-  const classificadas = doCartao.map((l) => ({ ...l, duplicataCsv: vezes.get(chaveDe(l)) > 1, ...classificarLinha({ ...l, duplicataCsv: vezes.get(chaveDe(l)) > 1 }, ctx) }))
+  const comEvidencia = (l, c) => (c.motivos.includes('parcelamento_sem_registro') ? { avulsasParecidas: parcelasAvulsasParecidas(l, { compras, cartaoId, aliases, mesFatura: mes, modoValor: modo }) } : {})
+  const classificadas = doCartao.map((l) => ({ ...l, duplicataCsv: vezes.get(chaveDe(l)) > 1, ...(() => { const c = classificarLinha({ ...l, duplicataCsv: vezes.get(chaveDe(l)) > 1 }, ctx); return { ...c, ...comEvidencia(l, c) } })() }))
   const por = (g) => classificadas.filter((l) => l.grupo === g)
   const registradas = por('registrada'), novas = por('nova'), revisao = por('revisao'), ignoradas = por('ignorada')
   const selecionadas = novas.filter((l) => l.selecionada)
@@ -153,7 +159,8 @@ export const MOTIVO = {
   correspondencia_provavel: 'Parece uma compra já lançada, mas data, nome ou valor não batem por inteiro.',
   valor_diferente: 'Parece a mesma compra, mas o valor lançado é diferente do da fatura.',
   parcelamento_ambiguo: 'A parcela desta fatura não é a que o app esperava para este mês.',
-  parcelamento_sem_registro: 'É uma parcela em andamento e o parcelamento não está no app: confirme antes de criar.',
+  parcelamento_sem_registro: 'É uma parcela em andamento e o parcelamento não está no app: escolha como registrar antes de criar.',
+  parcelamento_inconsistente: 'Pelo calendário do cartão, essa parcela não cairia neste mês: registre só esta parcela ou corrija o mês da fatura.',
   outra_fatura: 'Já está lançada, mas em outra fatura (outro mês ou cartão).',
   dados_incompletos: 'Faltam dados obrigatórios para importar (categoria, pessoa, data ou valor).',
 }

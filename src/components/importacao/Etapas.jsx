@@ -134,7 +134,7 @@ export function EtapaRevisar({ a, filtroInicial, abrirCompra }) {
   if (!analise) return null
   const c = analise.contadores
   const pills = [['revisao', `Revisão (${c.revisao})`], ['novas', `Novas (${c.novas})`], ['registradas', `Registradas (${c.registradas})`], ['app', `Só no app (${c.divergenciasApp})`], ...(c.ignoradas ? [['ignoradas', `Ignoradas (${c.ignoradas})`]] : [])]
-  const acoes = { atualizarLinha: a.atualizarLinha, decidir: a.decidir, confirmarParcelamento: a.confirmarParcelamento, mudarCategoria: a.mudarCategoria }
+  const acoes = { atualizarLinha: a.atualizarLinha, decidir: a.decidir, escolherParcelamento: a.escolherParcelamento, mudarCategoria: a.mudarCategoria }
   return (
     <div className="imp-etapa">
       <PainelConciliacao analise={analise} />
@@ -157,7 +157,7 @@ export function EtapaRevisar({ a, filtroInicial, abrirCompra }) {
         )
       ) : (
         lista.map((l) => (
-          <CartaoLinha key={l._id} l={l} aberto={l.grupo === 'revisao'} valorLinha={valorParcelaLinha(l, a.modoValor)} mesFatura={a.mesFatura} cartaoId={a.cartaoId} cartoes={a.cartoes} categorias={a.categorias} pessoas={a.pessoas} bancoV2={a.bancoV2 !== false} modoValor={a.modoValor} acoes={acoes} />
+          <CartaoLinha key={l._id} l={l} aberto={l.grupo === 'revisao'} valorLinha={valorParcelaLinha(l, a.modoValor)} mesFatura={a.mesFatura} cartaoId={a.cartaoId} cartoes={a.cartoes} fechamentos={a.fechamentos} categorias={a.categorias} pessoas={a.pessoas} bancoV2={a.bancoV2 !== false} modoValor={a.modoValor} acoes={acoes} />
         ))
       )}
       <div className="imp-navegacao"><button type="button" className="btn btn-ghost" onClick={() => a.irPara(2)}>← Voltar</button><button type="button" className="btn btn-primary" onClick={() => a.irPara(4)}>Continuar para confirmar →</button></div>
@@ -186,7 +186,7 @@ export function EtapaConfirmar({ a }) {
           )}
           {gravar.parcelamentos.length > 0 && (
             <div><b>{gravar.parcelamentos.length} parcelamento{gravar.parcelamentos.length === 1 ? '' : 's'} reconstruído{gravar.parcelamentos.length === 1 ? '' : 's'}</b>
-              <ul className="imp-lista">{gravar.parcelamentos.map((p, i) => <li key={i}>{p.descricao}: parcela {p.parcelaAtual}/{p.total} · cria {p.total} parcelas de {mesLabel(p.primeiraParcela)} a {mesLabel(p.ultimaParcela)} ({p.anteriores} no passado) <span className="cad-sub">· data estimada</span></li>)}</ul>
+              <ul className="imp-lista">{gravar.parcelamentos.map((p, i) => <li key={i}>{p.opcao === 'so_esta' ? <>{p.descricao}: parcela {p.parcelaAtual}/{p.total} · <b>só esta parcela</b> ({fmt(p.valorParcela)} em {mesLabel(a.mesFatura)}), sem mexer nos meses passados</> : <>{p.descricao}: parcela {p.parcelaAtual}/{p.total} · cria {p.total} parcelas de {mesLabel(p.primeiraParcela)} a {mesLabel(p.ultimaParcela)} ({p.anteriores} no passado, {p.restantes} daqui para frente) <span className="cad-sub">· data estimada</span>{p.mesesFechados.length > 0 && <span className="imp-erro"> · altera mês fechado: {p.mesesFechados.map(mesLabel).join(', ')}</span>}</>}</li>)}</ul>
             </div>
           )}
           {gravar.atualizar.length > 0 && (
