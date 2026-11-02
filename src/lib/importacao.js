@@ -13,6 +13,8 @@ import { mesDaFatura, gerarParcelas } from './utils.js'
 const TOLERANCIA_VALOR = 0.02
 // "Mesma compra com valor diferente" em compra À VISTA: até R$ 3,00 ou 20% (o que for maior) — IOF, juros, valor digitado errado.
 // Acima disso é outra compra do mesmo lugar (ex.: dois Uber no mesmo dia). Parcelamento (mesmo nome e nº de parcelas) não tem limite.
+// encargos cobrados no cartão (IOF, juros, multa, anuidade, tarifa): reconhecidos pelo texto
+export const ENCARGO_TEXTO = /\b(iof|juros|multa|encargos?|anuidade|tarifa|mora)\b/i
 const LIMITE_DIFERENCA_MIN = 3
 const LIMITE_DIFERENCA_PCT = 0.2
 // Rede de segurança: mesmo que cada linha pareça casada, "tudo lançado" só vale se os TOTAIS também fecham.
@@ -140,6 +142,32 @@ export function analisarLinhas(linhas, { compras: comprasLancadas = [], aliases 
     if (!candidatas.length) return
     usadas.add(candidatas[0].c.id)
     resultado[idx] = { tipo: 'valor_diferente', compra: candidatas[0].c, score: 0.6, evidencias: evidenciasDe(l, candidatas[0].c, { n, k, modo, chave, indice }) }
+  })
+
+  // 3ª passada: pareamento das SOBRAS de encargos (IOF, juros, tarifa) e estornos. O que ainda não tem par (nome diferente, valor igual ou com centavos de diferença) procura,
+  // entre as compras que ninguém reivindicou, uma de mesmo cartão, valor e data próxima. Os dois lados são sobra, então é um par provável:
+  // nunca vincula sozinho, vai para revisão (assim o mesmo IOF/estorno lançado com outro nome não é criado em duplicidade).
+  linhas.forEach((l, idx) => {
+    if (resultado[idx] || !l.cartao_id) return
+    const { chave, n, k } = infos[idx]
+    if (k > 1 || n > 1) return // parcelamentos têm regra própria
+    const valorLinha = valorTotalLinha(l, modo)
+    if (!valorLinha) return
+    const encargo = ENCARGO_TEXTO.test(`${l.descricaoOriginal || ''} ${l.descricao || ''}`) && valorLinha > 0
+    const credito = valorLinha < 0 // estorno/crédito
+    if (!encargo && !credito) return // compra comum com nome diferente continua sendo outra compra (não pareia só por valor e data)
+    const janelaDias = encargo ? 10 : 7
+    const candidatas = compras
+      .filter((c) => !usadas.has(c.id) && c.cartao_id === l.cartao_id && (Number(c.parcelas) || 1) === 1 && diasEntre(l.data, c.data_compra) <= janelaDias)
+      // encargo: o lançamento do app também tem de parecer um encargo (centavos de diferença são aceitos); estorno só pareia com valor igual
+      .filter((c) => (encargo ? ENCARGO_TEXTO.test(c.descricao || '') && Math.abs(Number(c.valor_total) - valorLinha) <= 0.05 : Math.abs(Number(c.valor_total) - valorLinha) < TOLERANCIA_VALOR))
+      .map((c) => ({ c, d: Math.abs(Number(c.valor_total) - valorLinha), dias: diasEntre(l.data, c.data_compra) }))
+      .sort((a, b) => a.d - b.d || a.dias - b.dias)
+    if (!candidatas.length) return
+    const { c, d } = candidatas[0]
+    usadas.add(c.id)
+    const igual = d < TOLERANCIA_VALOR
+    resultado[idx] = { tipo: igual ? 'parecida' : 'valor_diferente', compra: c, score: 0.55, avisos: ['pareada_pela_sobra'], evidencias: evidenciasDe(l, c, { n, k, modo, chave, indice }) }
   })
 
   return linhas.map((_, idx) => ({ chave: infos[idx].chave, correspondencia: resultado[idx] }))

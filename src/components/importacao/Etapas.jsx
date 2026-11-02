@@ -135,7 +135,7 @@ export function EtapaAnalise({ a, aoAbrirGrupo }) {
         <Cartao rotulo="Só no aplicativo" n={c.divergenciasApp} valor={g.divergenciasApp.reduce((t, d) => t + Number(d.valor || 0), 0)} grupo="app" cor={c.divergenciasApp ? 'atencao' : 'ok'} sub="lançadas, fora da fatura" />
       </div>
       {c.ignoradas > 0 && <div className="cad-sub">{c.ignoradas} linha{c.ignoradas > 1 ? 's' : ''} de pagamento da fatura anterior ficou{c.ignoradas > 1 ? 'ram' : ''} de fora do total.</div>}
-      <PainelConciliacao analise={analise} mostrarStatusAtual />
+      <PainelConciliacao analise={analise} mostrarStatusAtual modo={a.modoValor} aoResolver={a.aoResolver} />
       <div className="imp-navegacao">
         <button type="button" className="btn btn-ghost" onClick={() => a.irPara(1)}>← Voltar</button>
         {c.pendencias === 0 ? <button type="button" className="btn btn-primary" onClick={() => a.irPara(4)}>Tudo certo: ir para confirmar →</button> : <button type="button" className="btn btn-primary" onClick={() => aoAbrirGrupo('revisao')}>Revisar pendências →</button>}
@@ -171,7 +171,7 @@ export function EtapaRevisar({ a, filtroInicial, abrirCompra }) {
   const acoes = { atualizarLinha: a.atualizarLinha, decidir: a.decidir, escolherParcelamento: a.escolherParcelamento, mudarCategoria: a.mudarCategoria }
   return (
     <div className="imp-etapa">
-      <PainelConciliacao analise={analise} />
+      <PainelConciliacao analise={analise} modo={a.modoValor} aoResolver={a.aoResolver} />
       <div className="imp-filtros" role="group" aria-label="Grupos de lançamentos">
         {pills.map(([k, rot]) => <button key={k} type="button" className={`btn btn-sm ${filtro === k ? 'btn-primary' : 'btn-ghost'}`} aria-pressed={filtro === k} onClick={() => setFiltro(k)}>{rot}</button>)}
       </div>
@@ -233,7 +233,15 @@ export function EtapaConfirmar({ a }) {
   const det = detalheDiferenca(analise, a.modoValor)
   return (
     <div className="imp-etapa">
-      <PainelConciliacao analise={analise} />
+      <PainelConciliacao analise={analise} modo={a.modoValor} aoResolver={a.aoResolver} />
+      {det.possiveisDuplicadas.length > 0 && (
+        <div className="alert alert-amber imp-duplicidade" role="alert">
+          <b>Atenção: {det.possiveisDuplicadas.length === 1 ? 'esta compra nova parece' : `${det.possiveisDuplicadas.length} compras novas parecem`} já lançada{det.possiveisDuplicadas.length === 1 ? '' : 's'} no app.</b>
+          <ul className="imp-lista">{det.possiveisDuplicadas.map((d) => <li key={d.id}>{d.nome} <span className="mono">{fmt(d.valor)}</span> <span className="cad-sub">· no app: "{d.noApp}" em {String(d.noAppData).slice(8, 10)}/{String(d.noAppData).slice(5, 7)}</span></li>)}</ul>
+          <div style={{ fontSize: 13 }}>Mesmo valor e data próxima. Se for a mesma compra, volte e marque como já lançada para não duplicar.</div>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => a.irPara(3)} style={{ marginTop: 6 }}>Voltar e conferir</button>
+        </div>
+      )}
       <div className="imp-confirmar-grade">
         <section className="card imp-gravar">
           <h3>Será gravado</h3>

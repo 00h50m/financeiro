@@ -349,3 +349,35 @@ describe('cruzar data, nome no cartão e valor antes de dizer "já lançada"', (
     })
   })
 })
+
+describe('pareamento das sobras (IOF, encargos e estornos)', () => {
+  const cartao = 'c1'
+  const base = { cartao_id: cartao, parcela_atual: '', parcela_total: '', descricaoOriginal: '', incluir: true }
+  const compra = (o) => ({ id: 'x' + Math.random(), data_compra: '2026-10-13', descricao: 'IOF de compra internacional', cartao_id: cartao, valor_total: 4, parcelas: 1, origem: 'telegram', ...o })
+  const rodar = (linha, compras) => analisarLinhas([{ ...base, ...linha }], { compras, mesFatura: '2026-11' })[0].correspondencia
+
+  it('IOF da fatura com nome diferente pareia com o IOF lançado no app (valor igual, data próxima)', () => {
+    const c = rodar({ descricao: 'IOF de "Openai *Chatgpt Subscr"', data: '2026-10-12', valor: 3.63 }, [compra({ valor_total: 3.63, data_compra: '2026-10-12' })])
+    expect(c?.tipo).toBe('parecida')
+    expect(c.avisos).toContain('pareada_pela_sobra')
+  })
+  it('IOF com 1 centavo de diferença (4,01 x 4,00) pareia como provável; mais que isso vira "valor diferente"; nunca vincula sozinho', () => {
+    expect(rodar({ descricao: 'IOF de "Anthropic* Claude Sub"', data: '2026-10-13', valor: 4.01 }, [compra({ valor_total: 4 })])?.tipo).toBe('parecida')
+    expect(rodar({ descricao: 'IOF de "Anthropic* Claude Sub"', data: '2026-10-13', valor: 4.04 }, [compra({ valor_total: 4 })])?.tipo).toBe('valor_diferente')
+  })
+  it('IOF só pareia com lançamento do app que também parece encargo', () => {
+    expect(rodar({ descricao: 'IOF de Anthropic', data: '2026-10-13', valor: 4 }, [compra({ descricao: 'Mercado Extra' })])).toBeNull()
+  })
+  it('IOF com valor muito diferente ou data distante não pareia', () => {
+    expect(rodar({ descricao: 'IOF de Anthropic', data: '2026-10-13', valor: 4.5 }, [compra()])).toBeNull()
+    expect(rodar({ descricao: 'IOF de Anthropic', data: '2026-11-13', valor: 4 }, [compra()])).toBeNull()
+  })
+  it('estorno pareia com crédito lançado de mesmo valor; compra comum com nome diferente continua sendo outra compra', () => {
+    expect(rodar({ descricao: 'Estorno Loja Y', data: '2026-10-14', valor: -50.91 }, [compra({ descricao: 'Devolução Mercado', valor_total: -50.91, data_compra: '2026-10-13' })])?.tipo).toBe('parecida')
+    expect(rodar({ descricao: 'Loja Z', data: '2026-10-13', valor: 40 }, [compra({ descricao: 'Padaria', valor_total: 40 })])).toBeNull()
+  })
+  it('um lançamento do app pareia com uma única linha', () => {
+    const rs = analisarLinhas([{ ...base, descricao: 'IOF A', data: '2026-10-13', valor: 4 }, { ...base, descricao: 'IOF B', data: '2026-10-13', valor: 4 }], { compras: [compra()], mesFatura: '2026-11' })
+    expect(rs.filter((r) => r.correspondencia).length).toBe(1)
+  })
+})
