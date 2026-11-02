@@ -40,6 +40,7 @@ const TABELAS = [
   ['adiamentos', 'Contas adiadas para outro mês', 'id', true],
   ['dividas', 'Dívidas (plano de quitação)', 'id', true],
   ['reserva_fontes', 'Reserva de emergência (onde está)', 'id', true],
+  ['importacoes_fatura', 'Importações de fatura', 'id', true],
   ['planos_vida', 'Meu plano (histórico do expert)', 'id', true],
   ['clientes', 'Clientes (atendimentos)', 'id', true],
   ['servicos', 'Serviços (atendimentos)', 'id', true],

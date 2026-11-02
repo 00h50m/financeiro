@@ -1,7 +1,7 @@
 import { normalizarData, normalizarValor } from '../lib/csvFormato'
 import { useState, useEffect } from 'react'
 import Papa from 'papaparse'
-import { fmt, mesLabel, calcMesInicio, addMonths, nowYM, gerarParcelas, tituloCompra } from '../lib/utils'
+import { fmt, mesLabel, calcMesInicio, nowYM, gerarParcelas, tituloCompra } from '../lib/utils'
 import { extrairParcela, limparDescricao, normBasico } from '../lib/normalizacao'
 import { chaveEstabelecimento, indexarAliases } from '../lib/estabelecimento'
 import {
@@ -12,6 +12,7 @@ import EditarCompra from './EditarCompra'
 import { rotuloOrigem } from '../lib/origem'
 import { explicarErro } from '../lib/erros'
 import { lerFaturaPdf } from '../lib/automacoes'
+import { chaveDoArquivo, novoIdImportacao, montarCompras, linhasLidas, textoResultado } from '../lib/importacaoLote'
 
 const COLUNAS_ESPERADAS = ['data', 'descricao', 'valor', 'categoria', 'parcela_atual', 'parcela_total', 'cartao', 'observacao']
 const ROTULO_FONTE = { historico: 'pelo histórico', nome: 'pelo nome' }
@@ -220,7 +221,7 @@ function PainelConferencia({ conf, cartaoNome, faturaReal, onEditar, onMover, fa
 }
 
 export default function ImportarFatura({ store }) {
-  const { cartoes, categorias, compras, faturas, pessoas, regras = [], aliases = [], importarTransacoes, updateCompra } = store
+  const { cartoes, categorias, compras, faturas, pessoas, regras = [], aliases = [], importarFatura, updateCompra } = store
   // Sem a coluna fatura_mes no banco (inbox/21 não rodou) a importação segue a regra do fechamento, como antes.
   const faturaMesOk = compras.some((c) => 'fatura_mes' in c)
   const [linhas, setLinhas] = useState([])
@@ -228,6 +229,8 @@ export default function ImportarFatura({ store }) {
   const [erroArquivo, setErroArquivo] = useState('')
   const [importando, setImportando] = useState(false)
   const [resultado, setResultado] = useState(null)
+  const [importacaoId, setImportacaoId] = useState(null) // id do lote: o mesmo em todas as tentativas de confirmar este arquivo (repetir não duplica)
+  const [origemLeitura, setOrigemLeitura] = useState('csv')
   const [modoValor, setModoValor] = useState('parcela')
   const [mesFatura, setMesFatura] = useState('')
   const [compraEditando, setCompraEditando] = useState(null)
@@ -247,6 +250,8 @@ export default function ImportarFatura({ store }) {
     setCartaoGlobal('')
     setFiltro('todas')
     setInfoPdf(null)
+    setImportacaoId(null)
+    setOrigemLeitura('csv')
   }
 
   function handleFile(e) {
@@ -289,6 +294,7 @@ export default function ImportarFatura({ store }) {
       const r = await lerFaturaPdf(base64)
       if (!r.ok) { setErroArquivo(r.erro); return }
       carregarRegistros(r.linhas.map((l) => ({ ...l, cartao: r.cartao || '' })), file.name)
+      setOrigemLeitura('pdf')
       setInfoPdf({ totalFatura: r.totalFatura, descartadas: r.descartadas })
     } catch (err) {
       setErroArquivo(err.message)
@@ -376,6 +382,7 @@ export default function ImportarFatura({ store }) {
 
     setLinhas(enriquecidas)
     setNomeArquivo(nome)
+    setImportacaoId(novoIdImportacao())
   }
 
   function atualizarLinha(id, patch) {
@@ -467,36 +474,23 @@ export default function ImportarFatura({ store }) {
     if (prontas.length === 0) return
     setImportando(true)
     setResultado(null)
-    const payload = prontas.map((l) => {
-      const n = Number(l.parcela_total) || 1
-      const k = Number(l.parcela_atual) || 1
-      // Parcela em andamento: a compra é registrada começando k-1 meses antes do mês da fatura,
-      // então as parcelas já pagas ficam no passado e as demais (k..n) já caem nos meses certos.
-      const dataCompra = k > 1 ? `${addMonths(mesFatura, -(k - 1))}-01` : l.data
-      const nota = k > 1 ? `Parcela ${k}/${n} na importação (início estimado pela fatura de ${mesLabel(mesFatura)})` : ''
-      return {
-        origem: 'csv',
-        descricao_original: l.descricaoOriginal || l.descricao,
-        data_compra: dataCompra,
-        descricao: limparDescricao(l.descricao),
-        ...(l.identificacao.trim() ? { identificacao: l.identificacao.trim() } : {}),
-        categoria: l.categoria,
-        subcategoria: l.subcategoria,
-        pessoa: l.pessoa,
-        cartao_id: l.cartao_id,
-        valor_total: valorTotalLinha(l, modoValor),
-        parcelas: n,
-        ...(faturaMesOk && mesFatura && k === 1 && cartoes.find((c) => c.id === l.cartao_id) && calcMesInicio(l.data, cartoes.find((c) => c.id === l.cartao_id)) !== mesFatura ? { fatura_mes: mesFatura } : {}),
-        obs: [l.observacao, nota].filter(Boolean).join(' · ') || undefined,
-      }
-    })
     try {
-      await importarTransacoes(payload)
-      setResultado({ ok: true, n: payload.length })
+      const compras = montarCompras(prontas, { mesFatura, cartoes, faturaMesOk, valorTotalLinha, modoValor })
+      const cartaoDoLote = cartaoGlobal || (new Set(prontas.map((l) => l.cartao_id)).size === 1 ? prontas[0].cartao_id : '')
+      const dados = {
+        cartao_id: cartaoDoLote || null, mes: mesFatura, arquivo_nome: nomeArquivo, origem_leitura: origemLeitura,
+        chave: await chaveDoArquivo({ cartaoId: cartaoDoLote, mes: mesFatura, linhas }),
+        total_banco: infoPdf?.totalFatura ?? null,
+        total_extraido: Math.round(linhas.reduce((t, l) => t + (Number(l.valor) || 0), 0) * 100) / 100,
+        linhas: linhasLidas(linhas), compras,
+      }
+      const r = await importarFatura({ importacaoId, dados })
+      setResultado({ ok: true, ...textoResultado(r), n: r.criadas, repetida: !!r.repetida })
       setLinhas([])
       setNomeArquivo('')
+      setImportacaoId(null)
     } catch (e) {
-      setResultado({ ok: false, msg: explicarErro(e, 'importar as compras') })
+      setResultado({ ok: false, msg: explicarErro(e, 'importar as compras') }) // mantém as linhas e o id: tentar de novo é seguro
     }
     setImportando(false)
   }
@@ -548,7 +542,11 @@ export default function ImportarFatura({ store }) {
       })()}
 
       {resultado?.ok && (
-        <div className="alert alert-green">✓ {resultado.n} transaç{resultado.n === 1 ? 'ão importada' : 'ões importadas'} com sucesso.</div>
+        <div className={`alert ${resultado.tipo === 'aviso' ? 'alert-amber' : 'alert-green'}`}>
+          <b>{resultado.tipo === 'ok' ? '✓ ' : ''}{resultado.titulo}</b>
+          <div style={{ fontSize: 13, marginTop: 4 }}>{resultado.detalhe}</div>
+          {resultado.aviso && <div style={{ fontSize: 12, marginTop: 6 }}>⚠ {resultado.aviso}</div>}
+        </div>
       )}
       {resultado && !resultado.ok && (
         <div className="alert alert-red" style={{ whiteSpace: "pre-line" }}>{resultado.msg}</div>

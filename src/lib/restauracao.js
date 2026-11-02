@@ -3,7 +3,7 @@ import { BACKUP_VERSAO, SCHEMA_BANCO } from './versao.js'
 
 // Ordem de inserção (pais primeiro), chave de cada tabela e nome na tela.
 export const ORDEM_RESTAURACAO = [
-  ['pessoas', 'id', 'Pessoas'], ['cartoes', 'id', 'Cartões'], ['categorias', 'id', 'Categorias'], ['rendas', 'id', 'Rendas'],
+  ['pessoas', 'id', 'Pessoas'], ['cartoes', 'id', 'Cartões'], ['importacoes_fatura', 'id', 'Importações de fatura'], ['categorias', 'id', 'Categorias'], ['rendas', 'id', 'Rendas'],
   ['saldo_ajustes', 'mes', 'Ajustes de saldo'], ['orcamentos', 'categoria', 'Tetos do Orçamento'], ['config', 'chave', 'Configurações'],
   ['fixos', 'id', 'Contas fixas'], ['regras_categorizacao', 'id', 'Regras aprendidas'], ['estabelecimento_aliases', 'alias', 'Apelidos'],
   ['compras', 'id', 'Compras'], ['faturas', 'id', 'Faturas'], ['fixos_pagamentos', 'id', 'Pagamentos das contas fixas'], ['fixos_valores', 'id', 'Valores reais mensais das contas fixas'],
@@ -21,7 +21,7 @@ export const OBRIGATORIAS = ['compras', 'cartoes', 'faturas', 'fixos', 'fixos_pa
 
 // Relações que precisam fechar: [tabela filha, coluna, tabela pai].
 const RELACOES = [
-  ['compras', 'cartao_id', 'cartoes'], ['faturas', 'cartao_id', 'cartoes'], ['fixos_pagamentos', 'fixo_id', 'fixos'], ['fixos_valores', 'fixo_id', 'fixos'],
+  ['compras', 'cartao_id', 'cartoes'], ['compras', 'importacao_id', 'importacoes_fatura'], ['importacoes_fatura', 'cartao_id', 'cartoes'], ['faturas', 'cartao_id', 'cartoes'], ['fixos_pagamentos', 'fixo_id', 'fixos'], ['fixos_valores', 'fixo_id', 'fixos'],
   ['compras_pagamentos', 'compra_id', 'compras'], ['metas_movimentos', 'meta_id', 'metas'], ['divisoes_repasses', 'divisao_id', 'divisoes'],
   ['aulas_programacao', 'aluno_id', 'alunos'], ['aulas', 'aluno_id', 'alunos'], ['aulas_previsao_inicial', 'aluno_id', 'alunos'], ['aulas_fechamentos', 'aluno_id', 'alunos'],
   ['aulas_fechamentos_hist', 'aluno_id', 'alunos'], ['aulas_pausas', 'aluno_id', 'alunos'], ['atendimentos', 'cliente_id', 'clientes'], ['pacotes', 'cliente_id', 'clientes'], ['atendimentos', 'pacote_id', 'pacotes'], ['vendas_produtos', 'cliente_id', 'clientes'], ['vendas_produtos', 'produto_id', 'produtos'], ['aulas', 'programacao_id', 'aulas_programacao'], ['aulas', 'reposicao_de', 'aulas'],
