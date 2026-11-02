@@ -74,6 +74,7 @@ await ctx.route(`${SB}/**`, async (route) => {
       if (modoAplicar === 'falha') { modoAplicar = 'ok'; return json({ code: 'P0001', message: 'Lançamento 2: categoria "X" não existe.', details: null, hint: null }, 400) }
       if (modoAplicar === 'repetida') return json({ importacao_id: 'antigo', status_importacao: 'concluida', status_conciliacao: 'pendente', criadas: 3, atualizadas: 0, movidas: 0, repetida: true, motivo: 'mesmo_arquivo', concluida_em: '2026-10-01T12:00:00Z' })
       const d = corpo.p_dados
+      if (!d.chave || d.chave.length < 16) return json({ code: 'P0001', message: 'Importação sem a impressão digital do arquivo.', details: null, hint: null }, 400) // como o banco de verdade
       return json({ importacao_id: corpo.p_importacao, status_importacao: 'concluida', status_conciliacao: d.status_conciliacao, criadas: d.compras.length, atualizadas: d.atualizar.length, movidas: d.mover.length, ids: [] })
     }
     if (rpc[1] === 'aplicar_conciliacao') {
@@ -239,6 +240,7 @@ ok(!d.compras.some((c) => /pagamento/i.test(c.descricao)), 'pagamento da fatura 
 ok(d.atualizar.length === 1 && d.atualizar[0].compra_id === 'v1' && d.atualizar[0].valor_anterior === 200 && d.atualizar[0].valor_total === 205, 'atualiza o POSTO de 200 para 205 com o valor anterior (controle de concorrência)')
 ok(!d.compras.some((c) => /padaria/i.test(c.descricao)), 'a padaria (revisar depois) NÃO foi criada')
 ok(d.status_conciliacao === 'parcial', 'status de conciliação enviado: parcial')
+ok(typeof d.chave === 'string' && d.chave.length >= 16, 'a gravação leva a impressão digital do arquivo (o banco exige)')
 ok(typeof aplic[0][1].p_importacao === 'string' && aplic[0][1].p_importacao.length === 36, 'a gravação leva o id do lote')
 const fim = await textoPag()
 ok(/Importação concluída: 4 lançamentos gravados, 1 valor atualizado/.test(fim) && /Conciliação parcial/.test(fim), 'resultado: importação concluída e conciliação parcial, separados')

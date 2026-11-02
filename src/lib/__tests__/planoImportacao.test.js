@@ -150,3 +150,11 @@ describe('parcelamentos na importação (C4)', () => {
     expect(dados.compras[0].parcelas).toBe(1)
   })
 })
+
+describe('pacote enviado ao banco', () => {
+  it('leva a impressão digital do arquivo (o banco recusa a importação sem ela)', () => {
+    const analise = { painel: { totalBanco: null, totalExtraido: 0 }, linhas: [], grupos: { divergenciasApp: [] }, statusProjetado: 'pendente' }
+    const { dados } = montarPlano({ analise, mesFatura: '2026-09', cartoes: [], faturaMesOk: true, modoValor: 'parcela', cartaoId: 'c1', arquivo: { nome: 'f.csv', origem: 'csv', chave: 'a'.repeat(64) }, linhasDoArquivo: [] })
+    expect(dados.chave).toBe('a'.repeat(64))
+  })
+})
