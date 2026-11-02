@@ -5,6 +5,7 @@ import { fmt, mesLabel } from '../../lib/utils'
 import { valorParcelaLinha, resumirAnalise } from '../../lib/importacao'
 import { reaisParaCentavos } from '../../lib/aulas'
 import { pendenciasDoLote } from '../../lib/importacaoLote'
+import { detalheDiferenca } from '../../lib/conciliacaoFatura'
 
 const ROTULO_CONC = { conciliada: ['badge-green', 'Fatura conciliada'], parcial: ['badge-amber', 'Conciliação parcial'], pendente: ['badge-gray', 'Conciliação pendente'] }
 const dataHora = (iso) => new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
@@ -199,6 +200,21 @@ export function EtapaRevisar({ a, filtroInicial, abrirCompra }) {
   )
 }
 
+// Lista recolhível de itens em aberto (nome, data, valor e motivo), com a soma no título.
+function ListaAberta({ titulo, itens, total }) {
+  if (!itens.length) return null
+  return (
+    <details className="imp-aberta" open={itens.length <= 8}>
+      <summary><b>{titulo}</b> <span className="mono">{fmt(total)}</span></summary>
+      <ul className="imp-lista">
+        {itens.map((i) => (
+          <li key={i.id}>{i.data && <span className="cad-sub">{String(i.data).slice(8, 10)}/{String(i.data).slice(5, 7)} · </span>}{i.nome} <span className="cad-sub">· {i.motivo}</span> <span className="mono">{fmt(i.valor)}</span></li>
+        ))}
+      </ul>
+    </details>
+  )
+}
+
 // ============ 4. Confirmar ============
 export function EtapaConfirmar({ a }) {
   const { plano, analise } = a
@@ -206,6 +222,7 @@ export function EtapaConfirmar({ a }) {
   const { gravar, emAberto, previa } = { gravar: plano.previa.gravar, emAberto: plano.previa.emAberto, previa: plano.previa }
   const [corConc, rotConc] = { conciliada: ['badge-green', 'Fatura conciliada'], parcial: ['badge-amber', 'Conciliação parcial'], pendente: ['badge-gray', 'Conciliação pendente'] }[previa.statusProjetado]
   const nAberto = emAberto.revisao + emAberto.divergenciasApp + emAberto.deixadasDeFora
+  const det = detalheDiferenca(analise, a.modoValor)
   return (
     <div className="imp-etapa">
       <PainelConciliacao analise={analise} />
@@ -238,13 +255,27 @@ export function EtapaConfirmar({ a }) {
         <section className="card imp-aberto">
           <h3>Continua em aberto</h3>
           {nAberto === 0 && previa.ignoradas === 0 && <p className="cad-sub">Nenhuma pendência. ✓</p>}
-          {emAberto.revisao > 0 && <div>{emAberto.revisao} lançamento{emAberto.revisao === 1 ? '' : 's'} para revisar{emAberto.adiadas ? ` (${emAberto.adiadas} marcado${emAberto.adiadas === 1 ? '' : 's'} "revisar depois")` : ''}</div>}
-          {emAberto.deixadasDeFora > 0 && <div>{emAberto.deixadasDeFora} linha{emAberto.deixadasDeFora === 1 ? '' : 's'} nova{emAberto.deixadasDeFora === 1 ? '' : 's'} deixada{emAberto.deixadasDeFora === 1 ? '' : 's'} de fora</div>}
-          {emAberto.divergenciasApp > 0 && <div>{emAberto.divergenciasApp} lançamento{emAberto.divergenciasApp === 1 ? '' : 's'} no app sem par na fatura</div>}
+          <ListaAberta titulo={`${det.revisao.length} lançamento${det.revisao.length === 1 ? '' : 's'} para revisar`} itens={det.revisao} total={det.totais.revisao} />
+          <ListaAberta titulo={`${det.deixadas.length} linha${det.deixadas.length === 1 ? '' : 's'} nova${det.deixadas.length === 1 ? '' : 's'} deixada${det.deixadas.length === 1 ? '' : 's'} de fora`} itens={det.deixadas} total={det.totais.deixadas} />
+          <ListaAberta titulo={`${det.soNoApp.length} lançamento${det.soNoApp.length === 1 ? '' : 's'} no app sem par na fatura`} itens={det.soNoApp} total={det.totais.soNoApp} />
           {previa.ignoradas > 0 && <div className="cad-sub">{previa.ignoradas} pagamento{previa.ignoradas === 1 ? '' : 's'} da fatura anterior ignorado{previa.ignoradas === 1 ? '' : 's'} (não entram no total)</div>}
           {nAberto > 0 && <p className="cad-sub">Divergências não resolvidas <b>não serão corrigidas automaticamente</b>: ficam guardadas para você conferir depois.</p>}
+          {nAberto > 0 && <button type="button" className="btn btn-ghost btn-sm" onClick={() => a.irPara(3)}>Resolver na revisão</button>}
         </section>
       </div>
+      {Math.abs(det.diferenca) > 0.1 && (
+        <section className="card imp-diferenca" aria-label="De onde vem a diferença">
+          <h3>De onde vem a diferença de {fmt(Math.abs(det.diferenca))}</h3>
+          <p className="cad-sub">O app ficaria {det.diferenca < 0 ? 'abaixo' : 'acima'} {det.baseDiferenca === 'banco' ? 'do total do banco' : 'da soma do arquivo'}. Estas são as partes que pesam:</p>
+          <ul className="imp-lista">
+            {det.baseDiferenca === 'banco' && Math.abs(det.totais.leitura) > 0.1 && <li>O <b>arquivo</b> traz {fmt(Math.abs(det.totais.leitura))} {det.totais.leitura < 0 ? 'a menos' : 'a mais'} que o total do banco{det.totais.leitura < 0 ? ': pode ter linha que não foi lida (confira o PDF).' : '.'}</li>}
+            {det.revisao.length > 0 && <li><b>{det.revisao.length} em revisão</b>: {fmt(det.totais.revisao)}. Se forem compras que faltam, entram na conta quando você as importar.</li>}
+            {det.deixadas.length > 0 && <li><b>{det.deixadas.length} deixada{det.deixadas.length === 1 ? '' : 's'} de fora</b>: {fmt(det.totais.deixadas)}.</li>}
+            {det.soNoApp.length > 0 && <li><b>{det.soNoApp.length} só no app</b>: {fmt(det.totais.soNoApp)}. Estão somadas no app, mas não na fatura (podem ser de outra fatura).</li>}
+          </ul>
+          {(det.revisao.length > 0 || det.deixadas.length > 0 || det.soNoApp.length > 0) && <p className="cad-sub">Se tudo em aberto fosse importado e o que está só no app fosse de outra fatura, a diferença seria de cerca de <b className="mono">{fmt(det.seResolvido)}</b>. É uma estimativa para você investigar, não uma garantia.</p>}
+        </section>
+      )}
       <div className="imp-estados">
         <span>Importação: <span className="badge badge-blue">{a.conciliando ? 'já concluída' : previa.temAlgoParaGravar ? 'será concluída' : 'nada a gravar'}</span></span>
         <span>Conciliação depois de gravar: <span className={`badge ${corConc}`}>{rotConc}</span></span>

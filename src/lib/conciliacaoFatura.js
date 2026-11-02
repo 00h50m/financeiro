@@ -164,3 +164,29 @@ export const MOTIVO = {
   outra_fatura: 'Já está lançada, mas em outra fatura (outro mês ou cartão).',
   dados_incompletos: 'Faltam dados obrigatórios para importar (categoria, pessoa, data ou valor).',
 }
+
+// Rótulos curtos dos motivos (para listas e selos).
+export const ROTULO_MOTIVO = {
+  correspondencia_provavel: 'Parece já lançada', valor_diferente: 'Valor diferente', parcelamento_ambiguo: 'Parcela diferente do esperado',
+  parcelamento_sem_registro: 'Parcelamento não está no app', parcelamento_inconsistente: 'Parcela não cai neste mês', outra_fatura: 'Está em outra fatura', dados_incompletos: 'Faltam dados',
+}
+
+// De onde vem a diferença entre o app (projetado) e a fatura: lista o que ainda está em aberto, com valores, e o quanto cada grupo pesa.
+// diferenca = projetado − base (banco, ou arquivo quando não há total do banco).
+//   leitura  : arquivo − banco  (negativo: o arquivo traz menos que o banco, pode haver linha que não foi lida)
+//   revisao  : linhas do arquivo ainda sem decisão (se forem compras que faltam, entram na conta quando importadas)
+//   deixadas : linhas novas que você optou por não importar
+//   soNoApp  : lançado no app para este cartão/mês e ausente do arquivo (pode ser de outra fatura)
+export function detalheDiferenca(analise, modo = 'parcela') {
+  const v = (l) => r2(valorParcelaLinha(l, modo))
+  const p = analise.painel
+  const revisao = analise.grupos.revisao.map((l) => ({ id: l._id, nome: l.identificacao?.trim() || l.descricao, data: l.data, valor: v(l), motivo: l.adiada ? 'Revisar depois' : ROTULO_MOTIVO[l.motivos[0]] || 'Revisar' }))
+  const deixadas = analise.grupos.novas.filter((l) => !l.selecionada).map((l) => ({ id: l._id, nome: l.identificacao?.trim() || l.descricao, data: l.data, valor: v(l), motivo: 'Nova, deixada de fora' }))
+  const soNoApp = analise.grupos.divergenciasApp.map((d, i) => ({ id: d.compra?.id || d.fixo?.id || `app${i}`, nome: d.compra ? d.compra.identificacao || d.compra.descricao : d.fixo?.nome, data: d.compra?.data_compra || null, valor: r2(d.valor), motivo: d.compra ? 'No app, fora do arquivo' : 'Conta fixa neste cartão', compra: d.compra || null }))
+  const soma = (xs) => r2(xs.reduce((t, x) => t + x.valor, 0))
+  const leitura = p.totalBanco != null ? r2(p.totalExtraido - p.totalBanco) : 0
+  const totais = { revisao: soma(revisao), deixadas: soma(deixadas), soNoApp: soma(soNoApp), leitura }
+  // estimativa: importar tudo o que está em aberto e tirar o que só está no app (supondo que seja de outra fatura)
+  const seResolvido = r2(p.diferenca + totais.revisao + totais.deixadas - totais.soNoApp)
+  return { revisao, deixadas, soNoApp, totais, seResolvido, diferenca: p.diferenca, baseDiferenca: p.baseDiferenca }
+}

@@ -1,17 +1,13 @@
 import { useState } from 'react'
 import Comparativo from './Comparativo'
 import { fmt, mesLabel } from '../../lib/utils'
-import { MOTIVO } from '../../lib/conciliacaoFatura'
+import { MOTIVO, ROTULO_MOTIVO } from '../../lib/conciliacaoFatura'
 import ParcelamentoPrevia from './ParcelamentoPrevia'
 import { ehCompraDividida } from '../../lib/planoImportacao'
 import { opcaoDaLinha } from '../../lib/parcelamentoImportacao'
 import { gerarParcelas } from '../../lib/utils'
 
 const dm = (d) => String(d || '').slice(0, 10).split('-').reverse().slice(0, 2).join('/')
-const ROTULO_MOTIVO = {
-  correspondencia_provavel: 'Parece já lançada', valor_diferente: 'Valor diferente', parcelamento_ambiguo: 'Parcela diferente do esperado',
-  parcelamento_sem_registro: 'Parcelamento não está no app', parcelamento_inconsistente: 'Parcela não cai neste mês', outra_fatura: 'Está em outra fatura', dados_incompletos: 'Faltam dados',
-}
 
 function situacao(l) {
   if (l.grupo === 'ignorada') return ['badge-gray', 'Pagamento: não entra no total']
