@@ -4,12 +4,14 @@ import PainelConciliacao from './PainelConciliacao'
 import { fmt, mesLabel } from '../../lib/utils'
 import { valorParcelaLinha, resumirAnalise } from '../../lib/importacao'
 import { reaisParaCentavos } from '../../lib/aulas'
+import { pendenciasDoLote } from '../../lib/importacaoLote'
 
+const ROTULO_CONC = { conciliada: ['badge-green', 'Fatura conciliada'], parcial: ['badge-amber', 'Conciliação parcial'], pendente: ['badge-gray', 'Conciliação pendente'] }
 const dataHora = (iso) => new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
 
 // ============ 1. Selecionar ============
 export function EtapaSelecionar({ a }) {
-  const { arquivo, linhas, cartoes, cartaoId, mesFatura, modoValor, lendo, erro, rascunhos } = a
+  const { arquivo, linhas, cartoes, cartaoId, mesFatura, modoValor, lendo, erro, rascunhos, importadas } = a
   const [totalTexto, setTotalTexto] = useState('')
   const soma = Math.round(linhas.filter((l) => l.valor !== '' && !Number.isNaN(Number(l.valor))).reduce((t, l) => t + Number(l.valor), 0) * 100) / 100
   const difBanco = arquivo?.totalBanco != null ? Math.round((soma - arquivo.totalBanco) * 100) / 100 : null
@@ -31,6 +33,25 @@ export function EtapaSelecionar({ a }) {
               <span><button type="button" className="btn btn-primary btn-sm" onClick={() => a.retomar(r)}>Continuar</button> <button type="button" className="link-btn" onClick={() => window.confirm('Descartar este rascunho? Nada foi gravado, só as suas decisões se perdem.') && a.descartar(r.id)}>descartar</button></span>
             </div>
           ))}
+        </div>
+      )}
+
+      {importadas.length > 0 && !arquivo && !lendo && (
+        <div className="card imp-importadas">
+          <b>Faturas já importadas</b>
+          <div className="cad-sub">A importação e a conciliação são coisas diferentes: reabra uma fatura para resolver o que ficou pendente. O app compara de novo com o que está lançado agora.</div>
+          {importadas.map((l) => {
+            const [cor, rot] = ROTULO_CONC[l.status_conciliacao] || ROTULO_CONC.pendente
+            const cartao = cartoes.find((c) => c.id === l.cartao_id)
+            const n = pendenciasDoLote(l)
+            return (
+              <div key={l.id} className="imp-rascunho">
+                <span><b>{cartao?.nome || 'Cartão'}</b> · {mesLabel(l.mes)} <span className="cad-sub">· {l.arquivo_nome || 'arquivo'} · importada em {dataHora(l.concluida_em)}</span><br />
+                  <span className="badge badge-blue">Importação concluída</span> <span className={`badge ${cor}`}>{rot}</span>{n > 0 && l.status_conciliacao !== 'conciliada' && <span className="cad-sub"> · {n} pendência{n === 1 ? '' : 's'} registrada{n === 1 ? '' : 's'}</span>}</span>
+                <span><button type="button" className="btn btn-ghost btn-sm" onClick={() => a.reconferir(l)}>{l.status_conciliacao === 'conciliada' ? 'Rever' : 'Conferir de novo'}</button></span>
+              </div>
+            )
+          })}
         </div>
       )}
 
@@ -178,7 +199,7 @@ export function EtapaConfirmar({ a }) {
       <div className="imp-confirmar-grade">
         <section className="card imp-gravar">
           <h3>Será gravado</h3>
-          {!previa.temAlgoParaGravar && <p className="cad-sub">Nada a gravar com as decisões atuais. Suas decisões ficam salvas como rascunho.</p>}
+          {!previa.temAlgoParaGravar && <p className="cad-sub">{a.conciliando ? 'Nada a gravar: ao confirmar, só o estado da conciliação é atualizado.' : 'Nada a gravar com as decisões atuais. Suas decisões ficam salvas como rascunho.'}</p>}
           {gravar.criar.qtd > 0 && (
             <div><b>{gravar.criar.qtd} nova{gravar.criar.qtd === 1 ? '' : 's'} compra{gravar.criar.qtd === 1 ? '' : 's'}</b> · {fmt(gravar.criar.valor)}
               <ul className="imp-lista">{gravar.criar.itens.slice(0, 6).map((i) => <li key={i.id}>{i.nome} <span className="cad-sub">· {i.categoria}</span> <span className="mono">{fmt(i.valor)}</span></li>)}{gravar.criar.itens.length > 6 && <li className="cad-sub">+ {gravar.criar.itens.length - 6} compras</li>}</ul>
@@ -212,13 +233,13 @@ export function EtapaConfirmar({ a }) {
         </section>
       </div>
       <div className="imp-estados">
-        <span>Importação: <span className="badge badge-blue">{previa.temAlgoParaGravar ? 'será concluída' : 'nada a gravar'}</span></span>
+        <span>Importação: <span className="badge badge-blue">{a.conciliando ? 'já concluída' : previa.temAlgoParaGravar ? 'será concluída' : 'nada a gravar'}</span></span>
         <span>Conciliação depois de gravar: <span className={`badge ${corConc}`}>{rotConc}</span></span>
       </div>
       {a.erro && <div className="alert alert-red" role="alert" style={{ whiteSpace: 'pre-line' }}>{a.erro}</div>}
       <div className="imp-navegacao">
         <button type="button" className="btn btn-ghost" onClick={() => a.irPara(3)}>← Voltar</button>
-        <button type="button" className="btn btn-primary" disabled={!previa.temAlgoParaGravar || a.confirmando} onClick={a.confirmar}>{a.confirmando ? 'Gravando…' : 'Confirmar importação'}</button>
+        <button type="button" className="btn btn-primary" disabled={(!previa.temAlgoParaGravar && !a.conciliando) || a.confirmando} onClick={a.confirmar}>{a.confirmando ? 'Gravando…' : a.conciliando ? 'Confirmar conferência' : 'Confirmar importação'}</button>
       </div>
     </div>
   )

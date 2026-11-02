@@ -100,19 +100,40 @@ export async function listarRascunhos(sb) {
   return r.error ? [] : r.data || []
 }
 
+// ---- Conciliação posterior: reabrir um lote já importado ----
+// Lotes concluídos (mais recentes primeiro), com o estado da conciliação. Vazio quando o banco não tem a atualização.
+export async function listarImportadas(sb, limite = 12) {
+  const r = await sb.from('importacoes_fatura').select('id,cartao_id,mes,arquivo_nome,origem_leitura,total_banco,total_extraido,linhas,decisoes,resultado,status_importacao,status_conciliacao,concluida_em,conciliada_em').eq('status_importacao', 'concluida').order('concluida_em', { ascending: false }).limit(limite)
+  return r.error ? [] : r.data || []
+}
+// Linhas guardadas no lote -> registros no formato do CSV, para passar de novo pela mesma leitura e comparar com o que há no app agora.
+export const registrosDoLote = (lote) => (lote.linhas || []).map((l) => ({ data: l.data, descricao: l.descricao, valor: l.valor, categoria: '', parcela_atual: l.parcela_atual ?? '', parcela_total: l.parcela_total ?? '', cartao: l.cartao || '', observacao: l.observacao || '' }))
+// Pendências que ficaram registradas na importação (para mostrar na lista sem reabrir).
+export const pendenciasDoLote = (lote) => (lote.decisoes?.pendencias || []).length
+
+// Aplica a conciliação de uma rodada (id próprio: repetir a mesma rodada devolve o mesmo resultado).
+export async function aplicarConciliacao(sb, { importacaoId, operacaoId, dados, usuario = null }) {
+  const r = await sb.rpc('aplicar_conciliacao', { p_importacao: importacaoId, p_operacao: operacaoId, p_dados: dados, p_usuario: usuario })
+  if (!r.error) return r.data
+  if (r.error.code === 'PGRST202' || r.error.code === '42883' || /aplicar_conciliacao/.test(String(r.error.message || '')) && /could not find|does not exist|schema cache/i.test(String(r.error.message || ''))) throw new Error('Para conciliar uma fatura já importada, rode o arquivo inbox/39_importacao_conciliacao.sql no Supabase.')
+  throw r.error
+}
+
 // Texto do resultado para a tela: importação e conciliação são coisas diferentes.
 export function textoResultado(r) {
+  if (r.repetida && r.operacao) return { tipo: 'aviso', titulo: 'Esta conferência já tinha sido aplicada.', detalhe: 'Nada foi gravado de novo.' }
   if (r.repetida) {
     const quando = r.concluida_em ? ` em ${String(r.concluida_em).slice(0, 10).split('-').reverse().join('/')}` : ''
     return { tipo: 'aviso', titulo: `Esta fatura já foi importada${quando}.`, detalhe: 'Nada foi gravado de novo. Se alguma linha for outra compra, marque-a manualmente e importe só ela.' }
   }
+  const posterior = !!r.operacao
   const partes = [`${r.criadas} lançamento${r.criadas === 1 ? '' : 's'} gravado${r.criadas === 1 ? '' : 's'}`]
   if (r.atualizadas) partes.push(`${r.atualizadas} valor${r.atualizadas === 1 ? '' : 'es'} atualizado${r.atualizadas === 1 ? '' : 's'}`)
   if (r.movidas) partes.push(`${r.movidas} compra${r.movidas === 1 ? '' : 's'} movida${r.movidas === 1 ? '' : 's'} de fatura`)
   const conc = { conciliada: 'Fatura conciliada: todas as linhas estão resolvidas e os valores fecham.', parcial: 'Conciliação parcial: ainda há pendências ou diferenças para investigar.' }
   return {
     tipo: 'ok',
-    titulo: `Importação concluída: ${partes.join(', ')}.`,
+    titulo: `${posterior ? 'Conferência aplicada' : 'Importação concluída'}: ${partes.join(', ')}.`,
     detalhe: conc[r.status_conciliacao] || 'A conciliação com a fatura ainda está pendente.',
     aviso: r.semProtecao ? 'Seu banco ainda não tem a atualização 37: a importação foi gravada sem a proteção contra repetição. Rode o arquivo inbox/37_importacao_nucleo.sql no Supabase.' : null,
   }

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { chaveDoArquivo, novoIdImportacao, montarCompras, linhasLidas, aplicarImportacao, textoResultado } from '../importacaoLote'
 import { valorTotalLinha } from '../importacao'
 
@@ -91,5 +91,33 @@ describe('texto do resultado: importação e conciliação são coisas diferente
     expect(t.titulo).toContain('já foi importada em 02/11/2026')
     expect(t.detalhe).toContain('Nada foi gravado de novo')
     expect(textoResultado({ criadas: 2, status_conciliacao: 'pendente', semProtecao: true }).aviso).toContain('inbox/37_importacao_nucleo.sql')
+  })
+})
+
+describe('conciliação posterior', () => {
+  const lote = { linhas: [{ data: '2026-10-03', descricao: 'MERCADO', valor: 50, parcela_atual: null, parcela_total: null, cartao: 'Nubank', observacao: null }, { data: '2026-10-05', descricao: 'TV 2/10', valor: 100, parcela_atual: 2, parcela_total: 10 }] }
+  it('reconstrói registros no formato do CSV a partir das linhas do lote', async () => {
+    const { registrosDoLote } = await import('../importacaoLote')
+    const r = registrosDoLote(lote)
+    expect(r).toHaveLength(2)
+    expect(r[0]).toMatchObject({ data: '2026-10-03', descricao: 'MERCADO', valor: 50, cartao: 'Nubank', parcela_atual: '' })
+    expect(r[1]).toMatchObject({ parcela_atual: 2, parcela_total: 10 })
+    expect(registrosDoLote({})).toEqual([])
+  })
+  it('aplicarConciliacao chama a função com a rodada e explica quando o SQL 39 falta', async () => {
+    const { aplicarConciliacao } = await import('../importacaoLote')
+    const rpc = vi.fn().mockResolvedValue({ data: { criadas: 1 }, error: null })
+    expect(await aplicarConciliacao({ rpc }, { importacaoId: 'a', operacaoId: 'b', dados: { x: 1 }, usuario: 'u' })).toEqual({ criadas: 1 })
+    expect(rpc).toHaveBeenCalledWith('aplicar_conciliacao', { p_importacao: 'a', p_operacao: 'b', p_dados: { x: 1 }, p_usuario: 'u' })
+    const falta = { rpc: vi.fn().mockResolvedValue({ data: null, error: { code: 'PGRST202', message: 'Could not find the function' } }) }
+    await expect(aplicarConciliacao(falta, { importacaoId: 'a', operacaoId: 'b', dados: {} })).rejects.toThrow(/39_importacao_conciliacao/)
+    const outro = { rpc: vi.fn().mockResolvedValue({ data: null, error: { code: 'P0001', message: 'Importação não encontrada.' } }) }
+    await expect(aplicarConciliacao(outro, { importacaoId: 'a', operacaoId: 'b', dados: {} })).rejects.toMatchObject({ message: 'Importação não encontrada.' })
+  })
+  it('texto do resultado diferencia conferência de importação e rodada repetida', async () => {
+    const { textoResultado } = await import('../importacaoLote')
+    expect(textoResultado({ criadas: 0, atualizadas: 1, movidas: 0, status_conciliacao: 'conciliada', operacao: 'x' }).titulo).toMatch(/^Conferência aplicada/)
+    expect(textoResultado({ criadas: 2, status_conciliacao: 'parcial' }).titulo).toMatch(/^Importação concluída/)
+    expect(textoResultado({ repetida: true, operacao: 'x' }).titulo).toMatch(/conferência já tinha sido aplicada/)
   })
 })

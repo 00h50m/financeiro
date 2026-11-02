@@ -16,6 +16,7 @@ export default function Assistente({ store, irPara, inicial = null }) {
     <div className="page imp-assistente">
       {compraEditando && <EditarCompra store={store} compra={compraEditando} onClose={() => setCompraEditando(null)} />}
       <Progresso etapa={etapa} maxEtapa={a.maxEtapa} onIr={a.irPara} bloqueado={!!a.lendo || a.confirmando} />
+      {a.conciliando && a.etapa < 5 && <div className="alert alert-blue imp-reconferir" style={{ marginTop: 10 }}><b>Reconferindo uma fatura já importada.</b> O que já está no app aparece como registrado; resolva o que sobrou e confirme. Nada é duplicado.</div>}
       {a.bancoV2 === false && a.arquivo && <div className="alert alert-blue" style={{ marginTop: 10 }}>Para salvar o rascunho, atualizar valores e mover compras de fatura, rode o arquivo <code>inbox/38_importacao_assistente.sql</code> no Supabase. O resto funciona normalmente.</div>}
       {a.salvoEm && a.etapa < 5 && <div className="cad-sub imp-salvo" role="status">Rascunho salvo às {a.salvoEm.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>}
       {etapa === 1 && <EtapaSelecionar a={a} />}

@@ -6,7 +6,7 @@ import { mesesFechadosTocados, mesFechado } from './fechamento.js'
 import { mesesAfetadosPelaFatura } from './faturaEdicao.js'
 import { amigavel, explicarErro } from './erros.js'
 import { avisoTeto } from './alertaTeto.js'
-import { aplicarImportacao } from './importacaoLote.js'
+import { aplicarImportacao, aplicarConciliacao } from './importacaoLote.js'
 import { avisoTetoSemanal } from './alertaTetoSemanal.js'
 import { anexarValores, chaveConta } from './fixosVersoes.js'
 import { gerarCodigo, hashCodigo } from './pareamento.js'
@@ -1084,6 +1084,21 @@ export function useStore(email = null) {
     return r
   }
 
+  async function conciliarFatura({ importacaoId, operacaoId, dados }) {
+    const j = exigirJustificativa(dados.compras || [])
+    if (!j.ok) throw amigavel('Conferência cancelada: o mês já está fechado e faltou o motivo.')
+    setSyncState('syncing')
+    let r
+    try {
+      r = await aplicarConciliacao(sb, { importacaoId, operacaoId, dados, usuario: email })
+    } catch (e) {
+      setSyncState('error')
+      throw e
+    }
+    setSyncState((await loadAll({ silent: true, quais: ['compras'] })) ? 'ok' : 'error')
+    return r
+  }
+
   // INBOX FINANCEIRO
   // Não usam `op`: a tela precisa do erro (ex.: "já foi resolvido") para mostrar no próprio cartão.
   async function comRecarga(fn, quais = ['inbox', 'compras']) {
@@ -1205,6 +1220,6 @@ export function useStore(email = null) {
     addSubcategoria, delSubcategoria, renomearSubcategoria,
     migrarCategoria, migrarSubcategoria,
     addPessoa, delPessoa, mudarCorPessoa, renomearPessoa,
-    importarTransacoes, importarFatura,
+    importarTransacoes, importarFatura, conciliarFatura,
   }
 }
