@@ -29,10 +29,11 @@ export function naturezaDaLinha(l) {
 //   depois    revisar depois: continua pendente e não impede o resto
 //   manter    (valor diferente) é a mesma compra e o valor lançado fica como está
 //   atualizar (valor diferente) é a mesma compra e o valor lançado passa a ser o da fatura
+//   mover     (outra fatura) coloca a compra já lançada nesta fatura
 // Devolve o patch para a linha (mesmo formato que a tela já usa). Sem decisão = volta ao que o app sugeriu.
 export function decisaoPatch(decisao) {
   switch (decisao) {
-    case 'mesma': case 'manter': case 'atualizar': case 'depois': return { decisao, incluir: false, incluirManual: true }
+    case 'mesma': case 'manter': case 'atualizar': case 'mover': case 'depois': return { decisao, incluir: false, incluirManual: true }
     case 'outra': return { decisao, incluir: true, incluirManual: true }
     default: return { decisao: undefined, incluirManual: false }
   }
@@ -54,7 +55,11 @@ export function classificarLinha(l, { foraDoMesIds = new Set(), contaFixaIds = n
   if (contaFixaIds.has(l._id)) return registrada(false) // já existe como conta fixa no cartão
 
   // lançada, mas numa fatura que não é esta (outro mês ou cartão): mesmo sendo exata, o total desta fatura não a contém
-  if (foraDoMesIds.has(l._id)) return dec === 'mesma' ? registrada(true) : revisao(['outra_fatura'], 'mover_fatura')
+  if (foraDoMesIds.has(l._id)) {
+    if (dec === 'mesma') return registrada(true)
+    if (dec === 'mover') return { ...registrada(true), moverParaEstaFatura: true }
+    return revisao(['outra_fatura'], 'mover_fatura')
+  }
 
   const tipo = corr?.tipo
   if (tipo === 'exata') return registrada(false)
@@ -107,10 +112,12 @@ export function analisarFatura({ linhas, compras, cartoes, fixos = [], cartaoId,
   const naturezas = Object.fromEntries(['compra', 'credito', 'encargo', 'pagamento'].map((n) => [n, { qtd: classificadas.filter((l) => l.natureza === n).length, valor: somar(classificadas.filter((l) => l.natureza === n)) }]))
   const atualizacoes = registradas.filter((l) => l.decisao === 'atualizar' && l.correspondencia?.tipo === 'valor_diferente')
   const ajusteAtualizar = somar(atualizacoes, (l) => v(l) - (Number(l.correspondencia.compra.parcelas) > 1 ? Number(l.correspondencia.compra.valor_total) / Number(l.correspondencia.compra.parcelas) : Number(l.correspondencia.compra.valor_total)))
+  const movidas = registradas.filter((l) => l.moverParaEstaFatura) // compras já lançadas que passam a contar nesta fatura
+  const ajusteMover = somar(movidas)
   const totalExtraido = somar(doTotal)
   const totalApp = r2(conf.totalFinapp)
   const novasSelecionadas = somar(selecionadas)
-  const projetado = r2(totalApp + novasSelecionadas + ajusteAtualizar)
+  const projetado = r2(totalApp + novasSelecionadas + ajusteAtualizar + ajusteMover)
   const baseComparacao = totalBanco != null ? Number(totalBanco) : totalExtraido
   const diferenca = r2(projetado - baseComparacao)
 
@@ -130,12 +137,12 @@ export function analisarFatura({ linhas, compras, cartoes, fixos = [], cartaoId,
       divergenciasApp: divergenciasApp.length, deixadasDeFora: deixadasDeFora.length, pendencias,
     },
     painel: {
-      totalBanco: totalBanco != null ? Number(totalBanco) : null, totalExtraido, totalApp, novasSelecionadas, ajusteAtualizar, projetado,
+      totalBanco: totalBanco != null ? Number(totalBanco) : null, totalExtraido, totalApp, novasSelecionadas, ajusteAtualizar, ajusteMover, projetado,
       diferenca, baseDiferenca: totalBanco != null ? 'banco' : 'arquivo', semTotalBanco: totalBanco == null,
-      naturezas, valores: { confirmado: totalApp, estimado: r2(novasSelecionadas + ajusteAtualizar), projetado },
+      naturezas, valores: { confirmado: totalApp, estimado: r2(novasSelecionadas + ajusteAtualizar + ajusteMover), projetado },
     },
     // statusProjetado: como ficaria DEPOIS de importar as novas selecionadas; statusAtual: como está agora, sem importar nada.
-    statusAtual: statusDe(selecionadas.length === 0),
+    statusAtual: statusDe(selecionadas.length === 0 && movidas.length === 0 && atualizacoes.length === 0),
     statusProjetado: statusDe(true),
     conferencia: conf,
   }

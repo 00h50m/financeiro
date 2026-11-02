@@ -8,7 +8,7 @@ import Compras from './components/Compras'
 import Parcelamentos from './components/Parcelamentos'
 import Faturas from './components/Faturas'
 import Pagamentos from './components/Pagamentos'
-import ImportarFatura from './components/ImportarFatura'
+import Assistente from './components/importacao/Assistente'
 import Renda from './components/Renda'
 import Cenario from './components/Cenario'
 import PlanoDividas from './components/PlanoDividas'
@@ -114,7 +114,7 @@ const TODOS_GRUPOS = [
       { id: 'faturas', label: 'Faturas', Component: Faturas },
       { id: 'pagamentos', label: 'Pagamentos', Component: Pagamentos },
       { id: 'divididos', label: 'Divididos', Component: Divididos },
-      { id: 'importar', label: 'Importar fatura', Component: ImportarFatura },
+      { id: 'importar', label: 'Importar fatura', Component: Assistente },
     ],
   },
   {
