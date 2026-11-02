@@ -38,6 +38,9 @@ export function explicarErro(e, acao = 'concluir a ação') {
   if (cod === '23505' || /duplicate key/i.test(msg)) {
     return caso('Já existe um registro igual a este (duplicado).', 'Confira se não foi lançado antes; se for outro, mude o nome, o mês ou o cartão.')
   }
+  if (/compras_importacao_id_fkey/.test(msg)) {
+    return caso('O banco tem uma ligação antiga na coluna de importação das compras, e por isso a fatura não pôde ser gravada.', 'Rode o arquivo inbox/40_importacao_corrige_ligacao.sql no Supabase e tente de novo. Nada foi gravado.')
+  }
   if (cod === '23503' || /foreign key/i.test(msg)) {
     return /still referenced|update or delete/i.test(msg)
       ? caso('Este item está em uso por outros registros (por exemplo, um cartão com compras).', 'Remova ou mude esses registros antes de apagar.')
