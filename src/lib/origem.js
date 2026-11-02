@@ -3,6 +3,7 @@ const ROTULOS = {
   telegram: '💬 Telegram',
   android_notification: '📱 Notificação',
   csv: '📄 Fatura (CSV)',
+  pdf: '📄 Fatura (PDF)',
   inbox: '📥 Inbox',
   emprestimo: '🏦 Empréstimo',
 }
