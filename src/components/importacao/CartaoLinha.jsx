@@ -59,6 +59,12 @@ export default function CartaoLinha({ l, aberto: abertoInicial, valorLinha, mesF
 
           {corr?.compra && l.grupo !== 'ignorada' && <Comparativo linha={l} valorLinha={valorLinha} mesFatura={mesFatura} parcelaEsperada={parcelaEsperada} />}
 
+          {l.grupo === 'ignorada' && (
+            <div className="imp-acoes">
+              <span className="imp-explica">O app ignorou esta linha porque parece pagamento ou saldo da fatura anterior.</span>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => atualizarLinha(l._id, { naturezaManual: Number(l.valor) < 0 ? 'credito' : 'encargo' })}>Não é pagamento: contar na fatura</button>
+            </div>
+          )}
           {/* ações por tipo de pendência */}
           {l.grupo === 'revisao' && (motivo === 'correspondencia_provavel' || motivo === 'parcelamento_ambiguo') && (
             l.motivos.includes('parcelamento_ambiguo') ? (

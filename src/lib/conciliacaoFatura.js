@@ -16,6 +16,7 @@ const PAGAMENTO = /(pagamento\s+(recebido|efetuado|de\s+fatura|fatura|on-?line)|
 const ENCARGO = /\b(iof|juros|multa|encargos?|anuidade|tarifa|mora)\b/i
 
 export function naturezaDaLinha(l) {
+  if (['compra', 'credito', 'encargo'].includes(l.naturezaManual)) return l.naturezaManual // a pessoa disse que NÃO é pagamento da fatura
   const texto = `${l.descricaoOriginal || ''} ${l.descricao || ''}`
   const v = Number(l.valor)
   if (PAGAMENTO.test(texto)) return 'pagamento'
@@ -195,5 +196,8 @@ export function detalheDiferenca(analise, modo = 'parcela') {
     const par = soNoApp.find((x) => x.compra && Math.abs(x.valor - v(l)) < 0.02 && x.data && dias(l.data, x.data) <= 3)
     if (par) possiveisDuplicadas.push({ id: l._id, nome: l.identificacao?.trim() || l.descricao, data: l.data, valor: v(l), noApp: par.nome, noAppData: par.data })
   })
-  return { revisao, deixadas, soNoApp, totais, seResolvido, possiveisDuplicadas, diferenca: p.diferenca, baseDiferenca: p.baseDiferenca }
+  // linhas que o app ignorou por parecerem pagamento/saldo anterior: se o valor bate com o que falta no arquivo, é a suspeita nº 1
+  const falta = Math.abs(leitura)
+  const ignoradas = analise.grupos.ignoradas.map((l) => ({ id: l._id, nome: l.identificacao?.trim() || l.descricao, data: l.data, valor: v(l), motivo: 'Ignorada: parece pagamento ou saldo anterior', bateComFalta: falta > 0.1 && Math.abs(Math.abs(v(l)) - falta) <= 0.05 }))
+  return { revisao, deixadas, soNoApp, ignoradas, totais, seResolvido, possiveisDuplicadas, diferenca: p.diferenca, baseDiferenca: p.baseDiferenca }
 }

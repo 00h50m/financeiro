@@ -1118,3 +1118,8 @@ input[type="month"], input[type="date"] { max-width: 100%; }
 .imp-opcao > .badge { justify-self: start; }
 .imp-editar summary { cursor: pointer; font-size: 12px; color: var(--text2); padding: 4px 0; }
 .imp-editar .imp-grade-campos { margin-top: 6px; }
+
+/* adicionar lançamento que faltou / linhas ignoradas */
+.imp-manual-topo { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 4px 0 8px; }
+.imp-manual h3 { margin: 0 0 4px; font-size: 15px; }
+.imp-suspeita { background: color-mix(in srgb, var(--amber) 14%, transparent); border-radius: 8px; padding: 2px 6px; }

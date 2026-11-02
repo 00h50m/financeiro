@@ -12,7 +12,7 @@ import { chaveDoArquivo, novoIdImportacao, salvarRascunho, descartarRascunho, li
 import { nowYM } from './utils'
 
 const MAX_PDF = 3 * 1024 * 1024
-const CAMPOS_DE_TRABALHO = ['_id', 'data', 'descricao', 'descricaoOriginal', 'identificacao', 'identificacaoSugerida', 'valor', 'categoria', 'subcategoria', 'sugerida', 'fonteSugestao', 'parcela_atual', 'parcela_total', 'cartaoNome', 'cartao_id', 'pessoa', 'pessoaManual', 'observacao', 'incluir', 'incluirManual', 'decisao', 'parcelamentoConfirmado', 'parcelamentoOpcao']
+const CAMPOS_DE_TRABALHO = ['_id', 'data', 'descricao', 'descricaoOriginal', 'identificacao', 'identificacaoSugerida', 'valor', 'categoria', 'subcategoria', 'sugerida', 'fonteSugestao', 'parcela_atual', 'parcela_total', 'cartaoNome', 'cartao_id', 'pessoa', 'pessoaManual', 'observacao', 'incluir', 'incluirManual', 'decisao', 'parcelamentoConfirmado', 'parcelamentoOpcao', 'naturezaManual', 'manual']
 const enxuta = (l) => Object.fromEntries(CAMPOS_DE_TRABALHO.filter((k) => l[k] !== undefined).map((k) => [k, l[k]]))
 const maisComum = (xs) => { const c = {}; xs.filter(Boolean).forEach((x) => { c[x] = (c[x] || 0) + 1 }); return Object.entries(c).sort((a, b) => b[1] - a[1])[0]?.[0] || '' }
 
@@ -122,7 +122,7 @@ export function useAssistenteImportacao(store, inicial = null) {
   const definirTotalBanco = (v) => setArquivo((a) => (a ? { ...a, totalBanco: v } : a))
 
   function atualizarLinha(id, patch) {
-    const reavaliar = ['cartao_id', 'data', 'descricao', 'valor', 'decisao'].some((k) => k in patch)
+    const reavaliar = ['cartao_id', 'data', 'descricao', 'valor', 'decisao', 'naturezaManual'].some((k) => k in patch)
     if ('pessoa' in patch) patch = { ...patch, pessoaManual: true }
     setLinhas((ls) => {
       const novo = ls.map((l) => (l._id === id ? { ...l, ...patch } : l))
@@ -130,6 +130,15 @@ export function useAssistenteImportacao(store, inicial = null) {
     })
   }
   const decidir = (id, decisao) => atualizarLinha(id, decisaoPatch(decisao))
+  // Lançamento que a leitura perdeu: entra como uma linha nova do arquivo (marcada como adicionada à mão).
+  function adicionarLinha({ data, descricao, valor, categoria, subcategoria, pessoa }) {
+    const c = cartoes.find((x) => x.id === cartaoId)
+    setLinhas((ls) => {
+      const id = ls.reduce((m, l) => Math.max(m, Number(l._id) || 0), 0) + 1
+      const nova = { _id: id, data, descricao, descricaoOriginal: descricao, identificacao: '', identificacaoSugerida: false, valor, categoria, subcategoria, sugerida: false, fonteSugestao: '', parcela_atual: '', parcela_total: '', cartaoNome: c?.nome || '', cartao_id: cartaoId, pessoa: pessoa || c?.titular || '', pessoaManual: true, observacao: 'Adicionada à mão na importação', manual: true }
+      return ctxAnalise([...ls, nova])
+    })
+  }
   // opcao: 'completo' | 'so_esta' | null (desfaz)
   const escolherParcelamento = (id, opcao) => atualizarLinha(id, { parcelamentoOpcao: opcao || undefined, parcelamentoConfirmado: false })
   // Troca de categoria: a subcategoria fica em branco para a pessoa escolher (a linha continua em revisão até lá).
@@ -229,6 +238,6 @@ export function useAssistenteImportacao(store, inicial = null) {
   return {
     etapa, maxEtapa, irPara, arquivo, linhas, cartaoId, mesFatura, modoValor, importacaoId, lendo, erro, setErro, confirmando, resultado, rascunhos, importadas, conciliando, bancoV2, salvoEm, faturaMesOk,
     analise, plano, cartoes, categorias, pessoas, fechamentos: store.fechamentos || [],
-    abrirCsv, abrirPdf, definirCartao, definirMes, definirModo, definirTotalBanco, atualizarLinha, decidir, escolherParcelamento, mudarCategoria, retomar, reconferir, descartar, confirmar, limpar,
+    abrirCsv, abrirPdf, definirCartao, definirMes, definirModo, definirTotalBanco, atualizarLinha, decidir, escolherParcelamento, mudarCategoria, adicionarLinha, retomar, reconferir, descartar, confirmar, limpar,
   }
 }
