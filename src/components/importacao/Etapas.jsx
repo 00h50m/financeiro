@@ -181,11 +181,19 @@ export function EtapaRevisar({ a, filtroInicial, abrirCompra }) {
       {filtro === 'app' ? (
         analise.grupos.divergenciasApp.length === 0 ? <div className="card"><div className="empty" style={{ padding: 14 }}>Tudo o que está lançado neste cartão e mês aparece na fatura. ✓</div></div> : (
           <>
-            <p className="cad-sub">Lançadas no app para este cartão e mês, mas que não estão no arquivo. Pode ser compra de outra fatura, valor errado ou algo que não é desta fatura.</p>
+            <div className="alert alert-blue imp-so-app-explica">
+              <b>O que é esta aba?</b>
+              <div style={{ fontSize: 13, marginTop: 4 }}>São compras que <b>já estão lançadas no app</b> neste cartão e mês, mas que <b>não aparecem no arquivo</b> da fatura. Elas entram na soma do app e podem explicar a diferença com o banco. Nada é alterado aqui.</div>
+              <div style={{ fontSize: 13, marginTop: 6 }}>O que costuma ser: compra de <b>outra fatura</b> (o fechamento cai em outro mês), <b>valor lançado errado</b>, compra de <b>outro cartão</b>, ou algo que o banco ainda não mostrou. Abra a compra para corrigir o mês da fatura, o cartão ou o valor.</div>
+            </div>
             {analise.grupos.divergenciasApp.map((d, i) => (
-              <article key={d.compra?.id || d.fixo?.id || i} className="imp-linha app">
-                <div className="imp-linha-topo static"><span className="imp-data">{d.compra ? String(d.compra.data_compra).slice(8, 10) + '/' + String(d.compra.data_compra).slice(5, 7) : 'fixa'}</span><span className="imp-nome"><b>{d.compra ? (d.compra.identificacao || d.compra.descricao) : d.fixo.nome}</b><small>{d.compra ? `${d.compra.categoria}${Number(d.compra.parcelas) > 1 ? ` · ${d.parcela}/${d.de}` : ''}` : 'conta fixa neste cartão'}</small></span><span className="imp-valor mono">{fmt(d.valor)}</span></div>
-                {d.compra && <div className="imp-linha-corpo"><button type="button" className="btn btn-ghost btn-sm" onClick={() => abrirCompra(d.compra)}>Editar a compra</button></div>}
+              <article key={d.compra?.id || d.fixo?.id || i} className="imp-linha so-app">
+                <div className="imp-linha-topo static">
+                  <span className="imp-data">{d.compra ? String(d.compra.data_compra).slice(8, 10) + '/' + String(d.compra.data_compra).slice(5, 7) : 'fixa'}</span>
+                  <span className="imp-nome"><b>{d.compra ? (d.compra.identificacao || d.compra.descricao) : d.fixo.nome}</b><small>{d.compra ? `${d.compra.categoria}${d.compra.subcategoria ? ` › ${d.compra.subcategoria}` : ''}${d.compra.pessoa ? ` · ${d.compra.pessoa}` : ''}${Number(d.compra.parcelas) > 1 ? ` · parcela ${d.parcela}/${d.de}` : ''}` : 'conta fixa neste cartão'}</small></span>
+                  <span className="imp-valor mono">{fmt(d.valor)}</span>
+                </div>
+                {d.compra && <div className="imp-linha-meta"><span className="cad-sub">Lançada no app, fora do arquivo</span><button type="button" className="btn btn-ghost btn-sm" onClick={() => abrirCompra(d.compra)}>Editar a compra</button></div>}
               </article>
             ))}
           </>
