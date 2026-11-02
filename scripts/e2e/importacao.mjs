@@ -159,6 +159,7 @@ console.log('painel depois das decisões:', pend1)
 ok(pend0 !== pend1, 'o painel de conciliação se atualiza a cada decisão')
 ok(await page.locator('.imp-linha.revisao').count() === 0, 'sem pendências de revisão depois das decisões')
 
+ok(await page.locator('.imp-linha .imp-selos .badge', { hasText: 'Giovanna' }).count() > 0, 'cada lançamento mostra a pessoa (selo colorido) na lista')
 // aba "Só no app": o cartão não pode esticar (a classe "app" colidia com o contêiner do app) e a aba explica o que é
 await page.getByRole('button', { name: /Só no app/ }).click()
 const cartaoApp = page.locator('.imp-linha.so-app').first()
