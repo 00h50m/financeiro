@@ -8,7 +8,7 @@ import { explicarErro } from './erros'
 import { analisarFatura, decisaoPatch } from './conciliacaoFatura'
 import { COLUNAS_ESPERADAS, prepararLinhas, reanalisar } from './leituraFatura'
 import { montarPlano } from './planoImportacao'
-import { chaveDoArquivo, novoIdImportacao, salvarRascunho, descartarRascunho, listarRascunhos, textoResultado } from './importacaoLote'
+import { chaveDoArquivo, novoIdImportacao, salvarRascunho, descartarRascunho, listarRascunhos, listarImportadas, registrosDoLote, textoResultado } from './importacaoLote'
 import { nowYM } from './utils'
 
 const MAX_PDF = 3 * 1024 * 1024
@@ -18,7 +18,7 @@ const maisComum = (xs) => { const c = {}; xs.filter(Boolean).forEach((x) => { c[
 
 // `inicial` (para testes e pré-visualização): { registros, nome, origem, totalBanco, etapa } carrega o arquivo já na primeira renderização.
 export function useAssistenteImportacao(store, inicial = null) {
-  const { cartoes, categorias, compras, pessoas, fixos = [], regras = [], aliases = [], importarFatura } = store
+  const { cartoes, categorias, compras, pessoas, fixos = [], regras = [], aliases = [], importarFatura, conciliarFatura } = store
   const faturaMesOk = compras.some((c) => 'fatura_mes' in c)
 
   const pre = useRef(null)
@@ -43,11 +43,13 @@ export function useAssistenteImportacao(store, inicial = null) {
   const [rascunhos, setRascunhos] = useState([])
   const [bancoV2, setBancoV2] = useState(null) // null = ainda não sei; false = banco sem a atualização 38 (sem rascunho, sem atualizar/mover)
   const [salvoEm, setSalvoEm] = useState(null)
+  const [importadas, setImportadas] = useState([])
+  const [conciliando, setConciliando] = useState(null) // lote já importado que está sendo reconferido: { id, operacaoId, status }
 
   const ctxAnalise = useCallback((ls, m = modoValor, mes = mesFatura) => reanalisar(ls, compras, aliases, m, { cartoes, mesFatura: mes }), [compras, aliases, cartoes, modoValor, mesFatura])
 
   // rascunhos pendentes ao abrir a tela
-  useEffect(() => { listarRascunhos(sb).then(setRascunhos).catch(() => setRascunhos([])) }, [])
+  useEffect(() => { listarRascunhos(sb).then(setRascunhos).catch(() => setRascunhos([])); listarImportadas(sb).then(setImportadas).catch(() => setImportadas([])) }, [])
   // se uma compra mudar enquanto a tela está aberta, refaz a conferência com os dados novos (as decisões ficam)
   useEffect(() => { setLinhas((ls) => (ls.length ? reanalisar(ls, compras, aliases, modoValor, { cartoes, mesFatura }) : ls)) }, [compras, mesFatura])
 
@@ -81,7 +83,7 @@ export function useAssistenteImportacao(store, inicial = null) {
 
   function limpar() {
     setArquivo(null); setLinhas([]); setCartaoId(''); setMesFatura(nowYM()); setModoValor('parcela'); setImportacaoId(null)
-    setErro(''); setResultado(null); setEtapa(1); setMaxEtapa(1); setSalvoEm(null); setLendo(null)
+    setErro(''); setResultado(null); setEtapa(1); setMaxEtapa(1); setSalvoEm(null); setLendo(null); setConciliando(null)
   }
 
   function abrirCsv(file) {
@@ -144,7 +146,7 @@ export function useAssistenteImportacao(store, inicial = null) {
   const planoRef = useRef(plano)
   planoRef.current = plano
   useEffect(() => {
-    if (!importacaoId || !arquivo || !linhas.length || resultado || bancoV2 === false) return undefined
+    if (!importacaoId || !arquivo || !linhas.length || resultado || bancoV2 === false || conciliando) return undefined
     const t = setTimeout(async () => {
       try {
         const r = await salvarRascunho(sb, {
@@ -157,7 +159,7 @@ export function useAssistenteImportacao(store, inicial = null) {
       } catch { /* rascunho é conveniência: nunca atrapalha */ }
     }, 1500)
     return () => clearTimeout(t)
-  }, [linhas, cartaoId, mesFatura, modoValor, etapa, importacaoId, arquivo, resultado, bancoV2])
+  }, [linhas, cartaoId, mesFatura, modoValor, etapa, importacaoId, arquivo, resultado, bancoV2, conciliando])
 
   async function retomar(r) {
     const cfg = r.decisoes?.config || {}
@@ -176,6 +178,21 @@ export function useAssistenteImportacao(store, inicial = null) {
     setBancoV2(true)
   }
 
+  // Reabre uma fatura já importada: lê de novo as linhas guardadas no lote e compara com o que há no app agora.
+  async function reconferir(lote) {
+    const registros = registrosDoLote(lote)
+    if (!registros.length) { setErro('Esta importação não guardou as linhas do arquivo (ela é anterior à atualização 37). Importe o arquivo de novo para conferir.'); return }
+    limpar(); setLendo('Comparando com o que está no app agora…')
+    const { base } = prepararLinhas(registros, { categorias, cartoes, pessoas, aliases, regras, compras })
+    const comCartao = lote.cartao_id ? aplicarCartao(base.map((l) => ({ ...l, cartao_id: lote.cartao_id })), lote.cartao_id) : base
+    setArquivo({ nome: lote.arquivo_nome || 'arquivo', origem: lote.origem_leitura, chave: '', totalBanco: lote.total_banco ?? null, descartadas: 0 })
+    setCartaoId(lote.cartao_id || ''); setMesFatura(lote.mes); setModoValor('parcela')
+    setImportacaoId(lote.id)
+    setConciliando({ id: lote.id, operacaoId: novoIdImportacao(), status: lote.status_conciliacao })
+    setLinhas(reanalisar(comCartao, compras, aliases, 'parcela', { cartoes, mesFatura: lote.mes }))
+    setEtapa(3); setMaxEtapa(4); setLendo(null)
+  }
+
   async function descartar(id = importacaoId) {
     try { await descartarRascunho(sb, id) } catch { /* sem rascunho: nada a descartar */ }
     setRascunhos((rs) => rs.filter((x) => x.id !== id))
@@ -183,10 +200,17 @@ export function useAssistenteImportacao(store, inicial = null) {
   }
 
   async function confirmar() {
-    if (!plano || !plano.previa.temAlgoParaGravar || confirmando) return
+    if (!plano || (!plano.previa.temAlgoParaGravar && !conciliando) || confirmando) return
     setConfirmando(true); setErro('')
     try {
-      const r = await importarFatura({ importacaoId, dados: plano.dados })
+      let r
+      if (conciliando) {
+        const { cartao_id, mes, arquivo_nome, origem_leitura, chave, total_banco, total_extraido, linhas: _l, ...resto } = plano.dados // eslint-disable-line no-unused-vars
+        r = await conciliarFatura({ importacaoId, operacaoId: conciliando.operacaoId, dados: resto })
+        listarImportadas(sb).then(setImportadas).catch(() => {})
+      } else {
+        r = await importarFatura({ importacaoId, dados: plano.dados })
+      }
       setResultado({ ...textoResultado(r), r, pendencias: plano.previa.emAberto, importacaoId })
       setRascunhos((rs) => rs.filter((x) => x.id !== importacaoId))
       irPara(5)
@@ -198,8 +222,8 @@ export function useAssistenteImportacao(store, inicial = null) {
   }
 
   return {
-    etapa, maxEtapa, irPara, arquivo, linhas, cartaoId, mesFatura, modoValor, importacaoId, lendo, erro, setErro, confirmando, resultado, rascunhos, bancoV2, salvoEm, faturaMesOk,
+    etapa, maxEtapa, irPara, arquivo, linhas, cartaoId, mesFatura, modoValor, importacaoId, lendo, erro, setErro, confirmando, resultado, rascunhos, importadas, conciliando, bancoV2, salvoEm, faturaMesOk,
     analise, plano, cartoes, categorias, pessoas, fechamentos: store.fechamentos || [],
-    abrirCsv, abrirPdf, definirCartao, definirMes, definirModo, definirTotalBanco, atualizarLinha, decidir, escolherParcelamento, mudarCategoria, retomar, descartar, confirmar, limpar,
+    abrirCsv, abrirPdf, definirCartao, definirMes, definirModo, definirTotalBanco, atualizarLinha, decidir, escolherParcelamento, mudarCategoria, retomar, reconferir, descartar, confirmar, limpar,
   }
 }

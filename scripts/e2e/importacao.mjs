@@ -76,10 +76,15 @@ await ctx.route(`${SB}/**`, async (route) => {
       const d = corpo.p_dados
       return json({ importacao_id: corpo.p_importacao, status_importacao: 'concluida', status_conciliacao: d.status_conciliacao, criadas: d.compras.length, atualizadas: d.atualizar.length, movidas: d.mover.length, ids: [] })
     }
+    if (rpc[1] === 'aplicar_conciliacao') {
+      const d = corpo.p_dados
+      return json({ importacao_id: corpo.p_importacao, operacao: corpo.p_operacao, status_conciliacao: d.status_conciliacao, criadas: (d.compras || []).length, atualizadas: (d.atualizar || []).length, movidas: (d.mover || []).length, ids: [] })
+    }
     return json({})
   }
   const tabela = url.pathname.replace('/rest/v1/', '')
   if (req.method() === 'GET') {
+    if (tabela === 'importacoes_fatura' && url.search.includes('concluida')) return json(globalThis.__mostrarConcluidas ? [{ id: 'lote-antigo', cartao_id: 'c1', mes, arquivo_nome: 'fatura.csv', origem_leitura: 'csv', total_banco: null, total_extraido: 305, status_importacao: 'concluida', status_conciliacao: 'parcial', concluida_em: '2026-10-01T12:00:00Z', decisoes: { pendencias: [{ x: 1 }] }, linhas: [{ data: dia(3), descricao: 'MERCADO EXTRA', valor: 100, cartao: 'Nubank' }, { data: dia(5), descricao: 'POSTO SHELL', valor: 205, cartao: 'Nubank' }] }] : [])
     if (tabela === 'importacoes_fatura') return json(rascunhoGuardado && url.search.includes('rascunho') && globalThis.__mostrarRascunho ? [{ id: rascunhoGuardado.p_importacao, cartao_id: 'c1', mes, arquivo_nome: 'fatura.csv', origem_leitura: 'csv', total_banco: null, linhas: [], decisoes: rascunhoGuardado.p_dados.decisoes, atualizado_em: new Date().toISOString() }] : [])
     return json(TABELAS[tabela] || [])
   }
@@ -280,6 +285,29 @@ await page.getByRole('button', { name: 'Confirmar importação' }).click()
 await page.waitForSelector('text=já foi importada', { timeout: 8000 })
 const rep = await page.locator('.imp-assistente').innerText()
 ok(/Nada foi gravado de novo/.test(rep) && !/Importação concluída/.test(rep), 'arquivo repetido: avisa que nada foi gravado (e não diz "concluída")')
+
+// --- conciliação posterior: a fatura já importada volta para conferência, sem criar outro lote
+globalThis.__mostrarConcluidas = true
+await page.reload()
+await page.waitForSelector('.imp-importadas', { timeout: 10000 })
+const lista = await page.locator('.imp-importadas').innerText()
+ok(/Importação concluída/.test(lista) && /Conciliação parcial/.test(lista) && /1 pendência/.test(lista), 'lista de faturas importadas mostra importação concluída e conciliação parcial, separadas')
+const antesConc = chamadas.rpc.length
+await page.getByRole('button', { name: 'Conferir de novo' }).click()
+await page.waitForSelector('.imp-reconferir', { timeout: 8000 })
+ok(/Reconferindo uma fatura já importada/.test(await page.locator('.imp-reconferir').innerText()), 'reconferir mostra aviso de que nada será duplicado')
+ok(await page.locator('.imp-linha.revisao', { hasText: 'POSTO' }).count() === 1, 'a pendência (valor diferente) volta para revisão, comparada com o app de agora')
+ok(await page.locator('.imp-linha.revisao', { hasText: 'MERCADO' }).count() === 0, 'a linha que já está registrada não vira pendência')
+await page.locator('.imp-linha.revisao', { hasText: 'POSTO' }).getByRole('button', { name: /Atualizar para/ }).click()
+await page.getByRole('button', { name: /Continuar para confirmar/ }).click()
+await page.waitForSelector('.imp-confirmar-grade')
+ok(await page.getByRole('button', { name: 'Confirmar conferência' }).isEnabled(), 'botão vira "Confirmar conferência"')
+await page.getByRole('button', { name: 'Confirmar conferência' }).click()
+await page.waitForSelector('text=Conferência aplicada', { timeout: 8000 })
+const conc = chamadas.rpc.filter(([n]) => n === 'aplicar_conciliacao')
+ok(conc.length === 1 && conc[0][1].p_importacao === 'lote-antigo' && typeof conc[0][1].p_operacao === 'string' && conc[0][1].p_operacao.length === 36, 'a conferência usa o mesmo lote e uma rodada própria')
+ok(conc[0][1].p_dados.atualizar?.length === 1 && conc[0][1].p_dados.atualizar[0].valor_anterior === 200 && conc[0][1].p_dados.compras.length === 0, 'só o valor é atualizado (nada é criado de novo)')
+ok(!chamadas.rpc.slice(antesConc).some(([n]) => n === 'aplicar_importacao' || n === 'salvar_rascunho_importacao'), 'conferência não cria outro lote nem rascunho')
 ok(erros.length === 0, `sem erros no console/página ${erros.length ? '→ ' + erros.slice(0, 3).join(' | ') : ''}`)
 await browser.close()
 servidor.close()
