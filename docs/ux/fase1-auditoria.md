@@ -287,3 +287,15 @@ Isso é intencional no código, mas **não está explicado em nenhuma tela**: na
 - **Secundário e recolhido:** "Compromissos a longo prazo" (gráfico) e "Outros meses" (resumo de uma linha por mês, com atalho).
 - **Preservado:** visão **"Todos os meses"** com a tabela antiga, busca, filtros, exportar CSV e a lista de faturas suspeitas; modal de lançar/editar fatura; regras de `lancadoDoCartao`/`faturaDe`.
 - **Medido (celular):** 0 colunas ocultas, sem rolagem horizontal; alvos de toque pequenos 5 (eram 12 no desktop).
+
+
+## 15. Fase 4 · Início
+
+- **Destaque da situação** (`components/inicio/HeroInicio.jsx`): "**Livre para gastar**" (estimativa, com "Não é o saldo da conta"), por dia, barra pago/a pagar/livre e três números de apoio: **Disponível agora · A pagar · Comprometido (% da entrada)**. Sem renda cadastrada o número vira "—" e pede a renda (não mostra projeção como fato). Negativo: "Faltando para fechar o mês".
+- **Precisa da sua atenção** (`itensDeAtencao` em `lib/inicio.js`): vencidas, dívidas atrasadas, renda não cadastrada, faturas com diferença, faturas importadas para conciliar, compras no Inbox, vence em 7 dias, valores a receber, plano sazonal; do mais urgente ao menos, com um botão em cada item; 4 visíveis + "Ver todas".
+- **Ações rápidas:** + Gasto, + Entrada, Registrar pagamento, Importar fatura, Conferir pendências (4 no topo do desktop).
+- **Glossário único** (`lib/glossario.js`): Disponível agora, Sobra prevista do mês, Livre para gastar, A pagar, Comprometido, Resultado do mês, com a definição de cada um; Dashboard passou a usar os mesmos nomes (sem mudar nenhum número).
+- **Contraste:** `--text3` de `#5d6b63` (3,2:1) para `#7f8f86` (5,2:1).
+- **Removido do Início por redundância:** cartão "Resumo do mês" (entrada/comprometido já estão no destaque). "Linha do mês" ficou recolhida; "Contas a pagar" virou "Próximos pagamentos".
+- **Preservado:** categorias (rosca), Aulas, Atendimentos, Dívidas, longo prazo, mês fechado, perfis. Fórmulas inalteradas (`montarInicio` só ganhou `disponivel` e `pctComprometido`, aditivos).
+- **Medido (celular):** o primeiro item de atenção termina dentro da primeira tela (≤ 780 px); altura total 2.014 px (era 1.973: ganhou a lista de atenção e perdeu o resumo repetido).

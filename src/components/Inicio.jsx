@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react'
-import { montarInicio } from '../lib/inicio'
+import { useEffect, useState, useMemo } from 'react'
+import { montarInicio, itensDeAtencao } from '../lib/inicio'
 import { fmt, fmtK, mesLabel, nowYM, hojeSP } from '../lib/utils'
 import { resumoDoPlano } from '../lib/dividasResumo'
 import { cartaoAulasInicio } from '../lib/aulasInicio'
@@ -12,6 +12,12 @@ import ModalCompra from './ModalCompra'
 import LongoPrazo from './LongoPrazo'
 import NavMes from './NavMes'
 import { useProjecaoSazonal } from './RendaSazonal'
+import { sb } from '../lib/supabase'
+import { listarImportadas } from '../lib/importacaoLote'
+import { cartoesDoMes } from '../lib/faturasMes'
+import HeroInicio from './inicio/HeroInicio'
+import Atencao from './inicio/Atencao'
+import AcoesRapidas from './inicio/AcoesRapidas'
 
 const CORES = ['var(--ini-1)', 'var(--ini-2)', 'var(--ini-3)', 'var(--ini-4)', 'var(--ini-5)']
 const ICONE_TIPO = { fixo: '🏠', fatura: '💳', compra: '🛍️' }
@@ -92,6 +98,8 @@ export default function Inicio({ store, irPara }) {
   const [novaCompra, setNovaCompra] = useState(false)
   const [diaAberto, setDiaAberto] = useState(null)
   const d = useMemo(() => montarInicio(store, mes), [store, mes])
+  const [importadas, setImportadas] = useState([]) // lotes de importação (para saber quais faturas faltam conciliar)
+  useEffect(() => { listarImportadas(sb, 60).then(setImportadas).catch(() => setImportadas([])) }, [])
   // Aulas particulares: as de hoje, o que falta atualizar e o que ainda não foi recebido no mês
   const hojeISO = hojeSP()
   // Atendimentos (perfil esteticista): os de hoje e o que ainda não foi recebido no mês
@@ -110,18 +118,25 @@ export default function Inicio({ store, irPara }) {
   const planoDividas = useMemo(() => (store.dividas?.length ? resumoDoPlano(store, hojeSP()) : null), [store.dividas, store.rendas, store.fixos, store.compras, store.faturas, store.fixosPagamentos, store.comprasPagamentos, store.adiamentos, store.rendaSazonal]) // eslint-disable-line react-hooks/exhaustive-deps
   const sazonal = useProjecaoSazonal(store, 12)
   const fechado = mesFechado(store.fechamentos, mes)
-  const negativo = d.podeGastar < 0
   const semRenda = d.entrada === 0 && d.saldoAnterior === 0
   const proximas = d.abertas.slice(0, 6)
   const { atrasadas, proximos7 } = d.atencao
   const trocarMes = (novo) => { setMes(novo); setDiaAberto(null) }
 
-  const acoes = (cls) => (
-    <div className={`ini-acoes ${cls}`}>
-      <button className="ini-btn ini-btn-gasto" onClick={() => setNovaCompra(true)} disabled={store.cartoes.length === 0}>+ Gasto</button>
-      <button className="ini-btn ini-btn-entrada" onClick={() => irPara('renda')}>+ Entrada</button>
-    </div>
-  )
+  // O que pede ação: vencidas, faturas com diferença ou sem conciliar, Inbox, a receber, dívidas, plano sazonal
+  const inboxPendentes = (store.eventos || []).filter((e) => e.status === 'pendente' || e.status === 'aguardando_dados').length
+  const cartoesMes = useMemo(() => cartoesDoMes({ faturas: store.faturas, compras: store.compras, cartoes: store.cartoes, fixos: store.fixos, importacoes: importadas, mes, hoje: hojeISO }), [store.faturas, store.compras, store.cartoes, store.fixos, importadas, mes, hojeISO])
+  const aReceber = [
+    ...(aulasCard?.mes?.aReceber > 0.005 ? [{ valor: aulasCard.mes.aReceber, rotulo: 'aulas ainda não recebidas', tela: 'aulas' }] : []),
+    ...(atendCard?.receber > 0 ? [{ valor: atendCard.receber, rotulo: 'atendimentos ainda não recebidos', tela: 'atendimentos' }] : []),
+  ]
+  const janelaSazonal = sazonal.ativo && sazonal.plano.tem ? sazonal.plano.janelas[0] : null
+  const itensAtencao = itensDeAtencao({
+    semRenda, atrasadas, proximos7, inboxPendentes, aReceber, dividasAtrasadas: planoDividas?.atrasadas || 0,
+    faturasComDiferenca: cartoesMes.filter((l) => ['faltam', 'excede'].includes(l.estados.diferenca)).map((l) => ({ nome: l.cartao.nome, diferenca: l.diferenca })),
+    faturasParaConciliar: cartoesMes.filter((l) => ['importada', 'parcial'].includes(l.estados.conciliacao)).length,
+    sazonal: janelaSazonal ? { mes: mesLabel(janelaSazonal.primeiroMes), buraco: janelaSazonal.buraco } : null,
+  })
 
   return (
     <div className="page inicio">
@@ -141,110 +156,24 @@ export default function Inicio({ store, irPara }) {
 
       <div className="ini-topo">
         <NavMes mes={mes} onChange={trocarMes} fechado={fechado} />
-        {acoes('so-desk')}
+        <AcoesRapidas cls="so-desk" compacta aoNovaCompra={() => setNovaCompra(true)} semCartao={store.cartoes.length === 0} irPara={irPara} />
       </div>
 
       <div className="ini-grade">
-        <section className={`ini-hero ${negativo ? 'neg' : ''}`} aria-label="Saldo do mês">
-          <div className="ini-hero-corpo">
-            <div>
-              <div className="ini-hero-rotulo">{negativo ? 'Faltando para fechar o mês' : 'Pode gastar'}</div>
-              <div className="ini-hero-valor mono">{negativo ? '−' : ''}{fmt(Math.abs(d.podeGastar))}</div>
-            </div>
-            {!semRenda && !negativo && d.porDia != null && (
-              <div className="ini-hero-chip">
-                <b className="mono">{fmt(d.porDia)}</b>
-                <span>por dia · {d.diasRestantes} {d.diasRestantes === 1 ? 'dia' : 'dias'} até o fim do mês</span>
-              </div>
-            )}
-          </div>
-          {(semRenda || negativo || d.porDia == null) && (
-            <div className="ini-hero-sub">
-              {semRenda ? 'Cadastre a renda do mês para o saldo ficar certo.'
-                : negativo ? 'As contas do mês passam do que entrou.'
-                  : 'Depois de pagar tudo o que falta no mês.'}
-            </div>
-          )}
-          {semRenda && <button className="btn btn-primary btn-sm" onClick={() => irPara('renda')}>Cadastrar renda</button>}
-          {d.reparto.total > 0 && (
-            <div className="ini-reparto">
-              <div className="ini-reparto-topo">
-                <span>Para onde vai o dinheiro do mês</span>
-                {d.comprometido > 0 && <span>{d.pctPago}% das contas pagas</span>}
-              </div>
-              <div className="ini-reparto-barra" role="img" aria-label={d.reparto.partes.map((p) => `${p.rotulo} ${fmt(p.valor)}`).join(', ')}>
-                {d.reparto.partes.filter((p) => p.pct > 0).map((p) => <div key={p.chave} className={`ini-seg ${p.chave}`} style={{ width: `${p.pct}%` }} />)}
-              </div>
-              <div className="ini-reparto-leg">
-                {d.reparto.partes.filter((p) => p.valor > 0).map((p) => (
-                  <span key={p.chave}><i className={p.chave} />{p.rotulo} <b className="mono">{fmt(p.valor)}</b></span>
-                ))}
-              </div>
-            </div>
-          )}
-        </section>
-
-        <section className="ini-card ini-resumo" aria-label="Resumo do mês">
-          <div className="ini-card-topo"><h2>Resumo do mês</h2></div>
-          <div className="ini-res-lista">
-            <div className="ini-res-item">
-              <div className="ini-res-rotulo"><span className="ini-seta up">↑</span>Entrada</div>
-              <div className="ini-res-valor mono verde">{fmt(d.entrada)}</div>
-            </div>
-            {d.saldoAnterior !== 0 && (
-              <div className="ini-res-item">
-                <div className="ini-res-rotulo"><span className="ini-seta ok">↺</span>Saldo anterior</div>
-                <div className={`ini-res-valor mono ${d.saldoAnterior < 0 ? 'vermelho' : ''}`}>{fmt(d.saldoAnterior)}</div>
-              </div>
-            )}
-            <div className="ini-res-item">
-              <div className="ini-res-rotulo"><span className="ini-seta down">↓</span>Comprometido</div>
-              <div className="ini-res-valor mono">{fmt(d.comprometido)}</div>
-            </div>
-          </div>
-          <div className="ini-res-nota">Pode gastar = entrada{d.saldoAnterior !== 0 ? ' + saldo anterior' : ''} − comprometido</div>
-        </section>
-
-        {acoes('so-mob')}
-
-        <section className={`ini-atencao ${atrasadas.n ? 'ruim' : proximos7.n ? 'aviso' : 'ok'}`} aria-live="polite">
-          <div className="ini-atencao-texto">
-            {atrasadas.n > 0 ? (
-              <>⚠ <b>{atrasadas.n} {atrasadas.n === 1 ? 'conta atrasada' : 'contas atrasadas'}</b> · {fmt(atrasadas.valor)}{proximos7.n > 0 && <span> · e {fmt(proximos7.valor)} vence nos próximos 7 dias</span>}</>
-            ) : proximos7.n > 0 ? (
-              <>🗓 <b>{fmt(proximos7.valor)}</b> vence nos próximos 7 dias ({proximos7.n} {proximos7.n === 1 ? 'conta' : 'contas'})</>
-            ) : d.contas.length > 0 && d.abertas.length === 0 ? (
-              <>🎉 Tudo pago neste mês</>
-            ) : (
-              <>✓ Nada vencendo nos próximos 7 dias</>
-            )}
-          </div>
-          {(atrasadas.n > 0 || proximos7.n > 0) && <button className="ini-atencao-btn" onClick={() => irPara('pagamentos')}>Ver contas →</button>}
-        </section>
-
-        {sazonal.ativo && sazonal.plano.tem && (() => {
-          const w = sazonal.plano.janelas[0]
-          return (
-            <section className="ini-atencao aviso" aria-live="polite">
-              <div className="ini-atencao-texto">
-                🗓 <b>{mesLabel(w.primeiroMes)}</b> deve ficar no vermelho (faltam {fmt(w.buraco)}).{' '}
-                {w.precisa > 0 && w.mesesAntes > 0 ? <>Guarde <b>{fmt(w.porMes)}</b> por mês até lá. </> : null}
-              </div>
-              <button className="ini-atencao-btn" onClick={() => irPara('renda')}>Ver o plano →</button>
-            </section>
-          )
-        })()}
+        <HeroInicio d={d} mes={mes} semRenda={semRenda} irPara={irPara} />
+        <Atencao itens={itensAtencao} irPara={irPara} />
+        <AcoesRapidas cls="so-mob" aoNovaCompra={() => setNovaCompra(true)} semCartao={store.cartoes.length === 0} irPara={irPara} />
 
         <section className="ini-card ini-contas">
           <div className="ini-card-topo">
-            <h2>Contas a pagar</h2>
+            <h2>Próximos pagamentos</h2>
             {d.contas.length > 0 && <span className="ini-card-dica">falta {fmt(d.aPagar)}</span>}
           </div>
           {d.linha.marcas.length > 0 && (
-            <div className="ini-linha">
-              <div className="ini-sub-rotulo">Linha do mês <span>· toque numa bolinha para ver o dia</span></div>
+            <details className="ini-linha ini-linha-det">
+              <summary className="ini-sub-rotulo">Linha do mês <span>· toque numa bolinha para ver o dia</span></summary>
               <LinhaDoMes linha={d.linha} aberto={diaAberto} onAbrir={setDiaAberto} />
-            </div>
+            </details>
           )}
           {d.contas.length === 0 && <div className="ini-vazio">Nenhuma conta neste mês.</div>}
           {d.contas.length > 0 && proximas.length === 0 && <div className="ini-vazio">Tudo pago neste mês 🎉</div>}
@@ -280,7 +209,7 @@ export default function Inicio({ store, irPara }) {
                 </ul>
               </div>
             )}
-            <button className="ini-link" onClick={() => irPara('dashboard')}>Detalhes por categoria →</button>
+            <button className="ini-link" onClick={() => irPara('dashboard')}>Ver análises →</button>
           </section>
 
           {atendCard && (

@@ -2,6 +2,7 @@ import { useState, useMemo, Fragment } from 'react'
 import { serieMensal } from '../lib/evolucao'
 import { fmt, fmtK, mesLabel, nowYM, addMonths, gerarParcelas, corPessoa, corPessoaCss, fixosAtivos, gastosPorCategoria, statusTeto, nomeCasa, donoDoFixo, hojeSP } from '../lib/utils'
 import { resumoDoMes, lerUsarSaldoAnterior } from '../lib/financeiro'
+import { GLOSSARIO } from '../lib/glossario'
 import { comprasLiquidas, fixosLiquidos } from '../lib/divisoes'
 import { riscosDoMes, mesFechado } from '../lib/fechamento'
 import { pendenciasValorVariavel } from '../lib/fixosVariaveis'
@@ -142,15 +143,15 @@ export default function Dashboard({ store, irPara }) {
           <div className="kpi-sub">{renda > 0 ? (resumoMes.repasses > 0 ? `inclui ${fmtK(resumoMes.repasses)} de Divididos` : 'renda cadastrada') : 'cadastre na aba Renda'}</div>
         </div>
         <div className="kpi">
-          <div className="kpi-rotulo">Comprometido</div>
+          <div className="kpi-rotulo" title={GLOSSARIO.comprometido.ajuda}>{GLOSSARIO.comprometido.rotulo}</div>
           <div className={`kpi-valor ${pct > 100 ? 'vermelho' : 'ambar'}`}>{fmtK(totalMes)}</div>
           <div className={`kpi-sub ${pct > 90 ? 'ruim' : ''}`}>{renda > 0 ? `${pct}% da renda` : 'sem renda para comparar'}</div>
           {renda > 0 && <div className="kpi-barra"><div className={pct > 90 ? 'ruim' : pct > 70 ? 'aviso' : 'ok'} style={{ width: Math.min(100, pct) + '%' }} /></div>}
         </div>
         <div className="kpi">
-          <div className="kpi-rotulo">Sobra projetada</div>
+          <div className="kpi-rotulo" title={GLOSSARIO.sobraPrevista.ajuda}>{GLOSSARIO.sobraPrevista.rotulo}</div>
           <div className={`kpi-valor ${renda === 0 ? 'azul' : saldo >= 0 ? 'verde' : 'vermelho'}`}>{renda > 0 ? fmtK(saldo) : '—'}</div>
-          <div className="kpi-sub">{renda > 0 && resumoMes.saldoAnterior !== 0 ? `inclui ${resumoMes.saldoAnterior > 0 ? '+' : '−'}${fmtK(Math.abs(resumoMes.saldoAnterior))} do mês anterior` : 'renda − comprometido'}</div>
+          <div className="kpi-sub">{renda > 0 ? ([resumoMes.saldoAnterior !== 0 && `inclui ${resumoMes.saldoAnterior > 0 ? '+' : '−'}${fmtK(Math.abs(resumoMes.saldoAnterior))} do mês anterior`, resumoMes.ajuste !== 0 && `e acerto de saldo de ${fmtK(Math.abs(resumoMes.ajuste))}`].filter(Boolean).join(' ') || 'entrada − comprometido') : 'projeção do mês'}</div>
         </div>
         <div className="kpi">
           <div className="kpi-rotulo">Já pago</div>
@@ -159,14 +160,14 @@ export default function Dashboard({ store, irPara }) {
           {totalMes > 0 && <div className="kpi-barra"><div className="ok" style={{ width: pctPago + '%' }} /></div>}
         </div>
         <div className="kpi">
-          <div className="kpi-rotulo">Falta pagar</div>
+          <div className="kpi-rotulo" title={GLOSSARIO.aPagar.ajuda}>{GLOSSARIO.aPagar.rotulo}</div>
           <div className={`kpi-valor ${atrasadasMes ? 'vermelho' : 'ambar'}`}>{fmtK(resumoMes.aPagar)}</div>
           <div className={`kpi-sub ${atrasadasMes ? 'ruim' : ''}`}>
             {abertasMes.length === 0 ? 'tudo pago' : `${abertasMes.length} ${abertasMes.length === 1 ? 'conta' : 'contas'} em aberto${atrasadasMes ? ` · ${atrasadasMes} ${atrasadasMes === 1 ? 'vencida' : 'vencidas'}` : ''}`}
           </div>
         </div>
         <div className="kpi">
-          <div className="kpi-rotulo">Disponível hoje</div>
+          <div className="kpi-rotulo" title={GLOSSARIO.disponivelAgora.ajuda}>{GLOSSARIO.disponivelAgora.rotulo}</div>
           <div className={`kpi-valor ${resumoMes.disponivel >= 0 ? 'azul' : 'vermelho'}`}>{renda > 0 ? fmtK(resumoMes.disponivel) : '—'}</div>
           <div className="kpi-sub">dinheiro que existe agora</div>
         </div>

@@ -135,6 +135,8 @@ export function montarInicio(store, mes = nowYM(), hoje = hojeSP()) {
     aPagar: r.aPagar,
     pctPago: r.comprometido > 0 ? Math.min(100, Math.round((r.pago / r.comprometido) * 100)) : 0,
     podeGastar: r.sobraProjetada,
+    disponivel: r.disponivel,
+    pctComprometido: r.renda > 0 ? Math.round((r.comprometido / r.renda) * 100) : null,
     saldoAnterior: r.saldoAnterior,
     contas,
     abertas,
@@ -146,4 +148,26 @@ export function montarInicio(store, mes = nowYM(), hoje = hojeSP()) {
     linha: linhaDoMes(contas, mes, hoje),
     atencao: atencaoDoMes(abertas),
   }
+}
+
+// "Precisa da sua atenção": o que pede uma ação do usuário, do mais urgente para o menos urgente.
+// Cada item: { chave, tom: 'erro'|'aviso'|'info', titulo, detalhe, acao: { rotulo, tela } }. Funções puras: quem chama junta os dados.
+const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`
+export function itensDeAtencao({ semRenda = false, atrasadas = { n: 0, valor: 0 }, proximos7 = { n: 0, valor: 0 }, faturasComDiferenca = [], faturasParaConciliar = 0, inboxPendentes = 0, aReceber = [], dividasAtrasadas = 0, sazonal = null }) {
+  const itens = []
+  const fmtR = (v) => `R$ ${Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  if (atrasadas.n > 0) itens.push({ chave: 'vencidas', tom: 'erro', titulo: plural(atrasadas.n, 'conta vencida', 'contas vencidas'), detalhe: fmtR(atrasadas.valor), acao: { rotulo: 'Pagar', tela: 'pagamentos' } })
+  if (dividasAtrasadas > 0) itens.push({ chave: 'dividas', tom: 'erro', titulo: plural(dividasAtrasadas, 'dívida atrasada', 'dívidas atrasadas'), detalhe: 'veja o plano de dívidas', acao: { rotulo: 'Abrir', tela: 'dividas' } })
+  if (semRenda) itens.push({ chave: 'renda', tom: 'aviso', titulo: 'Renda do mês não cadastrada', detalhe: 'sem ela os números de sobra não fazem sentido', acao: { rotulo: 'Cadastrar', tela: 'renda' } })
+  if (faturasComDiferenca.length > 0) {
+    const total = faturasComDiferenca.reduce((t, f) => t + Math.abs(f.diferenca), 0)
+    itens.push({ chave: 'faturas', tom: 'aviso', titulo: faturasComDiferenca.length === 1 ? `Fatura ${faturasComDiferenca[0].nome} com diferença` : `${faturasComDiferenca.length} faturas com diferença`, detalhe: `${fmtR(total)} a conferir`, acao: { rotulo: 'Conferir', tela: 'faturas' } })
+  }
+  if (faturasParaConciliar > 0) itens.push({ chave: 'conciliar', tom: 'aviso', titulo: plural(faturasParaConciliar, 'fatura importada para conciliar', 'faturas importadas para conciliar'), detalhe: 'a importação terminou, mas a conferência não', acao: { rotulo: 'Conciliar', tela: 'importar' } })
+  if (inboxPendentes > 0) itens.push({ chave: 'inbox', tom: 'aviso', titulo: plural(inboxPendentes, 'compra aguardando confirmação', 'compras aguardando confirmação'), detalhe: 'chegaram pelo Telegram ou pelo celular', acao: { rotulo: 'Revisar', tela: 'inbox' } })
+  if (proximos7.n > 0) itens.push({ chave: 'proximos7', tom: 'info', titulo: `${fmtR(proximos7.valor)} vence nos próximos 7 dias`, detalhe: plural(proximos7.n, 'conta', 'contas'), acao: { rotulo: 'Ver contas', tela: 'pagamentos' } })
+  for (const r of aReceber) if (r.valor > 0.005) itens.push({ chave: `receber-${r.tela}`, tom: 'info', titulo: `${fmtR(r.valor)} a receber`, detalhe: r.rotulo, acao: { rotulo: 'Abrir', tela: r.tela } })
+  if (sazonal) itens.push({ chave: 'sazonal', tom: 'aviso', titulo: `${sazonal.mes} deve ficar no vermelho`, detalhe: `faltam ${fmtR(sazonal.buraco)}`, acao: { rotulo: 'Ver o plano', tela: 'renda' } })
+  const ordem = { erro: 0, aviso: 1, info: 2 }
+  return itens.map((i, k) => ({ ...i, k })).sort((a, b) => ordem[a.tom] - ordem[b.tom] || a.k - b.k).map(({ k, ...i }) => i) // estável dentro do mesmo tom
 }
