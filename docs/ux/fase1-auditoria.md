@@ -265,3 +265,15 @@ Isso é intencional no código, mas **não está explicado em nenhuma tela**: na
 - **Desfazer** logo após pagar (uma conta ou lote). **Diálogos do app** (`ui/Dialogos.jsx`) no lugar de todos os `confirm/alert/prompt` nativos de Pagamentos.
 - **Mantido sem alteração:** `toggleFixo/toggleCartao/toggleOutraConta`, regras de adiamento, dívida, valor variável, fechamento de mês e as fórmulas do resumo.
 - **Medido:** altura da tela no celular 1.839 → 1.163 px; colunas ocultas 15 → 0; sem rolagem horizontal; sem diálogos nativos.
+
+
+## 13. Fase 3 · Compras
+
+- **Lista enxuta** no lugar da tabela de 9 colunas (`Compras.jsx` + `components/compras/LinhaCompra.jsx`): cada compra mostra descrição, data, valor, categoria, pessoa e forma de pagamento. O resto (subcategoria, parcelas, observação, origem, fatura escolhida, divisão, status de pagamento sem cartão) fica nos **detalhes expansíveis**.
+- **Ordenação** (data, valor, descrição) e **filtro por origem** (Telegram, manual, fatura…), além dos filtros que já existiam. Agrupamento por mês mantido (mês atual aberto, anteriores recolhidos).
+- **Edição rápida de categoria** nos detalhes (a subcategoria fica para você escolher; só salva com os dois). **Renomear** e **Excluir** por diálogos do app; exclusão continua com "Desfazer".
+- **Seleção** só quando você pede ("Selecionar"): caixas e barra flutuante com a soma e a troca de categoria em lote (com confirmação).
+- **Paginação por mês** (30 por vez, "Mostrar mais") para não pesar no celular.
+- **Mantido:** parcelamento, divisão por categoria, fatura escolhida, exportar CSV, regras de mês fechado (`updateCompra`, `salvarDivisao`, `delCompra` inalterados).
+- **Estado vazio** com ação (limpar filtros / nova compra) e sem `confirm/prompt` nativos.
+- **Medido (celular, 40 compras):** altura 6.803 → 3.583 px; alvos de toque pequenos 84 → 0; colunas ocultas 205 → 0; sem rolagem horizontal.
