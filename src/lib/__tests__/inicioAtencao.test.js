@@ -37,6 +37,17 @@ describe('"Precisa da sua atenção"', () => {
   })
 })
 
+describe('cobranças recorrentes no Início', () => {
+  it('aparece como item informativo que leva a Contas fixas, depois de "vence em 7 dias"', () => {
+    const itens = itensDeAtencao({ recorrentes: 2, proximos7: { n: 1, valor: 100 }, aReceber: [{ valor: 50, rotulo: 'x', tela: 'aulas' }] })
+    expect(itens.map((i) => i.chave)).toEqual(['proximos7', 'recorrentes', 'receber-aulas'])
+    const r = itens.find((i) => i.chave === 'recorrentes')
+    expect(r).toMatchObject({ tom: 'info', titulo: '2 cobranças recorrentes para virar conta fixa', acao: { tela: 'fixos' } })
+    expect(itensDeAtencao({ recorrentes: 1 })[0].titulo).toBe('1 cobrança recorrente para virar conta fixa')
+    expect(itensDeAtencao({ recorrentes: 0 })).toEqual([])
+  })
+})
+
 describe('glossário dos indicadores', () => {
   it('cada conceito tem um nome e uma definição; os nomes não se repetem', () => {
     const rotulos = Object.values(GLOSSARIO).map((g) => g.rotulo)

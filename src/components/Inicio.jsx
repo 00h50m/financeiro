@@ -15,6 +15,8 @@ import { useProjecaoSazonal } from './RendaSazonal'
 import { sb } from '../lib/supabase'
 import { listarImportadas } from '../lib/importacaoLote'
 import { cartoesDoMes } from '../lib/faturasMes'
+import { detectarRecorrencias } from '../lib/recorrencias'
+import { indexarAliases } from '../lib/estabelecimento'
 import HeroInicio from './inicio/HeroInicio'
 import Atencao from './inicio/Atencao'
 import AcoesRapidas from './inicio/AcoesRapidas'
@@ -126,13 +128,19 @@ export default function Inicio({ store, irPara }) {
   // O que pede ação: vencidas, faturas com diferença ou sem conciliar, Inbox, a receber, dívidas, plano sazonal
   const inboxPendentes = (store.eventos || []).filter((e) => e.status === 'pendente' || e.status === 'aguardando_dados').length
   const cartoesMes = useMemo(() => cartoesDoMes({ faturas: store.faturas, compras: store.compras, cartoes: store.cartoes, fixos: store.fixos, importacoes: importadas, mes, hoje: hojeISO }), [store.faturas, store.compras, store.cartoes, store.fixos, importadas, mes, hojeISO])
+  // assinaturas/mensalidades que se repetem no cartão e ainda não são conta fixa (mesma detecção de Contas fixas; respeita as que você ignorou)
+  const recorrentes = useMemo(() => {
+    let ignoradas = []
+    try { ignoradas = JSON.parse(localStorage.getItem('recorrencias_ignoradas') || '[]') } catch { /* sem armazenamento */ }
+    return detectarRecorrencias(store.compras, store.fixos, hojeMes, { aliases: indexarAliases(store.aliases || []), ignoradas }).length
+  }, [store.compras, store.fixos, store.aliases, hojeMes])
   const aReceber = [
     ...(aulasCard?.mes?.aReceber > 0.005 ? [{ valor: aulasCard.mes.aReceber, rotulo: 'aulas ainda não recebidas', tela: 'aulas' }] : []),
     ...(atendCard?.receber > 0 ? [{ valor: atendCard.receber, rotulo: 'atendimentos ainda não recebidos', tela: 'atendimentos' }] : []),
   ]
   const janelaSazonal = sazonal.ativo && sazonal.plano.tem ? sazonal.plano.janelas[0] : null
   const itensAtencao = itensDeAtencao({
-    semRenda, atrasadas, proximos7, inboxPendentes, aReceber, dividasAtrasadas: planoDividas?.atrasadas || 0,
+    semRenda, atrasadas, proximos7, inboxPendentes, recorrentes, aReceber, dividasAtrasadas: planoDividas?.atrasadas || 0,
     faturasComDiferenca: cartoesMes.filter((l) => ['faltam', 'excede'].includes(l.estados.diferenca)).map((l) => ({ nome: l.cartao.nome, diferenca: l.diferenca })),
     faturasParaConciliar: cartoesMes.filter((l) => ['importada', 'parcial'].includes(l.estados.conciliacao)).length,
     sazonal: janelaSazonal ? { mes: mesLabel(janelaSazonal.primeiroMes), buraco: janelaSazonal.buraco } : null,

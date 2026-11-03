@@ -1357,3 +1357,8 @@ input[type="month"], input[type="date"] { max-width: 100%; }
 /* Sem conexão */
 .offline-aviso { background: var(--cor-aviso-bg); border-bottom: 1px solid var(--cor-aviso-borda); color: var(--cor-aviso); padding: var(--espaco-2) var(--espaco-4); font-size: var(--texto-sm); }
 .offline-aviso b { color: var(--text); }
+
+/* Importação · cobrança recorrente */
+.imp-recorrente { display: flex; gap: var(--espaco-3); align-items: flex-start; background: var(--cor-info-bg); border: 1px solid var(--cor-info-borda); border-radius: var(--raio-md); padding: var(--espaco-3); font-size: var(--texto-sm); color: var(--text2); }
+.imp-recorrente input { width: 22px; height: 22px; min-width: 22px; margin-top: 2px; accent-color: var(--brand); }
+.imp-recorrente b { color: var(--text); }

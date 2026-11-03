@@ -153,7 +153,7 @@ export function montarInicio(store, mes = nowYM(), hoje = hojeSP()) {
 // "Precisa da sua atenção": o que pede uma ação do usuário, do mais urgente para o menos urgente.
 // Cada item: { chave, tom: 'erro'|'aviso'|'info', titulo, detalhe, acao: { rotulo, tela } }. Funções puras: quem chama junta os dados.
 const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`
-export function itensDeAtencao({ semRenda = false, atrasadas = { n: 0, valor: 0 }, proximos7 = { n: 0, valor: 0 }, faturasComDiferenca = [], faturasParaConciliar = 0, inboxPendentes = 0, aReceber = [], dividasAtrasadas = 0, sazonal = null }) {
+export function itensDeAtencao({ semRenda = false, atrasadas = { n: 0, valor: 0 }, proximos7 = { n: 0, valor: 0 }, faturasComDiferenca = [], faturasParaConciliar = 0, inboxPendentes = 0, recorrentes = 0, aReceber = [], dividasAtrasadas = 0, sazonal = null }) {
   const itens = []
   const fmtR = (v) => `R$ ${Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
   if (atrasadas.n > 0) itens.push({ chave: 'vencidas', tom: 'erro', titulo: plural(atrasadas.n, 'conta vencida', 'contas vencidas'), detalhe: fmtR(atrasadas.valor), acao: { rotulo: 'Pagar', tela: 'pagamentos' } })
@@ -166,6 +166,7 @@ export function itensDeAtencao({ semRenda = false, atrasadas = { n: 0, valor: 0 
   if (faturasParaConciliar > 0) itens.push({ chave: 'conciliar', tom: 'aviso', titulo: plural(faturasParaConciliar, 'fatura importada para conciliar', 'faturas importadas para conciliar'), detalhe: 'a importação terminou, mas a conferência não', acao: { rotulo: 'Conciliar', tela: 'importar' } })
   if (inboxPendentes > 0) itens.push({ chave: 'inbox', tom: 'aviso', titulo: plural(inboxPendentes, 'compra aguardando confirmação', 'compras aguardando confirmação'), detalhe: 'chegaram pelo Telegram ou pelo celular', acao: { rotulo: 'Revisar', tela: 'inbox' } })
   if (proximos7.n > 0) itens.push({ chave: 'proximos7', tom: 'info', titulo: `${fmtR(proximos7.valor)} vence nos próximos 7 dias`, detalhe: plural(proximos7.n, 'conta', 'contas'), acao: { rotulo: 'Ver contas', tela: 'pagamentos' } })
+  if (recorrentes > 0) itens.push({ chave: 'recorrentes', tom: 'info', titulo: plural(recorrentes, 'cobrança recorrente para virar conta fixa', 'cobranças recorrentes para virar conta fixa'), detalhe: 'assinaturas e mensalidades que se repetem no cartão', acao: { rotulo: 'Ver', tela: 'fixos' } })
   for (const r of aReceber) if (r.valor > 0.005) itens.push({ chave: `receber-${r.tela}`, tom: 'info', titulo: `${fmtR(r.valor)} a receber`, detalhe: r.rotulo, acao: { rotulo: 'Abrir', tela: r.tela } })
   if (sazonal) itens.push({ chave: 'sazonal', tom: 'aviso', titulo: `${sazonal.mes} deve ficar no vermelho`, detalhe: `faltam ${fmtR(sazonal.buraco)}`, acao: { rotulo: 'Ver o plano', tela: 'renda' } })
   const ordem = { erro: 0, aviso: 1, info: 2 }
