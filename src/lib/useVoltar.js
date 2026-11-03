@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { hashDaAba } from './navegacao'
 
 // Botão voltar do celular (e do navegador): em vez de fechar o app, volta para a tela anterior ou fecha a janela aberta.
 // Cada troca de aba empilha uma entrada no histórico; janelas (.overlay) e o menu lateral empilham uma entrada enquanto estão abertos.
@@ -10,7 +11,7 @@ export function useVoltar({ aba, setAba, menuAberto, fecharMenu }) {
 
   useEffect(() => {
     // Ao abrir direto numa aba que não é o Início, voltar leva ao Início (e só depois sai do app).
-    if (aba !== 'inicio') { history.replaceState({ aba: 'inicio' }, ''); history.pushState({ aba }, '') } else history.replaceState({ aba }, '')
+    if (aba !== 'inicio') { history.replaceState({ aba: 'inicio' }, '', hashDaAba('inicio')); history.pushState({ aba }, '', hashDaAba(aba)) } else history.replaceState({ aba }, '', hashDaAba('inicio'))
 
     const temCamada = () => estado.current.menuAberto || document.querySelector('.overlay') != null
     function verificar() {

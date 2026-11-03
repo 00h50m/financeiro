@@ -30,6 +30,19 @@
   --purple-border: #4c1d95;
   font-family: 'DM Sans', sans-serif;
   --font-marca: 'Fredoka', 'DM Sans', sans-serif;
+
+  /* TOKENS DE DESIGN (aditivos: usados pelos componentes de src/components/ui e pelas telas refeitas) */
+  --espaco-1: 4px; --espaco-2: 8px; --espaco-3: 12px; --espaco-4: 16px; --espaco-5: 24px; --espaco-6: 32px;
+  --raio-sm: 6px; --raio-md: 10px; --raio-lg: 14px; --raio-pilula: 999px;
+  --texto-xs: 12px; --texto-sm: 13px; --texto-md: 14px; --texto-lg: 16px; --texto-xl: 20px; --texto-2xl: 28px;
+  --alvo-toque: 44px;
+  /* Cores SEMÂNTICAS: significado, não matiz. Marca (verde-limão) = ação principal; "ok" = pago/conciliado/positivo. */
+  --cor-acao: var(--brand);
+  --cor-ok: var(--green); --cor-ok-bg: var(--green-bg); --cor-ok-borda: var(--green-border);
+  --cor-aviso: var(--amber); --cor-aviso-bg: var(--amber-bg); --cor-aviso-borda: var(--amber-border);
+  --cor-erro: var(--red); --cor-erro-bg: var(--red-bg); --cor-erro-borda: var(--red-border);
+  --cor-info: var(--blue); --cor-info-bg: var(--blue-bg); --cor-info-borda: var(--blue-border);
+  --cor-neutro: var(--text2); --cor-neutro-bg: var(--bg3); --cor-neutro-borda: var(--border2);
 }
 
 html, body, #root { min-height: 100vh; min-height: 100dvh; background: var(--bg); color: var(--text); }
@@ -1124,3 +1137,35 @@ input[type="month"], input[type="date"] { max-width: 100%; }
 .imp-manual h3 { margin: 0 0 4px; font-size: 15px; }
 .imp-suspeita { background: color-mix(in srgb, var(--amber) 14%, transparent); border-radius: 8px; padding: 2px 6px; }
 .imp-selos { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+
+/* NAVEGAÇÃO POR ÁREAS · sub-navegação (só no celular: no desktop as telas da área já estão na barra lateral) */
+.subnav { display: none; }
+@media (max-width: 860px) {
+  .subnav { display: flex; gap: 8px; overflow-x: auto; padding: 10px 14px 4px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .subnav::-webkit-scrollbar { display: none; }
+  .subnav-item { position: relative; flex: 0 0 auto; min-height: 36px; padding: 0 14px; border-radius: 999px; background: var(--bg2); border: 1px solid var(--border); color: var(--text2); font-size: 13px; white-space: nowrap; }
+  .subnav-item.ativo { background: var(--bg4); border-color: var(--brand); color: var(--text); font-weight: 500; }
+  .subnav-badge { margin-left: 6px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--red); color: #fff; font-size: 10px; display: inline-flex; align-items: center; justify-content: center; }
+}
+
+/* COMPONENTES BASE (src/components/ui) */
+.selo { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: var(--raio-pilula); font-size: var(--texto-xs); line-height: 1.5; border: 1px solid var(--cor-neutro-borda); background: var(--cor-neutro-bg); color: var(--cor-neutro); white-space: nowrap; }
+.selo-ok { background: var(--cor-ok-bg); border-color: var(--cor-ok-borda); color: var(--cor-ok); }
+.selo-aviso { background: var(--cor-aviso-bg); border-color: var(--cor-aviso-borda); color: var(--cor-aviso); }
+.selo-erro { background: var(--cor-erro-bg); border-color: var(--cor-erro-borda); color: var(--cor-erro); }
+.selo-info { background: var(--cor-info-bg); border-color: var(--cor-info-borda); color: var(--cor-info); }
+.selo-marca { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); font-weight: 500; }
+.selo-icone { font-size: 10px; }
+.indicador { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--raio-lg); padding: var(--espaco-3) var(--espaco-4); min-width: 0; }
+.indicador-rotulo { font-size: var(--texto-xs); color: var(--text3); text-transform: uppercase; letter-spacing: .04em; }
+.indicador-valor { font-family: 'DM Mono', monospace; font-size: clamp(18px, 2vw, var(--texto-xl)); font-weight: 500; margin-top: var(--espaco-1); overflow-wrap: anywhere; }
+.indicador-valor.ok { color: var(--cor-ok); } .indicador-valor.aviso { color: var(--cor-aviso); } .indicador-valor.erro { color: var(--cor-erro); } .indicador-valor.info { color: var(--cor-info); }
+.indicador-sub { font-size: var(--texto-xs); color: var(--text2); margin-top: var(--espaco-1); }
+.indicador-ajuda { cursor: help; border-bottom: 1px dotted var(--text3); }
+.estado-vazio { text-align: center; padding: var(--espaco-5) var(--espaco-4); color: var(--text2); }
+.estado-vazio-titulo { font-size: var(--texto-lg); color: var(--text); margin-bottom: var(--espaco-1); }
+.estado-vazio-texto { font-size: var(--texto-md); }
+.estado-vazio .btn { margin-top: var(--espaco-3); }
+.esqueleto { display: grid; gap: var(--espaco-2); }
+.esqueleto-linha { height: 14px; border-radius: var(--raio-sm); }
+.so-leitor { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }

@@ -36,8 +36,9 @@ describe('menu lateral', () => {
   it('toda aba tem ícone', () => {
     const src = readFileSync(new URL('../../App.jsx', import.meta.url), 'utf8')
     const icones = src.slice(src.indexOf('const ICONES = {'), src.indexOf('function Icone'))
-    const ids = [...src.matchAll(/\{ id: '(\w+)', label/g)].map((m) => m[1])
+    const ids = [...src.matchAll(/^ {2}(\w+): \{ label: '/gm)].map((m) => m[1]) // telas (TELAS em App.jsx)
     expect(ids.length).toBeGreaterThan(20)
+    for (const area of ['movimentacoes', 'planejamento', 'analises', 'mais']) ids.push(area) // as áreas da barra inferior também têm ícone
     expect(ids.filter((id) => !new RegExp(`\\b${id}:`).test(icones))).toEqual([])
   })
 })

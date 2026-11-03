@@ -42,8 +42,13 @@ import { sb } from './lib/supabase'
 import { perfil } from './lib/perfil'
 import { InicioContext } from './lib/InicioContext'
 import { useVoltar } from './lib/useVoltar'
+import { areasVisiveis, areaDaAba, hashDaAba, abaDoHash, abaInicial, destinoDaArea, atalhoDaArea, ATALHOS, lerLembradas } from './lib/navegacao'
 
 const ICONES = {
+  movimentacoes: 'M17 1l4 4-4 4 M3 11V9a4 4 0 0 1 4-4h14 M7 23l-4-4 4-4 M21 13v2a4 4 0 0 1-4 4H3',
+  planejamento: 'M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z M9 3v15 M15 6v15',
+  analises: 'M18 20V10 M12 20V4 M6 20v-6',
+  mais: 'M12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2z M19 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2z M5 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2z',
   inicio: 'M3 11l9-8 9 8 M5 10v10a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V10',
   dashboard: 'M3 3h7v9H3z M14 3h7v5h-7z M14 12h7v9h-7z M3 16h7v5H3z',
   inbox: 'M22 12h-6l-2 3h-4l-2-3H2 M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z',
@@ -93,66 +98,49 @@ function Icone({ nome, size = 18 }) {
   )
 }
 
-const TODOS_GRUPOS = [
-  {
-    titulo: 'Visão geral',
-    abas: [
-      { id: 'inicio', label: 'Início', Component: Inicio },
-      { id: 'dashboard', label: 'Dashboard', Component: Dashboard },
-      { id: 'graficos', label: 'Gráficos', Component: Graficos },
-      { id: 'busca', label: 'Buscar', Component: Busca },
-      { id: 'calendario', label: 'Calendário', Component: Calendario },
-      { id: 'porpessoa', label: 'Por pessoa', Component: PorPessoa },
-    ],
-  },
-  {
-    titulo: 'Dia a dia',
-    abas: [
-      { id: 'inbox', label: 'Inbox', Component: Inbox },
-      { id: 'compras', label: 'Compras', Component: Compras },
-      { id: 'parcelamentos', label: 'Parcelamentos', Component: Parcelamentos },
-      { id: 'faturas', label: 'Faturas', Component: Faturas },
-      { id: 'pagamentos', label: 'Pagamentos', Component: Pagamentos },
-      { id: 'divididos', label: 'Divididos', Component: Divididos },
-      { id: 'importar', label: 'Importar fatura', Component: Assistente },
-    ],
-  },
-  {
-    titulo: 'Planejamento',
-    abas: [
-      { id: 'meuplano', label: 'Meu plano', Component: MeuPlano },
-      { id: 'renda', label: 'Renda', Component: Renda },
-      { id: 'aulas', label: 'Aulas particulares', Component: Aulas },
-      { id: 'atendimentos', label: 'Atendimentos', Component: Atendimentos },
-      { id: 'cenario', label: 'E se eu adiar?', Component: Cenario },
-      { id: 'dividas', label: 'Plano de dívidas', Component: PlanoDividas },
-      { id: 'fixos', label: 'Contas fixas', Component: Fixos },
-      { id: 'orcamento', label: 'Orçamento', Component: Orcamento },
-      { id: 'fechamento', label: 'Fechamento', Component: Fechamento },
-      { id: 'evolucao', label: 'Evolução', Component: Evolucao },
-      { id: 'metas', label: 'Metas', Component: Metas },
-      { id: 'reserva', label: 'Reserva', Component: Reserva },
-      { id: 'simulador', label: 'Simulador', Component: Simulador },
-      { id: 'emprestimos', label: 'Empréstimos', Component: Emprestimos },
-    ],
-  },
-  {
-    titulo: 'Cadastros',
-    abas: [
-      { id: 'cartoes', label: 'Cartões', Component: Cartoes },
-      { id: 'categorias', label: 'Categorias', Component: Categorias },
-      { id: 'pessoas', label: 'Pessoas', Component: Pessoas },
-      { id: 'regras', label: 'Regras aprendidas', Component: Regras },
-      { id: 'automacoes', label: 'Automações', Component: Automacoes },
-      { id: 'config', label: 'Configurações', Component: Configuracoes },
-      { id: 'backup', label: 'Backup', Component: Backup },
-    ],
-  },
-]
+// Telas e seus nomes. O agrupamento em áreas (Início, Movimentações, Cartões, Planejamento, Análises, Mais) está em lib/navegacao.js.
+const TELAS = {
+  inicio: { label: 'Início', Component: Inicio },
+  dashboard: { label: 'Dashboard', Component: Dashboard },
+  graficos: { label: 'Gráficos', Component: Graficos },
+  busca: { label: 'Buscar', Component: Busca },
+  calendario: { label: 'Calendário', Component: Calendario },
+  porpessoa: { label: 'Por pessoa', Component: PorPessoa },
+  inbox: { label: 'Inbox', Component: Inbox },
+  compras: { label: 'Compras', Component: Compras },
+  parcelamentos: { label: 'Parcelamentos', Component: Parcelamentos },
+  faturas: { label: 'Faturas', Component: Faturas },
+  pagamentos: { label: 'Pagamentos', Component: Pagamentos },
+  divididos: { label: 'Divididos', Component: Divididos },
+  importar: { label: 'Importar fatura', Component: Assistente },
+  meuplano: { label: 'Meu plano', Component: MeuPlano },
+  renda: { label: 'Renda', Component: Renda },
+  aulas: { label: 'Aulas particulares', Component: Aulas },
+  atendimentos: { label: 'Atendimentos', Component: Atendimentos },
+  cenario: { label: 'E se eu adiar?', Component: Cenario },
+  dividas: { label: 'Plano de dívidas', Component: PlanoDividas },
+  fixos: { label: 'Contas fixas', Component: Fixos },
+  orcamento: { label: 'Orçamento', Component: Orcamento },
+  fechamento: { label: 'Fechamento', Component: Fechamento },
+  evolucao: { label: 'Evolução', Component: Evolucao },
+  metas: { label: 'Metas', Component: Metas },
+  reserva: { label: 'Reserva', Component: Reserva },
+  simulador: { label: 'Simulador', Component: Simulador },
+  emprestimos: { label: 'Empréstimos', Component: Emprestimos },
+  cartoes: { label: 'Cartões', Component: Cartoes },
+  categorias: { label: 'Categorias', Component: Categorias },
+  pessoas: { label: 'Pessoas', Component: Pessoas },
+  regras: { label: 'Regras aprendidas', Component: Regras },
+  automacoes: { label: 'Automações', Component: Automacoes },
+  config: { label: 'Configurações', Component: Configuracoes },
+  backup: { label: 'Backup', Component: Backup },
+}
 
-// O perfil da instalação pode esconder abas (ex.: esteticista não tem Aulas particulares).
-const GRUPOS = TODOS_GRUPOS.map((g) => ({ ...g, abas: g.abas.filter((a) => !perfil.abasOcultas.includes(a.id)) }))
+// O perfil da instalação pode esconder telas (ex.: esteticista não tem Aulas particulares).
+const AREAS_DO_PERFIL = areasVisiveis(perfil.abasOcultas)
+const GRUPOS = AREAS_DO_PERFIL.map((a) => ({ id: a.id, titulo: a.titulo, abas: a.abas.map((id) => ({ id, ...TELAS[id] })) }))
 const ABAS = GRUPOS.flatMap((g) => g.abas)
+const IDS_ABAS = ABAS.map((a) => a.id)
 
 function lerLocal(chave, padrao) {
   try { return localStorage.getItem(chave) ?? padrao } catch { return padrao }
@@ -185,10 +173,8 @@ export default function App() {
 }
 
 function AppLogado({ email }) {
-  const [aba, setAba] = useState(() => {
-    const salva = lerLocal('aba', 'inicio')
-    return ABAS.some((a) => a.id === salva) ? salva : 'inicio'
-  })
+  const [aba, setAba] = useState(() => abaInicial({ hash: typeof window !== 'undefined' ? window.location.hash : '', salva: lerLocal('aba', 'inicio'), validas: IDS_ABAS }))
+  const [lembradas, setLembradas] = useState(() => lerLembradas(lerLocal('aba_por_area', '{}'))) // última tela usada em cada área
   const [recolhida, setRecolhida] = useState(() => lerLocal('sidebar_recolhida', '0') === '1')
   const [menuAberto, setMenuAberto] = useState(false)
   const [gruposFechados, setGruposFechados] = useState(() => {
@@ -197,6 +183,16 @@ function AppLogado({ email }) {
   const store = useStore(email)
 
   useEffect(() => { gravarLocal('aba', aba) }, [aba])
+  useEffect(() => {
+    const area = areaDaAba(aba, AREAS_DO_PERFIL)
+    if (area) setLembradas((l) => (l[area.id] === aba ? l : { ...l, [area.id]: aba }))
+  }, [aba])
+  useEffect(() => { gravarLocal('aba_por_area', JSON.stringify(lembradas)) }, [lembradas])
+  useEffect(() => { // link direto ou endereço digitado (#/faturas) com o app já aberto
+    const aoMudar = () => { const id = abaDoHash(window.location.hash, IDS_ABAS); if (id) setAba(id) }
+    window.addEventListener('hashchange', aoMudar)
+    return () => window.removeEventListener('hashchange', aoMudar)
+  }, [])
   useEffect(() => { gravarLocal('grupos_fechados', JSON.stringify(gruposFechados)) }, [gruposFechados])
   const alternarGrupo = (titulo) => setGruposFechados((f) => (f.includes(titulo) ? f.filter((t) => t !== titulo) : [...f, titulo]))
   useEffect(() => { gravarLocal('sidebar_recolhida', recolhida ? '1' : '0') }, [recolhida])
@@ -209,7 +205,7 @@ function AppLogado({ email }) {
   useVoltar({ aba, setAba, menuAberto, fecharMenu: () => setMenuAberto(false) })
 
   function irPara(id) {
-    if (id !== aba) history.pushState({ aba: id }, '') // o botão voltar do celular volta para a tela anterior
+    if (id !== aba) history.pushState({ aba: id }, '', hashDaAba(id)) // o botão voltar do celular volta para a tela anterior; o endereço vira #/tela
     setAba(id)
     setMenuAberto(false)
     window.scrollTo({ top: 0 })
@@ -250,6 +246,8 @@ function AppLogado({ email }) {
   const pendentesInbox = store.eventos.filter((e) => e.status === 'pendente' || e.status === 'aguardando_dados').length
   const atual = ABAS.find((a) => a.id === aba) || ABAS[0] // aba escondida pelo perfil cai no Início
   const { Component } = atual
+  const areaAtual = areaDaAba(aba, AREAS_DO_PERFIL)
+  const atalhoAtivo = atalhoDaArea(areaAtual?.id)
   const sync = store.syncState === 'syncing' ? 'syncing' : store.syncState === 'error' ? 'error' : ''
   const syncTexto = store.syncState === 'ok' ? 'Sincronizado' : store.syncState === 'syncing' ? 'Salvando...' : 'Erro ao sincronizar'
 
@@ -332,6 +330,16 @@ function AppLogado({ email }) {
             <div className={`sync-dot ${sync}`} />
           </div>
         </header>
+        {areaAtual && areaAtual.abas.length > 1 && (
+          <nav className="subnav" aria-label={`Telas de ${areaAtual.titulo}`}>
+            {areaAtual.abas.map((id) => (
+              <button key={id} type="button" className={`subnav-item ${aba === id ? 'ativo' : ''}`} onClick={() => irPara(id)} aria-current={aba === id ? 'page' : undefined}>
+                {TELAS[id].label}
+                {id === 'inbox' && pendentesInbox > 0 && <span className="subnav-badge" aria-label={`${pendentesInbox} pendentes`}>{pendentesInbox}</span>}
+              </button>
+            ))}
+          </nav>
+        )}
         <Component store={store} irPara={irPara} />
       </div>
 
@@ -350,18 +358,21 @@ function AppLogado({ email }) {
         </div>
       )}
 
-      <nav className="bottom-nav" aria-label="Atalhos">
-        {[['inicio', 'Início'], ['inbox', 'Inbox'], ['compras', 'Compras'], ['pagamentos', 'Pagar']].map(([id, rotulo]) => (
-          <button key={id} className={aba === id ? 'ativo' : ''} onClick={() => irPara(id)} aria-current={aba === id ? 'page' : undefined}>
-            <Icone nome={id} size={20} />
-            <span>{rotulo}</span>
-            {id === 'inbox' && pendentesInbox > 0 && <span className="bottom-nav-badge" aria-label={`${pendentesInbox} pendentes`}>{pendentesInbox}</span>}
-          </button>
-        ))}
-        <button onClick={() => setMenuAberto(true)} aria-label="Abrir menu completo">
-          <Icone nome="menu" size={20} />
-          <span>Menu</span>
-        </button>
+      <nav className="bottom-nav" aria-label="Áreas do app">
+        {ATALHOS.map((id) => {
+          const mais = id === 'mais'
+          const area = AREAS_DO_PERFIL.find((a) => a.id === id)
+          if (!mais && !area) return null
+          const rotulo = mais ? 'Mais' : area.titulo
+          const emAberto = id === 'movimentacoes' ? pendentesInbox : 0
+          return (
+            <button key={id} type="button" className={atalhoAtivo === id ? 'ativo' : ''} onClick={() => (mais ? setMenuAberto(true) : irPara(destinoDaArea(area, lembradas)))} aria-current={atalhoAtivo === id ? 'page' : undefined} aria-label={mais ? 'Abrir menu completo' : undefined}>
+              <Icone nome={id} size={20} />
+              <span>{rotulo}</span>
+              {emAberto > 0 && <span className="bottom-nav-badge" aria-label={`${emAberto} pendentes no Inbox`}>{emAberto}</span>}
+            </button>
+          )
+        })}
       </nav>
     </div>
     </InicioContext.Provider>
