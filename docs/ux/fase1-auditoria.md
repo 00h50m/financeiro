@@ -254,3 +254,14 @@ Isso é intencional no código, mas **não está explicado em nenhuma tela**: na
 - **Tokens** (espaço, raio, texto, alvo de toque, cores semânticas) e **componentes base** em `src/components/ui`: `Selo`, `Indicador`, `EstadoVazio`, `Esqueleto`.
   Ainda **não** adotados nas telas (entram na Fase 3). `ConfirmarDialogo` e `Sheet` serão criados na Fase 3, junto do primeiro uso (Pagamentos).
 - **Testes:** 11 de navegação, 6 de componentes, E2E de navegação (celular e desktop) e varredura das 34 telas sem rolagem horizontal nem erros.
+
+
+## 12. Fase 3 · Pagamentos (primeira tela da fase)
+
+- **Lista única de contas** (`src/lib/pagamentosLista.js`): junta contas fixas, faturas de cartão e compras sem cartão, ordenada por urgência
+  (atrasadas → a vencer → sem vencimento → pagas). Os totais batem com `resumoDoMes` (teste de contrato). Mês anterior em aberto conta como atrasado; mês futuro nunca.
+- **Tela** (`Pagamentos.jsx` + `components/pagamentos/*`): resumo compacto (A pagar, Pago, Atrasadas, Próximos 7 dias) → abas A pagar / Atrasadas / Pagas / Todas (com contagem) → busca → lista com uma ação principal por conta (Pagar/Desfazer) → seleção em lote (só contas seguras) → "Por categoria" e "Dinheiro disponível" recolhidos abaixo.
+- **Detalhes expansíveis** por conta: categoria, valor deste mês (contas variáveis), corrigir valor, data do pagamento, adiar, virar dívida, ver fatura.
+- **Desfazer** logo após pagar (uma conta ou lote). **Diálogos do app** (`ui/Dialogos.jsx`) no lugar de todos os `confirm/alert/prompt` nativos de Pagamentos.
+- **Mantido sem alteração:** `toggleFixo/toggleCartao/toggleOutraConta`, regras de adiamento, dívida, valor variável, fechamento de mês e as fórmulas do resumo.
+- **Medido:** altura da tela no celular 1.839 → 1.163 px; colunas ocultas 15 → 0; sem rolagem horizontal; sem diálogos nativos.

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { compilar } from '../lib/filtro'
 import { mediaRecente, pendenciasValorVariavel } from '../lib/fixosVariaveis'
 import ValorDoMes from './ValorDoMes'
@@ -7,10 +7,17 @@ import { pagamentosPorCategoria } from '../lib/pagamentosCategoria'
 import { reaisParaCentavos } from '../lib/aulas'
 import ModalAdiar from './ModalAdiar'
 import ModalDivida from './ModalDivida'
-import NavMes, { PilulasPago } from './NavMes'
+import NavMes from './NavMes'
 import { CampoBusca, ResumoFiltro } from './FiltroLista'
-import { fmt, fmtK, mesLabel, nowYM, addMonths, totalRenda, tituloCompra, subtituloCompra, hojeSP } from '../lib/utils'
+import { fmt, mesLabel, nowYM, addMonths, totalRenda, tituloCompra, hojeSP } from '../lib/utils'
 import { mesFechado } from '../lib/fechamento'
+import { useDialogos } from './ui/Dialogos'
+import ResumoPagamentos from './pagamentos/ResumoPagamentos'
+import AbasPagamentos from './pagamentos/AbasPagamentos'
+import LinhaPagamento from './pagamentos/LinhaPagamento'
+import BarraLote from './pagamentos/BarraLote'
+import EstadoVazio from './ui/EstadoVazio'
+import { listaDePagamentos, filtrarPorAba, contagemPorAba, resumoCompacto, podeMarcarEmLote } from '../lib/pagamentosLista'
 import { resumoDoMes, sobraAnterior, lerUsarSaldoAnterior, gravarUsarSaldoAnterior } from '../lib/financeiro'
 
 export default function Pagamentos({ store, irPara }) {
@@ -29,10 +36,16 @@ export default function Pagamentos({ store, irPara }) {
   const ajusteAtual = Number(saldoAjustes.find((a) => a.mes === mes)?.ajuste) || 0
   const [saldoReal, setSaldoReal] = useState('')
   const [busca, setBusca] = useState('')
-  const [filtroPago, setFiltroPago] = useState('') // 'pagas' | 'apagar'
-  const [secoes, setSecoes] = useState({}) // seção → aberta; sem valor: abre quando ainda há algo a pagar
+  const [aba, setAba] = useState('apagar') // apagar | atrasadas | pagas | todas
+  const [abertas, setAbertas] = useState(() => new Set()) // contas com os detalhes abertos
+  const [marcadas, setMarcadas] = useState(() => new Set()) // contas selecionadas para pagar em lote
+  const [ocupada, setOcupada] = useState(false)
+  const [ultimo, setUltimo] = useState(null) // { rotulo, chaves }: última ação de pagamento, para desfazer
+  const { confirmar, avisar, pedir, dialogo } = useDialogos()
+  const perguntar = (texto, valor) => pedir({ titulo: 'Informar valor', texto, valor })
+  useEffect(() => { if (!ultimo) return undefined; const t = setTimeout(() => setUltimo(null), 9000); return () => clearTimeout(t) }, [ultimo])
   const [extratoAberto, setExtratoAberto] = useState(false)
-  const [categoriasAberto, setCategoriasAberto] = useState(true)
+  const [categoriasAberto, setCategoriasAberto] = useState(false) // resumo por categoria começa recolhido: a lista de contas vem primeiro
   const [catExpandida, setCatExpandida] = useState(null) // categoria cujo "de onde vem" está aberto
   const [adiando, setAdiando] = useState(null) // { tipo, refId, titulo, valor, mesOrigem, destinoAtual }
   const [divida, setDivida] = useState(null) // sugestão de dívida criada a partir de uma conta
@@ -41,19 +54,19 @@ export default function Pagamentos({ store, irPara }) {
   const registroAdiamento = (tipo, refId, mesOrigem) => (store.adiamentos || []).find((a) => a.tipo === tipo && String(a.ref_id) === String(refId) && a.mes_origem === mesOrigem)
   function abrirAdiar(tipo, item, titulo, valor) {
     const mesOrigem = item.adiadoDe || mes
-    if (mesFechado(store.fechamentos, mesOrigem)) { window.alert(`${mesLabel(mesOrigem)} está fechado. Reabra o fechamento para mexer nessa conta.`); return }
+    if (mesFechado(store.fechamentos, mesOrigem)) { avisar(`${mesLabel(mesOrigem)} está fechado. Reabra o fechamento para mexer nessa conta.`); return }
     setAdiando({ tipo, refId: item.id, titulo, valor: valor - (item.acrescimoAdiamento || 0), mesOrigem, destinoAtual: item.adiadoDe ? mes : null })
   }
   async function voltarAdiada(tipo, item) {
     const r = registroAdiamento(tipo, item.id, item.adiadoDe)
     if (!r) return
-    if (mesFechado(store.fechamentos, item.adiadoDe) || mesFechado(store.fechamentos, mes)) { window.alert('Um dos meses está fechado. Reabra o fechamento para mexer nessa conta.'); return }
+    if (mesFechado(store.fechamentos, item.adiadoDe) || mesFechado(store.fechamentos, mes)) { avisar('Um dos meses está fechado. Reabra o fechamento para mexer nessa conta.'); return }
     await desfazerAdiamento(r.id)
   }
   // Virar dívida: a conta sai do mês e passa a ser paga pelo Plano de dívidas.
   function virarDivida(tipo, item, nome, valor) {
     const mesOrigem = item.adiadoDe || item.mesPagamento || item.mesParcela || mes
-    if (mesFechado(store.fechamentos, mesOrigem)) { window.alert(`${mesLabel(mesOrigem)} está fechado. Reabra o fechamento para mexer nessa conta.`); return }
+    if (mesFechado(store.fechamentos, mesOrigem)) { avisar(`${mesLabel(mesOrigem)} está fechado. Reabra o fechamento para mexer nessa conta.`); return }
     setDivida({ nome, valor: valor - (item.acrescimoAdiamento || 0), tipo: tipo === 'fatura' ? 'cartao' : 'boleto', origem: `${tipo}|${tipo === 'fatura' ? item.cartao_id : item.id}|${tipo === 'fatura' ? mesOrigem : (tipo === 'fixo' ? item.mesPagamento || mes : item.mesParcela || mes)}` })
   }
   const linkDivida = (tipo, item, nome, valor) => (dividasOk ? <button className="link-btn" onClick={() => virarDivida(tipo, item, nome, valor)}>Virar dívida</button> : null)
@@ -71,22 +84,20 @@ export default function Pagamentos({ store, irPara }) {
 
   const dados = { fixos, fixosPagamentos, cartoes, compras, faturas, rendas, saldoAjustes, comprasPagamentos, comprasPagamentosOk, aulasAReceber, adiamentos: store.adiamentos, dividas: store.dividas }
   const resumo = resumoDoMes(dados, mes, { usarSaldoAnterior: usarSobra })
-  const {
-    fixosLista: fixosAtivos, fixoPagamento, linhasCartao, outrasContas,
-    comprometido, pago, totalDividas,
-  } = resumo.detalhe
+  const { fixoPagamento, pago } = resumo.detalhe
 
   async function toggleOutraConta(c) {
     if (comprasPagamentosOk) {
       await marcarParcelaPaga(c.id, c.mesParcela || mes, !c.pago) // cada parcela (mês) tem o seu "pago"
-      return
+      return true
     }
     // Sem a atualização 14 do banco, o "pago" ainda vale para a compra inteira.
-    if (c.parcelaTotal > 1 && !confirm(`Esta compra tem ${c.parcelaTotal} parcelas e o "pago" vale para a compra inteira, não só para este mês. Continuar?`)) return
+    if (c.parcelaTotal > 1 && !(await confirmar({ titulo: 'Compra parcelada', texto: `Esta compra tem ${c.parcelaTotal} parcelas e o "pago" vale para a compra inteira, não só para este mês. Continuar?`, confirmar: 'Continuar' }))) return false
     await updateCompra(c.id, {
       pago: !c.pago,
       data_pagamento: !c.pago ? hojeSP() : null,
     })
+    return true
   }
 
   const rendaMes = totalRenda(rendas.find((r) => r.mes === mes))
@@ -95,36 +106,17 @@ export default function Pagamentos({ store, irPara }) {
   const sobra = resumo.saldoAnterior
   const baseCalculada = resumo.baseCalculada
   const dinheiroDisponivel = resumo.disponivel
-  const saldo = resumo.sobraProjetada
 
   const pendencias = pendenciasValorVariavel(store.fixos, hojeSP(), { inicio: store.inicioApp })
   const { combina } = compilar(busca)
-  const filtroAtivo = !!(busca.trim() || filtroPago)
-  const passaPago = (pago) => !filtroPago || (filtroPago === 'pagas' ? !!pago : !pago)
-  const fixosVis = fixosAtivos.filter((f) => passaPago(fixoPagamento(f)?.pago)
-    && combina({ texto: [f.nome, f.categoria, f.subcategoria, f.estimado ? 'estimado' : ''].filter(Boolean).join(' '), valor: Number(f.valor) }))
-  const cartoesVis = linhasCartao.filter((l) => passaPago(l.pago) && combina({ texto: l.nome, valor: Number(l.valor) }))
-  const outrasVis = outrasContas.filter((c) => passaPago(c.pago)
-    && combina({ texto: [tituloCompra(c), subtituloCompra(c), c.obs, c.categoria, c.subcategoria].filter(Boolean).join(' '), valor: Number(c.valorParcela) }))
-  const totalLinhas = fixosAtivos.length + linhasCartao.length + outrasContas.length
-  const totalVis = fixosVis.length + cartoesVis.length + outrasVis.length
-
-  const somaValor = (lista, f) => lista.reduce((t, x) => t + Number(f(x)), 0)
-  const resumoSecao = (chave, lista, estaPago, valorDe) => {
-    const pagas = lista.filter(estaPago).length
-    const aberta = secoes[chave] ?? (filtroAtivo || pagas < lista.length)
-    return {
-      aberta,
-      onToggle: () => setSecoes((m) => ({ ...m, [chave]: !aberta })),
-      info: lista.length ? `${pagas}/${lista.length} pagas` : 'vazio',
-      destaque: fmt(somaValor(lista, valorDe)),
-    }
-  }
-  const secFixos = resumoSecao('fixos', fixosVis, (f) => fixoPagamento(f)?.pago, (f) => f.valor)
-  const secCartoes = resumoSecao('cartoes', cartoesVis, (l) => l.pago, (l) => l.valor)
-  const secOutras = resumoSecao('outras', outrasVis, (c) => c.pago, (c) => c.valorParcela)
+  const lista = listaDePagamentos(resumo.detalhe, cartoes, mes, hojeSP())
+  const porChave = new Map(lista.map((i) => [i.chave, i]))
+  const contagem = contagemPorAba(lista)
+  const resumoTopo = resumoCompacto(lista)
+  const filtroAtivo = !!busca.trim()
+  const daAba = filtrarPorAba(lista, aba)
+  const visiveis = daAba.filter((i) => combina({ texto: [i.nome, i.detalheNome, i.categoria, i.subcategoria, i.origem, i.estimado ? 'estimado' : ''].filter(Boolean).join(' '), valor: i.valor }))
   const porCategoria = pagamentosPorCategoria(resumo.detalhe, { compras, cartoes, fixos }, mes)
-  const pctPago = comprometido > 0 ? Math.min(100, Math.round((pago / comprometido) * 100)) : 0
 
   async function acertar() {
     const real = Number(saldoReal)
@@ -138,27 +130,28 @@ export default function Pagamentos({ store, irPara }) {
     const fixoBruto = store.fixos.find((x) => x.id === fixo.id) || fixo
     const media = fixo.estimado ? mediaRecente(fixoBruto, fixo.mesPagamento || mes) : null
     const sugestao = media ? `\n\nMédia dos últimos ${media.meses} mese${media.meses > 1 ? 's' : ''} informados: ${fmt(media.media)}` : ''
-    const r = window.prompt(`Valor real de "${fixo.nome}" em ${mesLabel(fixo.mesPagamento || mes)} (R$):${sugestao}`, String(media ? media.media : fixo.valor).replace('.', ','))
+    const r = await perguntar(`Valor real de "${fixo.nome}" em ${mesLabel(fixo.mesPagamento || mes)} (R$):${sugestao}`, String(media ? media.media : fixo.valor).replace('.', ','))
     if (r === null) return false
     const v = Number(String(r).trim().replace(/\./g, '').replace(',', '.'))
-    if (!r.trim() || Number.isNaN(v) || v < 0) { window.alert('Valor inválido.\n\nDigite só números, com vírgula nos centavos (ex.: 312,40).'); return false }
+    if (!r.trim() || Number.isNaN(v) || v < 0) { avisar('Valor inválido.\n\nDigite só números, com vírgula nos centavos (ex.: 312,40).'); return false }
     return definirValorFixo(fixo.id, fixo.mesPagamento || mes, v)
   }
   async function toggleFixo(fixo) {
     const atual = fixoPagamento(fixo)?.pago || false
     // ao pagar uma conta variável ainda estimada, confirma o valor real antes (evita pagar sem registrar)
-    if (!atual && fixo.estimado && !(await informarValor(fixo))) return
+    if (!atual && fixo.estimado && !(await informarValor(fixo))) return false
     await marcarFixoPago(fixo.id, fixo.mesPagamento || mes, !atual) // conta adiada: o pagamento fica no mês de origem
+    return true
   }
 
   // Ajustar o valor de um item na lista da categoria ("às vezes acaba sendo mais"): só aquele mês.
   async function ajustarValor(it) {
-    const invalido = () => window.alert('Não entendi esse valor. Exemplo: 312,40 ou 1.200')
+    const invalido = () => avisar('Não entendi esse valor. Exemplo: 312,40 ou 1.200')
     if (it.tipo === 'fixo') {
       const f = it.ref
       const mesPag = f.mesPagamento || mes
       const padrao = Number(store.fixos.find((x) => x.id === f.id)?.valor ?? f.valor)
-      const t = window.prompt(`Valor real de "${f.nome}" em ${mesLabel(mesPag)} (R$). Vale só para este mês.\nDeixe vazio para voltar ao valor padrão (${fmt(padrao)}).`, String(f.valor).replace('.', ','))
+      const t = await perguntar(`Valor real de "${f.nome}" em ${mesLabel(mesPag)} (R$). Vale só para este mês.\nDeixe vazio para voltar ao valor padrão (${fmt(padrao)}).`, String(f.valor).replace('.', ','))
       if (t === null) return
       if (t.trim() === '') { await definirValorFixo(f.id, mesPag, null); return }
       const c = reaisParaCentavos(t)
@@ -168,8 +161,8 @@ export default function Pagamentos({ store, irPara }) {
     }
     if (it.tipo === 'fatura') {
       const l = it.ref
-      if (mesFechado(store.fechamentos, mes)) { window.alert(`${mesLabel(mes)} está fechado. Reabra o fechamento para mexer nessa fatura.`); return }
-      const t = window.prompt(`Valor real da fatura ${l.nome} em ${mesLabel(mes)} (R$): o que o banco cobra.\nDeixe vazio para voltar ao valor lançado no app (${fmt(l.lancado)}).`, String(l.valor).replace('.', ','))
+      if (mesFechado(store.fechamentos, mes)) { avisar(`${mesLabel(mes)} está fechado. Reabra o fechamento para mexer nessa fatura.`); return }
+      const t = await perguntar(`Valor real da fatura ${l.nome} em ${mesLabel(mes)} (R$): o que o banco cobra.\nDeixe vazio para voltar ao valor lançado no app (${fmt(l.lancado)}).`, String(l.valor).replace('.', ','))
       if (t === null) return
       if (t.trim() === '') { await upsertFatura({ cartao_id: l.cartao_id, mes, valor_real: null }); return }
       const c = reaisParaCentavos(t)
@@ -178,9 +171,9 @@ export default function Pagamentos({ store, irPara }) {
       return
     }
     const compra = it.ref
-    if (compra.adiadoDe) { window.alert('Essa conta foi adiada com multa/juros. Use "mudar de mês" na lista de Outras contas para ajustar o acréscimo.'); return }
-    if (Number(compra.parcelas) > 1) { window.alert('Essa conta é parcelada. Para mudar o valor, edite a compra na tela Compras (o novo valor vale para as parcelas).'); return }
-    const t = window.prompt(`Valor de "${tituloCompra(compra)}" (R$):`, String(compra.valorParcela).replace('.', ','))
+    if (compra.adiadoDe) { avisar('Essa conta foi adiada com multa/juros. Use "mudar de mês" na lista de Outras contas para ajustar o acréscimo.'); return }
+    if (Number(compra.parcelas) > 1) { avisar('Essa conta é parcelada. Para mudar o valor, edite a compra na tela Compras (o novo valor vale para as parcelas).'); return }
+    const t = await perguntar(`Valor de "${tituloCompra(compra)}" (R$):`, String(compra.valorParcela).replace('.', ','))
     if (t === null) return
     const c = reaisParaCentavos(t)
     if (c == null || c <= 0) { invalido(); return }
@@ -196,6 +189,7 @@ export default function Pagamentos({ store, irPara }) {
       pago: !linha.pago,
       data_pagamento: !linha.pago ? hojeSP() : null,
     })
+    return true
   }
 
   // Ao marcar como pago a data é a de hoje; este campo deixa corrigir (ex.: pagou ontem). Campo vazio é ignorado.
@@ -206,13 +200,90 @@ export default function Pagamentos({ store, irPara }) {
       aria-label="Data do pagamento" title="Data do pagamento (clique para alterar)"
     />
   )
-  const semData = <span style={{ color: 'var(--text3)' }}>—</span>
   const mudarDataParcela = (c, d) => (comprasPagamentosOk
     ? definirDataPagamentoParcela(c.id, c.mesParcela || mes, d)
     : updateCompra(c.id, { data_pagamento: d }))
 
+  // ---- lista única: pagar, desfazer, lote ----
+  async function alternar(item) { // usa as mesmas regras de sempre para cada tipo de conta
+    if (item.tipo === 'fixo') return toggleFixo(item.ref)
+    if (item.tipo === 'fatura') return toggleCartao(item.ref)
+    return toggleOutraConta(item.ref)
+  }
+  async function pagarUm(item) {
+    if (ocupada) return
+    setOcupada(true)
+    try {
+      const ok = await alternar(item)
+      if (ok === false) return
+      setUltimo(item.pago ? null : { rotulo: `${item.nome} marcada como paga`, chaves: [item.chave] })
+      setMarcadas((s) => { const n = new Set(s); n.delete(item.chave); return n })
+    } finally { setOcupada(false) }
+  }
+  async function desfazerUltimo() {
+    if (!ultimo) return
+    const { chaves } = ultimo
+    setUltimo(null)
+    setOcupada(true)
+    try { for (const c of chaves) { const it = porChave.get(c); if (it?.pago) await alternar(it) } } finally { setOcupada(false) }
+  }
+  const selecionaveis = lista.filter(podeMarcarEmLote)
+  const marcadasValidas = [...marcadas].map((c) => porChave.get(c)).filter((i) => i && podeMarcarEmLote(i))
+  const totalMarcadas = Math.round(marcadasValidas.reduce((t, i) => t + i.valor, 0) * 100) / 100
+  const alternarMarca = (item) => setMarcadas((s) => { const n = new Set(s); if (n.has(item.chave)) n.delete(item.chave); else n.add(item.chave); return n })
+  const alternarDetalhes = (item) => setAbertas((s) => { const n = new Set(s); if (n.has(item.chave)) n.delete(item.chave); else n.add(item.chave); return n })
+  async function pagarLote() {
+    if (!marcadasValidas.length || ocupada) return
+    const ok = await confirmar({
+      titulo: `Marcar ${marcadasValidas.length} ${marcadasValidas.length === 1 ? 'conta' : 'contas'} como ${marcadasValidas.length === 1 ? 'paga' : 'pagas'}?`,
+      texto: `${marcadasValidas.map((i) => `• ${i.nome} · ${fmt(i.valor)}`).join('\n')}\n\nTotal: ${fmt(totalMarcadas)}. Dá para desfazer logo depois.`,
+      confirmar: 'Marcar como pagas',
+    })
+    if (!ok) return
+    setOcupada(true)
+    const feitas = []
+    try { for (const i of marcadasValidas) { if ((await alternar(i)) !== false) feitas.push(i.chave) } } finally { setOcupada(false) }
+    setMarcadas(new Set())
+    if (feitas.length) setUltimo({ rotulo: `${feitas.length} ${feitas.length === 1 ? 'conta marcada como paga' : 'contas marcadas como pagas'}`, chaves: feitas })
+  }
+  const corrigirValor = (item) => ajustarValor({ tipo: item.tipo, ref: item.ref })
+  // Detalhes de uma conta (o que antes ficava espalhado em colunas e botões da linha)
+  function detalhesDe(item) {
+    const f = item.ref
+    return (
+      <>
+        {item.tipo === 'fixo' && <div>{[f.categoria, f.subcategoria].filter(Boolean).join(' › ') || 'Sem categoria'}{f.dia_vencimento ? ` · vence todo dia ${f.dia_vencimento}` : ''}</div>}
+        {item.tipo === 'fixo' && f.variavel && (
+          <div className="pag-det-acoes">Valor deste mês:
+            <ValorDoMes fixo={f} mes={mes} real={store.fixos.find((x) => x.id === f.id)?.valores?.[mes]} definirValorFixo={definirValorFixo} compacto fechado={mesFechado(store.fechamentos, mes)} />
+          </div>
+        )}
+        {item.tipo === 'fatura' && <div>{f.temFatura ? 'Valor real da fatura (informado do banco).' : 'Valor estimado: soma do que está lançado no cartão. Informe o valor do banco em Faturas.'}</div>}
+        {item.tipo === 'fatura' && f.fixosNoCartao?.length > 0 && <div>Inclui contas fixas: {f.fixosNoCartao.map((x) => `${x.nome} ${fmt(x.valor)}`).join(' · ')}</div>}
+        {item.tipo === 'compra' && item.detalheNome && <div>No cartão: {item.detalheNome}</div>}
+        {item.tipo === 'compra' && item.obs && <div>{item.obs}</div>}
+        {item.tipo === 'compra' && f.parcelaTotal > 1 && <div>Parcela {f.parcelaNum} de {f.parcelaTotal}. Sem controle por mês, o "pago" vale para a compra inteira.</div>}
+        {item.pago && (
+          <div className="pag-det-acoes">Pago em
+            {item.tipo === 'fixo' && dataPag(item.dataPagamento, (d) => definirDataPagamentoFixo(f.id, f.mesPagamento || mes, d))}
+            {item.tipo === 'fatura' && dataPag(item.dataPagamento, (d) => definirDataPagamentoFatura(f.cartao_id, mes, d))}
+            {item.tipo === 'compra' && dataPag(item.dataPagamento, (d) => mudarDataParcela(f, d))}
+          </div>
+        )}
+        <div className="pag-det-acoes">
+          {!item.pago && !(item.tipo === 'fixo' && f.variavel) && <button type="button" className="btn btn-ghost btn-sm" onClick={() => corrigirValor(item)}>Corrigir valor</button>}
+          {item.tipo === 'fatura' && irPara && <button type="button" className="btn btn-ghost btn-sm" onClick={() => irPara('faturas')}>Ver fatura</button>}
+          {item.tipo === 'fixo' && acoesAdiar('fixo', f, f.nome, Number(f.valor), item.pago)}
+          {item.tipo === 'compra' && acoesAdiar('compra', f, item.nome, item.valor, item.pago)}
+          {item.tipo === 'fatura' && !item.pago && dividasOk && <button type="button" className="link-btn" onClick={() => virarDivida('fatura', f, item.nome, item.valor)}>Virar dívida</button>}
+        </div>
+      </>
+    )
+  }
+
   return (
     <div className="page">
+      {dialogo}
       {divida && <ModalDivida sugestao={divida} onSalvar={salvarDivida} onRemover={removerDivida} onClose={() => setDivida(null)} />}
       {adiando && <ModalAdiar titulo={adiando.titulo} valor={adiando.valor} mesOrigem={adiando.mesOrigem} mesAtualDestino={adiando.destinoAtual} onClose={() => setAdiando(null)} onConfirmar={(destino, acrescimo) => adiarConta(adiando.tipo, adiando.refId, adiando.mesOrigem, destino, acrescimo)} />}
       {pendencias.length > 0 && (
@@ -229,12 +300,7 @@ export default function Pagamentos({ store, irPara }) {
 
       <div className="pag-topo">
         <NavMes mes={mes} onChange={setMes} fechado={mesFechado(store.fechamentos, mes)} />
-        <PilulasPago valor={filtroPago} onChange={setFiltroPago} />
       </div>
-      <div className="toolbar">
-        <CampoBusca valor={busca} onChange={setBusca} />
-      </div>
-      <ResumoFiltro ativo={filtroAtivo} mostrando={totalVis} total={totalLinhas} onLimpar={() => { setBusca(''); setFiltroPago('') }} />
 
       {mesFechado(store.fechamentos, mes) && (
         <div className="alert alert-amber" style={{ marginBottom: 12 }}>
@@ -243,36 +309,38 @@ export default function Pagamentos({ store, irPara }) {
         </div>
       )}
 
-      <div className="metric-grid">
-        <div className="metric">
-          <div className="metric-label">Comprometido no mês</div>
-          <div className="metric-val amber">{fmtK(comprometido)}</div>
-        </div>
-        <div className="metric">
-          <div className="metric-label">Já pago</div>
-          <div className="metric-val green">{fmtK(pago)}</div>
-        </div>
-        <div className="metric">
-          <div className="metric-label">Total dívidas (a pagar)</div>
-          <div className={`metric-val ${totalDividas <= 0.005 ? 'green' : 'red'}`}>{fmtK(totalDividas)}</div>
-        </div>
-        <div className="metric">
-          <div className="metric-label">Dinheiro disponível</div>
-          <div className={`metric-val ${dinheiroDisponivel >= 0 ? 'blue' : 'red'}`}>{fmtK(dinheiroDisponivel)}</div>
-        </div>
-        <div className="metric">
-          <div className="metric-label">Saldo</div>
-          <div className={`metric-val ${saldo >= 0 ? 'green' : 'red'}`}>{fmtK(saldo)}</div>
-        </div>
+      <ResumoPagamentos resumo={resumoTopo} />
+      <AbasPagamentos valor={aba} onChange={setAba} contagem={contagem} />
+      <div className="toolbar">
+        <CampoBusca valor={busca} onChange={setBusca} />
       </div>
+      <ResumoFiltro ativo={filtroAtivo} mostrando={visiveis.length} total={daAba.length} onLimpar={() => setBusca('')} />
 
-      {comprometido > 0 && (
-        <div className="pag-progresso" aria-label={`${pctPago}% das contas pagas`}>
-          <div className="pag-progresso-barra"><div style={{ width: `${pctPago}%` }} /></div>
-          <span>{pctPago}% pago · falta {fmt(totalDividas)}</span>
+      {visiveis.length === 0 ? (
+        <div className="card">
+          <EstadoVazio
+            titulo={filtroAtivo ? 'Nenhuma conta com essa busca' : lista.length === 0 ? `Nenhuma conta em ${mesLabel(mes)}` : aba === 'pagas' ? 'Nenhuma conta paga ainda' : aba === 'atrasadas' ? 'Nenhuma conta atrasada 🎉' : 'Tudo pago por aqui'}
+            texto={lista.length === 0 ? 'Cadastre contas fixas ou lance compras para acompanhar os pagamentos aqui.' : filtroAtivo ? 'Tente outro nome ou valor.' : undefined}
+          />
+        </div>
+      ) : (
+        <ul className="pag-lista" aria-label="Contas do mês">
+          {visiveis.map((i) => (
+            <LinhaPagamento
+              key={i.chave} item={i} selecionavel={podeMarcarEmLote(i)} selecionada={marcadas.has(i.chave)} aoSelecionar={alternarMarca}
+              aberta={abertas.has(i.chave)} aoAlternar={alternarDetalhes} aoPagar={pagarUm} ocupada={ocupada} detalhes={abertas.has(i.chave) ? detalhesDe(i) : null}
+            />
+          ))}
+        </ul>
+      )}
+      {selecionaveis.length > 0 && <BarraLote qtd={marcadasValidas.length} total={totalMarcadas} aoMarcar={pagarLote} aoLimpar={() => setMarcadas(new Set())} ocupada={ocupada} />}
+      {ultimo && (
+        <div className="toast-area" role="status" aria-live="polite">
+          <div className="toast"><span>{ultimo.rotulo}</span><button type="button" className="btn btn-primary btn-sm" onClick={desfazerUltimo}>Desfazer</button><button type="button" className="btn btn-ghost btn-sm" onClick={() => setUltimo(null)} aria-label="Dispensar">×</button></div>
         </div>
       )}
 
+      <div className="pag-secundarias">
       {porCategoria.categorias.length > 0 && (
         <Secao titulo="Por categoria" info={`${porCategoria.categorias.filter((c) => c.pendente > 0.005).length} com pendência`} destaque={`falta ${fmt(porCategoria.pendente)}`} aberto={categoriasAberto} onToggle={() => setCategoriasAberto((v) => !v)}>
           <div className="pag-cat">
@@ -398,171 +466,7 @@ export default function Pagamentos({ store, irPara }) {
         </div>
       </details>
       </Secao>
-
-      <Secao titulo="Contas fixas" info={secFixos.info} destaque={secFixos.destaque} aberto={secFixos.aberta} onToggle={secFixos.onToggle}>
-      {fixosVis.length === 0 ? (
-        <div className="empty">{filtroAtivo && fixosAtivos.length > 0 ? 'Nenhuma conta fixa com esses filtros.' : <>Nenhuma conta fixa ativa em {mesLabel(mes)}.{'\n'}Cadastre em "Fixos" para acompanhar aqui.</>}</div>
-      ) : (
-        <>
-          <table className="tabela-compacta lista-cartoes">
-            <thead>
-              <tr>
-                <th style={{ textAlign: 'center' }}>Pago</th>
-                <th>Nome</th>
-                <th className="col-opc">Categoria</th>
-                <th className="col-opc" style={{ textAlign: 'center' }}>Vence</th>
-                <th style={{ textAlign: 'right' }}>Valor</th>
-                <th className="col-opc">Pago em</th>
-              </tr>
-            </thead>
-            <tbody>
-              {fixosVis.map((f) => {
-                const pg = fixoPagamento(f)
-                return (
-                  <tr key={`${f.id}|${f.mesPagamento || ''}`} style={{ opacity: pg?.pago ? 0.6 : 1 }}>
-                    <td className="check-cel" style={{ textAlign: 'center' }}>
-                      <input type="checkbox" checked={!!pg?.pago} onChange={() => toggleFixo(f)} />
-                    </td>
-                    <td className="nome-cel" style={{ fontWeight: 500 }}>
-                      <span style={{ textDecoration: pg?.pago ? 'line-through' : 'none' }}>{f.nome}</span>
-                      <div className="so-mobile">{[f.categoria, f.dia_vencimento ? `vence dia ${f.dia_vencimento}` : ''].filter(Boolean).join(' · ')}</div>
-                      {pg?.pago && <div className="so-mobile">pago em {dataPag(pg.data_pagamento, (d) => definirDataPagamentoFixo(f.id, f.mesPagamento || mes, d))}</div>}
-                      {acoesAdiar('fixo', f, f.nome, Number(f.valor), !!pg?.pago)}
-                    </td>
-                    <td className="col-opc" style={{ fontSize: 12, color: 'var(--text2)' }}>
-                      {f.categoria ? (
-                        <>
-                          {f.categoria}<br />
-                          <span style={{ color: 'var(--text3)' }}>{f.subcategoria}</span>
-                        </>
-                      ) : (
-                        <span style={{ color: 'var(--text3)' }}>—</span>
-                      )}
-                    </td>
-                    <td className="col-opc" style={{ textAlign: 'center', fontFamily: 'DM Mono', fontSize: 12, color: 'var(--text3)' }}>
-                      {f.dia_vencimento ? `dia ${f.dia_vencimento}` : '—'}
-                    </td>
-                    <td className="valor-cel" style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>
-                      {f.variavel ? (
-                        <ValorDoMes fixo={f} mes={mes} real={store.fixos.find((x) => x.id === f.id)?.valores?.[mes]} definirValorFixo={definirValorFixo} compacto fechado={mesFechado(store.fechamentos, mes)} />
-                      ) : fmt(f.valor)}
-                    </td>
-                    <td className="col-opc">{pg?.pago ? dataPag(pg.data_pagamento, (d) => definirDataPagamentoFixo(f.id, f.mesPagamento || mes, d)) : semData}</td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </>
-      )}
-      </Secao>
-
-      <Secao titulo="Faturas dos cartões" info={secCartoes.info} destaque={secCartoes.destaque} aberto={secCartoes.aberta} onToggle={secCartoes.onToggle}>
-      {cartoesVis.length === 0 ? (
-        <div className="empty">{filtroAtivo && linhasCartao.length > 0 ? 'Nenhuma fatura com esses filtros.' : `Nenhum cartão com movimento em ${mesLabel(mes)}.`}</div>
-      ) : (
-        <>
-          <table className="tabela-compacta lista-cartoes">
-            <thead>
-              <tr>
-                <th style={{ textAlign: 'center' }}>Pago</th>
-                <th>Cartão</th>
-                <th style={{ textAlign: 'right' }}>Valor</th>
-                <th className="col-opc">Origem</th>
-                <th className="col-opc">Pago em</th>
-              </tr>
-            </thead>
-            <tbody>
-              {cartoesVis.map((l) => (
-                <tr key={l.cartao_id} style={{ opacity: l.pago ? 0.6 : 1 }}>
-                  <td className="check-cel" style={{ textAlign: 'center' }}>
-                    <input type="checkbox" checked={l.pago} onChange={() => toggleCartao(l)} />
-                  </td>
-                  <td className="nome-cel" style={{ fontWeight: 500, textDecoration: l.pago ? 'line-through' : 'none' }}>
-                    {l.nome}
-                    {!l.pago && dividasOk && <div className="adiar-linha"><button className="link-btn" onClick={() => virarDivida('fatura', l, `Fatura ${l.nome}`, Number(l.valor))}>Virar dívida</button></div>}
-                    <div className="so-mobile" style={{ textDecoration: 'none' }}>{l.temFatura ? 'valor real da fatura' : 'estimado (lançado)'}</div>
-                    {l.pago && <div className="so-mobile" style={{ textDecoration: 'none' }}>pago em {dataPag(l.dataPagamento, (d) => definirDataPagamentoFatura(l.cartao_id, mes, d))}</div>}
-                    {l.fixosNoCartao?.length > 0 && (
-                      <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 400, textDecoration: 'none' }}>
-                        inclui contas fixas: {l.fixosNoCartao.map((f) => `${f.nome} ${fmt(f.valor)}`).join(' · ')}
-                      </div>
-                    )}
-                  </td>
-                  <td className="valor-cel" style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(l.valor)}</td>
-                  <td className="col-opc">
-                    {l.temFatura ? (
-                      <span className="badge badge-green">valor real da fatura</span>
-                    ) : (
-                      <span className="badge badge-gray">estimado (lançado)</span>
-                    )}
-                  </td>
-                  <td className="col-opc">{l.pago ? dataPag(l.dataPagamento, (d) => definirDataPagamentoFatura(l.cartao_id, mes, d)) : semData}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {linhasCartao.some((l) => !l.temFatura) && (
-            <div style={{ padding: '10px 14px', fontSize: 11, color: 'var(--text3)', borderTop: '1px solid var(--border)' }}>
-              Valores marcados como "estimado" ainda não têm fatura cadastrada — o valor usado é a soma das parcelas
-              lançadas no app. Cadastre o valor real na aba Faturas para maior precisão.
-            </div>
-          )}
-        </>
-      )}
-      </Secao>
-
-      <Secao titulo="Outras contas (sem cartão)" info={secOutras.info} destaque={secOutras.destaque} aberto={secOutras.aberta} onToggle={secOutras.onToggle}>
-      {outrasVis.length === 0 ? (
-        <div className="empty">{filtroAtivo && outrasContas.length > 0 ? 'Nenhuma conta com esses filtros.' : <>Nenhuma conta sem cartão em {mesLabel(mes)}.{'\n'}Compras lançadas como "Sem cartão" aparecem aqui.</>}</div>
-      ) : (
-        <>
-          <table className="tabela-compacta lista-cartoes">
-            <thead>
-              <tr>
-                <th style={{ textAlign: 'center' }}>Pago</th>
-                <th>Descrição</th>
-                <th style={{ textAlign: 'right' }}>Valor</th>
-                <th className="col-opc" style={{ textAlign: 'center' }}>Parcela</th>
-                <th className="col-opc">Pago em</th>
-              </tr>
-            </thead>
-            <tbody>
-              {outrasVis.map((c) => (
-                <tr key={`${c.id}|${c.mesParcela}`} style={{ opacity: c.pago ? 0.6 : 1 }}>
-                  <td className="check-cel" style={{ textAlign: 'center' }}>
-                    <input type="checkbox" checked={!!c.pago} onChange={() => toggleOutraConta(c)} />
-                  </td>
-                  <td className="nome-cel" style={{ fontWeight: 500, textDecoration: c.pago ? 'line-through' : 'none' }}>
-                    {tituloCompra(c)}
-                    <div className="so-mobile" style={{ textDecoration: 'none' }}>{c.parcelaTotal > 1 ? `parcela ${c.parcelaNum}/${c.parcelaTotal}` : 'à vista'}</div>
-                    {c.pago && <div className="so-mobile" style={{ textDecoration: 'none' }}>pago em {dataPag(c.data_pagamento, (d) => mudarDataParcela(c, d))}</div>}
-                    {subtituloCompra(c) && <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 400 }}>no cartão: {subtituloCompra(c)}</div>}
-                    {c.obs &&<div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 400 }}>{c.obs}</div>}
-                    {acoesAdiar('compra', c, tituloCompra(c), c.valorParcela, !!c.pago)}
-                  </td>
-                  <td className="valor-cel" style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(c.valorParcela)}</td>
-                  <td className="col-opc" style={{ textAlign: 'center' }}>
-                    {c.parcelaTotal > 1 ? (
-                      <span className="badge badge-amber">{c.parcelaNum}/{c.parcelaTotal}</span>
-                    ) : (
-                      <span className="badge badge-gray">à vista</span>
-                    )}
-                  </td>
-                  <td className="col-opc">{c.pago ? dataPag(c.data_pagamento, (d) => mudarDataParcela(c, d)) : semData}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {outrasContas.some((c) => c.parcelaTotal > 1) && (
-            <div style={{ padding: '10px 14px', fontSize: 11, color: 'var(--text3)', borderTop: '1px solid var(--border)' }}>
-              Compras parceladas sem cartão marcam a compra inteira como paga (não parcela a parcela) — use para casos
-              simples; para acompanhar mês a mês, prefira lançar pelo cartão.
-            </div>
-          )}
-        </>
-      )}
-      </Secao>
+      </div>
 
       {noPlanoMes.length > 0 && (
         <section className="card" style={{ padding: 14 }}>
@@ -573,7 +477,7 @@ export default function Pagamentos({ store, irPara }) {
               <div className="divida-corpo"><b>{x.nome}</b><div className="cad-sub">{x.ativa === false ? 'quitada' : `deve ${fmt(Number(x.saldo))}`}{Number(x.saldo_inicial) ? ` · era ${fmt(Number(x.saldo_inicial))}` : ''}</div></div>
               <div className="divida-acoes">
                 {irPara && <button className="btn btn-ghost btn-sm" onClick={() => irPara('dividas')}>Ver no plano</button>}
-                <button className="btn btn-ghost btn-sm" onClick={async () => { if (window.confirm(`Voltar "${x.nome}" para as contas de ${mesLabel(mes)}? A dívida será apagada do plano.`)) await removerDivida(x.id) }}>Desfazer</button>
+                <button className="btn btn-ghost btn-sm" onClick={async () => { if (await confirmar({ titulo: 'Voltar para as contas do mês?', texto: `Voltar "${x.nome}" para as contas de ${mesLabel(mes)}? A dívida será apagada do plano.`, confirmar: 'Voltar para o mês' })) await removerDivida(x.id) }}>Desfazer</button>
               </div>
             </div>
           ))}
