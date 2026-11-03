@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useStore } from './lib/useStore'
 import { ativarAcessibilidadeModais } from './lib/acessibilidadeModais'
-import Dashboard from './components/Dashboard'
 import Inicio from './components/Inicio'
+import Analises from './components/Analises'
 import Inbox from './components/Inbox'
 import Compras from './components/Compras'
 import Parcelamentos from './components/Parcelamentos'
@@ -18,12 +18,10 @@ import Aulas from './components/Aulas'
 import Fixos from './components/Fixos'
 import Simulador from './components/Simulador'
 import Emprestimos from './components/Emprestimos'
-import Graficos from './components/Graficos'
 import AvisoNovaVersao, { versaoDoApp } from './components/AvisoNovaVersao'
 import Cartoes from './components/Cartoes'
 import Categorias from './components/Categorias'
 import Pessoas from './components/Pessoas'
-import PorPessoa from './components/PorPessoa'
 import Automacoes from './components/Automacoes'
 import Backup from './components/Backup'
 import Configuracoes from './components/Configuracoes'
@@ -31,9 +29,7 @@ import Orcamento from './components/Orcamento'
 import Divididos from './components/Divididos'
 import Reserva from './components/Reserva'
 import Regras from './components/Regras'
-import Calendario from './components/Calendario'
 import Busca from './components/Busca'
-import Evolucao from './components/Evolucao'
 import Metas from './components/Metas'
 import Fechamento from './components/Fechamento'
 import Login from './components/Login'
@@ -42,7 +38,7 @@ import { sb } from './lib/supabase'
 import { perfil } from './lib/perfil'
 import { InicioContext } from './lib/InicioContext'
 import { useVoltar } from './lib/useVoltar'
-import { areasVisiveis, areaDaAba, hashDaAba, abaDoHash, abaInicial, destinoDaArea, atalhoDaArea, ATALHOS, lerLembradas } from './lib/navegacao'
+import { areasVisiveis, areaDaAba, hashDaRota, rotaDoHash, rotaInicial, resolverRota, destinoDaArea, atalhoDaArea, ATALHOS, lerLembradas } from './lib/navegacao'
 
 const ICONES = {
   movimentacoes: 'M17 1l4 4-4 4 M3 11V9a4 4 0 0 1 4-4h14 M7 23l-4-4 4-4 M21 13v2a4 4 0 0 1-4 4H3',
@@ -101,11 +97,8 @@ function Icone({ nome, size = 18 }) {
 // Telas e seus nomes. O agrupamento em áreas (Início, Movimentações, Cartões, Planejamento, Análises, Mais) está em lib/navegacao.js.
 const TELAS = {
   inicio: { label: 'Início', Component: Inicio },
-  dashboard: { label: 'Dashboard', Component: Dashboard },
-  graficos: { label: 'Gráficos', Component: Graficos },
+  analises: { label: 'Análises', Component: Analises },
   busca: { label: 'Buscar', Component: Busca },
-  calendario: { label: 'Calendário', Component: Calendario },
-  porpessoa: { label: 'Por pessoa', Component: PorPessoa },
   inbox: { label: 'Inbox', Component: Inbox },
   compras: { label: 'Compras', Component: Compras },
   parcelamentos: { label: 'Parcelamentos', Component: Parcelamentos },
@@ -122,7 +115,6 @@ const TELAS = {
   fixos: { label: 'Contas fixas', Component: Fixos },
   orcamento: { label: 'Orçamento', Component: Orcamento },
   fechamento: { label: 'Fechamento', Component: Fechamento },
-  evolucao: { label: 'Evolução', Component: Evolucao },
   metas: { label: 'Metas', Component: Metas },
   reserva: { label: 'Reserva', Component: Reserva },
   simulador: { label: 'Simulador', Component: Simulador },
@@ -173,7 +165,9 @@ export default function App() {
 }
 
 function AppLogado({ email }) {
-  const [aba, setAba] = useState(() => abaInicial({ hash: typeof window !== 'undefined' ? window.location.hash : '', salva: lerLocal('aba', 'inicio'), validas: IDS_ABAS }))
+  const rotaDeAbertura = useMemo(() => rotaInicial({ hash: typeof window !== 'undefined' ? window.location.hash : '', salva: lerLocal('aba', 'inicio'), validas: IDS_ABAS }), [])
+  const [aba, setAba] = useState(rotaDeAbertura.aba)
+  const [sub, setSub] = useState(rotaDeAbertura.sub) // aba interna da tela (ex.: Análises > Evolução)
   const [lembradas, setLembradas] = useState(() => lerLembradas(lerLocal('aba_por_area', '{}'))) // última tela usada em cada área
   const [recolhida, setRecolhida] = useState(() => lerLocal('sidebar_recolhida', '0') === '1')
   const [menuAberto, setMenuAberto] = useState(false)
@@ -189,7 +183,7 @@ function AppLogado({ email }) {
   }, [aba])
   useEffect(() => { gravarLocal('aba_por_area', JSON.stringify(lembradas)) }, [lembradas])
   useEffect(() => { // link direto ou endereço digitado (#/faturas) com o app já aberto
-    const aoMudar = () => { const id = abaDoHash(window.location.hash, IDS_ABAS); if (id) setAba(id) }
+    const aoMudar = () => { const r = rotaDoHash(window.location.hash, IDS_ABAS); if (r) { setAba(r.aba); setSub(r.sub) } }
     window.addEventListener('hashchange', aoMudar)
     return () => window.removeEventListener('hashchange', aoMudar)
   }, [])
@@ -202,13 +196,20 @@ function AppLogado({ email }) {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  useVoltar({ aba, setAba, menuAberto, fecharMenu: () => setMenuAberto(false) })
+  useVoltar({ aba, sub, setAba: (id, novaSub) => { setAba(id); setSub(novaSub || null) }, menuAberto, fecharMenu: () => setMenuAberto(false) })
 
-  function irPara(id) {
-    if (id !== aba) history.pushState({ aba: id }, '', hashDaAba(id)) // o botão voltar do celular volta para a tela anterior; o endereço vira #/tela
-    setAba(id)
+  function irPara(id, subDesejada = null) {
+    const r = resolverRota(id, subDesejada) // ids antigos (dashboard, graficos, calendario…) levam à aba certa
+    if (r.aba !== aba || r.sub !== sub) history.pushState({ aba: r.aba, sub: r.sub }, '', hashDaRota(r.aba, r.sub)) // o botão voltar do celular volta para a tela anterior; o endereço vira #/tela
+    setAba(r.aba)
+    setSub(r.sub)
     setMenuAberto(false)
     window.scrollTo({ top: 0 })
+  }
+  // trocar de aba dentro da tela (Análises, Pagamentos): troca o endereço sem empilhar histórico
+  function mudarSub(nova) {
+    setSub(nova)
+    history.replaceState({ aba, sub: nova }, '', hashDaRota(aba, nova))
   }
 
   if (store.loading) {
@@ -340,7 +341,7 @@ function AppLogado({ email }) {
             ))}
           </nav>
         )}
-        <Component store={store} irPara={irPara} />
+        <Component store={store} irPara={irPara} sub={sub} aoMudarSub={mudarSub} />
       </div>
 
       <AvisoNovaVersao />

@@ -41,3 +41,30 @@ export function porDia(eventos) {
   for (const e of eventos) (mapa[e.dia] ||= []).push(e)
   return mapa
 }
+
+// Grade do mês para o calendário: semanas de domingo a sábado; cada dia com seus eventos e um estado
+//   atrasada (tem conta em aberto que já venceu) | aberta (tem conta em aberto) | paga (tudo pago) | null (nada vence).
+export function grade(mes, eventos, hoje) {
+  const dias = diasNoMes(mes)
+  const primeiro = new Date(Number(mes.slice(0, 4)), Number(mes.slice(5, 7)) - 1, 1).getDay()
+  const por = porDia(eventos)
+  const mesHoje = hoje.slice(0, 7)
+  const diaHoje = mesHoje === mes ? Number(hoje.slice(8, 10)) : null
+  const estadoDe = (dia) => {
+    const ev = por[dia] || []
+    if (!ev.length) return null
+    const abertos = ev.filter((e) => !e.pago)
+    if (!abertos.length) return 'paga'
+    const venceu = mes < mesHoje || (diaHoje != null && dia < diaHoje)
+    return venceu ? 'atrasada' : 'aberta'
+  }
+  const celulas = [...Array(primeiro).fill(null), ...Array.from({ length: dias }, (_, i) => {
+    const dia = i + 1
+    const ev = por[dia] || []
+    return { dia, eventos: ev, estado: estadoDe(dia), total: Math.round(ev.reduce((t, e) => t + e.valor, 0) * 100) / 100, hoje: diaHoje === dia }
+  })]
+  while (celulas.length % 7) celulas.push(null)
+  const semanas = []
+  for (let i = 0; i < celulas.length; i += 7) semanas.push(celulas.slice(i, i + 7))
+  return semanas
+}

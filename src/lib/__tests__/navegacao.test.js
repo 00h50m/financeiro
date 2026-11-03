@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import { AREAS, areasVisiveis, areaDaAba, hashDaAba, abaDoHash, abaInicial, destinoDaArea, atalhoDaArea, ATALHOS, lerLembradas } from '../navegacao'
+import { AREAS, areasVisiveis, areaDaAba, hashDaAba, hashDaRota, abaDoHash, rotaDoHash, resolverRota, abaInicial, rotaInicial, destinoDaArea, atalhoDaArea, ATALHOS, lerLembradas } from '../navegacao'
 
 // Todas as telas que existem no app (ids de src/App.jsx). Se uma tela nova for criada sem área, este teste avisa.
-const TODAS = ['inicio', 'dashboard', 'graficos', 'busca', 'calendario', 'porpessoa', 'inbox', 'compras', 'parcelamentos', 'faturas', 'pagamentos', 'divididos', 'importar',
-  'meuplano', 'renda', 'aulas', 'atendimentos', 'cenario', 'dividas', 'fixos', 'orcamento', 'fechamento', 'evolucao', 'metas', 'reserva', 'simulador', 'emprestimos',
+const TODAS = ['inicio', 'analises', 'busca', 'inbox', 'compras', 'parcelamentos', 'faturas', 'pagamentos', 'divididos', 'importar',
+  'meuplano', 'renda', 'aulas', 'atendimentos', 'cenario', 'dividas', 'fixos', 'orcamento', 'fechamento', 'metas', 'reserva', 'simulador', 'emprestimos',
   'cartoes', 'categorias', 'pessoas', 'regras', 'automacoes', 'config', 'backup']
 
 describe('áreas de navegação', () => {
@@ -31,7 +31,7 @@ describe('áreas de navegação', () => {
   })
   it('areaDaAba encontra a área; tela desconhecida não tem área', () => {
     expect(areaDaAba('faturas').id).toBe('cartoes')
-    expect(areaDaAba('dashboard').id).toBe('analises')
+    expect(areaDaAba('analises').id).toBe('analises')
     expect(areaDaAba('nao-existe')).toBeNull()
   })
 })
@@ -74,5 +74,35 @@ describe('tocar numa área e atalhos do celular', () => {
     expect(lerLembradas('nao é json')).toEqual({})
     expect(lerLembradas('[1,2]')).toEqual({})
     expect(lerLembradas(null)).toEqual({})
+  })
+})
+
+describe('telas que viraram abas (atalhos antigos continuam funcionando)', () => {
+  it('resolve os ids antigos para a tela e a aba novas', () => {
+    expect(resolverRota('dashboard')).toEqual({ aba: 'analises', sub: 'visao' })
+    expect(resolverRota('graficos')).toEqual({ aba: 'analises', sub: 'evolucao' })
+    expect(resolverRota('evolucao')).toEqual({ aba: 'analises', sub: 'evolucao' })
+    expect(resolverRota('porpessoa')).toEqual({ aba: 'analises', sub: 'pessoas' })
+    expect(resolverRota('calendario')).toEqual({ aba: 'pagamentos', sub: 'calendario' })
+    expect(resolverRota('faturas')).toEqual({ aba: 'faturas', sub: null })
+    expect(resolverRota('analises', 'categorias')).toEqual({ aba: 'analises', sub: 'categorias' })
+  })
+  it('endereços antigos e novos abrem a tela certa', () => {
+    expect(rotaDoHash('#/dashboard', TODAS)).toEqual({ aba: 'analises', sub: 'visao' })
+    expect(rotaDoHash('#/analises/orcado', TODAS)).toEqual({ aba: 'analises', sub: 'orcado' })
+    expect(rotaDoHash('#/calendario', TODAS)).toEqual({ aba: 'pagamentos', sub: 'calendario' })
+    expect(rotaDoHash('#/pagamentos/calendario/', TODAS)).toEqual({ aba: 'pagamentos', sub: 'calendario' })
+    expect(abaDoHash('#/porpessoa', TODAS)).toBe('analises')
+  })
+  it('endereço inválido ou de tela escondida pelo perfil é ignorado', () => {
+    expect(rotaDoHash('#/aulas', TODAS.filter((x) => x !== 'aulas'))).toBeNull()
+    expect(rotaDoHash('#/analises/<x>', TODAS)).toBeNull()
+    expect(rotaDoHash('#/a/b/c', TODAS)).toBeNull()
+  })
+  it('última tela guardada com id antigo também é reconhecida', () => {
+    expect(rotaInicial({ hash: '', salva: 'dashboard', validas: TODAS })).toEqual({ aba: 'analises', sub: 'visao' })
+    expect(abaInicial({ hash: '', salva: 'porpessoa', validas: TODAS })).toBe('analises')
+    expect(hashDaRota('analises', 'evolucao')).toBe('#/analises/evolucao')
+    expect(hashDaRota('faturas')).toBe('#/faturas')
   })
 })

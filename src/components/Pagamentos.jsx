@@ -16,11 +16,12 @@ import ResumoPagamentos from './pagamentos/ResumoPagamentos'
 import AbasPagamentos from './pagamentos/AbasPagamentos'
 import LinhaPagamento from './pagamentos/LinhaPagamento'
 import BarraLote from './pagamentos/BarraLote'
+import CalendarioMes from './CalendarioMes'
 import EstadoVazio from './ui/EstadoVazio'
 import { listaDePagamentos, filtrarPorAba, contagemPorAba, resumoCompacto, podeMarcarEmLote } from '../lib/pagamentosLista'
 import { resumoDoMes, sobraAnterior, lerUsarSaldoAnterior, gravarUsarSaldoAnterior } from '../lib/financeiro'
 
-export default function Pagamentos({ store, irPara }) {
+export default function Pagamentos({ store, irPara, sub = null, aoMudarSub }) {
   const {
     fixos, fixosPagamentos, cartoes, compras, faturas, rendas, saldoAjustes, comprasPagamentos, comprasPagamentosOk, aulasAReceber,
     marcarFixoPago, marcarParcelaPaga, definirValorFixo, upsertFatura, updateCompra, definirAjusteSaldo,
@@ -42,6 +43,7 @@ export default function Pagamentos({ store, irPara }) {
   const [ocupada, setOcupada] = useState(false)
   const [ultimo, setUltimo] = useState(null) // { rotulo, chaves }: última ação de pagamento, para desfazer
   const { confirmar, avisar, pedir, dialogo } = useDialogos()
+  const visaoCal = sub === 'calendario'
   const perguntar = (texto, valor) => pedir({ titulo: 'Informar valor', texto, valor })
   useEffect(() => { if (!ultimo) return undefined; const t = setTimeout(() => setUltimo(null), 9000); return () => clearTimeout(t) }, [ultimo])
   const [extratoAberto, setExtratoAberto] = useState(false)
@@ -309,6 +311,12 @@ export default function Pagamentos({ store, irPara }) {
         </div>
       )}
 
+      <div className="fat-visao" role="group" aria-label="Visão dos pagamentos" style={{ marginBottom: 12 }}>
+        <button type="button" className={visaoCal ? '' : 'ativa'} aria-pressed={!visaoCal} onClick={() => aoMudarSub?.(null)}>Contas</button>
+        <button type="button" className={visaoCal ? 'ativa' : ''} aria-pressed={visaoCal} onClick={() => aoMudarSub?.('calendario')}>Calendário</button>
+      </div>
+      {visaoCal ? <CalendarioMes store={store} mes={mes} irPara={irPara} /> : (
+        <>
       <ResumoPagamentos resumo={resumoTopo} />
       <AbasPagamentos valor={aba} onChange={setAba} contagem={contagem} />
       <div className="toolbar">
@@ -467,6 +475,9 @@ export default function Pagamentos({ store, irPara }) {
       </details>
       </Secao>
       </div>
+
+        </>
+      )}
 
       {noPlanoMes.length > 0 && (
         <section className="card" style={{ padding: 14 }}>

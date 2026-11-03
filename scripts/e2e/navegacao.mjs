@@ -79,10 +79,10 @@ await p.waitForSelector('.sidebar.aberta')
 const grupos = await p.locator('.sidebar.aberta .sidebar-grupo-titulo').allInnerTexts()
 const AREAS6 = ['início', 'movimentações', 'cartões', 'planejamento', 'análises', 'mais'] // o CSS põe os títulos em caixa alta
 ok(JSON.stringify(grupos.map((g) => g.trim().toLowerCase())) === JSON.stringify(AREAS6), `menu completo agrupa nas 6 áreas (${grupos.map((g) => g.trim()).join(' · ')})`)
-await p.locator('.sidebar.aberta .sidebar-item', { hasText: 'Dashboard' }).click()
-ok((await titulo(p)) === 'Dashboard' && p.url().endsWith('#/dashboard'), 'Dashboard (área Análises) abre pelo menu')
+await p.locator('.sidebar.aberta .sidebar-item', { hasText: 'Análises' }).click()
+ok((await titulo(p)) === 'Análises' && p.url().endsWith('#/analises'), 'Análises abre pelo menu')
 ok(await p.locator('.bottom-nav button.ativo').innerText().then((t) => t.includes('Mais')), 'Análises destaca "Mais" na barra inferior')
-ok((await p.locator('.subnav-item').allInnerTexts()).some((c) => c.includes('Gráficos')), 'Análises tem sub-navegação (Dashboard, Gráficos, Evolução, Calendário, Por pessoa)')
+ok((await p.locator('.analises-abas .pag-aba').count()) === 6, 'Análises tem 6 abas internas (Visão geral, Evolução, Categorias, Pessoas, Compromissos, Orçado × realizado)')
 
 // endereço digitado com o app aberto
 await p.evaluate(() => { window.location.hash = '#/faturas' })
@@ -94,6 +94,17 @@ ok((await titulo(p)) === 'Faturas', 'endereço inválido é ignorado (continua n
 const sw = await p.evaluate(() => ({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth }))
 ok(sw.sw <= sw.cw + 1, `sem rolagem horizontal da página no celular (${sw.sw} <= ${sw.cw})`)
 await p.close()
+
+// endereços antigos continuam funcionando (viraram abas)
+await p.evaluate(() => { window.location.hash = '#/graficos' })
+await p.waitForTimeout(250)
+ok((await titulo(p)) === 'Análises' && (await p.locator('.analises-abas .pag-aba.ativa').innerText()) === 'Evolução', '#/graficos abre Análises > Evolução')
+await p.evaluate(() => { window.location.hash = '#/porpessoa' })
+await p.waitForTimeout(250)
+ok((await p.locator('.analises-abas .pag-aba.ativa').innerText()) === 'Pessoas', '#/porpessoa abre Análises > Pessoas')
+await p.evaluate(() => { window.location.hash = '#/calendario' })
+await p.waitForTimeout(250)
+ok((await titulo(p)) === 'Pagamentos' && (await p.locator('.cal-grade').count()) === 1, '#/calendario abre Pagamentos > Calendário')
 
 // link direto: abre já na tela certa, e voltar leva ao Início
 const p2 = await cel.newPage()

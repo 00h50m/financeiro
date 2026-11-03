@@ -18,7 +18,7 @@ const Var = ({ v, inverter }) => {
 const NIVEL = { atencao: 'badge-amber', bom: 'badge-green', info: 'badge-blue' }
 const ROTULO = { atencao: 'Atenção', bom: 'Bom sinal', info: 'Info' }
 
-export default function Evolucao({ store }) {
+export default function Evolucao({ store, embutido = false }) {
   const [mes, setMes] = useState(nowYM())
   const [campo, setCampo] = useState('despesas')
   const [sec, setSec] = useState({ doze: false, cats: false}) // seção → aberta (sem valor: aberta)
@@ -31,7 +31,7 @@ export default function Evolucao({ store }) {
   const maximo = Math.max(1, ...serie.map((l) => Math.max(l.renda, l.despesas)))
 
   return (
-    <div className="page">
+    <div className={`page ${embutido ? 'page-embutida' : ''}`}>
       <div className="pag-topo">
         <NavMes mes={mes} onChange={setMes} />
       </div>

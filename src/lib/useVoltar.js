@@ -1,17 +1,18 @@
 import { useEffect, useRef } from 'react'
-import { hashDaAba } from './navegacao'
+import { hashDaRota } from './navegacao'
 
 // Botão voltar do celular (e do navegador): em vez de fechar o app, volta para a tela anterior ou fecha a janela aberta.
 // Cada troca de aba empilha uma entrada no histórico; janelas (.overlay) e o menu lateral empilham uma entrada enquanto estão abertos.
-export function useVoltar({ aba, setAba, menuAberto, fecharMenu }) {
+export function useVoltar({ aba, sub = null, setAba, menuAberto, fecharMenu }) {
   const camada = useRef(false) // há uma entrada de histórico representando uma janela/menu aberto
   const ignorar = useRef(0) // popstates provocados por nós mesmos
   const estado = useRef({})
-  estado.current = { aba, setAba, menuAberto, fecharMenu }
+  estado.current = { aba, sub, setAba, menuAberto, fecharMenu }
 
   useEffect(() => {
     // Ao abrir direto numa aba que não é o Início, voltar leva ao Início (e só depois sai do app).
-    if (aba !== 'inicio') { history.replaceState({ aba: 'inicio' }, '', hashDaAba('inicio')); history.pushState({ aba }, '', hashDaAba(aba)) } else history.replaceState({ aba }, '', hashDaAba('inicio'))
+    const sub0 = estado.current.sub
+    if (aba !== 'inicio') { history.replaceState({ aba: 'inicio' }, '', hashDaRota('inicio')); history.pushState({ aba, sub: sub0 }, '', hashDaRota(aba, sub0)) } else history.replaceState({ aba }, '', hashDaRota('inicio'))
 
     const temCamada = () => estado.current.menuAberto || document.querySelector('.overlay') != null
     function verificar() {
@@ -33,7 +34,7 @@ export function useVoltar({ aba, setAba, menuAberto, fecharMenu }) {
         return
       }
       if (e.state?.camada) { history.back(); return } // entrada de janela que ficou para trás: pula
-      if (e.state?.aba) estado.current.setAba(e.state.aba)
+      if (e.state?.aba) estado.current.setAba(e.state.aba, e.state.sub)
     }
     const obs = new MutationObserver(verificar)
     obs.observe(document.body, { childList: true, subtree: true })

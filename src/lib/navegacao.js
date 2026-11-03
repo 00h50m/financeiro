@@ -6,7 +6,7 @@ export const AREAS = [
   { id: 'movimentacoes', titulo: 'Movimentações', abas: ['pagamentos', 'compras', 'parcelamentos', 'divididos', 'inbox', 'busca'], padrao: 'pagamentos' },
   { id: 'cartoes', titulo: 'Cartões', abas: ['faturas', 'importar', 'cartoes'], padrao: 'faturas' },
   { id: 'planejamento', titulo: 'Planejamento', abas: ['meuplano', 'renda', 'fixos', 'orcamento', 'metas', 'reserva', 'dividas', 'emprestimos', 'simulador', 'cenario', 'fechamento', 'aulas', 'atendimentos'], padrao: 'meuplano' },
-  { id: 'analises', titulo: 'Análises', abas: ['dashboard', 'graficos', 'evolucao', 'calendario', 'porpessoa'], padrao: 'dashboard' },
+  { id: 'analises', titulo: 'Análises', abas: ['analises'], padrao: 'analises' },
   { id: 'mais', titulo: 'Mais', abas: ['categorias', 'pessoas', 'regras', 'automacoes', 'config', 'backup'], padrao: 'config' },
 ]
 
@@ -22,17 +22,39 @@ export function areasVisiveis(abasOcultas = []) {
 
 export const areaDaAba = (id, areas = AREAS) => areas.find((a) => a.abas.includes(id)) || null
 
-// Endereço de uma tela: #/pagamentos. Telas desconhecidas não geram endereço.
+// Endereço de uma tela: #/pagamentos (ou #/analises/evolucao quando a tela tem abas internas). Telas desconhecidas não geram endereço.
 export const hashDaAba = (id) => `#/${id}`
-export function abaDoHash(hash, validas) {
-  const m = /^#\/([a-z0-9_-]+)\/?$/i.exec(String(hash || ''))
-  return m && validas.includes(m[1]) ? m[1] : null
+export const hashDaRota = (aba, sub) => (sub ? `#/${aba}/${sub}` : `#/${aba}`)
+
+// Telas que viraram abas de outra: os endereços e atalhos antigos continuam funcionando.
+//   #/dashboard → Análises > Visão geral · #/graficos e #/evolucao → Análises > Evolução · #/porpessoa → Análises > Pessoas · #/calendario → Pagamentos > Calendário
+export const ALIASES = {
+  dashboard: { aba: 'analises', sub: 'visao' },
+  graficos: { aba: 'analises', sub: 'evolucao' },
+  evolucao: { aba: 'analises', sub: 'evolucao' },
+  porpessoa: { aba: 'analises', sub: 'pessoas' },
+  calendario: { aba: 'pagamentos', sub: 'calendario' },
 }
+// id (talvez antigo) + sub opcional → { aba, sub } com o id real da tela.
+export const resolverRota = (id, sub = null) => ALIASES[id] || { aba: id, sub: sub || null }
+
+// Lê #/tela ou #/tela/aba. Só vale tela que existe (e que o perfil não esconde); nunca devolve texto livre.
+export function rotaDoHash(hash, validas) {
+  const m = /^#\/([a-z0-9_-]+)(?:\/([a-z0-9_-]+))?\/?$/i.exec(String(hash || ''))
+  if (!m) return null
+  const r = resolverRota(m[1], m[2] || null)
+  return validas.includes(r.aba) ? r : null
+}
+export const abaDoHash = (hash, validas) => rotaDoHash(hash, validas)?.aba || null
 
 // Qual tela abrir ao iniciar: o endereço (link direto) vence a última tela guardada no aparelho; senão o Início.
-export function abaInicial({ hash, salva, validas }) {
-  return abaDoHash(hash, validas) || (validas.includes(salva) ? salva : validas.includes('inicio') ? 'inicio' : validas[0])
+export function rotaInicial({ hash, salva, validas }) {
+  const doHash = rotaDoHash(hash, validas)
+  if (doHash) return doHash
+  const guardada = resolverRota(salva)
+  return validas.includes(guardada.aba) ? guardada : { aba: validas.includes('inicio') ? 'inicio' : validas[0], sub: null }
 }
+export const abaInicial = (args) => rotaInicial(args).aba
 
 // Ao tocar numa área: volta para a última tela que você usou nela (se ainda existir) ou para a tela principal dela.
 export function destinoDaArea(area, lembradas = {}) {
