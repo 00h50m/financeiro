@@ -222,16 +222,18 @@ Cada fase: explicar, listar arquivos, implementar de forma incremental (PRs pequ
 
 ---
 
-## 9. Decisões que preciso de você antes da Fase 2
+## 9. Decisões tomadas (validadas pelo usuário)
 
-1. **Navegação:** adotar as 5 áreas do prompt **+ "Análises"** (6 destinos) ou manter exatamente 5 com análises dentro de "Mais"?
-2. **URLs:** aceitar o **hash por tela** (`#/pagamentos`)?
-3. **TypeScript:** manter JS nesta refatoração (recomendado) ou migrar? (A migração é projeto separado, de risco alto e sem ganho de UX.)
-4. **Nomes dos indicadores** (seção 3.1): aprovar "Disponível agora", "Sobra prevista do mês", "A pagar", "Comprometido", "Resultado do mês"?
-5. **Ordem das fases:** seguir como proposto (Pagamentos/Compras/Faturas antes de Início/Dashboard)?
-6. **Atalho de pagar no celular:** manter "Pagar" na barra inferior no lugar de "Cartões"? (a barra comporta 5 itens)
+1. **Navegação:** 6 áreas: Início · Movimentações · Cartões · Planejamento · **Análises** · Mais.
+2. **URLs:** hash por tela (`#/pagamentos`), mantendo `localStorage` como reserva e o botão voltar do celular como hoje.
+3. **TypeScript:** manter JavaScript (JSX) nesta refatoração.
+4. **Ordem:** testes de contrato dos indicadores → Fase 2 (tokens, componentes base, navegação) → Fase 3 (Pagamentos, Compras, Faturas) → Fase 4 (Início, Dashboard) → Fases 5 e 6.
+5. **Nomes dos indicadores** (seção 3): a validar na Fase 4, quando as telas de Início/Dashboard forem refeitas.
 
----
+### 9.1 Achado do teste de contrato
+O Início e o Dashboard leem a opção "usar a sobra do mês anterior" (`lerUsarSaldoAnterior()`, **ligada por padrão**), enquanto Evolução, Gráficos,
+Resumo mensal e Empréstimos calculam sem ela. Por isso o "Pode gastar" do Início inclui a sobra de setembro e o "Resultado do mês" dos gráficos não.
+Isso é intencional no código, mas **não está explicado em nenhuma tela**: na Fase 4 o rótulo deve dizer "inclui a sobra do mês anterior".
 
 ## 10. Fora do escopo desta refatoração (registrado para depois)
 - Bugs/regras financeiras: nenhum encontrado que bloqueie a UX. Observação a investigar separadamente: o estado de "usar sobra do mês anterior" em Pagamentos (`usarSobra`) vs `lerUsarSaldoAnterior()` (Início/Dashboard).
