@@ -3,20 +3,20 @@ import { serieMensal } from '../lib/evolucao'
 import { fmt, fmtK, mesLabel, nowYM, addMonths, gerarParcelas, corPessoa, corPessoaCss, fixosAtivos, gastosPorCategoria, statusTeto, nomeCasa, donoDoFixo, hojeSP } from '../lib/utils'
 import { resumoDoMes, lerUsarSaldoAnterior } from '../lib/financeiro'
 import { GLOSSARIO } from '../lib/glossario'
+import { compararComMedia } from '../lib/comparacoes'
 import { comprasLiquidas, fixosLiquidos } from '../lib/divisoes'
 import { riscosDoMes, mesFechado } from '../lib/fechamento'
 import { pendenciasValorVariavel } from '../lib/fixosVariaveis'
 import { montarResumoMensal, textoDoResumo } from '../lib/resumoMensal'
 import Secao from './Secao'
-import { contasDoMes } from '../lib/inicio'
 import NavMes from './NavMes'
 import { antesDoInicio } from '../lib/inicioApp'
 
-export default function Dashboard({ store, irPara }) {
+export default function Dashboard({ store, irPara, embutido = false }) {
   const { compras, cartoes, fixos, pessoas, orcamentos } = store
   const [mes, setMes] = useState(nowYM())
-  const [secoes, setSecoes] = useState({ pessoa: false, proj: false }) // seção → aberta (sem valor: aberta)
-  const aberta = (k) => secoes[k] !== false && (secoes[k] === true || !(k in { pessoa: 1, proj: 1 }))
+  const [secoes, setSecoes] = useState({ pessoa: false, proj: false, riscos: false }) // seção → aberta (sem valor: aberta)
+  const aberta = (k) => secoes[k] !== false && (secoes[k] === true || !(k in { pessoa: 1, proj: 1, riscos: 1 }))
   const alt = (k) => () => setSecoes((m) => ({ ...m, [k]: !aberta(k) }))
   const [abertas, setAbertas] = useState({})
   const [resumo, setResumo] = useState(null) // resumo do mês (modal): dados estruturados
@@ -64,12 +64,6 @@ export default function Dashboard({ store, irPara }) {
   })
   const totalGeralPessoas = gastoPessoa.reduce((t, g) => t + g.total, 0)
 
-  // Contas do mês em aberto e atrasadas (mesma lista da tela Início), para os cartões de resumo.
-  const contasMes = contasDoMes(resumoMes.detalhe, cartoes, mes, hojeSP())
-  const abertasMes = contasMes.filter((c) => !c.pago)
-  const atrasadasMes = abertasMes.filter((c) => c.atrasada).length
-  const pctPago = totalMes > 0 ? Math.min(100, Math.round((resumoMes.pago / totalMes) * 100)) : 0
-
   const pendenciasVariaveis = pendenciasValorVariavel(fixos, hojeSP(), { inicio: store.inicioApp })
   const porCategoriaMap = gastosPorCategoria(comprasLiquidas(store), cartoes, fixosLiquidos(store), mes)
   const porCategoria = Object.entries(porCategoriaMap)
@@ -91,7 +85,7 @@ export default function Dashboard({ store, irPara }) {
   const pertoDoTeto = porCategoria.filter((c) => statusTeto(c.total, c.teto) === 'perto')
 
   return (
-    <div className="page">
+    <div className={`page ${embutido ? 'page-embutida' : ''}`}>
       {resumo != null && (
         <div className="overlay" onClick={(e) => { if (e.target.className === 'overlay') setResumo(null) }}>
           <div className="modal" style={{ maxWidth: 520 }}>
@@ -154,27 +148,14 @@ export default function Dashboard({ store, irPara }) {
           <div className="kpi-sub">{renda > 0 ? ([resumoMes.saldoAnterior !== 0 && `inclui ${resumoMes.saldoAnterior > 0 ? '+' : '−'}${fmtK(Math.abs(resumoMes.saldoAnterior))} do mês anterior`, resumoMes.ajuste !== 0 && `e acerto de saldo de ${fmtK(Math.abs(resumoMes.ajuste))}`].filter(Boolean).join(' ') || 'entrada − comprometido') : 'projeção do mês'}</div>
         </div>
         <div className="kpi">
-          <div className="kpi-rotulo">Já pago</div>
-          <div className="kpi-valor verde">{fmtK(resumoMes.pago)}</div>
-          <div className="kpi-sub">{totalMes > 0 ? `${pctPago}% das contas` : 'nada a pagar'}</div>
-          {totalMes > 0 && <div className="kpi-barra"><div className="ok" style={{ width: pctPago + '%' }} /></div>}
-        </div>
-        <div className="kpi">
-          <div className="kpi-rotulo" title={GLOSSARIO.aPagar.ajuda}>{GLOSSARIO.aPagar.rotulo}</div>
-          <div className={`kpi-valor ${atrasadasMes ? 'vermelho' : 'ambar'}`}>{fmtK(resumoMes.aPagar)}</div>
-          <div className={`kpi-sub ${atrasadasMes ? 'ruim' : ''}`}>
-            {abertasMes.length === 0 ? 'tudo pago' : `${abertasMes.length} ${abertasMes.length === 1 ? 'conta' : 'contas'} em aberto${atrasadasMes ? ` · ${atrasadasMes} ${atrasadasMes === 1 ? 'vencida' : 'vencidas'}` : ''}`}
-          </div>
-        </div>
-        <div className="kpi">
-          <div className="kpi-rotulo" title={GLOSSARIO.disponivelAgora.ajuda}>{GLOSSARIO.disponivelAgora.rotulo}</div>
-          <div className={`kpi-valor ${resumoMes.disponivel >= 0 ? 'azul' : 'vermelho'}`}>{renda > 0 ? fmtK(resumoMes.disponivel) : '—'}</div>
-          <div className="kpi-sub">dinheiro que existe agora</div>
+          <div className="kpi-rotulo" title={GLOSSARIO.resultadoDoMes.ajuda}>{GLOSSARIO.resultadoDoMes.rotulo}</div>
+          <div className={`kpi-valor ${renda === 0 ? 'azul' : resumoMes.sobraDoMes >= 0 ? 'verde' : 'vermelho'}`}>{renda > 0 ? fmtK(resumoMes.sobraDoMes) : '—'}</div>
+          <div className="kpi-sub">entrada − comprometido, sem sobra anterior</div>
         </div>
       </div>
 
       {riscos.length > 0 && (
-        <Secao titulo="Atenção neste mês" info={`${riscos.length} ${riscos.length === 1 ? 'ponto' : 'pontos'}`} aberto={aberta('riscos')} onToggle={alt('riscos')}>
+        <Secao titulo="Alertas do mês" info={`${riscos.length} ${riscos.length === 1 ? 'ponto' : 'pontos'}`} aberto={aberta('riscos')} onToggle={alt('riscos')}>
           <div style={{ padding: '4px 14px', borderTop: '1px solid var(--border)' }}>
             {riscos.map((r) => (
               <div key={r.texto} style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
@@ -308,12 +289,11 @@ export default function Dashboard({ store, irPara }) {
                       </td>
                       <td className="col-opc" style={{ textAlign: 'right', fontSize: 12, whiteSpace: 'nowrap' }}>
                         {(() => {
-                          const antes = serie6.slice(0, -1).map((l) => l.porCategoria?.[categoria] || 0)
-                          const media = antes.reduce((t, v) => t + v, 0) / (antes.length || 1)
-                          if (!(media >= 1)) return <span style={{ color: 'var(--text3)' }}>sem histórico</span>
-                          const p = Math.round(((total - media) / media) * 100)
-                          if (Math.abs(p) < 5) return <span style={{ color: 'var(--text3)' }} title={`Média: ${fmt(media)}`}>na média</span>
-                          return <span style={{ color: p > 0 ? 'var(--red)' : 'var(--green)' }} title={`Média dos 5 meses anteriores: ${fmt(media)}`}>{p > 0 ? '↑' : '↓'} {Math.abs(p)}% <span style={{ color: 'var(--text3)' }}>({fmt(media)})</span></span>
+                          const cmp = compararComMedia(total, serie6.slice(0, -1).map((l) => ({ valor: l.porCategoria?.[categoria] || 0, temDados: l.temDados })))
+                          if (cmp.tipo === 'insuficiente') return <span style={{ color: 'var(--text3)' }} title={`Só ${cmp.meses} ${cmp.meses === 1 ? 'mês' : 'meses'} com dados; a comparação precisa de ${cmp.minimo}.`}>histórico insuficiente</span>
+                          if (cmp.tipo === 'sem_gasto_antes') return <span style={{ color: 'var(--text3)' }}>sem gasto antes</span>
+                          if (cmp.tipo === 'na_media') return <span style={{ color: 'var(--text3)' }} title={`Média: ${fmt(cmp.media)}`}>na média</span>
+                          return <span style={{ color: cmp.pct > 0 ? 'var(--red)' : 'var(--green)' }} title={`Média dos ${cmp.meses} meses anteriores com dados: ${fmt(cmp.media)}`}>{cmp.pct > 0 ? '↑' : '↓'} {Math.abs(cmp.pct)}% <span style={{ color: 'var(--text3)' }}>({fmt(cmp.media)})</span></span>
                         })()}
                       </td>
                       <td className="col-opc">

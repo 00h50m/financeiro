@@ -299,3 +299,14 @@ Isso é intencional no código, mas **não está explicado em nenhuma tela**: na
 - **Removido do Início por redundância:** cartão "Resumo do mês" (entrada/comprometido já estão no destaque). "Linha do mês" ficou recolhida; "Contas a pagar" virou "Próximos pagamentos".
 - **Preservado:** categorias (rosca), Aulas, Atendimentos, Dívidas, longo prazo, mês fechado, perfis. Fórmulas inalteradas (`montarInicio` só ganhou `disponivel` e `pctComprometido`, aditivos).
 - **Medido (celular):** o primeiro item de atenção termina dentro da primeira tela (≤ 780 px); altura total 2.014 px (era 1.973: ganhou a lista de atenção e perdeu o resumo repetido).
+
+
+## 16. Fase 5 · Análises e Calendário
+
+- **Análises** (`components/Analises.jsx`): uma tela com seis abas: *Visão geral* (ex-Dashboard) · *Evolução* (ex-Evolução + gráficos de renda × despesas e sobra) · *Categorias* · *Pessoas* (ex-Por pessoa + gasto por pessoa) · *Compromissos* (projeção, parcelas e longo prazo) · ***Orçado × realizado*** (novo). Reaproveita as telas existentes (prop `embutido`), sem mudar nenhum número.
+- **Endereços antigos continuam funcionando:** `#/dashboard`, `#/graficos`, `#/evolucao`, `#/porpessoa` abrem a aba certa de Análises; `#/calendario` abre Pagamentos > Calendário. Endereço com aba interna: `#/analises/evolucao`. `irPara('dashboard')` etc. também são resolvidos.
+- **Visão geral sem repetição:** KPIs de análise (Renda, Comprometido, Sobra prevista, Resultado do mês); "Já pago", "A pagar" e "Disponível agora" ficaram no Início/Pagamentos; "Atenção neste mês" virou "Alertas do mês", recolhido.
+- **Comparação sem tendência inventada** (`lib/comparacoes.js`): só compara com a média quando há **3+ meses com dados**; meses antes do início do app não diluem a média. Antes: "↑ 400%" com 1 mês de histórico; agora: "histórico insuficiente".
+- **Orçado × realizado** (`lib/orcadoRealizado.js`): teto × gasto por categoria, com barra (texto acessível), selo (dentro do teto / perto / estourou), restante ou excesso, resumo e estado vazio que leva a Orçamento. Mesmas contas da tela Orçamento.
+- **Calendário em Pagamentos** (`CalendarioMes.jsx`, `grade()` em `lib/calendario.js`): visão **Contas | Calendário**; grade do mês (domingo a sábado) com o estado de cada dia (atrasada, a pagar, paga), hoje destacado e o dia aberto abaixo com "Abrir". Área de toque de 44 px. Calendário antigo (lista por dia) removido: a lista de Contas é a agenda.
+- **Medido:** 34 telas sem rolagem horizontal e sem erros; abas de Análises sem rolagem horizontal no celular.

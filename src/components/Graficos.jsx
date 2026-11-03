@@ -10,13 +10,15 @@ import { Pilulas } from './NavMes'
 const PERIODOS = [[3, '3 meses'], [6, '6 meses'], [12, '12 meses']]
 const TEMAS = [['geral', 'Visão geral'], ['categorias', 'Categorias'], ['futuro', 'Futuro'], ['pessoas', 'Pessoas e metas']]
 
-export default function Graficos({ store }) {
+// temaFixo: quando a tela de Análises já escolheu o assunto (geral | categorias | futuro | pessoas), as pílulas de assunto somem.
+export default function Graficos({ store, embutido = false, temaFixo = null }) {
   const hoje = nowYM()
   const [n, setN] = useState(() => { try { return Number(localStorage.getItem('graficos_periodo')) || 6 } catch { return 6 } })
   const mudarN = (v) => { setN(v); try { localStorage.setItem('graficos_periodo', String(v)) } catch { /* sem armazenamento */ } }
   const [mes, setMes] = useState(hoje)
   const [cat, setCat] = useState('')
-  const [tema, setTema] = useState(() => { try { const t = localStorage.getItem('graficos_tema'); return TEMAS.some(([v]) => v === t) ? t : 'geral' } catch { return 'geral' } })
+  const [temaLocal, setTema] = useState(() => { try { const t = localStorage.getItem('graficos_tema'); return TEMAS.some(([v]) => v === t) ? t : 'geral' } catch { return 'geral' } })
+  const tema = temaFixo || temaLocal
   const mudarTema = (v) => { setTema(v); try { localStorage.setItem('graficos_tema', v) } catch { /* sem armazenamento */ } }
 
   const d = store
@@ -42,9 +44,9 @@ export default function Graficos({ store }) {
   const mediaSobra = (() => { const v = rx.filter((m) => m.temDados); return v.length ? v.reduce((t, m) => t + m.sobra, 0) / v.length : 0 })()
 
   return (
-    <div className="page graficos">
+    <div className={`page graficos ${embutido ? 'page-embutida' : ''}`}>
       <div className="pag-topo">
-        <Pilulas rotulo="Assunto dos gráficos" valor={tema} onChange={mudarTema} opcoes={TEMAS} />
+        {!temaFixo && <Pilulas rotulo="Assunto dos gráficos" valor={tema} onChange={mudarTema} opcoes={TEMAS} />}
         <Pilulas rotulo="Período" valor={String(n)} onChange={(v) => mudarN(Number(v))} opcoes={PERIODOS.map(([v, r]) => [String(v), r])} />
       </div>
       <div className="gr-nota">Mesmos números do Dashboard e da Evolução · meses fechados usam o valor gravado no fechamento</div>
