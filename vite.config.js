@@ -11,4 +11,17 @@ const emitirVersao = () => ({
 export default defineConfig({
   plugins: [react(), emitirVersao()],
   define: { __APP_BUILD__: JSON.stringify(BUILD) },
+  build: {
+    rollupOptions: {
+      output: {
+        // bibliotecas que mudam pouco ficam em arquivos próprios: o aparelho reaproveita do cache entre atualizações do app
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined
+          if (/node_modules\/(react|react-dom|scheduler)\//.test(id)) return 'vendor-react'
+          if (id.includes('@supabase')) return 'vendor-supabase'
+          return undefined
+        },
+      },
+    },
+  },
 })
