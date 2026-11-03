@@ -239,3 +239,18 @@ Isso é intencional no código, mas **não está explicado em nenhuma tela**: na
 - Bugs/regras financeiras: nenhum encontrado que bloqueie a UX. Observação a investigar separadamente: o estado de "usar sobra do mês anterior" em Pagamentos (`usarSobra`) vs `lerUsarSaldoAnterior()` (Início/Dashboard).
 - Migração para TypeScript.
 - Integração com saldo bancário real (não existe hoje; "Saldo atual" depende do ajuste manual).
+
+
+---
+
+## 11. Fase 2 · o que foi entregue (navegação e fundação)
+
+- **Navegação em 6 áreas** (`src/lib/navegacao.js`): Início · Movimentações · Cartões · Planejamento · Análises · Mais. Os ids das telas não mudaram.
+  Perfis respeitam `abasOcultas` (esteticista sem Aulas; padrão sem Atendimentos).
+- **Endereço por tela** (`#/pagamentos`): link direto, recarregar mantém a tela, endereço inválido é ignorado, botão voltar do celular preservado (`useVoltar`).
+- **Barra inferior do celular** com as 5 áreas (Análises fica sob "Mais"); o selo de pendências do Inbox passou para **Movimentações**.
+- **Sub-navegação** (chips) no celular com as telas da área; ao tocar numa área abre a **última tela usada nela**.
+- **Barra lateral do desktop** agrupada nas 6 áreas.
+- **Tokens** (espaço, raio, texto, alvo de toque, cores semânticas) e **componentes base** em `src/components/ui`: `Selo`, `Indicador`, `EstadoVazio`, `Esqueleto`.
+  Ainda **não** adotados nas telas (entram na Fase 3). `ConfirmarDialogo` e `Sheet` serão criados na Fase 3, junto do primeiro uso (Pagamentos).
+- **Testes:** 11 de navegação, 6 de componentes, E2E de navegação (celular e desktop) e varredura das 34 telas sem rolagem horizontal nem erros.
