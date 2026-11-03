@@ -11,6 +11,7 @@ import { fmt, fmtK, nowYM, hojeSP } from '../lib/utils'
 import { textoDuracao } from '../lib/aulas'
 import { saldoPacote, situacaoPacote, valorVenda, retornosPendentes, aniversariantes, mensagemRetorno, mensagemAniversario } from '../lib/atendimentosExtra'
 import { STATUS, FORMAS, atendimentosDoMes, porData, resumoMes, resumoClientes, patchRealizar, patchReceber, patchDesfazer, patchEncerrar, lucro } from '../lib/atendimentos'
+import { confirmar } from '../lib/dialogos'
 
 const COR_STATUS = { agendado: 'badge-blue', realizado: 'badge-green', cancelado: 'badge-gray', faltou: 'badge-red' }
 const dataBr = (d) => d.split('-').reverse().join('/')
@@ -79,8 +80,8 @@ export default function Atendimentos({ store, visaoInicial = 'agenda' }) {
     const ok = await salvarComPatch(a, patchReceber(a, { forma, hoje }))
     if (ok) setModal(null)
   }
-  const encerrar = (a, status) => window.confirm(status === 'faltou' ? `Marcar que ${clienteDe(a.cliente_id)?.nome || 'a cliente'} faltou? Não conta na receita.` : 'Cancelar este atendimento? Não conta na receita.') && salvarComPatch(a, patchEncerrar(status))
-  const desfazer = (a) => window.confirm('Voltar este atendimento para "agendado"? O recebimento é desmarcado.') && salvarComPatch(a, patchDesfazer())
+  const encerrar = async (a, status) => await confirmar(status === 'faltou' ? `Marcar que ${clienteDe(a.cliente_id)?.nome || 'a cliente'} faltou? Não conta na receita.` : 'Cancelar este atendimento? Não conta na receita.') && salvarComPatch(a, patchEncerrar(status))
+  const desfazer = async (a) => await confirmar('Voltar este atendimento para "agendado"? O recebimento é desmarcado.') && salvarComPatch(a, patchDesfazer())
 
   const cartao = (a) => {
     const c = clienteDe(a.cliente_id)
@@ -224,7 +225,7 @@ export default function Atendimentos({ store, visaoInicial = 'agenda' }) {
                 {x.cliente.telefone && <a className="btn btn-primary btn-sm" href={zap(x.cliente.telefone, mensagemRetorno(x))} target="_blank" rel="noreferrer">Chamar no WhatsApp</a>}
                 <button className="link-btn" onClick={() => setModal({ tipo: 'atendimento', clienteId: x.cliente.id })}>agendar</button>
                 <button className="link-btn" onClick={() => salvarCliente({ id: x.cliente.id, retorno_adiado_ate: somarDias(hoje, 15) })}>já chamei (esconder 15 dias)</button>
-                <button className="link-btn" onClick={() => window.confirm(`Marcar ${x.cliente.nome} como inativa? Ela sai das listas.`) && salvarCliente({ id: x.cliente.id, ativo: false })}>não volta mais</button>
+                <button className="link-btn" onClick={async () => await confirmar(`Marcar ${x.cliente.nome} como inativa? Ela sai das listas.`) && salvarCliente({ id: x.cliente.id, ativo: false })}>não volta mais</button>
               </div>
             </div>
           ))}
@@ -298,7 +299,7 @@ export default function Atendimentos({ store, visaoInicial = 'agenda' }) {
                 {vendasProdutos.slice(0, 10).map((v) => (
                   <div key={v.id} style={{ padding: '8px 14px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
                     <span style={{ minWidth: 0 }}>{v.quantidade}× {v.produto_nome} <span className="cad-sub">· {dataBr(v.data)}{v.cliente_id ? ` · ${clienteDe(v.cliente_id)?.nome || ''}` : ''}{!v.pago ? ' · a receber' : ''}</span></span>
-                    <span style={{ whiteSpace: 'nowrap' }}><b className="mono">{fmt(valorVenda(v))}</b> {!v.pago && <button className="link-btn" onClick={() => salvarVendaPaga(v)}>recebi</button>} <button className="link-btn" onClick={() => window.confirm('Apagar esta venda? O produto volta ao estoque.') && removerVendaProduto(v)}>apagar</button></span>
+                    <span style={{ whiteSpace: 'nowrap' }}><b className="mono">{fmt(valorVenda(v))}</b> {!v.pago && <button className="link-btn" onClick={() => salvarVendaPaga(v)}>recebi</button>} <button className="link-btn" onClick={async () => await confirmar('Apagar esta venda? O produto volta ao estoque.') && removerVendaProduto(v)}>apagar</button></span>
                   </div>
                 ))}
               </div>

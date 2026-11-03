@@ -8,6 +8,7 @@ import { saldoMeta, deltaParaSaldo } from '../lib/metas'
 import { reaisParaCentavos } from '../lib/aulas'
 import { LIQUIDEZ_CURTA, totalReserva, totalPorLiquidez, aplicarFonte } from '../lib/reserva'
 import ModalFonteReserva from './ModalFonteReserva'
+import { avisar } from '../lib/dialogos'
 
 const METAS = [3, 6, 9, 12]
 const BASES = {
@@ -79,7 +80,7 @@ export default function Reserva({ store }) {
 
   async function atualizarValor() {
     const c = reaisParaCentavos(valor)
-    if (valor === '' || c == null) { window.alert('Não entendi esse valor. Exemplo: 2.540 ou 2.540,50'); return }
+    if (valor === '' || c == null) { avisar('Não entendi esse valor. Exemplo: 2.540 ou 2.540,50'); return }
     const v = c / 100
     setSalvando(true)
     if (metaReserva) {

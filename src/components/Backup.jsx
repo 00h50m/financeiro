@@ -3,6 +3,7 @@ import { sb } from '../lib/supabase'
 import { hojeSP } from '../lib/utils'
 import { BACKUP_VERSAO, SCHEMA_BANCO, VERSAO_APP } from '../lib/versao'
 import { validarBackup, compararComAtual, mesclagemSegura, totalNovas, ORDEM_RESTAURACAO } from '../lib/restauracao'
+import { confirmar } from '../lib/dialogos'
 
 // [tabela, nome na tela, coluna de ordem estável (paginar sem ordem pode repetir ou pular linhas), opcional]
 // Opcional = a tabela só existe se a pessoa rodou o SQL correspondente; se faltar, é pulada em vez de travar o backup.
@@ -149,7 +150,7 @@ function Restaurar({ store }) {
 
   async function mesclar() {
     if (!pacote || !segura?.segura) return
-    if (!window.confirm(`Adicionar ${totalNovas(comparacao.novasPorTabela)} registros que faltam? Nada existente será alterado.`)) return
+    if (!await confirmar(`Adicionar ${totalNovas(comparacao.novasPorTabela)} registros que faltam? Nada existente será alterado.`)) return
     setOcupado('mesclando'); setMsg(null)
     try {
       for (const [t] of ORDEM_RESTAURACAO) {

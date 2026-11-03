@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { AREAS, areasVisiveis, areaDaAba, hashDaAba, hashDaRota, abaDoHash, rotaDoHash, resolverRota, abaInicial, rotaInicial, destinoDaArea, atalhoDaArea, ATALHOS, lerLembradas } from '../navegacao'
+import { grupoDaAba, AREAS, areasVisiveis, areaDaAba, hashDaAba, hashDaRota, abaDoHash, rotaDoHash, resolverRota, abaInicial, rotaInicial, destinoDaArea, atalhoDaArea, ATALHOS, lerLembradas } from '../navegacao'
 
 // Todas as telas que existem no app (ids de src/App.jsx). Se uma tela nova for criada sem área, este teste avisa.
 const TODAS = ['inicio', 'analises', 'busca', 'inbox', 'compras', 'parcelamentos', 'faturas', 'pagamentos', 'divididos', 'importar',
@@ -104,5 +104,24 @@ describe('telas que viraram abas (atalhos antigos continuam funcionando)', () =>
     expect(abaInicial({ hash: '', salva: 'porpessoa', validas: TODAS })).toBe('analises')
     expect(hashDaRota('analises', 'evolucao')).toBe('#/analises/evolucao')
     expect(hashDaRota('faturas')).toBe('#/faturas')
+  })
+})
+
+describe('grupos do Planejamento', () => {
+  const plan = AREAS.find((a) => a.id === 'planejamento')
+  it('as 13 telas ficam em 4 grupos por jornada, sem repetir nem perder nenhuma', () => {
+    expect(plan.grupos.map(([t]) => t)).toEqual(['Planejar', 'Dívidas', 'Fechar o mês', 'Negócios'])
+    expect(plan.grupos.flatMap(([, ids]) => ids)).toEqual(plan.abas)
+  })
+  it('perfil esconde telas dentro do grupo; grupo que esvazia some', () => {
+    const est = areasVisiveis(['aulas']).find((a) => a.id === 'planejamento')
+    expect(est.grupos.find(([t]) => t === 'Negócios')[1]).toEqual(['atendimentos'])
+    const sem = areasVisiveis(['aulas', 'atendimentos']).find((a) => a.id === 'planejamento')
+    expect(sem.grupos.map(([t]) => t)).not.toContain('Negócios')
+  })
+  it('grupoDaAba devolve o título do grupo de cada tela', () => {
+    const g = grupoDaAba(plan)
+    expect(g.renda).toBe('Planejar'); expect(g.emprestimos).toBe('Dívidas'); expect(g.fechamento).toBe('Fechar o mês'); expect(g.aulas).toBe('Negócios')
+    expect(grupoDaAba(AREAS.find((a) => a.id === 'cartoes'))).toEqual({})
   })
 })

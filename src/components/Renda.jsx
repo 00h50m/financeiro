@@ -3,6 +3,7 @@ import RendaSazonal from './RendaSazonal'
 import { lerNum } from '../lib/adiamentoPref'
 import { perfil, rotuloRenda } from '../lib/perfil'
 import { fmt, fmtK, mesLabel, nowYM, addMonths, RENDA_CAMPOS, totalRenda } from '../lib/utils'
+import { confirmar } from '../lib/dialogos'
 
 // Rótulo curto de cada fonte de renda: 'Salário Giovanna' → 'Giovanna' (antes os dois salários viravam 'Salário' repetido).
 const curto = (l) => l.replace(/^Salário /, '')
@@ -58,7 +59,7 @@ export default function Renda({ store, irPara }) {
   // Repete a renda do mês atual nos próximos meses que ainda estão sem renda (só preenche o que está vazio).
   async function repetir() {
     if (!manualAtual || !semRenda.length) return
-    if (!confirm(`Copiar a renda de ${mesLabel(mes)} (${fmt(totalManual)}, sem as aulas) para ${semRenda.length === 1 ? 'o mês' : `os ${semRenda.length} meses`} sem renda: ${semRenda.map(mesLabel).join(', ')}?\n\nMeses que já têm renda não são alterados.`)) return
+    if (!await confirmar(`Copiar a renda de ${mesLabel(mes)} (${fmt(totalManual)}, sem as aulas) para ${semRenda.length === 1 ? 'o mês' : `os ${semRenda.length} meses`} sem renda: ${semRenda.map(mesLabel).join(', ')}?\n\nMeses que já têm renda não são alterados.`)) return
     for (const m of semRenda) {
       const ok = await upsertRenda({ mes: m, giovanna: Number(manualAtual.giovanna || 0), sabrina: Number(manualAtual.sabrina || 0), extra_sabrina: Number(manualAtual.extra_sabrina || 0), mesada: Number(manualAtual.mesada || 0), outros: Number(manualAtual.outros || 0) })
       if (!ok) break

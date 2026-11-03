@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { fmt } from '../../lib/utils'
 import { reaisParaCentavos } from '../../lib/aulas'
+import { confirmar } from '../../lib/dialogos'
 
 // Produto à venda (cremes, séruns…): preço, custo e estoque. Vender tira do estoque; para repor, edite e some a quantidade que chegou.
 export default function ModalProduto({ produto, onSalvar, onRemover, onClose }) {
@@ -17,7 +18,7 @@ export default function ModalProduto({ produto, onSalvar, onRemover, onClose }) 
     if (ok) onClose()
   }
   async function remover() {
-    if (!window.confirm(`Remover "${produto.nome}"? As vendas já feitas continuam com o nome e o valor da época.`)) return
+    if (!await confirmar(`Remover "${produto.nome}"? As vendas já feitas continuam com o nome e o valor da época.`)) return
     if (await onRemover(produto.id)) onClose()
   }
   async function alternarAtivo() { if (await onSalvar({ id: produto.id, ativo: produto.ativo === false })) onClose() }

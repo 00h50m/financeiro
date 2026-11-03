@@ -5,6 +5,7 @@ import { fmt, fmtK, mesLabel, nowYM, addMonths, hojeSP } from '../lib/utils'
 import { fechamentoDe, montarFoto, validarFechamento } from '../lib/fechamento'
 import { sugerirDestinoSobra } from '../lib/metas'
 import { detalhePagamentos } from '../lib/financeiro'
+import { pedir } from '../lib/dialogos'
 
 const dataHora = (iso) => {
   if (!iso) return ''
@@ -107,7 +108,7 @@ export default function Fechamento({ store }) {
   }
 
   async function reabrir() {
-    const motivo = window.prompt(`Reabrir ${mesLabel(mes)}? É uma ação excepcional e fica registrada.\n\nEscreva o motivo:`)
+    const motivo = await pedir(`Reabrir ${mesLabel(mes)}? É uma ação excepcional e fica registrada.\n\nEscreva o motivo:`)
     if (!motivo || motivo.trim().length < 3) return
     setOcupado(true)
     await reabrirMes(mes, motivo.trim())

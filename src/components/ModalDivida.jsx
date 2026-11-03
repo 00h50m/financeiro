@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { fmt, hojeSP } from '../lib/utils'
 import { lerNum } from '../lib/adiamentoPref'
+import { confirmar } from '../lib/dialogos'
 
 export const TIPOS_DIVIDA = { cartao: 'Cartão', boleto: 'Boleto / conta atrasada', emprestimo: 'Empréstimo', financiamento: 'Financiamento', outro: 'Outra' }
 
@@ -56,8 +57,8 @@ export default function ModalDivida({ divida, sugestao, onSalvar, onRemover, onC
         <label className="check-linha"><input type="checkbox" checked={f.atrasada} onChange={(e) => setF((x) => ({ ...x, atrasada: e.target.checked }))} /> Está atrasada</label>
         {saldo > 0 && lerNum(f.juros) > 0 && <div className="cad-sub">Só de juros, essa dívida cresce cerca de <b>{fmt(saldo * (lerNum(f.juros) / 100))}</b> por mês.</div>}
         <div className="modal-footer">
-          {divida && <button className="btn btn-danger" style={{ padding: '10px 16px', fontSize: 13 }} onClick={async () => { if (window.confirm(`Apagar "${divida.nome}" do plano?`)) { const ok = await onRemover(divida.id); if (ok) onClose() } }}>Apagar</button>}
-          {divida && <button className="btn btn-ghost" disabled={salvando} onClick={() => { if (window.confirm(`Marcar "${divida.nome}" como quitada?`)) salvar({ quitar: true }) }}>Quitada ✓</button>}
+          {divida && <button className="btn btn-danger" style={{ padding: '10px 16px', fontSize: 13 }} onClick={async () => { if (await confirmar(`Apagar "${divida.nome}" do plano?`)) { const ok = await onRemover(divida.id); if (ok) onClose() } }}>Apagar</button>}
+          {divida && <button className="btn btn-ghost" disabled={salvando} onClick={async () => { if (await confirmar(`Marcar "${divida.nome}" como quitada?`)) salvar({ quitar: true }) }}>Quitada ✓</button>}
           <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
           <button className="btn btn-primary" disabled={salvando || !valido} onClick={() => salvar()}>Salvar</button>
         </div>

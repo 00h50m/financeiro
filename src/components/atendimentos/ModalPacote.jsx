@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { fmt, hojeSP } from '../../lib/utils'
 import { reaisParaCentavos } from '../../lib/aulas'
 import { FORMAS } from '../../lib/atendimentos'
+import { confirmar } from '../../lib/dialogos'
 
 // Pacote de sessões: a cliente compra N sessões por um valor. A receita é a venda do pacote; cada sessão marcada depois vale 0 na renda.
 export default function ModalPacote({ pacote, clienteInicial = '', clientes, servicos, onSalvar, onRemover, onClose }) {
@@ -30,7 +31,7 @@ export default function ModalPacote({ pacote, clienteInicial = '', clientes, ser
     if (ok) onClose()
   }
   async function remover() {
-    if (!window.confirm('Apagar este pacote? As sessões já marcadas continuam, mas deixam de estar ligadas a ele.')) return
+    if (!await confirmar('Apagar este pacote? As sessões já marcadas continuam, mas deixam de estar ligadas a ele.')) return
     if (await onRemover(pacote.id)) onClose()
   }
   return (

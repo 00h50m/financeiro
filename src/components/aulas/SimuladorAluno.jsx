@@ -4,6 +4,7 @@ import { DIAS, centavosParaReais, reaisParaCentavos } from '../../lib/aulas'
 import { agendaSemanal, cargaMinutos, receitaMensal, mediaHora, janelasLivres, simularNovoAluno, lerLimite, CHAVE_LIMITE_HORAS } from '../../lib/aulasSimulador'
 import CampoHorario from './CampoHorario'
 import SeletorDuracao from './SeletorDuracao'
+import { avisar, pedir } from '../../lib/dialogos'
 
 const reais = (c) => fmt(centavosParaReais(c))
 const horasTxt = (min) => `${(min / 60).toFixed(1).replace('.', ',')} h`
@@ -27,12 +28,12 @@ export default function SimuladorAluno({ store, metaCentavos = 0, onClose }) {
   const r = useMemo(() => simularNovoAluno({ slots, novos: linhas, valorHora: valorCent || 0, limiteMin: limite, metaCentavos, hoje }), [slots, linhas, valorCent, limite, metaCentavos, hoje])
   const diasUsados = [...new Set(linhas.map((l) => Number(l.dia)))]
 
-  function definirLimite() {
-    const t = window.prompt('Quantas horas de aula por semana você aguenta dar? (ex.: 20; vazio tira o limite)', limite ? String(limite / 60).replace('.', ',') : '')
+  async function definirLimite() {
+    const t = await pedir('Quantas horas de aula por semana você aguenta dar? (ex.: 20; vazio tira o limite)', limite ? String(limite / 60).replace('.', ',') : '')
     if (t == null) return
     if (t.trim() === '') { definirConfig(CHAVE_LIMITE_HORAS, ''); return }
     const n = Number(t.replace(',', '.'))
-    if (!(n > 0 && n <= 80)) { window.alert('Digite um número de horas entre 1 e 80.'); return }
+    if (!(n > 0 && n <= 80)) { avisar('Digite um número de horas entre 1 e 80.'); return }
     definirConfig(CHAVE_LIMITE_HORAS, String(n))
   }
 

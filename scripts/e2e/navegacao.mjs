@@ -93,7 +93,6 @@ await p.waitForTimeout(200)
 ok((await titulo(p)) === 'Faturas', 'endereço inválido é ignorado (continua na tela atual)')
 const sw = await p.evaluate(() => ({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth }))
 ok(sw.sw <= sw.cw + 1, `sem rolagem horizontal da página no celular (${sw.sw} <= ${sw.cw})`)
-await p.close()
 
 // endereços antigos continuam funcionando (viraram abas)
 await p.evaluate(() => { window.location.hash = '#/graficos' })
@@ -105,6 +104,8 @@ ok((await p.locator('.analises-abas .pag-aba.ativa').innerText()) === 'Pessoas',
 await p.evaluate(() => { window.location.hash = '#/calendario' })
 await p.waitForTimeout(250)
 ok((await titulo(p)) === 'Pagamentos' && (await p.locator('.cal-grade').count()) === 1, '#/calendario abre Pagamentos > Calendário')
+
+await p.close()
 
 // link direto: abre já na tela certa, e voltar leva ao Início
 const p2 = await cel.newPage()

@@ -6,6 +6,7 @@ import { indexarAliases } from '../lib/estabelecimento'
 import { explicarErro } from '../lib/erros'
 import { compilar } from '../lib/filtro'
 import { CampoBusca, ResumoFiltro } from './FiltroLista'
+import { confirmar, avisar } from '../lib/dialogos'
 
 const ORIGENS = {
   manual: '✍️ Manual',
@@ -198,11 +199,11 @@ function CartaoEvento({ ev, store }) {
               {faltando.length === 0 && <button className="btn btn-ghost" onClick={() => setEditando(true)}>Editar</button>}
             </>
           )}
-          <button className="btn btn-ghost" disabled={busy} onClick={() => { if (confirm('Ignorar este lançamento? Ele sai do Inbox e não vira compra.')) executar(() => ignorarEvento(ev.id)) }}>Ignorar</button>
+          <button className="btn btn-ghost" disabled={busy} onClick={async () => { if (await confirmar('Ignorar este lançamento? Ele sai do Inbox e não vira compra.')) executar(() => ignorarEvento(ev.id)) }}>Ignorar</button>
         </div>
       )}
       {correspondente && (
-        <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => { if (confirm('Ignorar este lançamento? Ele sai do Inbox e não vira compra.')) executar(() => ignorarEvento(ev.id)) }}>Ignorar</button>
+        <button className="btn btn-ghost btn-sm" disabled={busy} onClick={async () => { if (await confirmar('Ignorar este lançamento? Ele sai do Inbox e não vira compra.')) executar(() => ignorarEvento(ev.id)) }}>Ignorar</button>
       )}
     </div>
   )
@@ -298,7 +299,7 @@ export default function Inbox({ store }) {
         .map(({ estabelecimento_chave, categoria, subcategoria, confirmacoes, rejeicoes }) => ({ estabelecimento_chave, categoria, subcategoria, confirmacoes, rejeicoes }))
       await adicionarRegras(lista)
     } catch (e) {
-      alert(explicarErro(e, 'aprender as categorias com o histórico'))
+      avisar(explicarErro(e, 'aprender as categorias com o histórico'))
     }
     setAprendendo(false)
   }

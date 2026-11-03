@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { hojeSP } from '../../lib/utils'
 import { patchEncerrar, previstasNaPausa } from '../../lib/aulas'
+import { confirmar, avisar } from '../../lib/dialogos'
 
 const dataBr = (d) => d.split('-').reverse().join('/')
 
@@ -14,13 +15,13 @@ export default function ModalPausas({ store, alunos, alunoInicial = '', onClose 
   const nome = (id) => alunos.find((a) => a.id === id)?.nome || 'aluno'
 
   async function adicionar() {
-    if (!f.inicio || !f.fim || f.fim < f.inicio) { window.alert('Confira as datas: o fim não pode ser antes do início.'); return }
+    if (!f.inicio || !f.fim || f.fim < f.inicio) { avisar('Confira as datas: o fim não pode ser antes do início.'); return }
     const pausa = { aluno_id: f.alunoId || null, inicio: f.inicio, fim: f.fim, motivo: f.motivo.trim() || null }
     const afetadas = previstasNaPausa(aulas, pausa)
     const texto = afetadas.length
       ? `${afetadas.length} ${afetadas.length === 1 ? 'aula prevista cai' : 'aulas previstas caem'} nesse período e ${afetadas.length === 1 ? 'será cancelada' : 'serão canceladas'} (sem cobrança, por você). Continuar?`
       : 'Nenhuma aula prevista cai nesse período. Salvar mesmo assim?'
-    if (!window.confirm(texto)) return
+    if (!await confirmar(texto)) return
     setSalvando(true)
     const agora = new Date().toISOString()
     const ok = await criarPausa(pausa, afetadas.map((a) => ({ id: a.id, patch: patchEncerrar(a, 'cancelada', { quem: 'professora', motivo: pausa.motivo || 'Sem aulas no período' }, agora) })))
@@ -28,7 +29,7 @@ export default function ModalPausas({ store, alunos, alunoInicial = '', onClose 
     if (ok) setF({ inicio: hoje, fim: hoje, motivo: '', alunoId: alunoInicial })
   }
   async function remover(p) {
-    if (!window.confirm('Remover este período? As aulas já canceladas por ele continuam canceladas (você pode voltá-las para "prevista" uma a uma); as futuras ainda não criadas voltam a ser geradas.')) return
+    if (!await confirmar('Remover este período? As aulas já canceladas por ele continuam canceladas (você pode voltá-las para "prevista" uma a uma); as futuras ainda não criadas voltam a ser geradas.')) return
     await removerPausa(p.id)
   }
 

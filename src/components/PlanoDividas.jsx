@@ -11,6 +11,7 @@ import { tituloCompra, hojeSP } from '../lib/utils'
 import ConsultorDividas from './ConsultorDividas'
 import { montarContexto } from '../lib/consultorDividas'
 import { reservaVariavel, sobraReal, CHAVE_RESERVA_AJUSTES, SEMANAS_POR_MES } from '../lib/gastoVariavel'
+import { avisar, pedir } from '../lib/dialogos'
 
 const MESES_PROJECAO = 24
 const prazo = (idx) => (idx == null ? null : `${idx + 1} ${idx + 1 === 1 ? 'mês' : 'meses'}`)
@@ -33,13 +34,13 @@ export default function PlanoDividas({ store }) {
   const media = sobras.slice(0, 12).reduce((t, v) => t + v, 0) / 12
   const mediaProjetada = projecao.slice(0, 12).reduce((t, m) => t + Math.max(0, m.sobra), 0) / 12
   const mesesVermelho = real.filter((m) => m.sobraReal < -0.005)
-  function ajustarReserva(cat) {
+  async function ajustarReserva(cat) {
     const atual = ajustes[cat.categoria] != null ? String(ajustes[cat.categoria]).replace('.', ',') : ''
-    const t = window.prompt(`Quanto você costuma gastar por mês com ${cat.categoria}? (R$; média dos últimos 3 meses: ${fmt(cat.media)}; deixe vazio para voltar à média)`, atual)
+    const t = await pedir(`Quanto você costuma gastar por mês com ${cat.categoria}? (R$; média dos últimos 3 meses: ${fmt(cat.media)}; deixe vazio para voltar à média)`, atual)
     if (t == null) return
     const novo = { ...ajustes }
     if (t.trim() === '') delete novo[cat.categoria]
-    else { const v = lerNum(t); if (!(v >= 0)) { window.alert('Não entendi esse valor. Exemplo: 400 ou 400,50'); return } novo[cat.categoria] = v }
+    else { const v = lerNum(t); if (!(v >= 0)) { avisar('Não entendi esse valor. Exemplo: 400 ou 400,50'); return } novo[cat.categoria] = v }
     if (store.configOk) store.definirConfig(CHAVE_RESERVA_AJUSTES, novo); else setAjustesLocal(novo)
   }
   const resumo = useMemo(() => resumoDividas(dividas), [dividas])
@@ -55,10 +56,10 @@ export default function PlanoDividas({ store }) {
   const jaPago = Math.max(0, inicialTotal - resumo.total)
   const maior = Math.max(1, plano.inicial)
   async function paguei(d) {
-    const t = window.prompt(`Quanto você pagou de "${d.nome}"? (R$)`, '')
+    const t = await pedir(`Quanto você pagou de "${d.nome}"? (R$)`, '')
     if (t == null || t.trim() === '') return
     const v = lerNum(t)
-    if (!(v > 0)) { window.alert('Não entendi esse valor. Exemplo: 250 ou 250,50'); return }
+    if (!(v > 0)) { avisar('Não entendi esse valor. Exemplo: 250 ou 250,50'); return }
     const novo = Math.max(0, Math.round((Number(d.saldo) - v) * 100) / 100)
     await salvarDivida(novo === 0 ? { id: d.id, saldo: 0, ativa: false, quitada_em: new Date().toISOString().slice(0, 10) } : { id: d.id, saldo: novo })
   }

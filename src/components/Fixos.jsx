@@ -11,6 +11,7 @@ import { CampoBusca, ResumoFiltro, BotaoFiltros } from './FiltroLista'
 import Secao from './Secao'
 import { Pilulas } from './NavMes'
 import { fmt, fmtK, mesLabel, nowYM, addMonths, fixosAtivos, corPessoa, nomeCasa, donoDoFixo } from '../lib/utils'
+import { confirmar, pedir } from '../lib/dialogos'
 
 export default function Fixos({ store }) {
   const { fixos, categorias, pessoas, cartoes, addFixo, updateFixo, delFixo, fixosValoresOk, definirValorFixo, juntarVersoes, apagarVersaoFixo, fechamentos, registrarAuditoria } = store
@@ -38,7 +39,7 @@ export default function Fixos({ store }) {
   async function cadastrarRecorrente(r) {
     // se a cobrança deste mês já foi lançada como compra, a conta fixa só começa no mês que vem (senão contaria duas vezes)
     const inicio = r.meses.includes(mesAtual) ? addMonths(mesAtual, 1) : mesAtual
-    if (!confirm(`Cadastrar "${r.nome}" como conta fixa de ${fmt(r.ultimo)}${r.valorFixo || r.aumento ? '' : ' (valor variável, estimativa pela última cobrança)'}?\n\nComeça em ${mesLabel(inicio)}${r.cartao_id ? ' e passa a contar dentro da fatura do cartão' : ''}. As compras já lançadas continuam como estão.`)) return
+    if (!await confirmar(`Cadastrar "${r.nome}" como conta fixa de ${fmt(r.ultimo)}${r.valorFixo || r.aumento ? '' : ' (valor variável, estimativa pela última cobrança)'}?\n\nComeça em ${mesLabel(inicio)}${r.cartao_id ? ' e passa a contar dentro da fatura do cartão' : ''}. As compras já lançadas continuam como estão.`)) return
     await addFixo({
       nome: r.nome, valor: r.ultimo, pessoa: r.pessoa || null, categoria: r.categoria, subcategoria: r.subcategoria, ativo: true, mes_inicio: inicio,
       ...(colunaCartaoOk && r.cartao_id ? { cartao_id: r.cartao_id } : {}),
@@ -103,7 +104,7 @@ export default function Fixos({ store }) {
       const fechados = []
       for (let m = antigo.mes_inicio || addMonths(mesAtual, -24); m <= fim && fechados.length < 120; m = addMonths(m, 1)) if (mesFechado(fechamentos, m)) fechados.push(m)
       if (fechados.length && !antigo.variavel && !form.variavel) {
-        motivo = window.prompt(`Esta mudança de valor atinge ${fechados.length === 1 ? 'um mês já fechado' : `${fechados.length} meses já fechados`} (${fechados.slice(0, 3).map(mesLabel).join(', ')}${fechados.length > 3 ? '…' : ''}) e muda os números ${fechados.length === 1 ? 'dele' : 'deles'}.\n\nPara continuar, escreva o motivo:`)
+        motivo = await pedir(`Esta mudança de valor atinge ${fechados.length === 1 ? 'um mês já fechado' : `${fechados.length} meses já fechados`} (${fechados.slice(0, 3).map(mesLabel).join(', ')}${fechados.length > 3 ? '…' : ''}) e muda os números ${fechados.length === 1 ? 'dele' : 'deles'}.\n\nPara continuar, escreva o motivo:`)
         if (!motivo || motivo.trim().length < 3) { setSaving(false); return }
       }
     }
@@ -144,10 +145,10 @@ export default function Fixos({ store }) {
   const ativosAgora = fixosAtivos(fixosVisiveis, mesAtual)
   async function alternarAtivo(f, encerrado) {
     if (f.ativo && !encerrado) {
-      if (!confirm(`Pausar "${f.nome}" a partir de ${mesLabel(mesAtual)}? Os meses anteriores continuam contando.`)) return
+      if (!await confirmar(`Pausar "${f.nome}" a partir de ${mesLabel(mesAtual)}? Os meses anteriores continuam contando.`)) return
       await updateFixo(f.id, { mes_fim: addMonths(mesAtual, -1) })
     } else {
-      if (!confirm(`Reativar "${f.nome}"? Ela volta a contar em todos os meses desde o início, inclusive nos que já passaram.`)) return
+      if (!await confirmar(`Reativar "${f.nome}"? Ela volta a contar em todos os meses desde o início, inclusive nos que já passaram.`)) return
       await updateFixo(f.id, { ativo: true, mes_fim: null })
     }
   }
@@ -189,7 +190,7 @@ export default function Fixos({ store }) {
           {redundantes.length > 0 && (
             <div className="alert alert-amber" style={{ margin: '6px 0 0', padding: '6px 10px', fontSize: 11, fontWeight: 400 }}>
               {redundantes.length} cópia{redundantes.length > 1 ? 's' : ''} repetida{redundantes.length > 1 ? 's' : ''} desta conta (o total já conta só uma).{' '}
-              <button className="link-btn" onClick={async () => { if (confirm(`Juntar as cópias de "${f.nome}"?\n\nFica só a versão em vigor (${fmt(f.valor)}); os valores reais e pagamentos das cópias passam para ela. Não dá para desfazer.`)) await juntarVersoes(f.id, redundantes.map((v) => v.id)) }}>Juntar agora</button>
+              <button className="link-btn" onClick={async () => { if (await confirmar(`Juntar as cópias de "${f.nome}"?\n\nFica só a versão em vigor (${fmt(f.valor)}); os valores reais e pagamentos das cópias passam para ela. Não dá para desfazer.`)) await juntarVersoes(f.id, redundantes.map((v) => v.id)) }}>Juntar agora</button>
             </div>
           )}
           {versoes.length > 1 && (
@@ -206,7 +207,7 @@ export default function Fixos({ store }) {
                       <td style={{ border: 0, padding: '2px 0', whiteSpace: 'nowrap' }}>
                         {v.id !== f.id && <>
                           <button className="link-btn" onClick={() => abrir(v)}>editar</button>{' · '}
-                          <button className="link-btn" onClick={() => { if (confirm(`Apagar o período ${v.mes_inicio ? 'de ' + mesLabel(v.mes_inicio) : 'desde o início'}${v.mes_fim ? ' até ' + mesLabel(v.mes_fim) : ''} (${fmt(v.valor)})?\n\nOs meses desse período deixam de ter essa conta. Dá para desfazer logo depois.`)) apagarVersaoFixo(v) }}>apagar</button>
+                          <button className="link-btn" onClick={async () => { if (await confirmar(`Apagar o período ${v.mes_inicio ? 'de ' + mesLabel(v.mes_inicio) : 'desde o início'}${v.mes_fim ? ' até ' + mesLabel(v.mes_fim) : ''} (${fmt(v.valor)})?\n\nOs meses desse período deixam de ter essa conta. Dá para desfazer logo depois.`)) apagarVersaoFixo(v) }}>apagar</button>
                         </>}
                       </td>
                     </tr>
@@ -262,7 +263,7 @@ export default function Fixos({ store }) {
           <button className="btn btn-ghost btn-sm so-mobile" style={{ color: 'var(--text2)', fontSize: 12 }} onClick={() => alternarAtivo(f, encerrado)}>{!f.ativo || encerrado ? 'Reativar' : 'Pausar'}</button>
           {f.variavel && <button className="btn btn-ghost btn-sm" onClick={() => setMesesAbertos((a) => ({ ...a, [f.id]: a[f.id] ? false : 'curto' }))} aria-expanded={painelAberto} title="Ver, corrigir ou apagar o valor real de cada mês">{painelAberto ? '▾' : '▸'} Meses</button>}
           <button className="btn btn-ghost btn-sm" onClick={() => abrir(f)}>Editar</button>
-          <button className="btn btn-danger" onClick={async () => { if (confirm(`Remover "${f.nome}"${versoes.length > 1 ? ` e o histórico de valores (${versoes.length} versões)` : ''}?`)) for (const v of versoes) await delFixo(v.id) }}>×</button>
+          <button className="btn btn-danger" onClick={async () => { if (await confirmar(`Remover "${f.nome}"${versoes.length > 1 ? ` e o histórico de valores (${versoes.length} versões)` : ''}?`)) for (const v of versoes) await delFixo(v.id) }}>×</button>
         </td>
       </tr>
       {painelAberto && (

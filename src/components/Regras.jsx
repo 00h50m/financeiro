@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { confirmar } from '../lib/dialogos'
 
 const pct = (v) => Math.round((Number(v) || 0) * 100) + '%'
 
@@ -46,7 +47,7 @@ function Linha({ regra, store, apelido }) {
           ) : (
             <>
               <button className="btn btn-ghost btn-sm" onClick={() => setEditando(true)}>Corrigir</button>
-              <button className="btn btn-ghost btn-sm" onClick={() => { if (window.confirm(`Esquecer o que o app aprendeu sobre "${regra.estabelecimento_chave}"? Compras antigas não mudam.`)) esquecerRegra(regra) }}>Esquecer</button>
+              <button className="btn btn-ghost btn-sm" onClick={async () => { if (await confirmar(`Esquecer o que o app aprendeu sobre "${regra.estabelecimento_chave}"? Compras antigas não mudam.`)) esquecerRegra(regra) }}>Esquecer</button>
             </>
           )}
         </span>

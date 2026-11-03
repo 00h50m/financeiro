@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { LIQUIDEZ } from '../lib/reserva'
 import { reaisParaCentavos } from '../lib/aulas'
+import { confirmar } from '../lib/dialogos'
 
 // Um lugar onde está o dinheiro da reserva (poupança, CDB, conta, dinheiro, FGTS…).
 export default function ModalFonteReserva({ fonte, onSalvar, onRemover, onClose }) {
@@ -18,7 +19,7 @@ export default function ModalFonteReserva({ fonte, onSalvar, onRemover, onClose 
     if (ok) onClose()
   }
   async function remover() {
-    if (!window.confirm(`Remover "${fonte.nome}" da reserva?`)) return
+    if (!await confirmar(`Remover "${fonte.nome}" da reserva?`)) return
     if (await onRemover(fonte)) onClose()
   }
 

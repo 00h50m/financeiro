@@ -5,7 +5,12 @@ export const AREAS = [
   { id: 'inicio', titulo: 'Início', abas: ['inicio'], padrao: 'inicio' },
   { id: 'movimentacoes', titulo: 'Movimentações', abas: ['pagamentos', 'compras', 'parcelamentos', 'divididos', 'inbox', 'busca'], padrao: 'pagamentos' },
   { id: 'cartoes', titulo: 'Cartões', abas: ['faturas', 'importar', 'cartoes'], padrao: 'faturas' },
-  { id: 'planejamento', titulo: 'Planejamento', abas: ['meuplano', 'renda', 'fixos', 'orcamento', 'metas', 'reserva', 'dividas', 'emprestimos', 'simulador', 'cenario', 'fechamento', 'aulas', 'atendimentos'], padrao: 'meuplano' },
+  {
+    id: 'planejamento', titulo: 'Planejamento', padrao: 'meuplano',
+    // as 13 telas ficam em quatro grupos por jornada (menu e chips mostram o título de cada grupo)
+    grupos: [['Planejar', ['meuplano', 'renda', 'fixos', 'orcamento', 'metas', 'reserva']], ['Dívidas', ['dividas', 'emprestimos', 'simulador', 'cenario']], ['Fechar o mês', ['fechamento']], ['Negócios', ['aulas', 'atendimentos']]],
+    abas: ['meuplano', 'renda', 'fixos', 'orcamento', 'metas', 'reserva', 'dividas', 'emprestimos', 'simulador', 'cenario', 'fechamento', 'aulas', 'atendimentos'],
+  },
   { id: 'analises', titulo: 'Análises', abas: ['analises'], padrao: 'analises' },
   { id: 'mais', titulo: 'Mais', abas: ['categorias', 'pessoas', 'regras', 'automacoes', 'config', 'backup'], padrao: 'config' },
 ]
@@ -15,7 +20,8 @@ export function areasVisiveis(abasOcultas = []) {
   return AREAS
     .map((a) => {
       const abas = a.abas.filter((id) => !abasOcultas.includes(id))
-      return { ...a, abas, padrao: abas.includes(a.padrao) ? a.padrao : abas[0] }
+      const grupos = a.grupos ? a.grupos.map(([titulo, ids]) => [titulo, ids.filter((id) => abas.includes(id))]).filter(([, ids]) => ids.length) : null
+      return { ...a, abas, ...(grupos ? { grupos } : {}), padrao: abas.includes(a.padrao) ? a.padrao : abas[0] }
     })
     .filter((a) => a.abas.length > 0)
 }
@@ -68,4 +74,11 @@ export const atalhoDaArea = (areaId) => (areaId === 'analises' ? 'mais' : areaId
 
 export function lerLembradas(texto) {
   try { const v = JSON.parse(texto || '{}'); return v && typeof v === 'object' && !Array.isArray(v) ? v : {} } catch { return {} }
+}
+
+// Título do grupo (se a área tem grupos) de cada tela: { meuplano: 'Planejar', dividas: 'Dívidas', … }.
+export function grupoDaAba(area) {
+  const mapa = {}
+  for (const [titulo, ids] of area.grupos || []) for (const id of ids) mapa[id] = titulo
+  return mapa
 }

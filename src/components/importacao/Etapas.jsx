@@ -7,6 +7,7 @@ import { valorParcelaLinha, resumirAnalise } from '../../lib/importacao'
 import { reaisParaCentavos } from '../../lib/aulas'
 import { pendenciasDoLote } from '../../lib/importacaoLote'
 import { detalheDiferenca } from '../../lib/conciliacaoFatura'
+import { confirmar } from '../../lib/dialogos'
 
 const ROTULO_CONC = { conciliada: ['badge-green', 'Fatura conciliada'], parcial: ['badge-amber', 'Conciliação parcial'], pendente: ['badge-gray', 'Conciliação pendente'] }
 const dataHora = (iso) => new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
@@ -32,7 +33,7 @@ export function EtapaSelecionar({ a }) {
           {rascunhos.map((r) => (
             <div key={r.id} className="imp-rascunho">
               <span><b>{r.arquivo_nome || 'Arquivo'}</b> · {mesLabel(r.mes)} · {(r.decisoes?.linhas || []).length} linhas <span className="cad-sub">· salva em {dataHora(r.atualizado_em)}</span></span>
-              <span><button type="button" className="btn btn-primary btn-sm" onClick={() => a.retomar(r)}>Continuar</button> <button type="button" className="link-btn" onClick={() => window.confirm('Descartar este rascunho? Nada foi gravado, só as suas decisões se perdem.') && a.descartar(r.id)}>descartar</button></span>
+              <span><button type="button" className="btn btn-primary btn-sm" onClick={() => a.retomar(r)}>Continuar</button> <button type="button" className="link-btn" onClick={async () => await confirmar('Descartar este rascunho? Nada foi gravado, só as suas decisões se perdem.') && a.descartar(r.id)}>descartar</button></span>
             </div>
           ))}
         </div>
@@ -75,7 +76,7 @@ export function EtapaSelecionar({ a }) {
       {arquivo && !lendo && (
         <>
           <div className="card imp-resumo-leitura">
-            <div className="imp-arquivo-nome"><b>{arquivo.nome}</b> <span className="badge badge-gray">{arquivo.origem === 'pdf' ? 'PDF lido por IA' : 'CSV'}</span> <button type="button" className="link-btn" onClick={() => window.confirm('Trocar de arquivo? As decisões desta importação serão descartadas.') && a.descartar()}>trocar arquivo</button></div>
+            <div className="imp-arquivo-nome"><b>{arquivo.nome}</b> <span className="badge badge-gray">{arquivo.origem === 'pdf' ? 'PDF lido por IA' : 'CSV'}</span> <button type="button" className="link-btn" onClick={async () => await confirmar('Trocar de arquivo? As decisões desta importação serão descartadas.') && a.descartar()}>trocar arquivo</button></div>
             <div className="kpi-faixa">
               <div className="kpi"><div className="kpi-rotulo">Lançamentos</div><div className="kpi-valor">{linhas.length}</div></div>
               <div className="kpi"><div className="kpi-rotulo">Total extraído</div><div className="kpi-valor mono">{fmt(soma)}</div><div className="kpi-sub">compras − créditos + encargos</div></div>

@@ -1,4 +1,5 @@
 import { DURACOES, lerDuracao, textoDuracao } from '../../lib/aulas'
+import { avisar, pedir } from '../../lib/dialogos'
 
 // Duração em minutos: opções práticas (30, 45, 60, 90, 120) e "Outra…" para digitar (90, 1h30, 1,5).
 export default function SeletorDuracao({ valor, onChange, rotulo = 'Duração', className = '' }) {
@@ -8,11 +9,11 @@ export default function SeletorDuracao({ valor, onChange, rotulo = 'Duração', 
       className={className}
       aria-label={rotulo}
       value={Number(valor)}
-      onChange={(e) => {
+      onChange={async (e) => {
         if (e.target.value === 'outra') {
-          const t = window.prompt('Duração (ex.: 75, 1h15 ou 1,25):', textoDuracao(valor))
+          const t = await pedir('Duração (ex.: 75, 1h15 ou 1,25):', textoDuracao(valor))
           const min = lerDuracao(t)
-          if (t != null && !min) window.alert('Não entendi essa duração. Use minutos (75), horas e minutos (1h15) ou horas (1,25).')
+          if (t != null && !min) avisar('Não entendi essa duração. Use minutos (75), horas e minutos (1h15) ou horas (1,25).')
           if (min) onChange(min)
           return
         }

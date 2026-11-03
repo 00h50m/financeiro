@@ -5,6 +5,7 @@ import { detalhePagamentos, acrescimoAdiamento } from '../lib/financeiro'
 import { gravarPrefAdiar, lerPrefAdiar, paraAcrescimo } from '../lib/adiamentoPref'
 import CamposAcrescimo from './CamposAcrescimo'
 import { perfilDeLinhas, projecaoRenda } from '../lib/rendaSazonal'
+import { confirmar } from '../lib/dialogos'
 
 const MESES_VISTOS = 7
 
@@ -42,7 +43,7 @@ export default function Cenario({ store }) {
 
   async function aplicar() {
     if (!simulados.length) return
-    if (!window.confirm(`Adiar ${simulados.length} ${simulados.length === 1 ? 'conta' : 'contas'} de verdade? Elas saem de ${mesLabel(mes)} e entram nos meses escolhidos. Você pode voltar cada uma depois, em Pagamentos.`)) return
+    if (!await confirmar(`Adiar ${simulados.length} ${simulados.length === 1 ? 'conta' : 'contas'} de verdade? Elas saem de ${mesLabel(mes)} e entram nos meses escolhidos. Você pode voltar cada uma depois, em Pagamentos.`)) return
     setAplicando(true)
     const ok = (gravarPrefAdiar(multa, juros), await adiarVarias(simulados.map((s) => ({ tipo: s.tipo, refId: s.ref_id, mesOrigem: s.mes_origem, mesDestino: s.mes_destino, acrescimo: s.acrescimo }))))
     setAplicando(false)

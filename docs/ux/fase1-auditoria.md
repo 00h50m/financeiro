@@ -310,3 +310,12 @@ Isso é intencional no código, mas **não está explicado em nenhuma tela**: na
 - **Orçado × realizado** (`lib/orcadoRealizado.js`): teto × gasto por categoria, com barra (texto acessível), selo (dentro do teto / perto / estourou), restante ou excesso, resumo e estado vazio que leva a Orçamento. Mesmas contas da tela Orçamento.
 - **Calendário em Pagamentos** (`CalendarioMes.jsx`, `grade()` em `lib/calendario.js`): visão **Contas | Calendário**; grade do mês (domingo a sábado) com o estado de cada dia (atrasada, a pagar, paga), hoje destacado e o dia aberto abaixo com "Abrir". Área de toque de 44 px. Calendário antigo (lista por dia) removido: a lista de Contas é a agenda.
 - **Medido:** 34 telas sem rolagem horizontal e sem erros; abas de Análises sem rolagem horizontal no celular.
+
+
+## 17. Fase 6 · Planejamento e diálogos
+
+- **Grupos por jornada:** as telas de Planejamento ficam em quatro grupos: *Planejar* (Meu plano, Renda, Contas fixas, Orçamento, Metas, Reserva) · *Dívidas* (Plano de dívidas, Empréstimos, Simulador, "E se eu adiar?") · *Fechar o mês* (Fechamento) · *Negócios* (Aulas, Atendimentos). Aparecem como subtítulos no menu lateral e como rótulos nos chips do celular. Perfis continuam escondendo telas; grupo vazio some.
+- **Diálogos do app em todo o sistema** (`lib/dialogos.js` + `DialogoGlobal`): `confirm()`, `alert()` e `prompt()` nativos foram **todos** substituídos (≈ 60 usos em 38 arquivos: Planejamento, Aulas, Atendimentos, Cadastros, Inbox, Divididos, Backup, importação e as justificativas de mês fechado do `useStore`). Mesma aparência, foco automático, Esc e botão voltar do celular funcionam. Sem o componente montado (testes), cai no nativo.
+- **Consistência visual:** `.card` e `.metric` passam a usar os mesmos raios, espaços e rótulos dos tokens (`.kpi`, `.indicador`); alvos de toque de 44 px nos controles de Renda sazonal (alvos pequenos em Renda: 21 → 3).
+- **Não alterado:** regras e fórmulas de orçamento, metas, reserva, dívidas, empréstimos, simulador, fechamento, aulas e atendimentos; tabelas de simulação continuam com rolagem interna ao cartão.
+- **Validado:** 1.065 testes; E2E de navegação, importação, pagamentos, compras, faturas, início, análises e planejamento; varredura das 34 telas sem rolagem horizontal e sem erros.

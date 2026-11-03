@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { CORES_PESSOA, proximaCorPessoa } from '../lib/utils'
+import { confirmar, avisar, pedir } from '../lib/dialogos'
 
 export default function Pessoas({ store }) {
   const { pessoas, compras, fixos, integracoesTelegram, addPessoa, delPessoa, mudarCorPessoa, renomearPessoa } = store
@@ -10,7 +11,7 @@ export default function Pessoas({ store }) {
     const nome = novoNome.trim()
     if (!nome) return
     if (pessoas.some((p) => p.nome.toLowerCase() === nome.toLowerCase())) {
-      alert('Já existe uma pessoa com esse nome.')
+      avisar('Já existe uma pessoa com esse nome.')
       return
     }
     setSaving(true)
@@ -19,23 +20,23 @@ export default function Pessoas({ store }) {
     if (ok) setNovoNome('')
   }
 
-  function renomear(pessoa) {
-    const novo = window.prompt('Novo nome:', pessoa.nome)
+  async function renomear(pessoa) {
+    const novo = await pedir('Novo nome:', pessoa.nome)
     if (novo == null) return
     const nome = novo.trim()
     if (!nome || nome === pessoa.nome) return
     if (pessoas.some((p) => p.id !== pessoa.id && p.nome.toLowerCase() === nome.toLowerCase())) {
-      alert('Já existe uma pessoa com esse nome.')
+      avisar('Já existe uma pessoa com esse nome.')
       return
     }
     renomearPessoa(pessoa.id, pessoa.nome, nome)
   }
 
-  function remover(pessoa) {
+  async function remover(pessoa) {
     const nCompras = compras.filter((c) => c.pessoa === pessoa.nome).length
     const nFixos = fixos.filter((f) => f.pessoa === pessoa.nome).length
     const telegram = (integracoesTelegram || []).some((i) => i.pessoa_id === pessoa.id)
-    if (confirm(`Remover "${pessoa.nome}"?\n\n${nCompras} compra${nCompras === 1 ? '' : 's'} e ${nFixos} conta${nFixos === 1 ? '' : 's'} fixa${nFixos === 1 ? '' : 's'} continuam com esse nome (ela só deixa de aparecer como opção).${telegram ? '\n\nA conexão dela com o bot do Telegram será apagada e o bot para de responder a ela.' : ''}`)) {
+    if (await confirmar(`Remover "${pessoa.nome}"?\n\n${nCompras} compra${nCompras === 1 ? '' : 's'} e ${nFixos} conta${nFixos === 1 ? '' : 's'} fixa${nFixos === 1 ? '' : 's'} continuam com esse nome (ela só deixa de aparecer como opção).${telegram ? '\n\nA conexão dela com o bot do Telegram será apagada e o bot para de responder a ela.' : ''}`)) {
       delPessoa(pessoa.id)
     }
   }

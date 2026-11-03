@@ -1,18 +1,19 @@
 import { fmt, mesLabel } from '../../lib/utils'
 import { centavosParaReais, reaisParaCentavos, textoDuracao } from '../../lib/aulas'
 import { CHAVE_META_AULAS } from '../../lib/aulasMeta'
+import { avisar, pedir } from '../../lib/dialogos'
 
 const reais = (c) => fmt(centavosParaReais(c))
 
 // Meta de renda do mês com as aulas: barra (apurado e previsto) e quanto falta em aulas/horas.
 export default function MetaAulas({ mes, sit, definirConfig }) {
-  function definir() {
+  async function definir() {
     const atual = sit.meta ? String(centavosParaReais(sit.meta)).replace('.', ',') : ''
-    const t = window.prompt('Quanto você quer fazer por mês com aulas particulares? (R$; deixe vazio para tirar a meta)', atual)
+    const t = await pedir('Quanto você quer fazer por mês com aulas particulares? (R$; deixe vazio para tirar a meta)', atual)
     if (t == null) return
     if (t.trim() === '') { definirConfig(CHAVE_META_AULAS, ''); return }
     const c = reaisParaCentavos(t)
-    if (!c || c <= 0) { window.alert('Não entendi esse valor. Exemplo: 4000 ou 4.000,00'); return }
+    if (!c || c <= 0) { avisar('Não entendi esse valor. Exemplo: 4000 ou 4.000,00'); return }
     definirConfig(CHAVE_META_AULAS, String(c / 100))
   }
   if (!sit.meta) {

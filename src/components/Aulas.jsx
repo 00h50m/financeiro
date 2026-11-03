@@ -21,6 +21,7 @@ import ReposicaoSaidas from './aulas/ReposicaoSaidas'
 import { nomeSerieCurto } from '../lib/alunosCiclo'
 import ModalFechamento from './aulas/ModalFechamento'
 import { achaFechamento, fechadoStatus, valorAlunoMes } from '../lib/aulasFechamento'
+import { confirmar, avisar } from '../lib/dialogos'
 
 const dataBr = (d) => d.split('-').reverse().join('/')
 const COR_STATUS = { prevista: 'badge-blue', realizada: 'badge-green', cancelada: 'badge-gray', nao_realizada: 'badge-amber' }
@@ -91,7 +92,7 @@ export default function Aulas({ store }) {
   const bloqueia = (alunoId, ...meses) => {
     const m = meses.find((x) => fechado(alunoId, x))
     if (!m) return false
-    window.alert(`O mês de ${mesLabel(m)} deste aluno está fechado. Para alterar a aula, reabra o fechamento do aluno primeiro.`)
+    avisar(`O mês de ${mesLabel(m)} deste aluno está fechado. Para alterar a aula, reabra o fechamento do aluno primeiro.`)
     return true
   }
 
@@ -114,11 +115,11 @@ export default function Aulas({ store }) {
   }
   async function desfazer(a) {
     if (bloqueia(a.aluno_id, mesDe(a.data))) return
-    if (!window.confirm('Voltar esta aula para "Prevista"? O valor registrado nela será desfeito.')) return
+    if (!await confirmar('Voltar esta aula para "Prevista"? O valor registrado nela será desfeito.')) return
     await atualizarAula(a.id, patchDesfazer(a, new Date().toISOString()))
   }
   async function excluir(a) {
-    if (!window.confirm('Excluir esta aula avulsa? Ela ainda não foi realizada.')) return
+    if (!await confirmar('Excluir esta aula avulsa? Ela ainda não foi realizada.')) return
     await excluirAula(a.id)
   }
   const abrirDialogo = (tipo, aula) => {

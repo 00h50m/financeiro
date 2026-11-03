@@ -5,6 +5,7 @@ import { mesesParaJuntar } from '../lib/rendaSazonal'
 import { fmt, fmtK, hojeSP, mesLabel } from '../lib/utils'
 import { detalhePagamentos } from '../lib/financeiro'
 import { situacaoDaMeta, saldoMeta, movimentosDaMeta, valorComSinal, deltaParaSaldo, mesesParaAlvo } from '../lib/metas'
+import { confirmar } from '../lib/dialogos'
 
 const ROTULO = { aporte: 'Aporte', retirada: 'Retirada', ajuste: 'Ajuste' }
 const dataFmt = (d) => (d ? String(d).slice(0, 10).split('-').reverse().join('/') : '')
@@ -20,7 +21,7 @@ function Movimento({ meta, store, onFechar }) {
   async function salvar() {
     const v = Number(String(valor).replace(',', '.'))
     if (valor === '' || Number.isNaN(v) || (tipo !== 'ajuste' && v <= 0) || v < 0) return
-    if (tipo === 'retirada' && v > saldoAtual && !window.confirm(`A retirada (${fmt(v)}) é maior que o saldo (${fmt(saldoAtual)}). Registrar mesmo assim?`)) return
+    if (tipo === 'retirada' && v > saldoAtual && !await confirmar(`A retirada (${fmt(v)}) é maior que o saldo (${fmt(saldoAtual)}). Registrar mesmo assim?`)) return
     // Ajuste: a pessoa informa o saldo certo; o app grava só a diferença.
     const gravado = tipo === 'ajuste' ? deltaParaSaldo(saldoAtual, v) : valorComSinal(tipo, v)
     if (gravado === 0) { onFechar(); return }
@@ -109,7 +110,7 @@ function CartaoMeta({ meta, store, custos, sobraMensal, sazonal }) {
                     <td>{ROTULO[m.tipo] || m.tipo}{m.observacao ? <div style={{ fontSize: 12, color: 'var(--text2)' }}>{m.observacao}</div> : null}</td>
                     <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13, color: Number(m.valor) < 0 ? 'var(--red)' : 'var(--green)' }}>{Number(m.valor) > 0 ? '+' : ''}{fmt(m.valor)}</td>
                     <td style={{ width: 1 }}>
-                      <button className="btn btn-ghost btn-sm" onClick={() => { if (window.confirm('Apagar este movimento? O saldo da meta muda e isso fica na auditoria.')) delMovimentoMeta(m) }} aria-label="Apagar movimento">×</button>
+                      <button className="btn btn-ghost btn-sm" onClick={async () => { if (await confirmar('Apagar este movimento? O saldo da meta muda e isso fica na auditoria.')) delMovimentoMeta(m) }} aria-label="Apagar movimento">×</button>
                     </td>
                   </tr>
                 ))}
