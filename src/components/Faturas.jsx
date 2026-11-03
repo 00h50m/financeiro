@@ -1,4 +1,4 @@
-import { useState, Fragment } from 'react'
+import { useEffect, useState, Fragment } from 'react'
 import { fmt, mesLabel, nowYM, hojeSP, tituloCompra, subtituloCompra } from '../lib/utils'
 import { lancadoDoCartao, itensDaFatura } from '../lib/financeiro'
 import EditarCompra from './EditarCompra'
@@ -9,6 +9,15 @@ import { paraCsv, baixarCsv } from '../lib/csvExport'
 import { CampoBusca, ResumoFiltro, BotaoFiltros } from './FiltroLista'
 import { Pilulas } from './NavMes'
 import { lerValorReal, validarFatura, dadosDaFatura } from '../lib/faturaEdicao'
+import { sb } from '../lib/supabase'
+import { listarImportadas } from '../lib/importacaoLote'
+import { cartoesDoMes, resumoDoMesFaturas } from '../lib/faturasMes'
+import { mesFechado } from '../lib/fechamento'
+import NavMes from './NavMes'
+import Indicador from './ui/Indicador'
+import EstadoVazio from './ui/EstadoVazio'
+import { useDialogos } from './ui/Dialogos'
+import CartaoFatura from './faturas/CartaoFatura'
 
 const CHAVE_REVISADAS = 'faturas_revisadas'
 const lerRevisadas = () => {
@@ -93,6 +102,12 @@ export default function Faturas({ store, irPara }) {
   const [futuros, setFuturos] = useState(1) // quantos meses à frente aparecem (para lançar e planejar faturas a longo prazo)
   const alternarCompras = (id) => setAbertas((a) => (a.includes(id) ? a.filter((x) => x !== id) : [...a, id]))
   const [saving, setSaving] = useState(false)
+  const [visao, setVisao] = useState('mes') // 'mes' (um mês por vez) | 'todos' (tabela de todos os meses, com busca e filtros)
+  const [mes, setMes] = useState(nowYM())
+  const [importadas, setImportadas] = useState([]) // lotes de importação concluídos (status de conciliação)
+  const [ocupada, setOcupada] = useState(false)
+  const { confirmar, dialogo } = useDialogos()
+  useEffect(() => { listarImportadas(sb, 60).then(setImportadas).catch(() => setImportadas([])) }, [])
   const s = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
 
   const [revisadas, setRevisadas] = useState(lerRevisadas)
@@ -183,8 +198,27 @@ export default function Faturas({ store, irPara }) {
     .map(({ fat, mes }) => { const lanc = getLancado(fat.cartao_id, mes); const real = temReal(fat) ? Number(fat.valor_real) : null; return { mes, cartao: cartoes.find((c) => c.id === fat.cartao_id)?.nome || '', real, lanc, dif: real == null ? null : real - lanc, paga: !!fat.pago } })
   const mesesComResultado = filtroAtivo ? meses.filter((m) => m.linhas.some((l) => filtrarFatura(faturaDaLinha(l, m.mes), m.mes))).length : meses.length
 
+  // ---- visão por mês ----
+  const hoje = hojeSP()
+  const linhasMes = cartoesDoMes({ faturas, compras, cartoes, fixos: store.fixos, importacoes: importadas, mes, hoje })
+  const resumoMes = resumoDoMesFaturas(linhasMes)
+  const idDaFatura = (l) => l.fatura?.id || `sem|${l.cartao.id}|${mes}`
+  async function marcarPaga(l) {
+    if (ocupada) return
+    setOcupada(true)
+    try { await upsertFatura({ cartao_id: l.cartao.id, mes, pago: !l.fatura?.pago, data_pagamento: !l.fatura?.pago ? hojeSP() : null }) } finally { setOcupada(false) }
+  }
+  const informarValor = (l) => (l.fatura ? abrirEdicao(l.fatura) : abrirNova({ cartao_id: l.cartao.id, mes }))
+  // Outros meses (resumo de uma linha cada): toque para abrir aquele mês
+  const outrosMeses = mesesDeFaturas({ faturas, compras, cartoes, fixos: store.fixos, hoje: nowYM(), mesesFuturos: 3 }).slice(0, 18).map(({ mes: m }) => {
+    const r = resumoDoMesFaturas(cartoesDoMes({ faturas, compras, cartoes, fixos: store.fixos, importacoes: importadas, mes: m, hoje }))
+    const texto = r.divergentes ? `${r.divergentes} com diferença` : r.vencidas ? `${r.vencidas} ${r.vencidas === 1 ? 'vencida' : 'vencidas'}` : r.pagas === r.cartoes ? 'tudo pago' : r.banco == null ? 'sem valor do banco' : 'em aberto'
+    return { mes: m, r, texto, tom: r.divergentes || r.vencidas ? 'var(--cor-erro)' : r.pagas === r.cartoes ? 'var(--cor-ok)' : 'var(--text2)' }
+  })
+
   return (
     <div className="page">
+      {dialogo}
       {modal && (
         <div className="overlay" onClick={(e) => { if (e.target.className === 'overlay') setModal(false) }}>
           <div className="modal">
@@ -249,9 +283,56 @@ export default function Faturas({ store, irPara }) {
       {compraEditando && <EditarCompra store={store} compra={compraEditando} onClose={() => setCompraEditando(null)} />}
 
       <div className="toolbar">
-        <button className="btn btn-primary tb-primario" onClick={() => abrirNova()}>
-          + Lançar fatura
-        </button>
+        <div className="fat-visao" role="group" aria-label="Visão das faturas">
+          <button type="button" className={visao === 'mes' ? 'ativa' : ''} aria-pressed={visao === 'mes'} onClick={() => setVisao('mes')}>Por mês</button>
+          <button type="button" className={visao === 'todos' ? 'ativa' : ''} aria-pressed={visao === 'todos'} onClick={() => setVisao('todos')}>Todos os meses</button>
+        </div>
+        <button className="btn btn-primary tb-primario" onClick={() => abrirNova(visao === 'mes' ? { mes } : {})}>+ Lançar fatura</button>
+      </div>
+
+      {visao === 'mes' && (
+        <>
+          <NavMes mes={mes} onChange={setMes} fechado={mesFechado(store.fechamentos, mes)} />
+          {linhasMes.length > 0 && (
+            <section className="fat-resumo" aria-label="Resumo das faturas do mês">
+              <Indicador rotulo="Lançado no app" valor={fmt(resumoMes.lancado)} sub={`${resumoMes.cartoes} ${resumoMes.cartoes === 1 ? 'cartão' : 'cartões'}`} ajuda="Soma do que está lançado nos cartões neste mês (parcelas, compras e contas fixas no cartão)." />
+              <Indicador rotulo="Valor do banco" valor={resumoMes.banco != null ? fmt(resumoMes.banco) : '—'} sub={resumoMes.bancoQtd ? `${resumoMes.bancoQtd} de ${resumoMes.cartoes} informados` : 'ainda não informado'} ajuda="Soma dos valores reais que você informou do banco." />
+              <Indicador rotulo="Diferença" valor={resumoMes.diferenca != null ? (Math.abs(resumoMes.diferenca) < 0.02 ? '—' : (resumoMes.diferenca > 0 ? '+' : '') + fmt(resumoMes.diferenca)) : '—'} tom={resumoMes.divergentes ? 'erro' : undefined} sub={resumoMes.divergentes ? `${resumoMes.divergentes} com diferença` : resumoMes.banco != null ? 'sem divergências' : undefined} ajuda="Valor do banco menos o lançado, só nos cartões em que você informou o valor real." />
+              <Indicador rotulo="Pagas" valor={`${resumoMes.pagas}/${resumoMes.cartoes}`} tom={resumoMes.vencidas ? 'erro' : resumoMes.pagas === resumoMes.cartoes ? 'ok' : undefined} sub={resumoMes.vencidas ? `${resumoMes.vencidas} ${resumoMes.vencidas === 1 ? 'vencida' : 'vencidas'}` : undefined} ajuda="Faturas deste mês já marcadas como pagas." />
+            </section>
+          )}
+          {linhasMes.length === 0 ? (
+            <div className="card"><EstadoVazio titulo={`Nenhuma fatura em ${mesLabel(mes)}`} texto="Nenhum cartão tem compras ou valor informado neste mês." acao="+ Lançar fatura" aoClicar={() => abrirNova({ mes })} /></div>
+          ) : (
+            <div className="fat-cards">
+              {linhasMes.map((l) => {
+                const det = itensDaFatura(compras, cartoes, l.cartao.id, mes, store.fixos)
+                const id = idDaFatura(l)
+                return (
+                  <CartaoFatura
+                    key={id} l={l} qtdCompras={det.itens.length + det.fixos.length} aberta={abertas.includes(id)} ocupada={ocupada}
+                    aoAlternarCompras={() => alternarCompras(id)} aoInformarValor={informarValor} aoImportar={() => irPara && irPara('importar')} aoPagar={marcarPaga} aoEditar={(x) => abrirEdicao(x.fatura)}
+                    listaCompras={<ComprasDaFatura det={det} onEditar={setCompraEditando} irPara={irPara} />}
+                  />
+                )
+              })}
+            </div>
+          )}
+          <details className="card fat-secundaria"><summary>Compromissos a longo prazo</summary><LongoPrazo store={store} irPara={irPara} /></details>
+          <details className="card fat-secundaria">
+            <summary>Outros meses</summary>
+            <ul className="fat-hist-lista">
+              {outrosMeses.map((o) => (
+                <li key={o.mes}><span><b>{mesLabel(o.mes)}</b> <span className="cad-sub">· {o.r.cartoes} {o.r.cartoes === 1 ? 'cartão' : 'cartões'}</span></span><span style={{ color: o.tom }}>{o.texto} <button type="button" className="link-btn" onClick={() => { setMes(o.mes); window.scrollTo({ top: 0 }) }}>abrir</button></span></li>
+              ))}
+            </ul>
+          </details>
+        </>
+      )}
+
+      {visao === 'todos' && (
+        <>
+      <div className="toolbar">
         <CampoBusca valor={busca} onChange={setBusca} placeholder="Buscar compra, cartão, mês ou valor (ex.: shellbox, 136,30, 10/2026)" />
         <button className="btn btn-ghost btn-sm" disabled={!linhasExportar.length} title="Baixa as faturas que estão na tela (com os filtros) em CSV, para abrir no Excel"
           onClick={() => baixarCsv('faturas', paraCsv([
@@ -276,7 +357,7 @@ export default function Faturas({ store, irPara }) {
       )}
       <ResumoFiltro ativo={filtroAtivo} mostrando={mesesComResultado} total={todosMeses.length} onLimpar={limparFiltros} />
 
-      {!filtroAtivo && <LongoPrazo store={store} irPara={irPara} />}
+      {!filtroAtivo && <details className="card fat-secundaria"><summary>Compromissos a longo prazo</summary><LongoPrazo store={store} irPara={irPara} /></details>}
 
       <div className="card" style={{ padding: 12, marginBottom: 12 }}>
         <div style={{ fontSize: 13, marginBottom: 6 }}>Meses à frente para lançar e planejar</div>
@@ -415,7 +496,7 @@ export default function Faturas({ store, irPara }) {
                         <td className="acoes-td" style={{ whiteSpace: 'nowrap' }}>
                           {botaoCompras}
                           <button className="btn btn-ghost btn-sm" onClick={() => abrirEdicao(fat)} style={{ marginRight: 6 }}>Editar</button>
-                          <button className="btn btn-danger" onClick={() => { if (confirm('Remover o valor real desta fatura? Se ela estava marcada como paga, isso também some.')) delFatura(fat.id) }}>×</button>
+                          <button className="btn btn-danger" onClick={async () => { if (await confirmar({ titulo: 'Remover valor real', texto: 'Remover o valor real desta fatura? Se ela estava marcada como paga, isso também some.', confirmar: 'Remover', perigoso: true })) delFatura(fat.id) }}>×</button>
                         </td>
                       </tr>
                       {linhaDetalhe}
@@ -445,6 +526,8 @@ export default function Faturas({ store, irPara }) {
             {verTodos ? 'Mostrar só os últimos 12 meses' : `Mostrar meses anteriores (${todosMeses.length - MESES_VISIVEIS - qtdFuturos})`}
           </button>
         </div>
+      )}
+        </>
       )}
     </div>
   )

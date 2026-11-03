@@ -277,3 +277,13 @@ Isso é intencional no código, mas **não está explicado em nenhuma tela**: na
 - **Mantido:** parcelamento, divisão por categoria, fatura escolhida, exportar CSV, regras de mês fechado (`updateCompra`, `salvarDivisao`, `delCompra` inalterados).
 - **Estado vazio** com ação (limpar filtros / nova compra) e sem `confirm/prompt` nativos.
 - **Medido (celular, 40 compras):** altura 6.803 → 3.583 px; alvos de toque pequenos 84 → 0; colunas ocultas 205 → 0; sem rolagem horizontal.
+
+
+## 14. Fase 3 · Faturas (visão por mês)
+
+- **Visão "Por mês"** (padrão): um mês por vez (navegação de mês), resumo (Lançado, Valor do banco, Diferença, Pagas) e **um card por cartão** (`components/faturas/CartaoFatura.jsx`, regras em `lib/faturasMes.js`).
+- **Quatro estados independentes por fatura, que coexistem:** valor (estimado | real informado) · diferença (sem diferença | faltam identificar | excede) · **conciliação** (sem importação | importada | parcial | conciliada, lida de `importacoes_fatura`) · pagamento (a pagar | vencida | paga).
+- **Ações no card:** Ver compras, Importar/Conciliar/Rever conciliação (abre `#/importar`), Informar/Corrigir valor real (modal existente), Registrar/Desfazer pagamento (mesma gravação de Pagamentos), Editar fatura.
+- **Secundário e recolhido:** "Compromissos a longo prazo" (gráfico) e "Outros meses" (resumo de uma linha por mês, com atalho).
+- **Preservado:** visão **"Todos os meses"** com a tabela antiga, busca, filtros, exportar CSV e a lista de faturas suspeitas; modal de lançar/editar fatura; regras de `lancadoDoCartao`/`faturaDe`.
+- **Medido (celular):** 0 colunas ocultas, sem rolagem horizontal; alvos de toque pequenos 5 (eram 12 no desktop).
