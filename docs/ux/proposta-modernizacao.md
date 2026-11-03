@@ -177,9 +177,9 @@ Cada fase: arquivos afetados listados antes, PRs pequenos, testes unitários + E
 ## 6. O que não muda
 Fórmulas financeiras, banco de dados, autenticação/RLS, Telegram/Android, importação de fatura (apenas integração visual), perfis, backup. Se eu encontrar um problema real nessas regras, **documento à parte** com teste, nunca misturado ao visual.
 
-## 7. Decisões para você
-1. **Análises como uma tela com abas** (Dashboard fundido), mantendo os atalhos antigos? (recomendo sim)
-2. **Calendário:** em Movimentações > Pagamentos (recomendado) ou em Planejamento (como no seu rascunho)?
-3. **Nome do número principal do Início:** "Livre para gastar" (recomendado, com *Disponível agora* e *Sobra prevista* logo abaixo) ou manter "Pode gastar"?
-4. **Corrigir o contraste do texto secundário** (`--text3` → `#7f8f86`) já na Fase 4?
-5. **Retomar e publicar Faturas (3c) antes do Início**, como combinado, ou priorizar o Início agora?
+## 7. Decisões tomadas (validadas pelo usuário)
+1. **Análises** vira **uma tela com abas** (Visão geral, Evolução, Categorias, Pessoas, Compromissos, Orçado × realizado); `#/dashboard`, `#/graficos`, `#/evolucao` e `#/porpessoa` continuam como atalhos.
+2. **Calendário** vai para **Movimentações > Pagamentos**, como visão Lista | Calendário.
+3. **Número principal do Início:** **"Livre para gastar"**, com *Disponível agora* e *Sobra prevista* logo abaixo.
+4. **Ordem:** terminar **Faturas (3c)** e depois **Início (Fase 4)**.
+5. Contraste do texto secundário (`--text3` → `#7f8f86`): incluído na Fase 4 (não foi objeto de pergunta separada; avise se discordar).
