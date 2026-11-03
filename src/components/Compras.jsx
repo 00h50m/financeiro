@@ -1,12 +1,15 @@
 import { useState, useMemo } from 'react'
-import { fmt, mesLabel, corPessoa, tituloCompra, subtituloCompra, valorParcelaBase } from '../lib/utils'
-import { parcelasPagas } from '../lib/financeiro'
+import { fmt, mesLabel, valorParcelaBase } from '../lib/utils'
 import ModalCompra from './ModalCompra'
 import { rotuloOrigem } from '../lib/origem'
 import { partesDoGrupo } from '../lib/divisaoCompra'
 import { compilar } from '../lib/filtro'
 import { paraCsv, baixarCsv } from '../lib/csvExport'
 import { CampoBusca, ResumoFiltro, BotaoFiltros } from './FiltroLista'
+import { useDialogos } from './ui/Dialogos'
+import EstadoVazio from './ui/EstadoVazio'
+import LinhaCompra from './compras/LinhaCompra'
+import { ORDENACOES, ordenarCompras, origensDasCompras, origemDaCompra, fatiar, LIMITE_POR_MES } from '../lib/comprasLista'
 
 export default function Compras({ store }) {
   const { compras, cartoes, categorias, pessoas, comprasPagamentos, comprasPagamentosOk, addCompra, updateCompra, salvarDivisao, updateComprasLote, delCompra } = store
@@ -18,6 +21,12 @@ export default function Compras({ store }) {
   const [filtroCategoria, setFiltroCategoria] = useState('')
   const [filtroMes, setFiltroMes] = useState('')
   const [filtroParcela, setFiltroParcela] = useState('') // 'vista' | 'parcelada'
+  const [filtroOrigem, setFiltroOrigem] = useState('')
+  const [ordem, setOrdem] = useState('data_desc')
+  const [modoSelecao, setModoSelecao] = useState(false)
+  const [abertas, setAbertas] = useState(() => new Set()) // compras com os detalhes abertos
+  const [limites, setLimites] = useState({}) // mês → quantas compras mostrar (paginação)
+  const { confirmar, pedir, dialogo } = useDialogos()
   const [marcadas, setMarcadas] = useState([])
   const [novaCat, setNovaCat] = useState('')
   const [novaSub, setNovaSub] = useState('')
@@ -37,8 +46,9 @@ export default function Compras({ store }) {
   }
 
   const mesesDasCompras = useMemo(() => [...new Set(compras.map((c) => String(c.data_compra).slice(0, 7)))].sort().reverse(), [compras])
-  const filtroAtivo = !!(filtro.trim() || filtroPessoa || filtroCartao || filtroCategoria || filtroMes || filtroParcela)
-  const limparFiltros = () => { setFiltro(''); setFiltroPessoa(''); setFiltroCartao(''); setFiltroCategoria(''); setFiltroMes(''); setFiltroParcela('') }
+  const filtroAtivo = !!(filtro.trim() || filtroPessoa || filtroCartao || filtroCategoria || filtroMes || filtroParcela || filtroOrigem)
+  const limparFiltros = () => { setFiltro(''); setFiltroPessoa(''); setFiltroCartao(''); setFiltroCategoria(''); setFiltroMes(''); setFiltroParcela(''); setFiltroOrigem('') }
+  const origens = useMemo(() => origensDasCompras(compras), [compras])
   const lista = useMemo(() => {
     const { combina } = compilar(filtro)
     return compras.filter((c) => {
@@ -48,18 +58,19 @@ export default function Compras({ store }) {
       if (filtroMes && !String(c.data_compra).startsWith(filtroMes)) return false
       if (filtroParcela === 'vista' && Number(c.parcelas) > 1) return false
       if (filtroParcela === 'parcelada' && !(Number(c.parcelas) > 1)) return false
+      if (filtroOrigem && origemDaCompra(c) !== filtroOrigem) return false
       return combina({
         texto: [c.descricao, c.identificacao, c.categoria, c.subcategoria, c.obs, c.pessoa, cartoes.find((x) => x.id === c.cartao_id)?.nome, rotuloOrigem(c.origem)].filter(Boolean).join(' '),
         valor: [Number(c.valor_total), valorParcelaBase(c)],
         data: c.data_compra,
       })
     })
-  }, [compras, cartoes, filtro, filtroPessoa, filtroCartao, filtroCategoria, filtroMes, filtroParcela])
+  }, [compras, cartoes, filtro, filtroPessoa, filtroCartao, filtroCategoria, filtroMes, filtroParcela, filtroOrigem])
 
   // Lista agrupada por mês da compra, do mais recente para o mais antigo.
   const grupos = useMemo(() => {
     const porMes = new Map()
-    for (const c of lista) {
+    for (const c of ordenarCompras(lista, ordem)) {
       const m = String(c.data_compra).slice(0, 7)
       if (!porMes.has(m)) porMes.set(m, [])
       porMes.get(m).push(c)
@@ -67,12 +78,12 @@ export default function Compras({ store }) {
     return [...porMes.entries()].sort((a, b) => (a[0] < b[0] ? 1 : -1)).map(([mes, itens]) => ({
       mes, itens, total: itens.reduce((t, c) => t + Number(c.valor_total), 0),
     }))
-  }, [lista])
+  }, [lista, ordem])
   const mesAberto = (mes, i) => mesesAbertos[mes] ?? (filtroAtivo || i === 0)
   const todosAbertos = grupos.length > 0 && grupos.every((g, i) => mesAberto(g.mes, i))
   const alternarMes = (mes, i) => setMesesAbertos((a) => ({ ...a, [mes]: !mesAberto(mes, i) }))
   const alternarTodosMeses = () => setMesesAbertos(Object.fromEntries(grupos.map((g) => [g.mes, !todosAbertos])))
-  const nFiltros = [filtroPessoa, filtroCartao, filtroCategoria, filtroMes, filtroParcela].filter(Boolean).length
+  const nFiltros = [filtroPessoa, filtroCartao, filtroCategoria, filtroMes, filtroParcela, filtroOrigem].filter(Boolean).length
 
   const idsVisiveis = lista.map((c) => c.id)
   // Só vale o que está aparecendo: marcar, mudar a busca e aplicar nunca altera compras que a pessoa não vê.
@@ -83,109 +94,29 @@ export default function Compras({ store }) {
   async function aplicarCategoria() {
     if (!novaCat || !selecionadas.length) return
     const sub = novaSub || subsNova[0] || 'Outros'
-    if (!confirm(`Mudar ${selecionadas.length} compra${selecionadas.length > 1 ? 's' : ''} para ${novaCat} › ${sub}?`)) return
+    if (!(await confirmar({ titulo: 'Trocar categoria', texto: `Mudar ${selecionadas.length} compra${selecionadas.length > 1 ? 's' : ''} para ${novaCat} › ${sub}?`, confirmar: 'Trocar categoria' }))) return
     const ok = await updateComprasLote(selecionadas, { categoria: novaCat, subcategoria: sub })
     if (ok) { setMarcadas([]); setNovaCat(''); setNovaSub('') }
   }
-
-  function editarIdentificacao(c) {
-    const novo = window.prompt(`Identificação de "${c.descricao}" (o que é essa compra). Deixe vazio para remover:`, c.identificacao || '')
+  async function renomear(c) {
+    const novo = await pedir({ titulo: 'Renomear compra', texto: `Identificação de "${c.descricao}" (o que é essa compra). Deixe vazio para remover.`, valor: c.identificacao || '', teclado: 'text' })
     if (novo == null) return
     updateCompra(c.id, { identificacao: novo.trim() || null })
   }
-
-  const linha = (c) => {
-    const cartao = cartoes.find((x) => x.id === c.cartao_id)
-    const dd = c.data_compra.slice(0, 10).split('-')
-    return (
-      <tr key={c.id}>
-        <td className="check-cel"><input type="checkbox" checked={marcadas.includes(c.id)} onChange={() => alternar(c.id)} /></td>
-        <td className="col-opc" style={{ fontFamily: 'DM Mono', fontSize: 12, color: 'var(--text3)', whiteSpace: 'nowrap' }}>
-          {dd[2]}/{dd[1]}/{dd[0].slice(2)}
-        </td>
-        <td className="nome-cel">
-          <div style={{ fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
-            {tituloCompra(c)}
-            <button
-              onClick={() => editarIdentificacao(c)}
-              title="Identificar / renomear (o que é essa compra)"
-              style={{ background: 'transparent', color: 'var(--text3)', fontSize: 12, padding: 0 }}
-            >✎</button>
-          </div>
-          {subtituloCompra(c) && <div style={{ fontSize: 11, color: 'var(--text3)' }}>no cartão: {subtituloCompra(c)}</div>}
-          {c.grupo_id && tamanhoGrupo[c.grupo_id] > 1 && (
-            <div style={{ fontSize: 11, color: 'var(--text3)' }}>
-              <span className="badge badge-blue" style={{ fontSize: 10 }}>dividida em {tamanhoGrupo[c.grupo_id]} categorias</span>
-            </div>
-          )}
-          {c.fatura_mes && c.cartao_id && <div style={{ fontSize: 11, color: 'var(--text3)' }}><span className="badge badge-blue" style={{ fontSize: 10 }}>fatura de {mesLabel(c.fatura_mes)} (escolhida)</span></div>}
-          {c.obs && <div style={{ fontSize: 11, color: 'var(--text3)' }}>{c.obs}</div>}
-          {rotuloOrigem(c.origem) && <div style={{ fontSize: 11, color: 'var(--text3)' }}>{rotuloOrigem(c.origem)}</div>}
-          <div className="so-mobile">
-            {dd[2]}/{dd[1]}/{dd[0].slice(2)} · {c.pessoa} · {cartao ? cartao.nome : 'Sem cartão'} · {c.categoria}{c.subcategoria ? ` › ${c.subcategoria}` : ''}{Number(c.parcelas) > 1 ? ` · ${c.parcelas}x de ${fmt(valorParcelaBase(c))}` : ' · à vista'}
-          </div>
-        </td>
-        <td className="col-opc">
-          <span className={`badge badge-${corPessoa(pessoas, c.pessoa)}`}>
-            {c.pessoa}
-          </span>
-        </td>
-        <td className="col-opc" style={{ fontSize: 12, color: 'var(--text2)' }}>
-          {c.categoria}<br />
-          <span style={{ color: 'var(--text3)' }}>{c.subcategoria}</span>
-        </td>
-        <td className="col-opc">
-          {cartao ? (
-            <span className="badge badge-gray">{cartao.nome}</span>
-          ) : (
-            <div>
-              <span className="badge badge-gray">Sem cartão</span>
-              <div style={{ marginTop: 3 }}>
-                {(() => {
-                  const { pagas, total } = parcelasPagas(c, cartoes, comprasPagamentos, comprasPagamentosOk)
-                  if (total > 1 && pagas > 0 && pagas < total) {
-                    return <span className="badge badge-amber" style={{ fontSize: 10 }}>{pagas}/{total} pagas</span>
-                  }
-                  return pagas === total
-                    ? <span className="badge badge-green" style={{ fontSize: 10 }}>pago</span>
-                    : <span className="badge badge-amber" style={{ fontSize: 10 }}>a pagar</span>
-                })()}
-              </div>
-            </div>
-          )}
-        </td>
-        <td className="valor-cel" style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13, whiteSpace: 'nowrap' }}>{fmt(c.valor_total)}</td>
-        <td className="col-opc" style={{ textAlign: 'center' }}>
-          {Number(c.parcelas) > 1 ? (
-            <div>
-              <span className="badge badge-amber">{c.parcelas}x</span>
-              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
-                {fmt(valorParcelaBase(c))}/mês
-              </div>
-            </div>
-          ) : (
-            <span className="badge badge-gray">à vista</span>
-          )}
-        </td>
-        <td className="acoes-td" style={{ whiteSpace: 'nowrap' }}>
-          <button className="btn btn-ghost btn-sm" onClick={() => abrirEdicao(c)} style={{ marginRight: 6 }}>Editar</button>
-          <button
-            className="btn btn-danger"
-            onClick={() => {
-              const parte = c.grupo_id && tamanhoGrupo[c.grupo_id] > 1
-              const msg = parte
-                ? `Remover só esta parte de "${c.descricao}" (${fmt(c.valor_total)})?\n\nAs outras partes da compra dividida continuam.`
-                : `Remover "${c.descricao}"?`
-              if (confirm(msg)) delCompra(c.id)
-            }}
-          >×</button>
-        </td>
-      </tr>
-    )
+  async function excluir(c) {
+    const parte = c.grupo_id && tamanhoGrupo[c.grupo_id] > 1
+    const texto = parte ? `Remover só esta parte de "${c.descricao}" (${fmt(c.valor_total)})? As outras partes da compra dividida continuam.` : `Remover "${c.descricao}" (${fmt(c.valor_total)})? Dá para desfazer logo depois.`
+    if (await confirmar({ titulo: 'Excluir compra', texto, confirmar: 'Excluir', perigoso: true })) delCompra(c.id)
   }
+  const trocarCategoria = (c, categoria, subcategoria) => updateCompra(c.id, { categoria, subcategoria })
+  const alternarDetalhes = (id) => setAbertas((a) => { const n = new Set(a); if (n.has(id)) n.delete(id); else n.add(id); return n })
+  const acoesLinha = { editar: abrirEdicao, renomear, excluir, trocarCategoria }
+  const selecaoVisivel = modoSelecao || selecionadas.length > 0
+  const totalSelecionadas = selecionadas.reduce((t, id) => t + Number(compras.find((c) => c.id === id)?.valor_total || 0), 0)
 
   return (
     <div className="page">
+      {dialogo}
       {(modal || edicao) && (
         <ModalCompra
           cartoes={cartoes}
@@ -210,6 +141,10 @@ export default function Compras({ store }) {
       <div className="toolbar">
         <CampoBusca valor={filtro} onChange={setFiltro} />
         <BotaoFiltros aberto={filtrosAbertos} onToggle={() => setFiltrosAbertos((v) => !v)} ativos={nFiltros} />
+        <select value={ordem} onChange={(e) => setOrdem(e.target.value)} aria-label="Ordenar compras" className="cmp-ordem">
+          {ORDENACOES.map(([k, rotulo]) => <option key={k} value={k}>{rotulo}</option>)}
+        </select>
+        <button type="button" className={`btn btn-sm ${selecaoVisivel ? 'btn-primary' : 'btn-ghost'}`} aria-pressed={selecaoVisivel} onClick={() => { if (selecaoVisivel) { setModoSelecao(false); setMarcadas([]) } else setModoSelecao(true) }}>{selecaoVisivel ? 'Concluir seleção' : 'Selecionar'}</button>
         <button className="btn btn-ghost btn-sm tb-sec" style={{ marginLeft: 'auto' }} disabled={!lista.length} title="Baixa a lista que está na tela (com os filtros) em CSV, para abrir no Excel"
           onClick={() => baixarCsv('compras', paraCsv([
             { titulo: 'Data', valor: (c) => String(c.data_compra).slice(0, 10).split('-').reverse().join('/') }, { titulo: 'Descrição', valor: (c) => c.descricao }, { titulo: 'Identificação', valor: (c) => c.identificacao || '' },
@@ -245,33 +180,25 @@ export default function Compras({ store }) {
           <option value="vista">Só à vista</option>
           <option value="parcelada">Só parceladas</option>
           </select>
+          {origens.length > 1 && (
+            <select value={filtroOrigem} onChange={(e) => setFiltroOrigem(e.target.value)} style={{ width: 175 }} aria-label="Filtrar por origem">
+              <option value="">Todas as origens</option>
+              {origens.map(([k, rotulo]) => <option key={k} value={k}>{rotulo}</option>)}
+            </select>
+          )}
         </div>
       )}
 
       <ResumoFiltro ativo={filtroAtivo} mostrando={lista.length} total={compras.length} onLimpar={limparFiltros} soma={lista.reduce((s, c) => s + Number(c.valor_total), 0)} fmt={fmt} />
 
-      {selecionadas.length > 0 && (
-        <div className="toolbar" style={{ background: 'var(--bg2, transparent)' }}>
-          <span style={{ fontSize: 13 }}>{selecionadas.length} selecionada{selecionadas.length > 1 ? 's' : ''}</span>
-          <select value={novaCat} onChange={(e) => { setNovaCat(e.target.value); setNovaSub('') }} style={{ width: 170 }}>
-            <option value="">Nova categoria…</option>
-            {categorias.map((c) => <option key={c.id} value={c.nome}>{c.nome}</option>)}
-          </select>
-          {novaCat && (
-            <select value={novaSub || subsNova[0] || ''} onChange={(e) => setNovaSub(e.target.value)} style={{ width: 170 }}>
-              {subsNova.length ? subsNova.map((x) => <option key={x}>{x}</option>) : <option>Outros</option>}
-            </select>
-          )}
-          <button className="btn btn-primary" disabled={!novaCat} onClick={aplicarCategoria}>Aplicar</button>
-          <button className="btn" onClick={() => setMarcadas([])}>Limpar</button>
-        </div>
-      )}
-
       {lista.length === 0 ? (
         <div className="card">
-          <div className="empty">
-            {filtroAtivo ? 'Nenhuma compra com esses filtros.\nTente outro termo ou clique em "Limpar filtros".' : 'Nenhuma compra encontrada.\nClique em "+ Nova compra" para começar.'}
-          </div>
+          <EstadoVazio
+            titulo={filtroAtivo ? 'Nenhuma compra com esses filtros' : 'Nenhuma compra ainda'}
+            texto={filtroAtivo ? 'Tente outro termo ou limpe os filtros.' : 'Registre a primeira compra para começar.'}
+            acao={filtroAtivo ? 'Limpar filtros' : cartoes.length ? '+ Nova compra' : undefined}
+            aoClicar={filtroAtivo ? limparFiltros : () => setModal(true)}
+          />
         </div>
       ) : (
         <>
@@ -285,41 +212,59 @@ export default function Compras({ store }) {
             const aberto = mesAberto(grupo.mes, i)
             const ids = grupo.itens.map((c) => c.id)
             const todas = ids.every((id) => marcadas.includes(id))
+            const { visiveis, restantes } = fatiar(grupo.itens, limites[grupo.mes] || LIMITE_POR_MES)
             return (
               <section key={grupo.mes} className="card grupo-mes">
-                <button className="grupo-cab" onClick={() => alternarMes(grupo.mes, i)} aria-expanded={aberto}>
-                  <span className="grupo-seta" aria-hidden="true">▾</span>
-                  <span className="grupo-nome">{mesLabel(grupo.mes)}</span>
-                  <span className="grupo-info">{grupo.itens.length} {grupo.itens.length === 1 ? 'compra' : 'compras'}</span>
-                  <span className="grupo-total mono">{fmt(grupo.total)}</span>
-                </button>
+                <div className="cmp-grupo-cab">
+                  {selecaoVisivel && aberto && (
+                    <input type="checkbox" className="cmp-check" checked={todas} aria-label={`Selecionar todas as compras de ${mesLabel(grupo.mes)}`} style={{ marginLeft: 12 }}
+                      onChange={() => setMarcadas((m) => (todas ? m.filter((x) => !ids.includes(x)) : [...new Set([...m, ...ids])]))} />
+                  )}
+                  <button className="grupo-cab" style={{ flex: 1 }} onClick={() => alternarMes(grupo.mes, i)} aria-expanded={aberto}>
+                    <span className="grupo-seta" aria-hidden="true">▾</span>
+                    <span className="grupo-nome">{mesLabel(grupo.mes)}</span>
+                    <span className="grupo-info">{grupo.itens.length} {grupo.itens.length === 1 ? 'compra' : 'compras'}</span>
+                    <span className="grupo-total mono">{fmt(grupo.total)}</span>
+                  </button>
+                </div>
                 {aberto && (
-                  <table className="tabela-compacta lista-cartoes tabela-fixa tabela-compras">
-                    <thead>
-                      <tr>
-                        <th style={{ width: 28 }}>
-                          <input type="checkbox" checked={todas} title="Marcar as compras deste mês"
-                            onChange={() => setMarcadas((m) => (todas ? m.filter((x) => !ids.includes(x)) : [...new Set([...m, ...ids])]))} />
-                        </th>
-                        <th className="col-opc">Data</th>
-                        <th>Descrição</th>
-                        <th className="col-opc">Pessoa</th>
-                        <th className="col-opc">Categoria</th>
-                        <th className="col-opc">Cartão</th>
-                        <th style={{ textAlign: 'right' }}>Valor</th>
-                        <th className="col-opc" style={{ textAlign: 'center' }}>Parcelas</th>
-                        <th />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {grupo.itens.map(linha)}
-                    </tbody>
-                  </table>
+                  <>
+                    <ul className="cmp-lista" aria-label={`Compras de ${mesLabel(grupo.mes)}`}>
+                      {visiveis.map((c) => (
+                        <LinhaCompra
+                          key={c.id} c={c} cartao={cartoes.find((x) => x.id === c.cartao_id)} cartoes={cartoes} pessoas={pessoas} categorias={categorias}
+                          comprasPagamentos={comprasPagamentos} comprasPagamentosOk={comprasPagamentosOk} tamanhoGrupo={c.grupo_id ? tamanhoGrupo[c.grupo_id] || 0 : 0}
+                          selecionavel={selecaoVisivel} selecionada={marcadas.includes(c.id)} aoSelecionar={alternar}
+                          aberta={abertas.has(c.id)} aoAlternar={alternarDetalhes} acoes={acoesLinha}
+                        />
+                      ))}
+                    </ul>
+                    {restantes > 0 && <button type="button" className="cmp-mais" onClick={() => setLimites((l) => ({ ...l, [grupo.mes]: (l[grupo.mes] || LIMITE_POR_MES) + LIMITE_POR_MES }))}>Mostrar mais {Math.min(restantes, LIMITE_POR_MES)} ({restantes} restantes)</button>}
+                  </>
                 )}
               </section>
             )
           })}
         </>
+      )}
+
+      {selecionadas.length > 0 && (
+        <div className="barra-flutuante" role="region" aria-label="Ações em lote">
+          <span><b>{selecionadas.length}</b> {selecionadas.length === 1 ? 'selecionada' : 'selecionadas'} · {fmt(totalSelecionadas)}</span>
+          <span className="pag-lote-acoes">
+            <select value={novaCat} onChange={(e) => { setNovaCat(e.target.value); setNovaSub('') }} aria-label="Nova categoria">
+              <option value="">Nova categoria…</option>
+              {categorias.map((c) => <option key={c.id} value={c.nome}>{c.nome}</option>)}
+            </select>
+            {novaCat && (
+              <select value={novaSub || subsNova[0] || ''} onChange={(e) => setNovaSub(e.target.value)} aria-label="Nova subcategoria">
+                {subsNova.length ? subsNova.map((x) => <option key={x}>{x}</option>) : <option>Outros</option>}
+              </select>
+            )}
+            <button className="btn btn-primary btn-sm" disabled={!novaCat} onClick={aplicarCategoria}>Aplicar</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => setMarcadas([])}>Limpar</button>
+          </span>
+        </div>
       )}
     </div>
   )

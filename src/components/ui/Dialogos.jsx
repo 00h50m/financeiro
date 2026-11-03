@@ -4,10 +4,10 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 //   const { confirmar, avisar, pedir, dialogo } = useDialogos()
 //   if (await confirmar({ titulo, texto, confirmar: 'Marcar como pagas' })) { ... }
 //   await avisar('Mês fechado.')
-//   const valor = await pedir({ titulo, texto, valor: '312,40' })   // texto digitado, ou null se cancelou
+//   const valor = await pedir({ titulo, texto, valor: '312,40' })   // texto digitado, ou null se cancelou (teclado: 'text' para nomes)
 //   ...e renderize {dialogo} no JSX da tela.
 // Usam .overlay/.modal: o botão voltar do celular, a tecla Esc e o role="dialog" já funcionam (useVoltar/acessibilidadeModais).
-export function Dialogo({ tipo = 'confirmar', titulo, texto, confirmar = 'Confirmar', cancelar = 'Cancelar', perigoso = false, valor = '', onResposta }) {
+export function Dialogo({ tipo = 'confirmar', titulo, texto, confirmar = 'Confirmar', cancelar = 'Cancelar', perigoso = false, valor = '', teclado = 'decimal', onResposta }) {
   const [digitado, setDigitado] = useState(valor)
   const primario = useRef(null)
   useEffect(() => { primario.current?.focus() }, [])
@@ -19,7 +19,7 @@ export function Dialogo({ tipo = 'confirmar', titulo, texto, confirmar = 'Confir
         <div className="modal-title">{titulo || (tipo === 'avisar' ? 'Aviso' : 'Confirmar')}</div>
         {texto && <p className="dialogo-texto">{texto}</p>}
         {tipo === 'pedir' && (
-          <input className="dialogo-campo" inputMode="decimal" value={digitado} onChange={(e) => setDigitado(e.target.value)} aria-label={titulo || 'Valor'}
+          <input className="dialogo-campo" inputMode={teclado} value={digitado} onChange={(e) => setDigitado(e.target.value)} aria-label={titulo || 'Valor'}
             onKeyDown={(e) => { if (e.key === 'Enter') confirmou() }} ref={primario} />
         )}
         <div className="modal-footer">
