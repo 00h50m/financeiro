@@ -1237,3 +1237,28 @@ input[type="month"], input[type="date"] { max-width: 100%; }
 .cmp-mais { width: 100%; padding: var(--espaco-3); background: none; border-top: 1px solid var(--border); color: var(--brand); min-height: var(--alvo-toque); }
 .cmp-toolbar2 { display: flex; gap: var(--espaco-2); flex-wrap: wrap; align-items: center; margin-bottom: var(--espaco-2); }
 .cmp-toolbar2 select { width: auto; min-width: 150px; }
+
+/* FATURAS · visão por mês */
+.fat-visao { display: inline-flex; gap: 4px; padding: 4px; background: var(--bg2); border: 1px solid var(--border); border-radius: var(--raio-pilula); }
+.fat-visao button { min-height: 36px; padding: 0 var(--espaco-4); border-radius: var(--raio-pilula); background: none; color: var(--text2); font-size: var(--texto-md); }
+.fat-visao button.ativa { background: var(--bg4); color: var(--text); font-weight: 500; box-shadow: inset 0 0 0 1px var(--brand); }
+.fat-resumo { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--espaco-2); margin: var(--espaco-3) 0; }
+@media (min-width: 900px) { .fat-resumo { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--espaco-3); } }
+.fat-cards { display: grid; gap: var(--espaco-3); }
+@media (min-width: 1100px) { .fat-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; } }
+.fat-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--raio-lg); padding: var(--espaco-4); display: grid; gap: var(--espaco-3); }
+.fat-card-topo { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--espaco-3); }
+.fat-card-nome { margin: 0; font-size: var(--texto-lg); font-weight: 500; }
+.fat-card-venc { font-size: var(--texto-sm); color: var(--text2); margin-top: 2px; }
+.fat-selos { display: flex; flex-wrap: wrap; gap: var(--espaco-2); }
+.fat-nums { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--espaco-2); margin: 0; }
+.fat-nums dt { font-size: var(--texto-xs); color: var(--text3); text-transform: uppercase; letter-spacing: .04em; }
+.fat-nums dd { margin: 2px 0 0; font-size: var(--texto-md); font-weight: 500; overflow-wrap: anywhere; }
+.fat-nums dd.neg { color: var(--cor-erro); } .fat-nums dd.aviso { color: var(--cor-aviso); }
+.fat-acoes { display: flex; flex-wrap: wrap; gap: var(--espaco-2); align-items: center; }
+.fat-acoes .btn { min-height: 40px; }
+.fat-compras { margin: 0 calc(var(--espaco-4) * -1) calc(var(--espaco-4) * -1); border-top: 1px solid var(--border); background: var(--bg3); border-radius: 0 0 var(--raio-lg) var(--raio-lg); }
+.fat-secundaria { margin-top: var(--espaco-4); }
+.fat-secundaria > summary { cursor: pointer; padding: var(--espaco-3) var(--espaco-4); font-weight: 500; min-height: var(--alvo-toque); display: flex; align-items: center; }
+.fat-hist-lista { list-style: none; margin: 0; padding: 0; }
+.fat-hist-lista li { display: flex; justify-content: space-between; align-items: center; gap: var(--espaco-3); padding: var(--espaco-3) var(--espaco-4); border-top: 1px solid var(--border); min-height: var(--alvo-toque); }
