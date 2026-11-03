@@ -1,38 +1,41 @@
-import { useState, useEffect, useMemo, Fragment } from 'react'
+import { useState, useEffect, useMemo, Fragment, lazy, Suspense } from 'react'
 import { useStore } from './lib/useStore'
 import { ativarAcessibilidadeModais } from './lib/acessibilidadeModais'
-import Inicio from './components/Inicio'
-import Analises from './components/Analises'
-import Inbox from './components/Inbox'
-import Compras from './components/Compras'
-import Parcelamentos from './components/Parcelamentos'
-import Faturas from './components/Faturas'
-import Pagamentos from './components/Pagamentos'
-import Assistente from './components/importacao/Assistente'
-import Renda from './components/Renda'
-import Cenario from './components/Cenario'
-import PlanoDividas from './components/PlanoDividas'
-import MeuPlano from './components/MeuPlano'
-import Atendimentos from './components/Atendimentos'
-import Aulas from './components/Aulas'
-import Fixos from './components/Fixos'
-import Simulador from './components/Simulador'
-import Emprestimos from './components/Emprestimos'
+import { ativarRotulosAcessiveis } from './lib/acessibilidadeRotulos'
+const Inicio = lazy(() => import('./components/Inicio'))
+const Analises = lazy(() => import('./components/Analises'))
+const Inbox = lazy(() => import('./components/Inbox'))
+const Compras = lazy(() => import('./components/Compras'))
+const Parcelamentos = lazy(() => import('./components/Parcelamentos'))
+const Faturas = lazy(() => import('./components/Faturas'))
+const Pagamentos = lazy(() => import('./components/Pagamentos'))
+const Assistente = lazy(() => import('./components/importacao/Assistente'))
+const Renda = lazy(() => import('./components/Renda'))
+const Cenario = lazy(() => import('./components/Cenario'))
+const PlanoDividas = lazy(() => import('./components/PlanoDividas'))
+const MeuPlano = lazy(() => import('./components/MeuPlano'))
+const Atendimentos = lazy(() => import('./components/Atendimentos'))
+const Aulas = lazy(() => import('./components/Aulas'))
+const Fixos = lazy(() => import('./components/Fixos'))
+const Simulador = lazy(() => import('./components/Simulador'))
+const Emprestimos = lazy(() => import('./components/Emprestimos'))
 import AvisoNovaVersao, { versaoDoApp } from './components/AvisoNovaVersao'
 import DialogoGlobal from './components/ui/DialogoGlobal'
-import Cartoes from './components/Cartoes'
-import Categorias from './components/Categorias'
-import Pessoas from './components/Pessoas'
-import Automacoes from './components/Automacoes'
-import Backup from './components/Backup'
-import Configuracoes from './components/Configuracoes'
-import Orcamento from './components/Orcamento'
-import Divididos from './components/Divididos'
-import Reserva from './components/Reserva'
-import Regras from './components/Regras'
-import Busca from './components/Busca'
-import Metas from './components/Metas'
-import Fechamento from './components/Fechamento'
+import ErroDeTela from './components/ui/ErroDeTela'
+import { useOnline } from './lib/useOnline'
+const Cartoes = lazy(() => import('./components/Cartoes'))
+const Categorias = lazy(() => import('./components/Categorias'))
+const Pessoas = lazy(() => import('./components/Pessoas'))
+const Automacoes = lazy(() => import('./components/Automacoes'))
+const Backup = lazy(() => import('./components/Backup'))
+const Configuracoes = lazy(() => import('./components/Configuracoes'))
+const Orcamento = lazy(() => import('./components/Orcamento'))
+const Divididos = lazy(() => import('./components/Divididos'))
+const Reserva = lazy(() => import('./components/Reserva'))
+const Regras = lazy(() => import('./components/Regras'))
+const Busca = lazy(() => import('./components/Busca'))
+const Metas = lazy(() => import('./components/Metas'))
+const Fechamento = lazy(() => import('./components/Fechamento'))
 import Login from './components/Login'
 import { Marca, Nome } from './components/Marca'
 import { sb } from './lib/supabase'
@@ -147,6 +150,7 @@ export default function App() {
   const [sessao, setSessao] = useState(undefined) // undefined = verificando
 
   useEffect(() => ativarAcessibilidadeModais(), [])
+  useEffect(() => ativarRotulosAcessiveis(), [])
 
   useEffect(() => {
     sb.auth.getSession().then(({ data }) => setSessao(data.session)).catch(() => setSessao(null)) // erro ao ler a sessão: cai no login em vez de girar para sempre
@@ -176,6 +180,7 @@ function AppLogado({ email }) {
     try { const v = JSON.parse(lerLocal('grupos_fechados', '[]')); return Array.isArray(v) ? v : [] } catch { return [] }
   })
   const store = useStore(email)
+  const online = useOnline()
 
   useEffect(() => { gravarLocal('aba', aba) }, [aba])
   useEffect(() => {
@@ -251,8 +256,8 @@ function AppLogado({ email }) {
   const areaAtual = areaDaAba(aba, AREAS_DO_PERFIL)
   const subgrupos = areaAtual ? grupoDaAba(areaAtual) : {}
   const atalhoAtivo = atalhoDaArea(areaAtual?.id)
-  const sync = store.syncState === 'syncing' ? 'syncing' : store.syncState === 'error' ? 'error' : ''
-  const syncTexto = store.syncState === 'ok' ? 'Sincronizado' : store.syncState === 'syncing' ? 'Salvando...' : 'Erro ao sincronizar'
+  const sync = !online ? 'error' : store.syncState === 'syncing' ? 'syncing' : store.syncState === 'error' ? 'error' : ''
+  const syncTexto = !online ? 'Sem conexão' : store.syncState === 'ok' ? 'Sincronizado' : store.syncState === 'syncing' ? 'Salvando...' : 'Erro ao sincronizar'
 
   return (
     <InicioContext.Provider value={store.inicioApp}>
@@ -335,6 +340,7 @@ function AppLogado({ email }) {
             <div className={`sync-dot ${sync}`} />
           </div>
         </header>
+        {!online && <div className="offline-aviso" role="alert"><b>Sem conexão.</b> O que você alterar agora pode não ser salvo. O app volta ao normal sozinho quando a internet voltar.</div>}
         {areaAtual && areaAtual.abas.length > 1 && (
           <nav className="subnav" aria-label={`Telas de ${areaAtual.titulo}`}>
             {areaAtual.abas.map((id, i) => (
@@ -348,7 +354,11 @@ function AppLogado({ email }) {
             ))}
           </nav>
         )}
-        <Component store={store} irPara={irPara} sub={sub} aoMudarSub={mudarSub} />
+        <ErroDeTela key={aba}>
+        <Suspense fallback={<div className="page" role="status" aria-label="Carregando a tela"><div className="skeleton" style={{ height: 22, width: '40%', marginBottom: 14 }} /><div className="skeleton" style={{ height: 120 }} /></div>}>
+          <Component store={store} irPara={irPara} sub={sub} aoMudarSub={mudarSub} />
+        </Suspense>
+        </ErroDeTela>
       </div>
 
       <AvisoNovaVersao />

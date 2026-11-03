@@ -319,3 +319,15 @@ Isso é intencional no código, mas **não está explicado em nenhuma tela**: na
 - **Consistência visual:** `.card` e `.metric` passam a usar os mesmos raios, espaços e rótulos dos tokens (`.kpi`, `.indicador`); alvos de toque de 44 px nos controles de Renda sazonal (alvos pequenos em Renda: 21 → 3).
 - **Não alterado:** regras e fórmulas de orçamento, metas, reserva, dívidas, empréstimos, simulador, fechamento, aulas e atendimentos; tabelas de simulação continuam com rolagem interna ao cartão.
 - **Validado:** 1.065 testes; E2E de navegação, importação, pagamentos, compras, faturas, início, análises e planejamento; varredura das 34 telas sem rolagem horizontal e sem erros.
+
+
+## 18. Fase 7 · Refinamento (desempenho, acessibilidade, offline, perfis)
+
+- **Desempenho:** as telas carregam sob demanda (`React.lazy`) e as bibliotecas ficam em arquivos próprios. O JavaScript inicial caiu de **1.238 kB (353 kB comprimido) para 151 kB de código do app (49 kB) + 142 kB de React e 210 kB do Supabase**, estes dois reaproveitados do cache entre atualizações. O aviso de pacote acima de 500 kB deixou de aparecer.
+- **Falha de carregamento:** se uma tela não carregar (típico logo após uma atualização), aparece "Não consegui abrir esta tela" com **Recarregar**; menu e barra inferior continuam funcionando; trocar de tela limpa o erro.
+- **Sem conexão:** aviso no topo e indicador "Sem conexão"; some sozinho quando a internet volta.
+- **Janelas (acessibilidade):** o foco entra na janela ao abrir, **fica preso** nela (Tab/Shift+Tab), Esc fecha e o foco volta ao botão que abriu; papel de diálogo e `aria-modal`.
+- **Nomes acessíveis:** `acessibilidadeRotulos.js` liga cada `<label>` ao seu campo e usa o placeholder quando falta rótulo. **Campos/botões sem nome acessível nas 34 telas (celular): 17 → 0** (medido).
+- **Perfil esteticista:** build próprio testado (Atendimentos visíveis, Aulas escondidas, `#/aulas` ignorado, sem rolagem horizontal, sem erros).
+- **Estilos inline:** 1.079 (eram 1.142): não foi feita varredura em massa; cada tela refeita já usa os componentes e tokens do design system, e as demais seguem com estilos inline até serem revisitadas (risco de regressão visual sem benefício imediato).
+- **Testes de ponta a ponta no total:** navegação, importação, pagamentos, compras, faturas, início, análises, planejamento, acessibilidade e perfil esteticista (Chromium real, celular e desktop), mais varredura das 34 telas.

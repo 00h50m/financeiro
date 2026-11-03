@@ -1353,3 +1353,7 @@ input[type="month"], input[type="date"] { max-width: 100%; }
   .rs-linha-btn, .rs .link-btn { min-height: 44px; }
   .rs .link-btn { display: inline-flex; align-items: center; }
 }
+
+/* Sem conexão */
+.offline-aviso { background: var(--cor-aviso-bg); border-bottom: 1px solid var(--cor-aviso-borda); color: var(--cor-aviso); padding: var(--espaco-2) var(--espaco-4); font-size: var(--texto-sm); }
+.offline-aviso b { color: var(--text); }
