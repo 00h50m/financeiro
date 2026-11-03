@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { confirmar } from '../../lib/dialogos'
 
 // Cadastro da cliente: nome e telefone bastam; aniversário e observações (alergias, preferências) ajudam no atendimento.
 export default function ModalCliente({ cliente, onSalvar, onRemover, onClose }) {
@@ -13,7 +14,7 @@ export default function ModalCliente({ cliente, onSalvar, onRemover, onClose }) 
     if (ok) onClose(ok)
   }
   async function remover() {
-    if (!window.confirm(`Remover ${cliente.nome}? Os atendimentos dela também serão apagados. Para só tirar da lista, use "Inativar".`)) return
+    if (!await confirmar(`Remover ${cliente.nome}? Os atendimentos dela também serão apagados. Para só tirar da lista, use "Inativar".`)) return
     if (await onRemover(cliente.id)) onClose()
   }
   async function alternarAtivo() {

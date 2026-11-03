@@ -7,6 +7,7 @@ import { Pilulas } from '../NavMes'
 import CampoHorario from './CampoHorario'
 import SeletorDuracao from './SeletorDuracao'
 import { SERIES, saidaSugerida, riscoDeSaida } from '../../lib/alunosCiclo'
+import { confirmar } from '../../lib/dialogos'
 
 const MOTIVOS = ['Terminou o ciclo (formou/vestibular)', 'Parou por conta própria', 'Preço', 'Mudou de cidade', 'Horário não encaixa', 'Outro']
 
@@ -77,7 +78,7 @@ export default function ModalAluno({ store, aluno, onClose, onPausar, inicialAvu
   }
 
   async function reativar() {
-    if (!window.confirm(`Reativar ${aluno.nome}? As aulas voltam a ser previstas a partir de hoje.`)) return
+    if (!await confirmar(`Reativar ${aluno.nome}? As aulas voltam a ser previstas a partir de hoje.`)) return
     const ok = await atualizarAluno(aluno.id, { ativo: true, inativado_em: null, motivo_encerramento: null })
     if (ok) onClose()
   }

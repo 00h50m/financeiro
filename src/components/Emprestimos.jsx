@@ -4,6 +4,7 @@ import { resumoDoMes } from '../lib/financeiro'
 import { saldoMeta } from '../lib/metas'
 import { simular, simularNoCartao, analisar, melhorInicio, taxaMensalDeAnual, saldoDevedorEstimado, taxaDaObservacao, LIMITES } from '../lib/emprestimo'
 import { terminandoLogo } from '../lib/parcelamentos'
+import { confirmar, avisar } from '../lib/dialogos'
 
 const lerNum = (t) => {
   const s = String(t ?? '').trim()
@@ -63,9 +64,9 @@ export default function Emprestimos({ store, irPara }) {
   async function contratar() {
     if (!sim) return
     const nome = f.nome.trim() || 'Empréstimo'
-    if (analise?.veredito === 'nao_cabe' && !confirm('A análise diz que essa parcela NÃO cabe no seu orçamento.\n\nQuer adicionar mesmo assim?')) return
-    if (f.noCartao && !f.cartaoId) { alert('Escolha em qual cartão o empréstimo foi passado.'); return }
-    if (!confirm(`Adicionar "${nome}" ao app?\n\n${sim.prazo} parcelas de ${fmt(sim.primeira)} a partir de ${mesLabel(f.primeiro)} (total ${fmt(sim.total)}). Elas passam a contar em Pagamentos, Parcelamentos e no Dashboard.${f.noCartao ? ' As parcelas entram na fatura do cartão escolhido.' : ''}${f.sistema === 'sac' ? '\n\nAtenção: no sistema SAC as parcelas diminuem, mas o app registra parcelas iguais (a média).' : ''}`)) return
+    if (analise?.veredito === 'nao_cabe' && !await confirmar('A análise diz que essa parcela NÃO cabe no seu orçamento.\n\nQuer adicionar mesmo assim?')) return
+    if (f.noCartao && !f.cartaoId) { avisar('Escolha em qual cartão o empréstimo foi passado.'); return }
+    if (!await confirmar(`Adicionar "${nome}" ao app?\n\n${sim.prazo} parcelas de ${fmt(sim.primeira)} a partir de ${mesLabel(f.primeiro)} (total ${fmt(sim.total)}). Elas passam a contar em Pagamentos, Parcelamentos e no Dashboard.${f.noCartao ? ' As parcelas entram na fatura do cartão escolhido.' : ''}${f.sistema === 'sac' ? '\n\nAtenção: no sistema SAC as parcelas diminuem, mas o app registra parcelas iguais (a média).' : ''}`)) return
     setSalvando(true)
     const cat = categorias.find((c) => c.nome === 'Financeiro') || categorias[0]
     const dia = String(Math.min(28, Math.max(1, Number(f.dia) || 10))).padStart(2, '0')
@@ -90,7 +91,7 @@ export default function Emprestimos({ store, irPara }) {
       entradaOk = await upsertRenda({ mes: f.mesEntrada, giovanna: Number(r.giovanna || 0), sabrina: Number(r.sabrina || 0), extra_sabrina: Number(r.extra_sabrina || 0), mesada: Number(r.mesada || 0), outros: Math.round((Number(r.outros || 0) + sim.valor) * 100) / 100 })
     }
     setSalvando(false)
-    if (ok) { alert(`Empréstimo adicionado. Confira em Parcelamentos e Pagamentos.${f.lancarEntrada ? (entradaOk ? `\n\n${fmt(sim.valor)} entraram na Renda de ${mesLabel(f.mesEntrada)} (campo Outros), então já somam no seu saldo.` : '\n\nNão consegui lançar a entrada na Renda: lance manualmente em Renda > Outros.') : '\n\nO dinheiro recebido não foi lançado na Renda.'}`); irPara?.('parcelamentos') }
+    if (ok) { avisar(`Empréstimo adicionado. Confira em Parcelamentos e Pagamentos.${f.lancarEntrada ? (entradaOk ? `\n\n${fmt(sim.valor)} entraram na Renda de ${mesLabel(f.mesEntrada)} (campo Outros), então já somam no seu saldo.` : '\n\nNão consegui lançar a entrada na Renda: lance manualmente em Renda > Outros.') : '\n\nO dinheiro recebido não foi lançado na Renda.'}`); irPara?.('parcelamentos') }
   }
 
   function guardar() {

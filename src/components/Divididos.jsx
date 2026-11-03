@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { addMonths, fmt, mesLabel, nowYM, tituloCompra } from '../lib/utils'
 import { descricaoDoItem, parteTotal, resumoRepasses, saldoPorPessoa } from '../lib/divisoes'
+import { confirmar, avisar, pedir } from '../lib/dialogos'
 
 const num = (t) => Number(String(t).replace(',', '.'))
 const brData = (iso) => (iso ? iso.split('-').reverse().join('/') : '')
@@ -105,10 +106,10 @@ export default function Divididos({ store }) {
   const totalDeve = Object.values(deve).reduce((s, x) => s + x, 0)
 
   async function receber(i) {
-    const t = window.prompt(`Quanto ${i.pessoa} pagou de "${i.descricao}"? (R$)`, String(i.esperado).replace('.', ','))
+    const t = await pedir(`Quanto ${i.pessoa} pagou de "${i.descricao}"? (R$)`, String(i.esperado).replace('.', ','))
     if (t === null) return
     const v = num(t)
-    if (!(v >= 0) || Number.isNaN(v)) return alert('Valor inválido.\n\nDigite só números, com vírgula nos centavos (ex.: 312,40).')
+    if (!(v >= 0) || Number.isNaN(v)) return avisar('Valor inválido.\n\nDigite só números, com vírgula nos centavos (ex.: 312,40).')
     await marcarRepasse(i.divisao.id, mes, v)
   }
 
@@ -185,7 +186,7 @@ export default function Divididos({ store }) {
                   <td>{descricaoDoItem(store, d)} <span style={{ fontSize: 12, color: 'var(--text3)' }}>({d.tipo === 'fixo' ? 'conta fixa' : 'compra'})</span></td>
                   <td style={{ fontFamily: 'DM Mono' }}>{d.modo === 'percentual' ? `${Number(d.valor)}%` : fmt(d.valor)}{d.tipo === 'fixo' ? ' /mês' : ''}</td>
                   <td style={{ textAlign: 'right' }}>
-                    <button className="btn btn-danger" onClick={() => { if (window.confirm(`Apagar a divisão com ${d.pessoa}? Os valores já recebidos dela também somem.`)) delDivisao(d) }} aria-label={`Apagar divisão com ${d.pessoa}`}>×</button>
+                    <button className="btn btn-danger" onClick={async () => { if (await confirmar(`Apagar a divisão com ${d.pessoa}? Os valores já recebidos dela também somem.`)) delDivisao(d) }} aria-label={`Apagar divisão com ${d.pessoa}`}>×</button>
                   </td>
                 </tr>
               ))}

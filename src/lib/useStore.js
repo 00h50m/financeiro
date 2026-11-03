@@ -14,6 +14,7 @@ import { perfil } from './perfil.js'
 import { atendimentosPorMes, somarPorMes } from './atendimentos.js'
 import { novoEstoque } from './atendimentosExtra.js'
 import { aulasPorMes, rendasComAulas, aulasAReceberPorMes, montarFechamento, modoRendaAulas, deslocarMeses } from './aulasFechamento.js'
+import { avisar, pedir } from '../lib/dialogos'
 
 const POR_PAGINA = 1000 // o Supabase devolve no máximo 1000 linhas por consulta
 
@@ -258,7 +259,7 @@ export function useStore(email = null) {
       await fn()
     } catch (e) {
       setSyncState('error')
-      alert(explicarErro(e, acao))
+      avisar(explicarErro(e, acao))
       return false
     }
     setSyncState((await loadAll({ silent: true, quais })) ? 'ok' : 'error')
@@ -320,16 +321,16 @@ export function useStore(email = null) {
   }
 
   // Alterar compra que tem parcela em mês FECHADO é permitido, mas exige justificativa (vai para a auditoria).
-  function exigirJustificativa(comprasAfetadas) {
+  async function exigirJustificativa(comprasAfetadas) {
     const fechados = mesesFechadosTocados(comprasAfetadas, cartoes, fechamentos)
     if (!fechados.length) return { ok: true, meses: [], motivo: null }
     const lista = fechados.map(mesLabel).join(', ')
-    const motivo = window.prompt(`${lista} já está fechado e esta alteração muda os números dele.\n\nPara continuar, escreva o motivo:`)
+    const motivo = await pedir(`${lista} já está fechado e esta alteração muda os números dele.\n\nPara continuar, escreva o motivo:`)
     if (!motivo || motivo.trim().length < 3) return { ok: false, meses: fechados, motivo: null }
     return { ok: true, meses: fechados, motivo: motivo.trim() }
   }
   async function comJustificativa(afetadas, acao, entidadeId, antes, depois, fn) {
-    const j = exigirJustificativa(afetadas)
+    const j = await exigirJustificativa(afetadas)
     if (!j.ok) return false
     const ok = await fn()
     if (ok && j.meses.length) {
@@ -461,7 +462,7 @@ export function useStore(email = null) {
     const fechados = mesesAfetadosPelaFatura(antes, data).filter((m) => mesFechado(fechamentos, m))
     let motivo = null
     if (fechados.length) {
-      motivo = window.prompt(`${fechados.map(mesLabel).join(', ')} já está fechado e esta alteração muda os números dele.\n\nPara continuar, escreva o motivo:`)
+      motivo = await pedir(`${fechados.map(mesLabel).join(', ')} já está fechado e esta alteração muda os números dele.\n\nPara continuar, escreva o motivo:`)
       if (!motivo || motivo.trim().length < 3) return false
     }
     const ok = await op(async () => {
@@ -507,7 +508,7 @@ export function useStore(email = null) {
     const antes = fixosValores.find((v) => v.fixo_id === fixo_id && v.mes === mes)?.valor ?? null
     let motivo = null
     if (mesFechado(fechamentos, mes)) {
-      motivo = window.prompt(`${mesLabel(mes)} já está fechado e esta alteração muda os números dele.\n\nPara continuar, escreva o motivo:`)
+      motivo = await pedir(`${mesLabel(mes)} já está fechado e esta alteração muda os números dele.\n\nPara continuar, escreva o motivo:`)
       if (!motivo || motivo.trim().length < 3) return false
     }
     // o valor do mês é da CONTA (todas as versões dela): ao gravar ou apagar, nenhuma versão fica com outro valor guardado para o mesmo mês
@@ -535,7 +536,7 @@ export function useStore(email = null) {
     const fechados = meses.filter((m) => mesFechado(fechamentos, m))
     let motivo = null
     if (fechados.length) {
-      motivo = window.prompt(`Este período inclui ${fechados.length === 1 ? 'um mês já fechado' : `${fechados.length} meses já fechados`} (${fechados.slice(0, 3).map(mesLabel).join(', ')}${fechados.length > 3 ? '…' : ''}). Apagar muda os números ${fechados.length === 1 ? 'dele' : 'deles'}.\n\nPara continuar, escreva o motivo:`)
+      motivo = await pedir(`Este período inclui ${fechados.length === 1 ? 'um mês já fechado' : `${fechados.length} meses já fechados`} (${fechados.slice(0, 3).map(mesLabel).join(', ')}${fechados.length > 3 ? '…' : ''}). Apagar muda os números ${fechados.length === 1 ? 'dele' : 'deles'}.\n\nPara continuar, escreva o motivo:`)
       if (!motivo || motivo.trim().length < 3) return false
     }
     const ok = await op(async () => {
@@ -870,7 +871,7 @@ export function useStore(email = null) {
     const fechados = recebidos.map((x) => x.mes).filter((m) => fechamentos.some((f) => f.mes === m && f.status === 'fechado'))
     let motivo = null
     if (fechados.length) {
-      motivo = window.prompt(`Esta divisão tem valores recebidos em ${fechados.map(mesLabel).join(', ')} (mês fechado). Apagar muda os números dele.\n\nPara continuar, escreva o motivo:`)
+      motivo = await pedir(`Esta divisão tem valores recebidos em ${fechados.map(mesLabel).join(', ')} (mês fechado). Apagar muda os números dele.\n\nPara continuar, escreva o motivo:`)
       if (!motivo || motivo.trim().length < 3) return false
     }
     const ok = await op(async () => {
@@ -883,7 +884,7 @@ export function useStore(email = null) {
   const marcarRepasse = async (divisaoId, mes, valor, recebidoEm) => {
     let motivo = null
     if (fechamentos.some((f) => f.mes === mes && f.status === 'fechado')) {
-      motivo = window.prompt(`${mesLabel(mes)} já está fechado e receber muda a receita dele.\n\nPara continuar, escreva o motivo:`)
+      motivo = await pedir(`${mesLabel(mes)} já está fechado e receber muda a receita dele.\n\nPara continuar, escreva o motivo:`)
       if (!motivo || motivo.trim().length < 3) return false
     }
     const ok = await op(async () => {
@@ -899,7 +900,7 @@ export function useStore(email = null) {
   const desmarcarRepasse = async (divisaoId, mes) => {
     let motivo = null
     if (fechamentos.some((f) => f.mes === mes && f.status === 'fechado')) {
-      motivo = window.prompt(`${mesLabel(mes)} já está fechado e desfazer o recebimento muda a receita dele.\n\nPara continuar, escreva o motivo:`)
+      motivo = await pedir(`${mesLabel(mes)} já está fechado e desfazer o recebimento muda a receita dele.\n\nPara continuar, escreva o motivo:`)
       if (!motivo || motivo.trim().length < 3) return false
     }
     const antes = divisoesRepasses.find((x) => x.divisao_id === divisaoId && x.mes === mes) || null
@@ -1052,7 +1053,7 @@ export function useStore(email = null) {
   // IMPORTAÇÃO DE FATURA (CSV)
   // Não usa `op`: o chamador precisa do erro para dar feedback próprio na tela de importação.
   async function importarTransacoes(rows) {
-    const j = exigirJustificativa(rows) // importar para mês fechado também pede justificativa
+    const j = await exigirJustificativa(rows) // importar para mês fechado também pede justificativa
     if (!j.ok) throw amigavel('Importação cancelada: o mês já está fechado e faltou o motivo.')
     setSyncState('syncing')
     try {
@@ -1069,7 +1070,7 @@ export function useStore(email = null) {
   // Importação de fatura com lote: grava tudo numa transação só (função aplicar_importacao), sem duplicar se repetir a confirmação.
   // Mesmo cuidado com mês fechado de importarTransacoes. Não usa `op`: a tela precisa do resultado e do erro.
   async function importarFatura({ importacaoId, dados }) {
-    const j = exigirJustificativa(dados.compras)
+    const j = await exigirJustificativa(dados.compras)
     if (!j.ok) throw amigavel('Importação cancelada: o mês já está fechado e faltou o motivo.')
     setSyncState('syncing')
     let r
@@ -1085,7 +1086,7 @@ export function useStore(email = null) {
   }
 
   async function conciliarFatura({ importacaoId, operacaoId, dados }) {
-    const j = exigirJustificativa(dados.compras || [])
+    const j = await exigirJustificativa(dados.compras || [])
     if (!j.ok) throw amigavel('Conferência cancelada: o mês já está fechado e faltou o motivo.')
     setSyncState('syncing')
     let r

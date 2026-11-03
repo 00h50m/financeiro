@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { fmt } from '../../lib/utils'
 import { reaisParaCentavos } from '../../lib/aulas'
 import SeletorDuracao from '../aulas/SeletorDuracao'
+import { confirmar } from '../../lib/dialogos'
 
 // Serviço do catálogo: preço, duração e quanto de material ele gasta (para mostrar quanto sobra de cada atendimento).
 export default function ModalServico({ servico, comRetorno = false, onSalvar, onRemover, onClose }) {
@@ -18,7 +19,7 @@ export default function ModalServico({ servico, comRetorno = false, onSalvar, on
     if (ok) onClose()
   }
   async function remover() {
-    if (!window.confirm(`Remover o serviço "${servico.nome}"? Os atendimentos já feitos continuam com o nome e o valor da época.`)) return
+    if (!await confirmar(`Remover o serviço "${servico.nome}"? Os atendimentos já feitos continuam com o nome e o valor da época.`)) return
     if (await onRemover(servico.id)) onClose()
   }
   async function alternarAtivo() {

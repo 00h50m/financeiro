@@ -11,6 +11,7 @@ import { montarResumoMensal, textoDoResumo } from '../lib/resumoMensal'
 import Secao from './Secao'
 import NavMes from './NavMes'
 import { antesDoInicio } from '../lib/inicioApp'
+import { avisar } from '../lib/dialogos'
 
 export default function Dashboard({ store, irPara, embutido = false }) {
   const { compras, cartoes, fixos, pessoas, orcamentos } = store
@@ -119,7 +120,7 @@ export default function Dashboard({ store, irPara, embutido = false }) {
             )}
             <div className="modal-footer">
               <button className="btn btn-ghost" onClick={() => setResumo(null)}>Fechar</button>
-              <button className="btn btn-primary" disabled={resumo.vazio} title="Copia como texto simples, pronto para colar no WhatsApp ou Telegram" onClick={async () => { try { await navigator.clipboard.writeText(textoDoResumo(resumo)); setCopiado(true); setTimeout(() => setCopiado(false), 2000) } catch { window.alert('Não consegui copiar automaticamente neste navegador.') } }}>{copiado ? 'Copiado ✓' : 'Copiar como texto'}</button>
+              <button className="btn btn-primary" disabled={resumo.vazio} title="Copia como texto simples, pronto para colar no WhatsApp ou Telegram" onClick={async () => { try { await navigator.clipboard.writeText(textoDoResumo(resumo)); setCopiado(true); setTimeout(() => setCopiado(false), 2000) } catch { avisar('Não consegui copiar automaticamente neste navegador.') } }}>{copiado ? 'Copiado ✓' : 'Copiar como texto'}</button>
             </div>
           </div>
         </div>

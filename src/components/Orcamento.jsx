@@ -4,6 +4,7 @@ import { comprasLiquidas, fixosLiquidos } from '../lib/divisoes'
 import NavMes, { Pilulas } from './NavMes'
 import { reaisParaCentavos } from '../lib/aulas'
 import { fmt, fmtK, mesLabel, nowYM, totalRenda, gastosPorCategoria, statusTeto } from '../lib/utils'
+import { confirmar, avisar } from '../lib/dialogos'
 
 const ORDEM = { estourou: 0, perto: 1, ok: 2, sem: 3 }
 const STATUS = {
@@ -73,7 +74,7 @@ export default function Orcamento({ store }) {
     if (texto === undefined) return
     setRascunho((r) => { const n = { ...r }; delete n[categoria]; return n })
     const c = texto.trim() === '' ? 0 : reaisParaCentavos(texto)
-    if (c == null) { alert('Não entendi esse valor. Exemplo: 800 ou 1.200,50'); return }
+    if (c == null) { avisar('Não entendi esse valor. Exemplo: 800 ou 1.200,50'); return }
     const valor = c / 100
     if (valor !== tetoDe(categoria)) definirOrcamento(categoria, valor)
   }
@@ -90,11 +91,11 @@ export default function Orcamento({ store }) {
     setPainel(doMes.map((s) => ({ ...s, valor: String(s.sugerido), marcada: !s.atual })))
   }
   const mudarSugestao = (categoria, patch) => setPainel((l) => l.map((x) => (x.categoria === categoria ? { ...x, ...patch } : x)))
-  function aplicarSugestoes() {
+  async function aplicarSugestoes() {
     const lista = painel.filter((s) => s.marcada && Number(s.valor) > 0).map((s) => ({ categoria: s.categoria, valor: Number(s.valor) }))
     if (!lista.length) return
     const sobrescreve = painel.filter((s) => s.marcada && s.atual).length
-    if (sobrescreve && !confirm(`${sobrescreve} categoria${sobrescreve > 1 ? 's' : ''} já tem${sobrescreve > 1 ? 'em' : ''} teto e vai${sobrescreve > 1 ? 'ão' : ''} mudar. Continuar?`)) return
+    if (sobrescreve && !await confirmar(`${sobrescreve} categoria${sobrescreve > 1 ? 's' : ''} já tem${sobrescreve > 1 ? 'em' : ''} teto e vai${sobrescreve > 1 ? 'ão' : ''} mudar. Continuar?`)) return
     definirOrcamentos(lista)
     setPainel(null)
   }

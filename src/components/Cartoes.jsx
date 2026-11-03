@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { perfil } from '../lib/perfil'
 import { corPessoa, fmt, fmtK, limiteUsado, nowYM } from '../lib/utils'
+import { confirmar } from '../lib/dialogos'
 
 export default function Cartoes({ store }) {
   const { cartoes, pessoas, compras, faturas, addCartao, updateCartao, delCartao } = store
@@ -36,13 +37,13 @@ export default function Cartoes({ store }) {
   }
 
   // O banco apaga as faturas do cartão junto com ele e deixa as compras sem cartão: avisa os números reais.
-  function remover(c) {
+  async function remover(c) {
     const nCompras = compras.filter((x) => x.cartao_id === c.id).length
     const nFaturas = faturas.filter((x) => x.cartao_id === c.id).length
     const aviso = nCompras || nFaturas
       ? `\n\n${nCompras} compra${nCompras === 1 ? '' : 's'} ficará${nCompras === 1 ? '' : 'ão'} sem cartão (e passam a contar como "a pagar" uma a uma) e ${nFaturas} fatura${nFaturas === 1 ? '' : 's'} lançada${nFaturas === 1 ? '' : 's'} (valor real e se estava paga) ${nFaturas === 1 ? 'será apagada' : 'serão apagadas'}. Isso não dá para desfazer.`
       : ''
-    if (confirm(`Remover "${c.nome}"?${aviso}`)) delCartao(c.id)
+    if (await confirmar(`Remover "${c.nome}"?${aviso}`)) delCartao(c.id)
   }
 
   const comLimite = cartoes.filter((c) => Number(c.limite) > 0)

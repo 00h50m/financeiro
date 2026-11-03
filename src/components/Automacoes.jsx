@@ -3,6 +3,7 @@ import { corPessoa } from '../lib/utils'
 import { formatarCodigo } from '../lib/pareamento'
 import { chamarAdminTelegram } from '../lib/automacoes'
 import { explicarErro } from '../lib/erros'
+import { confirmar, avisar } from '../lib/dialogos'
 
 const quando = (iso) => (iso ? new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '—')
 const PASSOS_VARIAVEIS = {
@@ -15,7 +16,7 @@ const PASSOS_VARIAVEIS = {
 function Copiar({ texto, rotulo = 'Copiar' }) {
   const [ok, setOk] = useState(false)
   return (
-    <button className="btn btn-ghost btn-sm" onClick={async () => { try { await navigator.clipboard.writeText(texto); setOk(true); setTimeout(() => setOk(false), 1800) } catch { window.alert('Não consegui copiar neste navegador. Selecione o texto e copie à mão.') } }}>
+    <button className="btn btn-ghost btn-sm" onClick={async () => { try { await navigator.clipboard.writeText(texto); setOk(true); setTimeout(() => setOk(false), 1800) } catch { avisar('Não consegui copiar neste navegador. Selecione o texto e copie à mão.') } }}>
       {ok ? 'Copiado ✓' : rotulo}
     </button>
   )
@@ -134,9 +135,9 @@ export default function Automacoes({ store }) {
     const r = await chamarAdminTelegram('testar', { integracao_id: id })
     setMsg(r.ok ? { tipo: 'green', texto: 'Mensagem de teste enviada. Confira no Telegram.' } : { tipo: 'red', texto: r.erro || 'Falha ao enviar o teste.' })
   }
-  function desconectar(i) {
+  async function desconectar(i) {
     const nome = pessoas.find((p) => p.id === i.pessoa_id)?.nome || 'esta pessoa'
-    if (confirm(`Desconectar ${nome}?\n\nO bot deixa de responder a esse Telegram. Dá para conectar de novo com um novo código.`)) desconectarIntegracao(i.id)
+    if (await confirmar(`Desconectar ${nome}?\n\nO bot deixa de responder a esse Telegram. Dá para conectar de novo com um novo código.`)) desconectarIntegracao(i.id)
   }
 
   if (!inboxOk) {

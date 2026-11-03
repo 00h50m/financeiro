@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { fmt, mesLabel } from '../lib/utils'
+import { confirmar, avisar } from '../lib/dialogos'
 
 // Campo para informar o valor REAL de uma conta variável em um mês. Salva ao sair do campo (ou Enter); só aquele mês muda.
 // `fixo` = conta já resolvida para o mês (fixosAtivos): traz valor, estimado.  `real` = valor real já informado (ou undefined).
@@ -23,7 +24,7 @@ export default function ValorDoMes({ fixo, mes, real, definirValorFixo, compacto
     if (t === inicial) return
     if (t === '') { if (real != null) gravar(null); return }
     const n = Number(t.includes(',') ? t.replace(/\./g, '').replace(',', '.') : t)
-    if (!Number.isFinite(n) || n < 0) { window.alert('Valor inválido.\n\nDigite só números, com vírgula nos centavos (ex.: 312,40).'); setTexto(inicial); return }
+    if (!Number.isFinite(n) || n < 0) { avisar('Valor inválido.\n\nDigite só números, com vírgula nos centavos (ex.: 312,40).'); setTexto(inicial); return }
     gravar(n)
   }
   // Mês fechado: o valor fica travado; alterar exige destravar de propósito (e depois escrever o motivo ao salvar).
@@ -32,7 +33,7 @@ export default function ValorDoMes({ fixo, mes, real, definirValorFixo, compacto
       <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
         <span className="mono" style={{ fontSize: 13 }}>{fmt(fixo.valor)}</span>
         <span style={{ fontSize: 11, color: 'var(--text3)' }}>
-          🔒 mês fechado{real == null ? ' · estimado' : ''} · <button className="link-btn" onClick={() => { if (window.confirm(`${mesLabel(mes)} já está fechado.\n\nAlterar muda os números dele e vai pedir um motivo, que fica registrado. Destravar mesmo assim?`)) setDestravado(true) }}>alterar</button>
+          🔒 mês fechado{real == null ? ' · estimado' : ''} · <button className="link-btn" onClick={async () => { if (await confirmar(`${mesLabel(mes)} já está fechado.\n\nAlterar muda os números dele e vai pedir um motivo, que fica registrado. Destravar mesmo assim?`)) setDestravado(true) }}>alterar</button>
         </span>
       </div>
     )

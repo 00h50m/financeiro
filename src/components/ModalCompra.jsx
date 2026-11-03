@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { fmt, calcMesInicio, addMonths, mesLabel, hojeSP } from '../lib/utils'
 import { acharSemelhantes } from '../lib/duplicadas'
 import { restante, somaPartes, validarDivisao, planoDeDivisao, planoDeUniao } from '../lib/divisaoCompra'
+import { confirmar } from '../lib/dialogos'
 
 const brl = (v) => fmt(Math.abs(v))
 
@@ -105,7 +106,7 @@ export default function ModalCompra({
       if (parecidas.length) {
         const p = parecidas[0]
         const quando = String(p.data_compra).slice(0, 10).split('-').reverse().join('/')
-        if (!window.confirm(`Parece que essa compra já foi lançada:\n\n"${p.identificacao || p.descricao}" — ${fmt(p.valor_total)} em ${quando}${parecidas.length > 1 ? ` (e mais ${parecidas.length - 1} parecida${parecidas.length > 2 ? 's' : ''})` : ''}.\n\nLançar mesmo assim?`)) return
+        if (!await confirmar(`Parece que essa compra já foi lançada:\n\n"${p.identificacao || p.descricao}" — ${fmt(p.valor_total)} em ${quando}${parecidas.length > 1 ? ` (e mais ${parecidas.length - 1} parecida${parecidas.length > 2 ? 's' : ''})` : ''}.\n\nLançar mesmo assim?`)) return
       }
     }
     setSaving(true)

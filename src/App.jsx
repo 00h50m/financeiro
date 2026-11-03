@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, Fragment } from 'react'
 import { useStore } from './lib/useStore'
 import { ativarAcessibilidadeModais } from './lib/acessibilidadeModais'
 import Inicio from './components/Inicio'
@@ -19,6 +19,7 @@ import Fixos from './components/Fixos'
 import Simulador from './components/Simulador'
 import Emprestimos from './components/Emprestimos'
 import AvisoNovaVersao, { versaoDoApp } from './components/AvisoNovaVersao'
+import DialogoGlobal from './components/ui/DialogoGlobal'
 import Cartoes from './components/Cartoes'
 import Categorias from './components/Categorias'
 import Pessoas from './components/Pessoas'
@@ -38,7 +39,7 @@ import { sb } from './lib/supabase'
 import { perfil } from './lib/perfil'
 import { InicioContext } from './lib/InicioContext'
 import { useVoltar } from './lib/useVoltar'
-import { areasVisiveis, areaDaAba, hashDaRota, rotaDoHash, rotaInicial, resolverRota, destinoDaArea, atalhoDaArea, ATALHOS, lerLembradas } from './lib/navegacao'
+import { grupoDaAba, areasVisiveis, areaDaAba, hashDaRota, rotaDoHash, rotaInicial, resolverRota, destinoDaArea, atalhoDaArea, ATALHOS, lerLembradas } from './lib/navegacao'
 
 const ICONES = {
   movimentacoes: 'M17 1l4 4-4 4 M3 11V9a4 4 0 0 1 4-4h14 M7 23l-4-4 4-4 M21 13v2a4 4 0 0 1-4 4H3',
@@ -130,7 +131,7 @@ const TELAS = {
 
 // O perfil da instalação pode esconder telas (ex.: esteticista não tem Aulas particulares).
 const AREAS_DO_PERFIL = areasVisiveis(perfil.abasOcultas)
-const GRUPOS = AREAS_DO_PERFIL.map((a) => ({ id: a.id, titulo: a.titulo, abas: a.abas.map((id) => ({ id, ...TELAS[id] })) }))
+const GRUPOS = AREAS_DO_PERFIL.map((a) => { const sub = grupoDaAba(a); return { id: a.id, titulo: a.titulo, abas: a.abas.map((id) => ({ id, ...TELAS[id], subgrupo: sub[id] || null })) } })
 const ABAS = GRUPOS.flatMap((g) => g.abas)
 const IDS_ABAS = ABAS.map((a) => a.id)
 
@@ -248,6 +249,7 @@ function AppLogado({ email }) {
   const atual = ABAS.find((a) => a.id === aba) || ABAS[0] // aba escondida pelo perfil cai no Início
   const { Component } = atual
   const areaAtual = areaDaAba(aba, AREAS_DO_PERFIL)
+  const subgrupos = areaAtual ? grupoDaAba(areaAtual) : {}
   const atalhoAtivo = atalhoDaArea(areaAtual?.id)
   const sync = store.syncState === 'syncing' ? 'syncing' : store.syncState === 'error' ? 'error' : ''
   const syncTexto = store.syncState === 'ok' ? 'Sincronizado' : store.syncState === 'syncing' ? 'Salvando...' : 'Erro ao sincronizar'
@@ -281,9 +283,10 @@ function AppLogado({ email }) {
                   <span>{g.titulo}</span>
                   <span className="sidebar-grupo-seta"><Icone nome="seta" size={12} /></span>
                 </button>
-                {itens.map((a) => (
+                {itens.map((a, i) => (
+                  <Fragment key={a.id}>
+                  {a.subgrupo && a.subgrupo !== itens[i - 1]?.subgrupo && <div className="sidebar-subgrupo">{a.subgrupo}</div>}
                   <button
-                    key={a.id}
                     className={`sidebar-item ${aba === a.id ? 'ativo' : ''}`}
                     onClick={() => irPara(a.id)}
                     title={a.label}
@@ -295,6 +298,7 @@ function AppLogado({ email }) {
                       <span className="sidebar-badge" aria-label={`${pendentesInbox} pendentes`}>{pendentesInbox}</span>
                     )}
                   </button>
+                  </Fragment>
                 ))}
               </div>
             )
@@ -333,11 +337,14 @@ function AppLogado({ email }) {
         </header>
         {areaAtual && areaAtual.abas.length > 1 && (
           <nav className="subnav" aria-label={`Telas de ${areaAtual.titulo}`}>
-            {areaAtual.abas.map((id) => (
-              <button key={id} type="button" className={`subnav-item ${aba === id ? 'ativo' : ''}`} onClick={() => irPara(id)} aria-current={aba === id ? 'page' : undefined}>
+            {areaAtual.abas.map((id, i) => (
+              <Fragment key={id}>
+              {subgrupos[id] && subgrupos[id] !== subgrupos[areaAtual.abas[i - 1]] && <span className="subnav-grupo">{subgrupos[id]}</span>}
+              <button type="button" className={`subnav-item ${aba === id ? 'ativo' : ''}`} onClick={() => irPara(id)} aria-current={aba === id ? 'page' : undefined}>
                 {TELAS[id].label}
                 {id === 'inbox' && pendentesInbox > 0 && <span className="subnav-badge" aria-label={`${pendentesInbox} pendentes`}>{pendentesInbox}</span>}
               </button>
+              </Fragment>
             ))}
           </nav>
         )}
@@ -345,6 +352,7 @@ function AppLogado({ email }) {
       </div>
 
       <AvisoNovaVersao />
+      <DialogoGlobal />
 
       {(store.desfazivel || store.aviso) && (
         <div className="toast-area" role="status" aria-live="polite">

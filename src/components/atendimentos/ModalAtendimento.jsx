@@ -5,6 +5,7 @@ import { novoAtendimento, conflitoDeHorario } from '../../lib/atendimentos'
 import { pacotesUsaveis, saldoPacote } from '../../lib/atendimentosExtra'
 import CampoHorario from '../aulas/CampoHorario'
 import SeletorDuracao from '../aulas/SeletorDuracao'
+import { confirmar } from '../../lib/dialogos'
 
 // Marcar ou editar um atendimento. O serviço traz preço, duração e material como ponto de partida; tudo pode ser ajustado.
 export default function ModalAtendimento({ atendimento, dataInicial, clienteInicial = '', pacoteInicial = '', pacotes = [], pacotesOk = false, clientes, servicos, atendimentos, onSalvar, onRemover, onNovaCliente, onClose }) {
@@ -48,7 +49,7 @@ export default function ModalAtendimento({ atendimento, dataInicial, clienteInic
     if (ok) onClose()
   }
   async function remover() {
-    if (!window.confirm('Apagar este atendimento? (Para cancelar mantendo o histórico, use "cancelar" na agenda.)')) return
+    if (!await confirmar('Apagar este atendimento? (Para cancelar mantendo o histórico, use "cancelar" na agenda.)')) return
     if (await onRemover(atendimento.id)) onClose()
   }
 

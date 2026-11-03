@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { fmt, hojeSP, mesLabel } from '../../lib/utils'
 import { aulasDoMes, centavosParaReais, reaisParaCentavos, textoDuracao } from '../../lib/aulas'
 import { achaFechamento, diferencaRecebimento, fechadoStatus, linkWhatsApp, mensagemFechamento, montarFechamento, pendenciasDoMes } from '../../lib/aulasFechamento'
+import { confirmar, pedir } from '../../lib/dialogos'
 
 const dataBr = (d) => d.split('-').reverse().join('/')
 const reais = (c) => fmt(centavosParaReais(c))
@@ -32,7 +33,7 @@ export default function ModalFechamento({ store, aluno, mes, onClose }) {
   const exigeConferir = fech?.status === 'reaberto' && fech.recebido && dif !== 0
 
   async function copiar() {
-    try { await navigator.clipboard.writeText(msg); setCopiado(true); setTimeout(() => setCopiado(false), 2000) } catch { window.prompt('Copie a mensagem:', msg) }
+    try { await navigator.clipboard.writeText(msg); setCopiado(true); setTimeout(() => setCopiado(false), 2000) } catch { await pedir('Copie a mensagem:', msg) }
   }
   async function agir(fn) { setOcupado(true); await fn(); setOcupado(false) }
   async function verHist() { setHist(await historicoFechamento(aluno.id, mes)) }
@@ -88,7 +89,7 @@ export default function ModalFechamento({ store, aluno, mes, onClose }) {
         {!fechado ? (
           <div className="modal-footer">
             <button className="btn btn-ghost" onClick={onClose}>Fechar janela</button>
-            <button className="btn btn-ghost" disabled={ocupado || pend.length > 0 || (exigeConferir && !confirmaDif)} title={pend.length ? 'Resolva as aulas previstas' : ''} onClick={() => { if (window.confirm('Fechar o mês sem cobrar nada deste aluno?')) agir(async () => { if (await fecharAluno(aluno.id, mes, { semCobranca: true, mensagem: null })) onClose() }) }}>Fechar sem cobrança</button>
+            <button className="btn btn-ghost" disabled={ocupado || pend.length > 0 || (exigeConferir && !confirmaDif)} title={pend.length ? 'Resolva as aulas previstas' : ''} onClick={async () => { if (await confirmar('Fechar o mês sem cobrar nada deste aluno?')) agir(async () => { if (await fecharAluno(aluno.id, mes, { semCobranca: true, mensagem: null })) onClose() }) }}>Fechar sem cobrança</button>
             <button className="btn btn-primary" disabled={ocupado || pend.length > 0 || (exigeConferir && !confirmaDif)} onClick={() => agir(async () => { if (await fecharAluno(aluno.id, mes, { mensagem: msg })) onClose() })}>Fechar o mês</button>
           </div>
         ) : (

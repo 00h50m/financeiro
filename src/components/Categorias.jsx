@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import Secao from './Secao'
+import { confirmar, avisar, pedir } from '../lib/dialogos'
 
 export default function Categorias({ store }) {
   const {
@@ -27,7 +28,7 @@ export default function Categorias({ store }) {
     const nome = novoNome.trim()
     if (!nome) return
     if (categorias.some((c) => c.nome.toLowerCase() === nome.toLowerCase())) {
-      alert('Já existe uma categoria com esse nome.')
+      avisar('Já existe uma categoria com esse nome.')
       return
     }
     setSaving(true)
@@ -36,27 +37,27 @@ export default function Categorias({ store }) {
     if (ok) setNovoNome('')
   }
 
-  function renomear(cat) {
-    const novo = window.prompt('Novo nome da categoria:', cat.nome)
+  async function renomear(cat) {
+    const novo = await pedir('Novo nome da categoria:', cat.nome)
     if (novo == null) return
     const nome = novo.trim()
     if (!nome || nome === cat.nome) return
     if (categorias.some((c) => c.id !== cat.id && c.nome.toLowerCase() === nome.toLowerCase())) {
-      alert('Já existe uma categoria com esse nome.')
+      avisar('Já existe uma categoria com esse nome.')
       return
     }
     renomearCategoria(cat.id, cat.nome, nome)
   }
 
-  function remover(cat) {
+  async function remover(cat) {
     const n = contarUsoCategoria(cat.nome)
     if (n === 0) {
-      if (confirm(`Remover a categoria "${cat.nome}"? Nenhuma compra ou conta fixa usa ela hoje.`)) delCategoria(cat.id)
+      if (await confirmar(`Remover a categoria "${cat.nome}"? Nenhuma compra ou conta fixa usa ela hoje.`)) delCategoria(cat.id)
       return
     }
     const outras = categorias.filter((c) => c.id !== cat.id)
     if (outras.length === 0) {
-      alert('Essa é a única categoria cadastrada — crie outra antes de remover esta.')
+      avisar('Essa é a única categoria cadastrada — crie outra antes de remover esta.')
       return
     }
     setMigracao({ tipo: 'categoria', cat, contagem: n, destino: outras[0].nome })
@@ -66,34 +67,34 @@ export default function Categorias({ store }) {
     const sub = (novaSub[cat.id] || '').trim()
     if (!sub) return
     if (cat.subcategorias.some((s) => s.toLowerCase() === sub.toLowerCase())) {
-      alert('Essa subcategoria já existe nessa categoria.')
+      avisar('Essa subcategoria já existe nessa categoria.')
       return
     }
     addSubcategoria(cat.id, [...cat.subcategorias, sub])
     setNovaSub((p) => ({ ...p, [cat.id]: '' }))
   }
 
-  function removerSub(cat, sub) {
+  async function removerSub(cat, sub) {
     const n = contarUsoSubcategoria(cat.nome, sub)
     const outras = cat.subcategorias.filter((s) => s !== sub)
     if (n === 0) {
-      if (confirm(`Remover a subcategoria "${sub}"?`)) delSubcategoria(cat.id, outras)
+      if (await confirmar(`Remover a subcategoria "${sub}"?`)) delSubcategoria(cat.id, outras)
       return
     }
     if (outras.length === 0) {
-      alert(`"${sub}" é a única subcategoria de "${cat.nome}" e há ${n} movimentação(ões) usando ela. Crie outra subcategoria antes de remover esta.`)
+      avisar(`"${sub}" é a única subcategoria de "${cat.nome}" e há ${n} movimentação(ões) usando ela. Crie outra subcategoria antes de remover esta.`)
       return
     }
     setMigracao({ tipo: 'subcategoria', cat, sub, contagem: n, destino: outras[0] })
   }
 
-  function renomearSub(cat, sub) {
-    const novo = window.prompt('Novo nome da subcategoria:', sub)
+  async function renomearSub(cat, sub) {
+    const novo = await pedir('Novo nome da subcategoria:', sub)
     if (novo == null) return
     const nome = novo.trim()
     if (!nome || nome === sub) return
     if (cat.subcategorias.some((s) => s !== sub && s.toLowerCase() === nome.toLowerCase())) {
-      alert('Essa subcategoria já existe nessa categoria.')
+      avisar('Essa subcategoria já existe nessa categoria.')
       return
     }
     const subcategorias = cat.subcategorias.map((s) => (s === sub ? nome : s))
