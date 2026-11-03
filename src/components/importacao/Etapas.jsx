@@ -114,6 +114,7 @@ export function EtapaSelecionar({ a }) {
 
 // ============ 2. Analisar ============
 export function EtapaAnalise({ a, aoAbrirGrupo }) {
+  const recorrentesNovas = (a.analise?.grupos.novas || []).filter((l) => a.recorrenciaDe?.(l))
   const { analise, linhas } = a
   if (!analise) return <div className="alert alert-amber">Escolha o cartão e o mês na etapa anterior.</div>
   const c = analise.contadores
@@ -137,6 +138,13 @@ export function EtapaAnalise({ a, aoAbrirGrupo }) {
         <Cartao rotulo="Só no aplicativo" n={c.divergenciasApp} valor={g.divergenciasApp.reduce((t, d) => t + Number(d.valor || 0), 0)} grupo="app" cor={c.divergenciasApp ? 'atencao' : 'ok'} sub="lançadas, fora da fatura" />
       </div>
       {c.ignoradas > 0 && <div className="cad-sub">{c.ignoradas} linha{c.ignoradas > 1 ? 's' : ''} de pagamento da fatura anterior ficou{c.ignoradas > 1 ? 'ram' : ''} de fora do total.</div>}
+      {recorrentesNovas.length > 0 && (
+        <div className="alert alert-blue imp-aviso-recorrente" role="status">
+          <b>🔁 {recorrentesNovas.length} {recorrentesNovas.length === 1 ? 'cobrança parece' : 'cobranças parecem'} recorrente{recorrentesNovas.length === 1 ? '' : 's'}:</b> {recorrentesNovas.slice(0, 4).map((l) => l.identificacao?.trim() || l.descricao).join(', ')}{recorrentesNovas.length > 4 ? '…' : ''}.
+          <div style={{ fontSize: 13, marginTop: 2 }}>Assinaturas e mensalidades podem virar <b>conta fixa</b> (de valor variável, se o preço muda). Nada é cadastrado antes de você confirmar a importação.</div>
+          <button type="button" className="btn btn-ghost btn-sm" style={{ marginTop: 8 }} onClick={() => aoAbrirGrupo('novas')}>Escolher quais cadastrar</button>
+        </div>
+      )}
       <PainelConciliacao analise={analise} mostrarStatusAtual modo={a.modoValor} aoResolver={a.aoResolver} />
       <div className="imp-navegacao">
         <button type="button" className="btn btn-ghost" onClick={() => a.irPara(1)}>← Voltar</button>
@@ -170,7 +178,7 @@ export function EtapaRevisar({ a, filtroInicial, abrirCompra }) {
   if (!analise) return null
   const c = analise.contadores
   const pills = [['revisao', `Revisão (${c.revisao})`], ['novas', `Novas (${c.novas})`], ['registradas', `Registradas (${c.registradas})`], ['app', `Só no app (${c.divergenciasApp})`], ...(c.ignoradas ? [['ignoradas', `Ignoradas (${c.ignoradas})`]] : [])]
-  const acoes = { atualizarLinha: a.atualizarLinha, decidir: a.decidir, escolherParcelamento: a.escolherParcelamento, mudarCategoria: a.mudarCategoria }
+  const acoes = { atualizarLinha: a.atualizarLinha, decidir: a.decidir, escolherParcelamento: a.escolherParcelamento, mudarCategoria: a.mudarCategoria, recorrenciaDe: a.recorrenciaDe, alternarFixo: a.alternarFixo, fixoMarcado: (id) => a.fixosMarcados.has(id) }
   return (
     <div className="imp-etapa">
       <PainelConciliacao analise={analise} modo={a.modoValor} aoResolver={a.aoResolver} />
@@ -269,6 +277,12 @@ export function EtapaConfirmar({ a }) {
               <ul className="imp-lista">{gravar.mover.map((m) => <li key={m.compra_id}>{m.descricao}: {m.fatura_mes_anterior ? mesLabel(m.fatura_mes_anterior) : 'fatura automática'} → {mesLabel(m.fatura_mes)} <span className="mono">{fmt(m.valor)}</span></li>)}</ul>
             </div>
           )}
+          {a.fixosAPlanejar?.length > 0 && (
+            <div><b>{a.fixosAPlanejar.length} conta{a.fixosAPlanejar.length === 1 ? '' : 's'} fixa{a.fixosAPlanejar.length === 1 ? '' : 's'} a cadastrar depois da importação</b>
+              <ul className="imp-lista">{a.fixosAPlanejar.map((f) => <li key={f.id}>{f.nome} <span className="mono">{fmt(f.valor)}</span> <span className="cad-sub">· {f.variavel ? 'valor variável' : 'valor fixo'} · a partir de {mesLabel(f.inicio)}</span></li>)}</ul>
+              <div className="cad-sub">Esta cobrança entra como compra normal; a conta fixa só vale a partir do mês seguinte, para não contar duas vezes.</div>
+            </div>
+          )}
           {gravar.vinculadas > 0 && <div className="cad-sub">{gravar.vinculadas} linha{gravar.vinculadas === 1 ? '' : 's'} vinculada{gravar.vinculadas === 1 ? '' : 's'} a lançamentos existentes (nada é criado).</div>}
         </section>
         <section className="card imp-aberto">
@@ -325,6 +339,7 @@ export function Resultado({ a, aoVerFaturas }) {
       <div className={`alert ${r.tipo === 'aviso' ? 'alert-amber' : 'alert-green'}`}>
         <b>{r.tipo === 'ok' ? '✓ ' : ''}{r.titulo}</b>
         <div style={{ fontSize: 13, marginTop: 4 }}>{r.detalhe}</div>
+        {r.fixos && <div style={{ fontSize: 13, marginTop: 6 }}>🔁 {r.fixos}</div>}
         {r.aviso && <div style={{ fontSize: 12, marginTop: 6 }}>⚠ {r.aviso}</div>}
       </div>
       {r.r && !r.r.repetida && (

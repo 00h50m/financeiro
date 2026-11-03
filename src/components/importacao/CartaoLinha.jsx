@@ -34,6 +34,8 @@ export default function CartaoLinha({ l, aberto: abertoInicial, valorLinha, mesF
   const motivo = l.motivos[0]
   const subs = categorias.find((c) => c.nome === l.categoria)?.subcategorias || []
   const dividida = ehCompraDividida(corr?.compra)
+  const recorrente = acoes.recorrenciaDe?.(l) || null
+  const fixoMarcado = recorrente ? acoes.fixoMarcado?.(l._id) : false
   const botao = (rotulo, decisao, extra = {}) => (
     <button key={decisao + rotulo} type="button" className={`btn btn-sm ${extra.primario ? 'btn-primary' : 'btn-ghost'}`} disabled={extra.desabilitado} title={extra.dica} onClick={() => decidir(l._id, decisao)}>{rotulo}</button>
   )
@@ -50,7 +52,7 @@ export default function CartaoLinha({ l, aberto: abertoInicial, valorLinha, mesF
       </button>
       <div className="imp-linha-meta">
         <span className="cad-sub">{l.categoria ? `${l.categoria}${l.subcategoria ? ` › ${l.subcategoria}` : ''}` : 'sem categoria'}{emAndamento ? ` · parcela ${l.parcela_atual}/${l.parcela_total}` : Number(l.parcela_total) > 1 ? ` · 1/${l.parcela_total}` : ''}{l.natureza === 'credito' ? ' · estorno/crédito' : l.natureza === 'encargo' ? ' · encargo' : ''}{l.repetidaNoArquivo ? ' · repetida no arquivo' : ''}</span>
-        <span className="imp-selos">{l.pessoa && <span className={`badge badge-${corPessoa(pessoas, l.pessoa)}`} title="Pessoa do lançamento">{l.pessoa}</span>}<span className={`badge ${cor}`}>{texto}</span></span>
+        <span className="imp-selos">{recorrente && <span className="badge badge-blue" title="Aparece todo mês: pode virar conta fixa">recorrente</span>}{l.pessoa && <span className={`badge badge-${corPessoa(pessoas, l.pessoa)}`} title="Pessoa do lançamento">{l.pessoa}</span>}<span className={`badge ${cor}`}>{texto}</span></span>
       </div>
 
       {aberto && (
@@ -64,6 +66,13 @@ export default function CartaoLinha({ l, aberto: abertoInicial, valorLinha, mesF
               <span className="imp-explica">O app ignorou esta linha porque parece pagamento ou saldo da fatura anterior.</span>
               <button type="button" className="btn btn-ghost btn-sm" onClick={() => atualizarLinha(l._id, { naturezaManual: Number(l.valor) < 0 ? 'credito' : 'encargo' })}>Não é pagamento: contar na fatura</button>
             </div>
+          )}
+          {recorrente && l.grupo === 'nova' && (
+            <label className="imp-recorrente">
+              <input type="checkbox" checked={!!fixoMarcado} onChange={() => acoes.alternarFixo(l._id)} aria-label={`Cadastrar ${nome} também como conta fixa`} />
+              <span><b>Parece uma cobrança recorrente</b> ({recorrente.ocorrencias} meses antes, perto de {fmt(recorrente.medio || recorrente.ultimo)}{recorrente.variavel ? ', valor variável' : ''}).<br />
+                Cadastrar também como <b>conta fixa</b> a partir do mês seguinte? Esta cobrança entra como compra normal.</span>
+            </label>
           )}
           {/* ações por tipo de pendência */}
           {l.grupo === 'revisao' && (motivo === 'correspondencia_provavel' || motivo === 'parcelamento_ambiguo') && (

@@ -9,7 +9,9 @@ import { analisarFatura, decisaoPatch } from './conciliacaoFatura'
 import { COLUNAS_ESPERADAS, prepararLinhas, reanalisar } from './leituraFatura'
 import { montarPlano } from './planoImportacao'
 import { chaveDoArquivo, novoIdImportacao, salvarRascunho, descartarRascunho, listarRascunhos, listarImportadas, registrosDoLote, textoResultado } from './importacaoLote'
-import { nowYM } from './utils'
+import { nowYM, addMonths } from './utils'
+import { indexarAliases } from './estabelecimento'
+import { recorrenciasAntesDaFatura, recorrenciaDaLinha, contaFixaDaLinha } from './recorrenciaImportacao'
 
 const MAX_PDF = 3 * 1024 * 1024
 const CAMPOS_DE_TRABALHO = ['_id', 'data', 'descricao', 'descricaoOriginal', 'identificacao', 'identificacaoSugerida', 'valor', 'categoria', 'subcategoria', 'sugerida', 'fonteSugestao', 'parcela_atual', 'parcela_total', 'cartaoNome', 'cartao_id', 'pessoa', 'pessoaManual', 'observacao', 'incluir', 'incluirManual', 'decisao', 'parcelamentoConfirmado', 'parcelamentoOpcao', 'naturezaManual', 'manual']
@@ -18,7 +20,7 @@ const maisComum = (xs) => { const c = {}; xs.filter(Boolean).forEach((x) => { c[
 
 // `inicial` (para testes e pré-visualização): { registros, nome, origem, totalBanco, etapa } carrega o arquivo já na primeira renderização.
 export function useAssistenteImportacao(store, inicial = null) {
-  const { cartoes, categorias, compras, pessoas, fixos = [], regras = [], aliases = [], importarFatura, conciliarFatura } = store
+  const { cartoes, categorias, compras, pessoas, fixos = [], regras = [], aliases = [], importarFatura, conciliarFatura, addFixo, fixosValoresOk } = store
   const faturaMesOk = compras.some((c) => 'fatura_mes' in c)
 
   const pre = useRef(null)
@@ -44,6 +46,7 @@ export function useAssistenteImportacao(store, inicial = null) {
   const [bancoV2, setBancoV2] = useState(null) // null = ainda não sei; false = banco sem a atualização 38 (sem rascunho, sem atualizar/mover)
   const [salvoEm, setSalvoEm] = useState(null)
   const [importadas, setImportadas] = useState([])
+  const [fixosMarcados, setFixosMarcados] = useState(() => new Set()) // linhas que o usuário quer cadastrar também como conta fixa (depois de importar)
   const [conciliando, setConciliando] = useState(null) // lote já importado que está sendo reconferido: { id, operacaoId, status }
 
   const ctxAnalise = useCallback((ls, m = modoValor, mes = mesFatura) => reanalisar(ls, compras, aliases, m, { cartoes, mesFatura: mes }), [compras, aliases, cartoes, modoValor, mesFatura])
@@ -83,7 +86,7 @@ export function useAssistenteImportacao(store, inicial = null) {
 
   function limpar() {
     setArquivo(null); setLinhas([]); setCartaoId(''); setMesFatura(nowYM()); setModoValor('parcela'); setImportacaoId(null)
-    setErro(''); setResultado(null); setEtapa(1); setMaxEtapa(1); setSalvoEm(null); setLendo(null); setConciliando(null)
+    setErro(''); setResultado(null); setEtapa(1); setMaxEtapa(1); setSalvoEm(null); setLendo(null); setConciliando(null); setFixosMarcados(new Set())
   }
 
   function abrirCsv(file) {
@@ -148,6 +151,18 @@ export function useAssistenteImportacao(store, inicial = null) {
     atualizarLinha(id, { categoria, subcategoria: subs.length === 1 ? subs[0] : '', sugerida: false })
   }
 
+  // ---- cobranças recorrentes (assinaturas): a linha pode virar conta fixa depois da importação ----
+  const indiceAliases = useMemo(() => indexarAliases(aliases), [aliases])
+  const recorrencias = useMemo(() => {
+    let ignoradas = []
+    try { ignoradas = JSON.parse(localStorage.getItem('recorrencias_ignoradas') || '[]') } catch { /* sem armazenamento */ }
+    return recorrenciasAntesDaFatura({ compras, fixos, mesFatura, aliases: indiceAliases, ignoradas })
+  }, [compras, fixos, mesFatura, indiceAliases])
+  const recorrenciaDe = useCallback((l) => (l.grupo === 'nova' ? recorrenciaDaLinha(l, recorrencias, indiceAliases) : null), [recorrencias, indiceAliases])
+  const alternarFixo = (id) => setFixosMarcados((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n })
+  const colunaVariavelOk = !!fixosValoresOk && (fixos.length === 0 || 'variavel' in fixos[0])
+  const colunaCartaoOk = fixos.length === 0 || 'cartao_id' in fixos[0]
+
   // ---- análise e plano (calculados na hora, a cada decisão) ----
   const analise = useMemo(() => {
     if (!linhas.length || !cartaoId || !mesFatura) return null
@@ -155,6 +170,12 @@ export function useAssistenteImportacao(store, inicial = null) {
   }, [linhas, compras, cartoes, fixos, cartaoId, mesFatura, aliases, modoValor, categorias, arquivo?.totalBanco])
 
   const plano = useMemo(() => (analise ? montarPlano({ analise, mesFatura, cartoes, faturaMesOk, modoValor, cartaoId, arquivo: arquivo || {}, linhasDoArquivo: linhas, fechamentos: store.fechamentos || [] }) : null), [analise, mesFatura, cartoes, faturaMesOk, modoValor, cartaoId, arquivo, linhas, store.fechamentos])
+
+  // contas fixas que serão cadastradas depois da importação (só de linhas novas, selecionadas e marcadas)
+  const fixosAPlanejar = useMemo(() => (analise?.linhas || []).filter((l) => l.grupo === 'nova' && l.selecionada && fixosMarcados.has(l._id)).map((l) => {
+    const rec = recorrenciaDaLinha(l, recorrencias, indiceAliases)
+    return rec ? { id: l._id, nome: rec.nome, valor: Number(l.valor), variavel: !rec.valorFixo, inicio: addMonths(mesFatura, 1), linha: l, rec } : null
+  }).filter(Boolean), [analise, fixosMarcados, recorrencias, indiceAliases, mesFatura])
 
   // ---- rascunho: salva as decisões no lote (sem gravar compras) ----
   const planoRef = useRef(plano)
@@ -224,6 +245,15 @@ export function useAssistenteImportacao(store, inicial = null) {
         listarImportadas(sb).then(setImportadas).catch(() => {})
       } else {
         r = await importarFatura({ importacaoId, dados: plano.dados })
+        // contas fixas pedidas pelo usuário: só depois de a importação terminar (a cobrança desta fatura já entrou como compra normal)
+        if (!r.repetida && fixosAPlanejar.length && typeof addFixo === 'function') {
+          let criadas = 0
+          let falharam = 0
+          for (const f of fixosAPlanejar) {
+            try { (await addFixo(contaFixaDaLinha(f.linha, f.rec, mesFatura, { colunaCartaoOk, colunaVariavelOk }))) === false ? falharam++ : criadas++ } catch { falharam++ }
+          }
+          r = { ...r, fixosCriadas: criadas, fixosFalharam: falharam }
+        }
       }
       setResultado({ ...textoResultado(r), r, pendencias: plano.previa.emAberto, importacaoId })
       setRascunhos((rs) => rs.filter((x) => x.id !== importacaoId))
@@ -238,6 +268,6 @@ export function useAssistenteImportacao(store, inicial = null) {
   return {
     etapa, maxEtapa, irPara, arquivo, linhas, cartaoId, mesFatura, modoValor, importacaoId, lendo, erro, setErro, confirmando, resultado, rascunhos, importadas, conciliando, bancoV2, salvoEm, faturaMesOk,
     analise, plano, cartoes, categorias, pessoas, fechamentos: store.fechamentos || [],
-    abrirCsv, abrirPdf, definirCartao, definirMes, definirModo, definirTotalBanco, atualizarLinha, decidir, escolherParcelamento, mudarCategoria, adicionarLinha, retomar, reconferir, descartar, confirmar, limpar,
+    abrirCsv, abrirPdf, definirCartao, definirMes, definirModo, definirTotalBanco, atualizarLinha, decidir, escolherParcelamento, mudarCategoria, adicionarLinha, retomar, reconferir, descartar, confirmar, limpar, recorrenciaDe, alternarFixo, fixosMarcados, fixosAPlanejar,
   }
 }
