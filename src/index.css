@@ -1394,3 +1394,9 @@ input[type="month"], input[type="date"] { max-width: 100%; }
 .rd-fontes > div { display: flex; flex-wrap: wrap; gap: 2px 6px; align-items: baseline; }
 .rd-fontes dt { color: var(--text2); } .rd-fontes dd { margin: 0; }
 .rd-sub { font-size: 11px; color: var(--text3); }
+.meta-movs { list-style: none; margin: 0; padding: 0; }
+.meta-movs li { display: grid; grid-template-columns: auto 1fr auto auto; gap: 4px 10px; align-items: center; padding: 6px 0; border-top: 1px solid var(--border); font-size: 13px; }
+.meta-movs li:first-child { border-top: 0; }
+.meta-mov-data { font-size: 12px; color: var(--text3); white-space: nowrap; }
+.meta-mov-tipo small { display: block; font-size: 12px; color: var(--text2); }
+.meta-mov-valor.neg { color: var(--cor-erro); } .meta-mov-valor.pos { color: var(--cor-ok); }
