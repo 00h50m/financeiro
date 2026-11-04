@@ -5,13 +5,16 @@ import NavMes, { Pilulas } from './NavMes'
 import { reaisParaCentavos } from '../lib/aulas'
 import { fmt, fmtK, mesLabel, nowYM, totalRenda, gastosPorCategoria, statusTeto } from '../lib/utils'
 import { confirmar, avisar } from '../lib/dialogos'
+import Selo from './ui/Selo'
+import Indicador from './ui/Indicador'
+import EstadoVazio from './ui/EstadoVazio'
 
 const ORDEM = { estourou: 0, perto: 1, ok: 2, sem: 3 }
 const STATUS = {
-  sem: { badge: 'badge-gray', texto: 'Sem teto', cor: 'var(--text3)' },
-  ok: { badge: 'badge-green', texto: 'Dentro', cor: 'var(--green)' },
-  perto: { badge: 'badge-amber', texto: 'Perto do teto', cor: 'var(--amber)' },
-  estourou: { badge: 'badge-red', texto: 'Estourou', cor: 'var(--red)' },
+  sem: { tom: 'neutro', badge: 'badge-gray', texto: 'Sem teto', cor: 'var(--text3)' },
+  ok: { tom: 'ok', badge: 'badge-green', texto: 'Dentro', cor: 'var(--green)' },
+  perto: { tom: 'aviso', badge: 'badge-amber', texto: 'Perto do teto', cor: 'var(--amber)' },
+  estourou: { tom: 'erro', badge: 'badge-red', texto: 'Estourou', cor: 'var(--red)' },
 }
 
 
@@ -169,26 +172,14 @@ export default function Orcamento({ store }) {
         </div>
       )}
 
-      <div className="metric-grid">
-        <div className="metric">
-          <div className="metric-label">Total dos tetos</div>
-          <div className="metric-val blue">{totalTeto > 0 ? fmtK(totalTeto) : '—'}</div>
-          <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 6 }}>{totalTeto > 0 ? (renda > 0 ? `${Math.round((totalTeto / renda) * 100)}% da renda do mês` : `${linhas.filter((l) => l.teto > 0).length} categorias`) : 'defina abaixo'}</div>
-        </div>
-        <div className="metric">
-          <div className="metric-label">Gasto (com teto)</div>
-          <div className="metric-val amber">{gastoComTeto > 0 ? fmtK(gastoComTeto) : '—'}</div>
-          {totalTeto > 0 && <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 6 }}>{Math.round((gastoComTeto / totalTeto) * 100)}% do que você planejou</div>}
-        </div>
-        <div className="metric">
-          <div className="metric-label">Ainda pode gastar</div>
-          <div className={`metric-val ${totalTeto - gastoComTeto >= 0 ? 'green' : 'red'}`}>{totalTeto > 0 ? fmtK(totalTeto - gastoComTeto) : '—'}</div>
-        </div>
-        <div className="metric">
-          <div className="metric-label">Gasto sem teto</div>
-          <div className="metric-val">{fmtK(gastoSemTeto)}</div>
-          {gastoTotal > 0 && <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 6 }}>{Math.round((gastoSemTeto / gastoTotal) * 100)}% do gasto do mês</div>}
-        </div>
+      <div className="indicadores">
+        <Indicador rotulo="Total dos tetos" valor={totalTeto > 0 ? fmtK(totalTeto) : '—'} tom="info"
+          sub={totalTeto > 0 ? (renda > 0 ? `${Math.round((totalTeto / renda) * 100)}% da renda do mês` : `${linhas.filter((l) => l.teto > 0).length} categorias`) : 'defina abaixo'} />
+        <Indicador rotulo="Gasto (com teto)" valor={gastoComTeto > 0 ? fmtK(gastoComTeto) : '—'} tom="aviso"
+          sub={totalTeto > 0 ? `${Math.round((gastoComTeto / totalTeto) * 100)}% do que você planejou` : undefined} />
+        <Indicador rotulo="Ainda pode gastar" valor={totalTeto > 0 ? fmtK(totalTeto - gastoComTeto) : '—'} tom={totalTeto - gastoComTeto >= 0 ? 'ok' : 'erro'} />
+        <Indicador rotulo="Gasto sem teto" valor={fmtK(gastoSemTeto)}
+          sub={gastoTotal > 0 ? `${Math.round((gastoSemTeto / gastoTotal) * 100)}% do gasto do mês` : undefined} />
       </div>
 
       {estouradas > 0 && (
@@ -202,7 +193,7 @@ export default function Orcamento({ store }) {
       {mostraCom && (
         <>
           <div className="section-label">com teto</div>
-          {listaCom.length === 0 ? <div className="card"><div className="empty" style={{ padding: 14 }}>Nenhuma categoria com teto{filtro === 'atencao' ? ' perto de estourar' : ''}.</div></div> : (
+          {listaCom.length === 0 ? <EstadoVazio titulo={filtro === 'atencao' ? 'Nenhuma categoria perto de estourar' : 'Nenhuma categoria com teto'} texto={filtro === 'atencao' ? 'Tudo dentro do planejado neste mês.' : 'Digite um teto em uma categoria da lista "sem teto" abaixo.'} /> : (
             <div className="orc-grade">
               {listaCom.map((l) => {
                 const pct = l.teto > 0 ? Math.round((l.gasto / l.teto) * 100) : 0
@@ -212,7 +203,7 @@ export default function Orcamento({ store }) {
                   <article key={l.categoria} className={`orc-card ${l.status}`}>
                     <div className="orc-topo">
                       <div className="orc-nome">{l.categoria}</div>
-                      <span className={`badge ${st.badge}`}>{st.texto}</span>
+                      <Selo tom={st.tom}>{st.texto}</Selo>
                     </div>
                     <div className="orc-barra-linha">
                       <div className="prog-bar" style={{ flex: 1 }}><div className="prog-fill" style={{ width: Math.min(100, pct) + '%', background: st.cor }} /></div>
@@ -238,7 +229,7 @@ export default function Orcamento({ store }) {
       {mostraSem && (
         <>
           <div className="section-label">sem teto{semTeto.length ? ' · do que mais pesa para o que menos pesa' : ''}</div>
-          {listaSem.length === 0 ? <div className="card"><div className="empty" style={{ padding: 14 }}>Todas as categorias com gasto já têm teto. 🎉</div></div> : (
+          {listaSem.length === 0 ? <EstadoVazio titulo="Todas as categorias com gasto já têm teto" texto="Nada a definir por aqui neste mês." /> : (
             <div className="card orc-lista">
               {listaSem.map((l) => {
                 const sugestao = l.media > 0 ? Math.ceil((l.media * 1.1) / 10) * 10 : 0

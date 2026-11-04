@@ -1,5 +1,8 @@
 import { useState } from 'react'
 import Secao from './Secao'
+import Selo from './ui/Selo'
+import Indicador from './ui/Indicador'
+import EstadoVazio from './ui/EstadoVazio'
 import { useProjecaoSazonal } from './RendaSazonal'
 import { mesesParaJuntar } from '../lib/rendaSazonal'
 import { fmt, fmtK, hojeSP, mesLabel } from '../lib/utils'
@@ -74,9 +77,9 @@ function CartaoMeta({ meta, store, custos, sobraMensal, sazonal }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         <div>
           <strong>{meta.nome}</strong>{' '}
-          <span className="badge badge-gray">{meta.tipo === 'reserva' ? 'Reserva' : 'Objetivo'}</span>
-          {s.atingida && <span className="badge badge-green" style={{ marginLeft: 6 }}>Atingida</span>}
-          {meta.ativa === false && <span className="badge badge-gray" style={{ marginLeft: 6 }}>Arquivada</span>}
+          <Selo tom="neutro">{meta.tipo === 'reserva' ? 'Reserva' : 'Objetivo'}</Selo>{' '}
+          {s.atingida && <Selo tom="ok">Atingida</Selo>}{' '}
+          {meta.ativa === false && <Selo tom="neutro">Arquivada</Selo>}
         </div>
         <span className="mono" style={{ fontSize: 13, color: 'var(--text2)' }}>{fmt(s.saldo)} de {s.alvo > 0 ? fmt(s.alvo) : '—'}{s.alvo > 0 ? ` · ${s.pct}%` : ''}</span>
       </div>
@@ -101,21 +104,17 @@ function CartaoMeta({ meta, store, custos, sobraMensal, sazonal }) {
       {abrir && <Movimento meta={meta} store={store} onFechar={() => setAbrir(false)} />}
       {historico && (
         <div style={{ marginTop: 12 }}>
-          {movs.length === 0 ? <div style={{ fontSize: 13, color: 'var(--text3)' }}>Nenhum movimento ainda.</div> : (
-            <table>
-              <tbody>
-                {movs.map((m) => (
-                  <tr key={m.id}>
-                    <td style={{ whiteSpace: 'nowrap', fontSize: 12, color: 'var(--text3)' }}>{dataFmt(m.data)}</td>
-                    <td>{ROTULO[m.tipo] || m.tipo}{m.observacao ? <div style={{ fontSize: 12, color: 'var(--text2)' }}>{m.observacao}</div> : null}</td>
-                    <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13, color: Number(m.valor) < 0 ? 'var(--red)' : 'var(--green)' }}>{Number(m.valor) > 0 ? '+' : ''}{fmt(m.valor)}</td>
-                    <td style={{ width: 1 }}>
-                      <button className="btn btn-ghost btn-sm" onClick={async () => { if (await confirmar('Apagar este movimento? O saldo da meta muda e isso fica na auditoria.')) delMovimentoMeta(m) }} aria-label="Apagar movimento">×</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          {movs.length === 0 ? <EstadoVazio titulo="Nenhum movimento ainda" texto="Registre um aporte para começar a acompanhar." /> : (
+            <ul className="meta-movs">
+              {movs.map((m) => (
+                <li key={m.id}>
+                  <span className="meta-mov-data">{dataFmt(m.data)}</span>
+                  <span className="meta-mov-tipo">{ROTULO[m.tipo] || m.tipo}{m.observacao ? <small>{m.observacao}</small> : null}</span>
+                  <span className={`mono meta-mov-valor ${Number(m.valor) < 0 ? 'neg' : 'pos'}`}>{Number(m.valor) > 0 ? '+' : ''}{fmt(m.valor)}</span>
+                  <button className="btn btn-ghost btn-sm" onClick={async () => { if (await confirmar('Apagar este movimento? O saldo da meta muda e isso fica na auditoria.')) delMovimentoMeta(m) }} aria-label={`Apagar movimento de ${dataFmt(m.data)}`}>×</button>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
       )}
@@ -160,14 +159,26 @@ export default function Metas({ store }) {
     if (ok) { setNome(''); setAlvo(''); setPrazo('') }
   }
 
+  const ativas = metas.filter((m) => m.ativa !== false)
+  const totalGuardado = ativas.reduce((t, m) => t + saldoMeta(store.metasMovimentos, m.id), 0)
+  const totalAlvo = ativas.reduce((t, m) => t + (situacaoDaMeta(m, store.metasMovimentos, custos, hojeSP()).alvo || 0), 0)
   const ordenadas = [...metas].sort((a, b) => (a.ativa === false) - (b.ativa === false) || (a.prioridade || 99) - (b.prioridade || 99))
 
   return (
     <div className="page">
       <div className="cad-topo">
-        <div className="cad-resumo"><span><b>{ordenadas.filter((m) => m.ativa !== false).length}</b> {ordenadas.filter((m) => m.ativa !== false).length === 1 ? 'meta ativa' : 'metas ativas'}</span><span>Custos de {mesLabel(mes)}</span></div>
+        <div className="cad-resumo"><span>Custos de {mesLabel(mes)}</span></div>
         <button className="btn btn-primary tb-primario" onClick={() => setNovaAberta(true)}>+ Nova meta</button>
       </div>
+      {ativas.length > 0 && (
+        <div className="indicadores">
+          <Indicador rotulo={ativas.length === 1 ? 'Meta ativa' : 'Metas ativas'} valor={ativas.length} />
+          <Indicador rotulo="Guardado" valor={fmtK(totalGuardado)} tom="ok" ajuda="Soma do saldo de todas as metas ativas" />
+          <Indicador rotulo="Alvo total" valor={totalAlvo > 0 ? fmtK(totalAlvo) : '—'} />
+          <Indicador rotulo="Falta juntar" valor={totalAlvo > 0 ? fmtK(Math.max(0, totalAlvo - totalGuardado)) : '—'} tom="aviso" />
+        </div>
+      )}
+      {ordenadas.length === 0 && <EstadoVazio titulo="Nenhuma meta ainda" texto="Crie uma meta (viagem, notebook, reserva) para acompanhar quanto já guardou." acao="+ Nova meta" aoClicar={() => setNovaAberta(true)} />}
       <div className="metas-grade">
         {ordenadas.map((m) => <CartaoMeta key={m.id} meta={m} store={store} custos={custos} sobraMensal={sobraMensal} sazonal={sazonal} />)}
       </div>
