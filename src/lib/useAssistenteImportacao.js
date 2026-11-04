@@ -20,7 +20,7 @@ const maisComum = (xs) => { const c = {}; xs.filter(Boolean).forEach((x) => { c[
 
 // `inicial` (para testes e pré-visualização): { registros, nome, origem, totalBanco, etapa } carrega o arquivo já na primeira renderização.
 export function useAssistenteImportacao(store, inicial = null) {
-  const { cartoes, categorias, compras, pessoas, fixos = [], regras = [], aliases = [], importarFatura, conciliarFatura, addFixo, fixosValoresOk } = store
+  const { cartoes, categorias, compras, pessoas, fixos = [], regras = [], aliases = [], importarFatura, conciliarFatura, addFixo, updateFixo, definirValorFixo, fixosValoresOk } = store
   const faturaMesOk = compras.some((c) => 'fatura_mes' in c)
 
   const pre = useRef(null)
@@ -171,6 +171,17 @@ export function useAssistenteImportacao(store, inicial = null) {
 
   const plano = useMemo(() => (analise ? montarPlano({ analise, mesFatura, cartoes, faturaMesOk, modoValor, cartaoId, arquivo: arquivo || {}, linhasDoArquivo: linhas, fechamentos: store.fechamentos || [] }) : null), [analise, mesFatura, cartoes, faturaMesOk, modoValor, cartaoId, arquivo, linhas, store.fechamentos])
 
+  // ajustes nas contas fixas pedidos pelas decisões (valor deste mês de conta variável; conta fixa passando para este cartão): feitos depois da importação
+  const efeitosFixos = useMemo(() => (analise?.linhas || []).filter((l) => l.fixoVinculado && l.grupo === 'registrada').flatMap((l) => {
+    const { id, nome, variavel, valor: valorFixo, acao } = l.fixoVinculado
+    const v = Number(l.valor)
+    const ef = []
+    if ((acao === 'valor' || acao === 'passar') && variavel && Math.abs(v - valorFixo) >= 0.02) ef.push({ tipo: 'valor', fixoId: id, nome, mes: mesFatura, valor: v, antes: valorFixo })
+    if (acao === 'passar') ef.push({ tipo: 'cartao', fixoId: id, nome, cartaoId })
+    if (acao === 'valor' && !variavel && Math.abs(v - valorFixo) >= 0.02) ef.push({ tipo: 'aviso', fixoId: id, nome, valor: v, antes: valorFixo }) // valor fixo: só avisa
+    return ef
+  }), [analise, mesFatura, cartaoId])
+
   // contas fixas que serão cadastradas depois da importação (só de linhas novas, selecionadas e marcadas)
   const fixosAPlanejar = useMemo(() => (analise?.linhas || []).filter((l) => l.grupo === 'nova' && l.selecionada && fixosMarcados.has(l._id)).map((l) => {
     const rec = recorrenciaDaLinha(l, recorrencias, indiceAliases)
@@ -254,6 +265,18 @@ export function useAssistenteImportacao(store, inicial = null) {
           }
           r = { ...r, fixosCriadas: criadas, fixosFalharam: falharam }
         }
+        const aplicaveis = efeitosFixos.filter((e) => e.tipo !== 'aviso')
+        if (!r.repetida && aplicaveis.length) {
+          let ajustadas = 0
+          let falharam = 0
+          for (const e of aplicaveis) {
+            try {
+              const ok = e.tipo === 'valor' ? await definirValorFixo?.(e.fixoId, e.mes, e.valor) : await updateFixo?.(e.fixoId, { cartao_id: e.cartaoId })
+              ok === false || ok === undefined ? falharam++ : ajustadas++
+            } catch { falharam++ }
+          }
+          r = { ...r, fixosAjustadas: ajustadas, fixosAjusteFalhou: falharam }
+        }
       }
       setResultado({ ...textoResultado(r), r, pendencias: plano.previa.emAberto, importacaoId })
       setRascunhos((rs) => rs.filter((x) => x.id !== importacaoId))
@@ -268,6 +291,6 @@ export function useAssistenteImportacao(store, inicial = null) {
   return {
     etapa, maxEtapa, irPara, arquivo, linhas, cartaoId, mesFatura, modoValor, importacaoId, lendo, erro, setErro, confirmando, resultado, rascunhos, importadas, conciliando, bancoV2, salvoEm, faturaMesOk,
     analise, plano, cartoes, categorias, pessoas, fechamentos: store.fechamentos || [],
-    abrirCsv, abrirPdf, definirCartao, definirMes, definirModo, definirTotalBanco, atualizarLinha, decidir, escolherParcelamento, mudarCategoria, adicionarLinha, retomar, reconferir, descartar, confirmar, limpar, recorrenciaDe, alternarFixo, fixosMarcados, fixosAPlanejar,
+    abrirCsv, abrirPdf, definirCartao, definirMes, definirModo, definirTotalBanco, atualizarLinha, decidir, escolherParcelamento, mudarCategoria, adicionarLinha, retomar, reconferir, descartar, confirmar, limpar, recorrenciaDe, alternarFixo, fixosMarcados, fixosAPlanejar, efeitosFixos,
   }
 }

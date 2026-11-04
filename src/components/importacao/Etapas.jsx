@@ -277,6 +277,13 @@ export function EtapaConfirmar({ a }) {
               <ul className="imp-lista">{gravar.mover.map((m) => <li key={m.compra_id}>{m.descricao}: {m.fatura_mes_anterior ? mesLabel(m.fatura_mes_anterior) : 'fatura automática'} → {mesLabel(m.fatura_mes)} <span className="mono">{fmt(m.valor)}</span></li>)}</ul>
             </div>
           )}
+          {a.efeitosFixos?.length > 0 && (
+            <div><b>Ajustes em contas fixas, depois da importação</b>
+              <ul className="imp-lista">{a.efeitosFixos.map((e, i) => (
+                <li key={i}>{e.nome}: {e.tipo === 'valor' ? <>valor de {mesLabel(e.mes)} de {fmt(e.antes)} para <b>{fmt(e.valor)}</b></> : e.tipo === 'cartao' ? <>passa a ser cobrada <b>no cartão desta fatura</b> (vale para todos os meses)</> : <span className="imp-erro">o valor da conta fixa é fixo ({fmt(e.antes)}): se o preço mudou para {fmt(e.valor)}, atualize em Contas fixas</span>}</li>
+              ))}</ul>
+            </div>
+          )}
           {a.fixosAPlanejar?.length > 0 && (
             <div><b>{a.fixosAPlanejar.length} conta{a.fixosAPlanejar.length === 1 ? '' : 's'} fixa{a.fixosAPlanejar.length === 1 ? '' : 's'} a cadastrar depois da importação</b>
               <ul className="imp-lista">{a.fixosAPlanejar.map((f) => <li key={f.id}>{f.nome} <span className="mono">{fmt(f.valor)}</span> <span className="cad-sub">· {f.variavel ? 'valor variável' : 'valor fixo'} · a partir de {mesLabel(f.inicio)}</span></li>)}</ul>
@@ -340,6 +347,7 @@ export function Resultado({ a, aoVerFaturas }) {
         <b>{r.tipo === 'ok' ? '✓ ' : ''}{r.titulo}</b>
         <div style={{ fontSize: 13, marginTop: 4 }}>{r.detalhe}</div>
         {r.fixos && <div style={{ fontSize: 13, marginTop: 6 }}>🔁 {r.fixos}</div>}
+        {r.fixosAjuste && <div style={{ fontSize: 13, marginTop: 6 }}>🔁 {r.fixosAjuste}</div>}
         {r.aviso && <div style={{ fontSize: 12, marginTop: 6 }}>⚠ {r.aviso}</div>}
       </div>
       {r.r && !r.r.repetida && (

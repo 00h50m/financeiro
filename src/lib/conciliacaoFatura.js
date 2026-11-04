@@ -35,7 +35,7 @@ export function naturezaDaLinha(l) {
 // Devolve o patch para a linha (mesmo formato que a tela já usa). Sem decisão = volta ao que o app sugeriu.
 export function decisaoPatch(decisao) {
   switch (decisao) {
-    case 'mesma': case 'manter': case 'atualizar': case 'mover': case 'depois': return { decisao, incluir: false, incluirManual: true }
+    case 'mesma': case 'manter': case 'atualizar': case 'mover': case 'passar': case 'depois': return { decisao, incluir: false, incluirManual: true }
     case 'outra': return { decisao, incluir: true, incluirManual: true }
     default: return { decisao: undefined, incluirManual: false }
   }
@@ -44,7 +44,7 @@ export function decisaoPatch(decisao) {
 // ---------- classificação de uma linha ----------
 // grupos: registrada | nova | revisao | ignorada
 // motivos (revisão): correspondencia_provavel | valor_diferente | parcelamento_ambiguo | parcelamento_sem_registro | outra_fatura | dados_incompletos
-export function classificarLinha(l, { foraDoMesIds = new Set(), contaFixaIds = new Set(), categorias = [], mesFatura = '', parcelamentoOk = null } = {}) {
+export function classificarLinha(l, { foraDoMesIds = new Set(), contaFixaIds = new Set(), contaFixaProvavel = new Map(), contaFixaFora = new Map(), categorias = [], mesFatura = '', parcelamentoOk = null } = {}) {
   const natureza = naturezaDaLinha(l)
   const base = { natureza, motivos: [], confirmada: false, adiada: false, bloqueios: [] }
   if (natureza === 'pagamento') return { ...base, grupo: 'ignorada', acao: 'ignorar', selecionada: false }
@@ -55,6 +55,19 @@ export function classificarLinha(l, { foraDoMesIds = new Set(), contaFixaIds = n
   const registrada = (confirmada) => ({ ...base, grupo: 'registrada', acao: 'nada', selecionada: false, confirmada })
 
   if (contaFixaIds.has(l._id)) return registrada(false) // já existe como conta fixa no cartão
+
+  // parece uma conta fixa (valor diferente, ou conta fixa paga fora do cartão): a pessoa decide; "outra compra" segue o fluxo normal
+  const fixoNoCartao = contaFixaProvavel.get(l._id)
+  if (fixoNoCartao && dec !== 'outra') {
+    if (dec === 'mesma') return { ...registrada(true), fixoVinculado: { ...fixoNoCartao, acao: 'valor' } }
+    return { ...revisao(['conta_fixa_valor'], 'conta_fixa'), fixoCandidato: fixoNoCartao }
+  }
+  const fixoFora = contaFixaFora.get(l._id)
+  if (fixoFora && dec !== 'outra') {
+    if (dec === 'passar') return { ...registrada(true), fixoVinculado: { ...fixoFora, acao: 'passar' } }
+    if (dec === 'mesma') return { ...registrada(true), fixoVinculado: { ...fixoFora, acao: 'nenhuma' } }
+    return { ...revisao(['conta_fixa_fora_do_cartao'], 'conta_fixa'), fixoCandidato: fixoFora }
+  }
 
   // lançada, mas numa fatura que não é esta (outro mês ou cartão): mesmo sendo exata, o total desta fatura não a contém
   if (foraDoMesIds.has(l._id)) {
@@ -91,11 +104,16 @@ export function classificarLinha(l, { foraDoMesIds = new Set(), contaFixaIds = n
 
 // ---------- análise da fatura de um cartão ----------
 // `linhas`: linhas do arquivo JÁ analisadas (com `correspondencia`, como a tela faz). -> { linhas, grupos, contadores, painel, status }
+// o item de fixo do cartão não traz o indicador de valor variável: busca no cadastro
+const comVariavel = (fixo, fixos) => ({ ...fixo, variavel: fixo.variavel ?? !!fixos.find((f) => f.id === fixo.id)?.variavel })
+
 export function analisarFatura({ linhas, compras, cartoes, fixos = [], cartaoId, mes, aliases = [], modo = 'parcela', categorias = [], totalBanco = null }) {
   const conf = conferirFatura({ linhas, compras, cartoes, fixos, cartaoId, mes, aliases }, modo)
   const ctx = {
     foraDoMesIds: new Set(conf.foraDoMes.map((x) => x.linha._id)),
     contaFixaIds: new Set(conf.contaFixa.map((x) => x.linha._id)),
+    contaFixaProvavel: new Map(conf.contaFixaProvavel.map((x) => [x.linha._id, comVariavel(x.fixo, fixos)])),
+    contaFixaFora: new Map(conf.contaFixaFora.map((x) => [x.linha._id, comVariavel(x.fixo, fixos)])),
     categorias, mesFatura: mes,
     parcelamentoOk: (l) => cronogramaParcelamento(l, { mesFatura: mes, modoValor: modo, cartoes }).bate,
   }
@@ -121,10 +139,12 @@ export function analisarFatura({ linhas, compras, cartoes, fixos = [], cartaoId,
   const ajusteAtualizar = somar(atualizacoes, (l) => v(l) - (Number(l.correspondencia.compra.parcelas) > 1 ? Number(l.correspondencia.compra.valor_total) / Number(l.correspondencia.compra.parcelas) : Number(l.correspondencia.compra.valor_total)))
   const movidas = registradas.filter((l) => l.moverParaEstaFatura) // compras já lançadas que passam a contar nesta fatura
   const ajusteMover = somar(movidas)
+  // contas fixas vinculadas: 'passar' coloca o valor da conta fixa dentro desta fatura; 'valor' troca o valor estimado pelo da fatura (só conta variável)
+  const ajusteFixos = somar(classificadas.filter((l) => l.fixoVinculado), (l) => { const f = l.fixoVinculado; const v = Number(l.valor); return f.acao === 'passar' ? (f.variavel ? v : f.valor) : f.acao === 'valor' && f.variavel ? v - f.valor : 0 })
   const totalExtraido = somar(doTotal)
   const totalApp = r2(conf.totalFinapp)
   const novasSelecionadas = somar(selecionadas)
-  const projetado = r2(totalApp + novasSelecionadas + ajusteAtualizar + ajusteMover)
+  const projetado = r2(totalApp + novasSelecionadas + ajusteAtualizar + ajusteMover + ajusteFixos)
   const baseComparacao = totalBanco != null ? Number(totalBanco) : totalExtraido
   const diferenca = r2(projetado - baseComparacao)
 
@@ -144,9 +164,9 @@ export function analisarFatura({ linhas, compras, cartoes, fixos = [], cartaoId,
       divergenciasApp: divergenciasApp.length, deixadasDeFora: deixadasDeFora.length, pendencias,
     },
     painel: {
-      totalBanco: totalBanco != null ? Number(totalBanco) : null, totalExtraido, totalApp, novasSelecionadas, ajusteAtualizar, ajusteMover, projetado,
+      totalBanco: totalBanco != null ? Number(totalBanco) : null, totalExtraido, totalApp, novasSelecionadas, ajusteAtualizar, ajusteMover, ajusteFixos, projetado,
       diferenca, baseDiferenca: totalBanco != null ? 'banco' : 'arquivo', semTotalBanco: totalBanco == null,
-      naturezas, valores: { confirmado: totalApp, estimado: r2(novasSelecionadas + ajusteAtualizar + ajusteMover), projetado },
+      naturezas, valores: { confirmado: totalApp, estimado: r2(novasSelecionadas + ajusteAtualizar + ajusteMover + ajusteFixos), projetado },
     },
     // statusProjetado: como ficaria DEPOIS de importar as novas selecionadas; statusAtual: como está agora, sem importar nada.
     statusAtual: statusDe(selecionadas.length === 0 && movidas.length === 0 && atualizacoes.length === 0),
@@ -162,6 +182,8 @@ export const MOTIVO = {
   parcelamento_ambiguo: 'A parcela desta fatura não é a que o app esperava para este mês.',
   parcelamento_sem_registro: 'É uma parcela em andamento e o parcelamento não está no app: escolha como registrar antes de criar.',
   parcelamento_inconsistente: 'Pelo calendário do cartão, essa parcela não cairia neste mês: registre só esta parcela ou corrija o mês da fatura.',
+  conta_fixa_valor: 'Parece uma conta fixa deste cartão, mas o valor da fatura é diferente do cadastrado. Se for a mesma, ela não é importada de novo.',
+  conta_fixa_fora_do_cartao: 'Existe uma conta fixa com esse nome paga fora do cartão. Importar esta linha contaria a cobrança duas vezes.',
   outra_fatura: 'Já está lançada, mas em outra fatura (outro mês ou cartão).',
   dados_incompletos: 'Faltam dados obrigatórios para importar (categoria, pessoa, data ou valor).',
 }
@@ -169,7 +191,7 @@ export const MOTIVO = {
 // Rótulos curtos dos motivos (para listas e selos).
 export const ROTULO_MOTIVO = {
   correspondencia_provavel: 'Parece já lançada', valor_diferente: 'Valor diferente', parcelamento_ambiguo: 'Parcela diferente do esperado',
-  parcelamento_sem_registro: 'Parcelamento não está no app', parcelamento_inconsistente: 'Parcela não cai neste mês', outra_fatura: 'Está em outra fatura', dados_incompletos: 'Faltam dados',
+  parcelamento_sem_registro: 'Parcelamento não está no app', parcelamento_inconsistente: 'Parcela não cai neste mês', conta_fixa_valor: 'Conta fixa com valor diferente', conta_fixa_fora_do_cartao: 'Conta fixa fora do cartão', outra_fatura: 'Está em outra fatura', dados_incompletos: 'Faltam dados',
 }
 
 // De onde vem a diferença entre o app (projetado) e a fatura: lista o que ainda está em aberto, com valores, e o quanto cada grupo pesa.
