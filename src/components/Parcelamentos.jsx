@@ -3,6 +3,10 @@ import { calendarioQuitacao, terminandoLogo, simularQuitacao } from '../lib/parc
 import { compilar } from '../lib/filtro'
 import { CampoBusca, ResumoFiltro } from './FiltroLista'
 import { fmtK, fmt, mesLabel, nowYM, gerarParcelas, valorParcelaBase, tituloCompra, subtituloCompra } from '../lib/utils'
+import Selo from './ui/Selo'
+import Indicador from './ui/Indicador'
+import EstadoVazio from './ui/EstadoVazio'
+import { Lista, ItemLista } from './ui/Lista'
 
 export default function Parcelamentos({ store }) {
   const { compras, cartoes, pessoas } = store
@@ -69,44 +73,15 @@ export default function Parcelamentos({ store }) {
     return (
       <>
         {titulo && <div className="section-label">{titulo}</div>}
-        <div className={titulo ? 'card' : undefined} style={titulo ? undefined : { overflowX: 'auto' }}>
-          <table>
-            <thead>
-              <tr>
-                <th>{rotulo}</th>
-                <th style={{ textAlign: 'center' }}>Compras ativas</th>
-                <th style={{ textAlign: 'right' }}>Parcela do mês</th>
-                <th style={{ textAlign: 'right' }}>Restante</th>
-                <th style={{ textAlign: 'right' }}>% do total</th>
-                <th>Participação</th>
-              </tr>
-            </thead>
-            <tbody>
-              {linhas.map(({ nome, qtd, doMes, restante }) => (
-                <tr key={nome}>
-                  <td>{badge ? <span className="badge badge-gray">{nome}</span> : nome}</td>
-                  <td style={{ textAlign: 'center', fontFamily: 'DM Mono', fontSize: 13 }}>{qtd}</td>
-                  <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(doMes)}</td>
-                  <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(restante)}</td>
-                  <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{pct(restante).toLocaleString('pt-BR', { minimumFractionDigits: 1 })}%</td>
-                  <td>
-                    <div className="prog-bar" style={{ minWidth: 80 }}>
-                      <div className="prog-fill" style={{ width: pct(restante) + '%', background: 'var(--amber)' }} />
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              <tr style={{ fontWeight: 600, borderTop: '1px solid var(--border)' }}>
-                <td>Total</td>
-                <td style={{ textAlign: 'center', fontFamily: 'DM Mono', fontSize: 13 }}>{tot.qtd}</td>
-                <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(tot.doMes)}</td>
-                <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(tot.restante)}</td>
-                <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>100%</td>
-                <td />
-              </tr>
-            </tbody>
-          </table>
-        </div>
+        <Lista rotulo={`Parcelamentos por ${rotulo.toLowerCase()}`}>
+          {linhas.map(({ nome, qtd, doMes, restante }) => (
+            <ItemLista key={nome} titulo={badge ? <Selo tom="neutro">{nome}</Selo> : nome} valor={fmt(restante)}
+              meta={<span>{qtd} {qtd === 1 ? 'compra ativa' : 'compras ativas'} · {fmt(doMes)} no mês · {pct(restante).toLocaleString('pt-BR', { minimumFractionDigits: 1 })}% do total</span>}>
+              <div className="prog-bar il-barra" aria-hidden="true"><div className="prog-fill" style={{ width: pct(restante) + '%', background: 'var(--amber)' }} /></div>
+            </ItemLista>
+          ))}
+          <ItemLista titulo="Total" valor={fmt(tot.restante)} meta={<span>{tot.qtd} {tot.qtd === 1 ? 'compra' : 'compras'} · {fmt(tot.doMes)} no mês</span>} />
+        </Lista>
       </>
     )
   }
@@ -131,106 +106,62 @@ export default function Parcelamentos({ store }) {
           </span>
         </button>
         {!recolhidas[agrupar + '|' + pessoa] && <div className="card">
-          <table className="tabela-compacta lista-cartoes">
-            <thead>
-              <tr>
-                <th>Compra</th>
-                {agrupar !== 'pessoa' && <th className="col-opc">Pessoa</th>}
-                {agrupar !== 'cartao' && <th className="col-opc">Cartão</th>}
-                {agrupar !== 'categoria' && <th className="col-opc">Categoria</th>}
-                <th className="col-opc" style={{ textAlign: 'right' }}>Parcela</th>
-                <th className="col-opc" style={{ width: 130, textAlign: 'center' }}>Progresso</th>
-                <th style={{ textAlign: 'right' }}>Restante</th>
-                <th className="col-opc" style={{ textAlign: 'center' }}>Término</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {lista.map((c) => {
-                const cartao = cartoes.find((x) => x.id === c.cartao_id)
-                const ps = gerarParcelas(c, cartoes)
-                const total = Number(c.parcelas)
-                const pagas = ps.filter((p) => p.mes < mes).length
-                const pct = Math.round((pagas / total) * 100)
-                const valorRest = ps.filter((p) => p.mes >= mes).reduce((s, p) => s + p.valor, 0)
-                const termino = ps[ps.length - 1]?.mes || ''
-                const mesesLeft = termino
-                  ? Math.round((new Date(termino + '-15') - new Date()) / (1000 * 60 * 60 * 24 * 30))
-                  : 0
-                const badgeT = mesesLeft <= 2 ? 'badge-green' : mesesLeft <= 6 ? 'badge-amber' : 'badge-blue'
-
-                return (
-                  <Fragment key={c.id}>
-                  <tr>
-                    <td className="nome-cel">
-                      <div style={{ fontWeight: 500 }}>{tituloCompra(c)}</div>
-                      <div className="so-mobile">{fmt(valorParcelaBase(c))}/mês · {pagas}/{total} pagas · {nomeCartao(c)} · {c.categoria}{termino ? ` · termina em ${mesLabel(termino)}` : ''}</div>
-                      {subtituloCompra(c) && <div style={{ fontSize: 11, color: 'var(--text3)' }}>no cartão: {subtituloCompra(c)}</div>}
-                      {c.obs && <div style={{ fontSize: 11, color: 'var(--text3)' }}>{c.obs}</div>}
-                    </td>
-                    {agrupar !== 'pessoa' && <td className="col-opc" style={{ fontSize: 12, color: 'var(--text2)' }}>{c.pessoa}</td>}
-                    {agrupar !== 'cartao' && <td className="col-opc"><span className="badge badge-gray">{cartao?.nome || '—'}</span></td>}
-                    {agrupar !== 'categoria' && <td className="col-opc" style={{ fontSize: 12, color: 'var(--text2)' }}>{c.categoria}</td>}
-                    <td className="col-opc" style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>
-                      {fmt(valorParcelaBase(c))}
-                    </td>
-                    <td className="col-opc" style={{ padding: '11px 14px' }}>
-                      <div style={{ fontSize: 11, color: 'var(--text3)', textAlign: 'center', marginBottom: 3 }}>
-                        {pagas} / {total}
-                      </div>
-                      <div className="prog-bar">
-                        <div className="prog-fill" style={{
-                          width: pct + '%',
-                          background: pct >= 80 ? 'var(--green)' : pct >= 40 ? 'var(--amber)' : 'var(--blue)'
-                        }} />
-                      </div>
-                    </td>
-                    <td className="valor-cel" style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13, whiteSpace: 'nowrap' }}>{fmt(valorRest)}</td>
-                    <td className="col-opc" style={{ textAlign: 'center' }}>
-                      {termino ? <span className={`badge ${badgeT}`}>{mesLabel(termino)}</span> : '—'}
-                    </td>
-                    <td className="acoes-td"><button className="btn btn-ghost btn-sm" onClick={() => { setSimulando(simulando === c.id ? null : c.id); setValorBanco('') }} aria-expanded={simulando === c.id}>Quitar?</button></td>
-                  </tr>
-                  {simulando === c.id && (() => {
+          <Lista rotulo={`Parcelamentos de ${pessoa}`}>
+            {lista.map((c) => {
+              const cartao = cartoes.find((x) => x.id === c.cartao_id)
+              const ps = gerarParcelas(c, cartoes)
+              const total = Number(c.parcelas)
+              const pagas = ps.filter((p) => p.mes < mes).length
+              const pct = Math.round((pagas / total) * 100)
+              const valorRest = ps.filter((p) => p.mes >= mes).reduce((s, p) => s + p.valor, 0)
+              const termino = ps[ps.length - 1]?.mes || ''
+              const mesesLeft = termino ? Math.round((new Date(termino + '-15') - new Date()) / (1000 * 60 * 60 * 24 * 30)) : 0
+              const tomT = mesesLeft <= 2 ? 'ok' : mesesLeft <= 6 ? 'aviso' : 'info'
+              const aberto = simulando === c.id
+              return (
+                <ItemLista key={c.id} titulo={tituloCompra(c)} valor={fmt(valorRest)}
+                  selos={termino ? <Selo tom={tomT}>termina {mesLabel(termino)}</Selo> : null}
+                  meta={<>
+                    <span>{fmt(valorParcelaBase(c))}/mês · {pagas}/{total} pagas</span>
+                    {agrupar !== 'pessoa' && <span>{c.pessoa}</span>}
+                    {agrupar !== 'cartao' && <span>{cartao?.nome || 'sem cartão'}</span>}
+                    {agrupar !== 'categoria' && <span>{c.categoria}</span>}
+                  </>}
+                  acoes={<button className="btn btn-ghost btn-sm" onClick={() => { setSimulando(aberto ? null : c.id); setValorBanco('') }} aria-expanded={aberto}>Quitar?<span className="so-leitor"> {tituloCompra(c)}</span></button>}>
+                  <div className="prog-bar il-barra" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={`${pagas} de ${total} parcelas pagas`}>
+                    <div className="prog-fill" style={{ width: pct + '%', background: pct >= 80 ? 'var(--green)' : pct >= 40 ? 'var(--amber)' : 'var(--blue)' }} />
+                  </div>
+                  {subtituloCompra(c) && <div className="fch-nota">no cartão: {subtituloCompra(c)}</div>}
+                  {c.obs && <div className="fch-nota">{c.obs}</div>}
+                  {aberto && (() => {
                     const sim = simularQuitacao(c, cartoes, mes, lerValor(valorBanco))
                     return (
-                      <tr>
-                        <td colSpan={8} style={{ background: 'var(--bg3)', padding: '12px 16px' }}>
-                          <div style={{ fontSize: 13, lineHeight: 1.7 }}>
-                            Quitar <b>{tituloCompra(c)}</b> agora: faltam <b>{sim.parcelasRestantes}</b> parcela{sim.parcelasRestantes > 1 ? 's' : ''} ({fmt(sim.restante)} somando tudo, até {mesLabel(sim.ultimoMes)}).
-                            Depois disso, <b>{fmt(sim.libera)}</b> deixa de sair todo mês.
+                      <div className="fx-meses">
+                        <p>
+                          Quitar <b>{tituloCompra(c)}</b> agora: faltam <b>{sim.parcelasRestantes}</b> parcela{sim.parcelasRestantes > 1 ? 's' : ''} ({fmt(sim.restante)} somando tudo, até {mesLabel(sim.ultimoMes)}).
+                          Depois disso, <b>{fmt(sim.libera)}</b> deixa de sair todo mês.
+                        </p>
+                        <div className="form-group il-banco">
+                          <label htmlFor={`banco-${c.id}`}>Quanto o banco/loja cobra para quitar hoje (R$, opcional):</label>
+                          <input id={`banco-${c.id}`} value={valorBanco} onChange={(e) => setValorBanco(e.target.value)} placeholder="ex.: 950,00" inputMode="decimal" />
+                        </div>
+                        {sim.economia != null && (
+                          <div className={`alert alert-${sim.economia > 0 ? 'green' : 'amber'}`}>
+                            {sim.economia > 0
+                              ? <>Quitando por {fmt(sim.valorBanco)} você <b>economiza {fmt(sim.economia)}</b> ({String(sim.descontoPct).replace('.', ',')}% do que falta) — são os juros que deixa de pagar.</>
+                              : sim.economia === 0 ? <>Esse valor é igual ao que falta: quitar não economiza nada, só libera o fluxo mais cedo.</>
+                                : <>Esse valor é <b>{fmt(Math.abs(sim.economia))} maior</b> que o que falta nas parcelas: não compensa quitar assim.</>}
                           </div>
-                          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 8 }}>
-                            <label style={{ fontSize: 12, color: 'var(--text2)' }}>Quanto o banco/loja cobra para quitar hoje (R$, opcional):</label>
-                            <input value={valorBanco} onChange={(e) => setValorBanco(e.target.value)} placeholder="ex.: 950,00" style={{ width: 130 }} inputMode="decimal" />
-                          </div>
-                          {sim.economia != null && (
-                            <div className={`alert alert-${sim.economia > 0 ? 'green' : 'amber'}`} style={{ marginTop: 10, marginBottom: 0 }}>
-                              {sim.economia > 0
-                                ? <>Quitando por {fmt(sim.valorBanco)} você <b>economiza {fmt(sim.economia)}</b> ({String(sim.descontoPct).replace('.', ',')}% do que falta) — são os juros que deixa de pagar.</>
-                                : sim.economia === 0 ? <>Esse valor é igual ao que falta: quitar não economiza nada, só libera o fluxo mais cedo.</>
-                                  : <>Esse valor é <b>{fmt(Math.abs(sim.economia))} maior</b> que o que falta nas parcelas: não compensa quitar assim.</>}
-                            </div>
-                          )}
-                          <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 8 }}>O app não sabe os juros embutidos nas parcelas; peça ao banco o valor de quitação antecipada (por lei, os juros futuros saem do valor).</div>
-                        </td>
-                      </tr>
+                        )}
+                        <div className="fch-nota">O app não sabe os juros embutidos nas parcelas; peça ao banco o valor de quitação antecipada (por lei, os juros futuros saem do valor).</div>
+                      </div>
                     )
                   })()}
-                  </Fragment>
-                )
-              })}
-              <tr style={{ fontWeight: 600, borderTop: '1px solid var(--border)' }}>
-                <td className="col-opc" colSpan={3}>Total de {pessoa} ({lista.length})</td>
-                <td className="so-cel">Total ({lista.length})</td>
-                <td className="col-opc" style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(lista.reduce((t, c) => t + valorParcelaBase(c), 0))}</td>
-                <td className="col-opc" />
-                <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>{fmt(lista.reduce((t, c) => t + valoresDe(c).restante, 0))}</td>
-                <td className="col-opc" />
-                <td />
-              </tr>
-            </tbody>
-          </table>
+                </ItemLista>
+              )
+            })}
+            <ItemLista titulo={`Total de ${pessoa} (${lista.length})`} valor={fmt(lista.reduce((t, c) => t + valoresDe(c).restante, 0))} meta={<span>{fmt(lista.reduce((t, c) => t + valorParcelaBase(c), 0))}/mês</span>} />
+          </Lista>
         </div>}
       </div>
     )
@@ -238,19 +169,10 @@ export default function Parcelamentos({ store }) {
 
   return (
     <div className="page">
-      <div className="metric-grid">
-        <div className="metric">
-          <div className="metric-label">Dívida total restante</div>
-          <div className="metric-val red">{fmtK(totalRestante)}</div>
-        </div>
-        <div className="metric">
-          <div className="metric-label">Parcelas ativas</div>
-          <div className="metric-val blue">{ativas.length}</div>
-        </div>
-        <div className="metric">
-          <div className="metric-label">Comprometido este mês</div>
-          <div className="metric-val amber">{fmtK(totalMes)}</div>
-        </div>
+      <div className="indicadores">
+        <Indicador rotulo="Dívida total restante" valor={fmtK(totalRestante)} tom="erro" />
+        <Indicador rotulo="Parcelas ativas" valor={ativas.length} tom="info" />
+        <Indicador rotulo="Comprometido este mês" valor={fmtK(totalMes)} tom="aviso" />
       </div>
 
       {ativas.length > 0 && (
@@ -330,12 +252,10 @@ export default function Parcelamentos({ store }) {
       )}
 
       {ativas.length === 0 && (
-        <div className="empty">
-          Nenhum parcelamento ativo.{'\n'}As compras parceladas aparecem aqui automaticamente.
-        </div>
+        <EstadoVazio titulo="Nenhum parcelamento ativo" texto="As compras parceladas aparecem aqui automaticamente." />
       )}
 
-      {filtroAtivo && filtradas.length === 0 && <div className="empty">Nenhum parcelamento com esses filtros.{'\n'}Tente outro termo ou clique em "Limpar filtros".</div>}
+      {filtroAtivo && filtradas.length === 0 && <EstadoVazio titulo="Nenhum parcelamento com esses filtros" texto="Tente outro termo ou limpe os filtros." acao="Limpar filtros" aoClicar={() => { setBusca(''); setFiltroCartao('') }} />}
       {agrupar === 'pessoa' ? (
         <>
           {pessoas.map((p) => renderGrupo(p.nome))}

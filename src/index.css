@@ -1421,3 +1421,5 @@ input[type="month"], input[type="date"] { max-width: 100%; }
 .il-ok { color: var(--cor-ok); } .il-erro { color: var(--cor-erro); } .il-aviso { color: var(--cor-aviso); }
 .fx-lista > .fx-item > .fx-acoes:last-child { margin-top: 8px; }
 .card > .fx-lista .fx-item:first-child { border-top: 0; }
+.il-barra { margin-top: 8px; }
+.il-banco { margin: 8px 0; max-width: 320px; }

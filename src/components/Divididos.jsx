@@ -2,6 +2,10 @@ import { useState } from 'react'
 import { addMonths, fmt, mesLabel, nowYM, tituloCompra } from '../lib/utils'
 import { descricaoDoItem, parteTotal, resumoRepasses, saldoPorPessoa } from '../lib/divisoes'
 import { confirmar, avisar, pedir } from '../lib/dialogos'
+import Selo from './ui/Selo'
+import Indicador from './ui/Indicador'
+import EstadoVazio from './ui/EstadoVazio'
+import { Lista, ItemLista } from './ui/Lista'
 
 const num = (t) => Number(String(t).replace(',', '.'))
 const brData = (iso) => (iso ? iso.split('-').reverse().join('/') : '')
@@ -128,10 +132,10 @@ export default function Divididos({ store }) {
         <button className="btn btn-ghost btn-sm" onClick={() => setMes(addMonths(mes, 1))} aria-label="Próximo mês">→</button>
       </div>
 
-      <div className="metric-grid">
-        <div className="metric"><div className="metric-label">A receber neste mês</div><div className="metric-val amber">{fmt(r.aReceber)}</div></div>
-        <div className="metric"><div className="metric-label">Recebido neste mês</div><div className="metric-val green">{fmt(r.recebido)}</div></div>
-        <div className="metric"><div className="metric-label">A receber (todos os meses)</div><div className="metric-val">{fmt(totalDeve)}</div></div>
+      <div className="indicadores">
+        <Indicador rotulo="A receber neste mês" valor={fmt(r.aReceber)} tom="aviso" />
+        <Indicador rotulo="Recebido neste mês" valor={fmt(r.recebido)} tom="ok" />
+        <Indicador rotulo="A receber (todos os meses)" valor={fmt(totalDeve)} />
       </div>
 
       {Object.keys(deve).length > 0 && (
@@ -142,56 +146,34 @@ export default function Divididos({ store }) {
 
       <div className="section-label">{mesLabel(mes)}</div>
       {r.itens.length === 0 ? (
-        <div className="empty">Nenhuma parte de outras pessoas neste mês.</div>
+        <EstadoVazio titulo="Nenhuma parte de outras pessoas neste mês" texto="Quando você dividir uma compra ou conta fixa, a parte de cada pessoa aparece aqui." />
       ) : (
-        <div className="card" style={{ overflowX: 'auto' }}>
-          <table>
-            <thead><tr><th>Pessoa</th><th>Item</th><th style={{ textAlign: 'right' }}>Parte dela</th><th>Situação</th></tr></thead>
-            <tbody>
-              {r.itens.map((i) => (
-                <tr key={i.divisao.id}>
-                  <td>{i.pessoa}</td>
-                  <td>{i.descricao}{i.divisao.observacao ? <div style={{ fontSize: 12, color: 'var(--text3)' }}>{i.divisao.observacao}</div> : null}</td>
-                  <td style={{ textAlign: 'right', fontFamily: 'DM Mono' }}>{fmt(i.recebido ? i.valorRecebido : i.esperado)}</td>
-                  <td style={{ whiteSpace: 'nowrap' }}>
-                    {i.recebido ? (
-                      <>
-                        <span className="badge badge-green">recebido{i.recebidoEm ? ` em ${brData(i.recebidoEm)}` : ''}</span>{' '}
-                        <button className="btn btn-ghost btn-sm" onClick={() => desmarcarRepasse(i.divisao.id, mes)}>Desfazer</button>
-                      </>
-                    ) : (
-                      <>
-                        <span className="badge badge-amber">a receber</span>{' '}
-                        <button className="btn btn-primary btn-sm" onClick={() => receber(i)}>Recebi</button>
-                      </>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="card">
+          <Lista rotulo={`Partes a receber em ${mesLabel(mes)}`}>
+            {r.itens.map((i) => (
+              <ItemLista key={i.divisao.id} titulo={`${i.pessoa} · ${i.descricao}`} valor={fmt(i.recebido ? i.valorRecebido : i.esperado)} tomValor={i.recebido ? 'ok' : undefined}
+                selos={i.recebido ? <Selo tom="ok">{`recebido${i.recebidoEm ? ` em ${brData(i.recebidoEm)}` : ''}`}</Selo> : <Selo tom="aviso">a receber</Selo>}
+                meta={i.divisao.observacao ? <span>{i.divisao.observacao}</span> : null}
+                acoes={i.recebido
+                  ? <button className="btn btn-ghost btn-sm" onClick={() => desmarcarRepasse(i.divisao.id, mes)}>Desfazer<span className="so-leitor"> recebimento de {i.pessoa}</span></button>
+                  : <button className="btn btn-primary btn-sm" onClick={() => receber(i)}>Recebi<span className="so-leitor"> de {i.pessoa}</span></button>} />
+            ))}
+          </Lista>
         </div>
       )}
 
       <div className="section-label" style={{ marginTop: 24 }}>Divisões cadastradas</div>
       {divisoes.length === 0 ? (
-        <div className="empty">Nenhuma divisão cadastrada ainda.</div>
+        <EstadoVazio titulo="Nenhuma divisão cadastrada ainda" texto="Use o formulário acima para dividir uma compra ou conta fixa com outra pessoa." />
       ) : (
-        <div className="card" style={{ overflowX: 'auto' }}>
-          <table>
-            <tbody>
-              {divisoes.map((d) => (
-                <tr key={d.id}>
-                  <td>{d.pessoa}</td>
-                  <td>{descricaoDoItem(store, d)} <span style={{ fontSize: 12, color: 'var(--text3)' }}>({d.tipo === 'fixo' ? 'conta fixa' : 'compra'})</span></td>
-                  <td style={{ fontFamily: 'DM Mono' }}>{d.modo === 'percentual' ? `${Number(d.valor)}%` : fmt(d.valor)}{d.tipo === 'fixo' ? ' /mês' : ''}</td>
-                  <td style={{ textAlign: 'right' }}>
-                    <button className="btn btn-danger" onClick={async () => { if (await confirmar(`Apagar a divisão com ${d.pessoa}? Os valores já recebidos dela também somem.`)) delDivisao(d) }} aria-label={`Apagar divisão com ${d.pessoa}`}>×</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="card">
+          <Lista rotulo="Divisões cadastradas">
+            {divisoes.map((d) => (
+              <ItemLista key={d.id} titulo={`${d.pessoa} · ${descricaoDoItem(store, d)}`} selos={<Selo tom="neutro">{d.tipo === 'fixo' ? 'conta fixa' : 'compra'}</Selo>}
+                valor={`${d.modo === 'percentual' ? `${Number(d.valor)}%` : fmt(d.valor)}${d.tipo === 'fixo' ? ' /mês' : ''}`}
+                acoes={<button className="btn btn-danger fx-remover" onClick={async () => { if (await confirmar(`Apagar a divisão com ${d.pessoa}? Os valores já recebidos dela também somem.`)) delDivisao(d) }} aria-label={`Apagar divisão com ${d.pessoa}`}>Apagar</button>} />
+            ))}
+          </Lista>
         </div>
       )}
     </div>
