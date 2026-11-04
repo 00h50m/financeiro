@@ -5,6 +5,9 @@ import { saldoMeta } from '../lib/metas'
 import { simular, simularNoCartao, analisar, melhorInicio, taxaMensalDeAnual, saldoDevedorEstimado, taxaDaObservacao, LIMITES } from '../lib/emprestimo'
 import { terminandoLogo } from '../lib/parcelamentos'
 import { confirmar, avisar } from '../lib/dialogos'
+import Selo from './ui/Selo'
+import Indicador from './ui/Indicador'
+import EstadoVazio from './ui/EstadoVazio'
 
 const lerNum = (t) => {
   const s = String(t ?? '').trim()
@@ -188,18 +191,15 @@ export default function Emprestimos({ store, irPara }) {
         {erroEntrada && <div className="alert alert-amber" style={{ marginBottom: 0 }}>{erroEntrada}</div>}
       </div>
 
-      {!sim && !erroEntrada && <div className="empty">Preencha o valor, a taxa e o prazo para ver a simulação.</div>}
+      {!sim && !erroEntrada && <EstadoVazio titulo="Falta preencher a simulação" texto="Informe o valor, a taxa e o prazo para ver a parcela, o custo real e se cabe no seu orçamento." />}
 
       {sim && analise && (
         <>
-          <div className="metric-grid">
-            <div className="metric">
-              <div className="metric-label">{sim.sistema === 'sac' ? 'Parcela (1ª → última)' : 'Parcela'}</div>
-              <div className="metric-val blue">{sim.sistema === 'sac' ? `${fmtK(sim.primeira)} → ${fmtK(sim.ultima)}` : fmt(sim.primeira)}</div>
-            </div>
-            <div className="metric"><div className="metric-label">Total que você paga</div><div className="metric-val amber">{fmt(sim.total)}</div></div>
-            <div className="metric"><div className="metric-label">Custo (juros e taxas)</div><div className="metric-val red">{fmt(sim.custo)}</div></div>
-            <div className="metric"><div className="metric-label">CET (custo real)</div><div className="metric-val">{pctTxt(sim.cetMes)} a.m.</div><div style={{ fontSize: 11, color: 'var(--text3)' }}>{pctTxt(sim.cetAno, 1)} ao ano</div></div>
+          <div className="indicadores">
+            <Indicador rotulo={sim.sistema === 'sac' ? 'Parcela (1ª → última)' : 'Parcela'} valor={sim.sistema === 'sac' ? `${fmtK(sim.primeira)} → ${fmtK(sim.ultima)}` : fmt(sim.primeira)} tom="info" />
+            <Indicador rotulo="Total que você paga" valor={fmt(sim.total)} tom="aviso" />
+            <Indicador rotulo="Custo (juros e taxas)" valor={fmt(sim.custo)} tom="erro" />
+            <Indicador rotulo="CET (custo real)" valor={`${pctTxt(sim.cetMes)} a.m.`} sub={`${pctTxt(sim.cetAno, 1)} ao ano`} />
           </div>
 
           <div className={`alert alert-${COR[analise.veredito]}`} style={{ padding: 16 }}>
@@ -247,12 +247,12 @@ export default function Emprestimos({ store, irPara }) {
               <tbody>
                 {analise.alternativas.map((a) => (
                   <tr key={a.prazo} style={a.atual ? { background: 'var(--bg3)' } : undefined}>
-                    <td>{a.prazo} meses {a.atual && <span className="badge badge-blue" style={{ fontSize: 10 }}>simulado</span>}</td>
+                    <td>{a.prazo} meses {a.atual && <Selo tom="info">simulado</Selo>}</td>
                     <td style={{ textAlign: 'right' }} className="mono">{fmt(a.primeira)}</td>
                     <td style={{ textAlign: 'right' }} className="mono">{fmt(a.total)}</td>
                     <td style={{ textAlign: 'right' }} className="mono">{fmt(a.custo)}</td>
                     <td style={{ textAlign: 'right' }} className="mono">{analise.semRenda ? '—' : Math.round(a.maiorPct * 100) + '%'}</td>
-                    <td>{analise.semRenda ? '—' : a.folgado ? <span className="badge badge-green">com folga</span> : a.cabe ? <span className="badge badge-amber">apertado</span> : <span className="badge badge-red">não cabe</span>}</td>
+                    <td>{analise.semRenda ? '—' : a.folgado ? <Selo tom="ok">com folga</Selo> : a.cabe ? <Selo tom="aviso">apertado</Selo> : <Selo tom="erro">não cabe</Selo>}</td>
                   </tr>
                 ))}
               </tbody>
@@ -297,7 +297,7 @@ export default function Emprestimos({ store, irPara }) {
                       <td style={{ textAlign: 'right' }} className="mono">{fmt(c.primeira)}</td>
                       <td style={{ textAlign: 'right' }} className="mono">{fmt(c.total)}</td>
                       <td style={{ textAlign: 'right', color: c.cetAno === melhorCet && cenarios.length > 1 ? 'var(--green)' : undefined }} className="mono">{pctTxt(c.cetAno, 1)}</td>
-                      <td><span className={`badge badge-${COR[c.veredito] === 'blue' ? 'gray' : COR[c.veredito]}`}>{c.veredito === 'cabe' ? 'cabe' : c.veredito === 'apertado' ? 'apertado' : c.veredito === 'nao_cabe' ? 'não cabe' : '—'}</span></td>
+                      <td><Selo tom={c.veredito === 'cabe' ? 'ok' : c.veredito === 'apertado' ? 'aviso' : c.veredito === 'nao_cabe' ? 'erro' : 'neutro'}>{c.veredito === 'cabe' ? 'cabe' : c.veredito === 'apertado' ? 'apertado' : c.veredito === 'nao_cabe' ? 'não cabe' : '—'}</Selo></td>
                       <td><button className="btn btn-danger" onClick={() => removerCenario(c.id)} aria-label="Remover proposta">×</button></td>
                     </tr>
                   )

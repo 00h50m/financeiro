@@ -12,6 +12,10 @@ import ConsultorDividas from './ConsultorDividas'
 import { montarContexto } from '../lib/consultorDividas'
 import { reservaVariavel, sobraReal, CHAVE_RESERVA_AJUSTES, SEMANAS_POR_MES } from '../lib/gastoVariavel'
 import { avisar, pedir } from '../lib/dialogos'
+import Selo from './ui/Selo'
+import Indicador from './ui/Indicador'
+import EstadoVazio from './ui/EstadoVazio'
+import { Lista, ItemLista } from './ui/Lista'
 
 const MESES_PROJECAO = 24
 const prazo = (idx) => (idx == null ? null : `${idx + 1} ${idx + 1 === 1 ? 'mês' : 'meses'}`)
@@ -75,26 +79,19 @@ export default function PlanoDividas({ store }) {
             <>
               <div className="section-label">seu mês de verdade</div>
               <div className="card" style={{ padding: 14 }}>
-                <div className="kpi-faixa" style={{ marginBottom: 10 }}>
-                  <div className="kpi"><div className="kpi-rotulo">Sobra projetada</div><div className="kpi-valor">{fmtK(mediaProjetada)}</div><div className="kpi-sub">renda − o que já está lançado</div></div>
-                  <div className="kpi"><div className="kpi-rotulo">Dia a dia</div><div className="kpi-valor ambar">−{fmtK(reserva.total)}</div><div className="kpi-sub">reservado por mês</div></div>
-                  <div className="kpi"><div className="kpi-rotulo">Sobra real</div><div className="kpi-valor verde">{fmtK(media)}</div><div className="kpi-sub">para dívida, por mês</div></div>
+                <div className="indicadores">
+                  <Indicador rotulo="Sobra projetada" valor={<>{fmtK(mediaProjetada)}</>} sub={<>renda − o que já está lançado</>} />
+                  <Indicador rotulo="Dia a dia" valor={<>−{fmtK(reserva.total)}</>} tom="aviso" sub={<>reservado por mês</>} />
+                  <Indicador rotulo="Sobra real" valor={<>{fmtK(media)}</>} tom="ok" sub={<>para dívida, por mês</>} />
                 </div>
                 {reserva.categorias.length === 0 ? <div className="cad-sub">Sem gastos à vista nos últimos 3 meses para estimar o dia a dia. Lance as compras do dia a dia (combustível, mercado) para o app reservar.</div> : (
-                  <table className="tabela-compacta">
-                    <thead><tr><th>Gasto do dia a dia</th><th style={{ textAlign: 'right' }}>Média 3 meses</th><th style={{ textAlign: 'right' }}>Reservado/mês</th><th style={{ textAlign: 'right' }}>Teto/semana</th><th /></tr></thead>
-                    <tbody>
-                      {reserva.categorias.map((c) => (
-                        <tr key={c.categoria}>
-                          <td>{c.categoria}{c.ajuste != null && <span className="badge badge-blue" style={{ marginLeft: 6, fontSize: 10 }}>ajustado</span>}</td>
-                          <td className="mono" style={{ textAlign: 'right' }}>{fmt(c.media)}</td>
-                          <td className="mono" style={{ textAlign: 'right' }}>{fmt(c.reservado)}</td>
-                          <td className="mono" style={{ textAlign: 'right' }}>{fmt(c.porSemana)}</td>
-                          <td><button className="link-btn" onClick={() => ajustarReserva(c)}>ajustar</button></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  <Lista rotulo="Gasto do dia a dia reservado">
+                    {reserva.categorias.map((c) => (
+                      <ItemLista key={c.categoria} titulo={c.categoria} selos={c.ajuste != null ? <Selo tom="info">ajustado</Selo> : null} valor={`${fmt(c.reservado)}/mês`}
+                        meta={<span>média 3 meses {fmt(c.media)} · teto/semana {fmt(c.porSemana)}</span>}
+                        acoes={<button className="btn btn-ghost btn-sm" onClick={() => ajustarReserva(c)}>Ajustar</button>} />
+                    ))}
+                  </Lista>
                 )}
                 <div className="cad-sub" style={{ marginTop: 8 }}>
                   Conta só compras à vista ou em 1x (parcelamentos, empréstimos e contas fixas já estão lançados). Teto por semana = reservado ÷ {SEMANAS_POR_MES.toFixed(2).replace('.', ',')}. Passe disso e o plano atrasa.
@@ -120,14 +117,14 @@ export default function PlanoDividas({ store }) {
       </div>
 
       {ativas.length === 0 ? (
-        <><div className="card"><div className="empty">Nenhuma dívida cadastrada.{'\n'}Cadastre o cartão, os boletos atrasados, empréstimos e o que mais você deve. Só o nome e quanto deve já bastam; juros e parcela deixam a simulação mais exata.</div></div>{painelMes}</>
+        <><EstadoVazio titulo="Nenhuma dívida cadastrada" texto="Cadastre o cartão, os boletos atrasados, empréstimos e o que mais você deve. Só o nome e quanto deve já bastam; juros e parcela deixam a simulação mais exata." acao="+ Dívida" aoClicar={() => setModal({})} />{painelMes}</>
       ) : (
         <>
-          <div className="kpi-faixa" aria-label="Resumo das dívidas">
-            <div className="kpi"><div className="kpi-rotulo">Total devido</div><div className="kpi-valor vermelho">{fmtK(resumo.total)}</div><div className="kpi-sub">{resumo.qtd} {resumo.qtd === 1 ? 'dívida' : 'dívidas'}{resumo.atrasadas ? ` · ${resumo.atrasadas} atrasada${resumo.atrasadas > 1 ? 's' : ''}` : ''}</div></div>
-            <div className="kpi"><div className="kpi-rotulo">Mínimo por mês</div><div className="kpi-valor ambar">{fmtK(resumo.minimos)}</div><div className="kpi-sub">soma das parcelas informadas</div></div>
-            <div className="kpi"><div className="kpi-rotulo">Juros por mês</div><div className="kpi-valor">{resumo.jurosMes ? fmtK(resumo.jurosMes) : '—'}</div><div className="kpi-sub">{resumo.jurosMes ? 'o que a dívida cresce sozinha' : 'informe os juros para estimar'}</div></div>
-            <div className="kpi"><div className="kpi-rotulo">Livre em</div><div className="kpi-valor verde">{plano.livreMes ? mesLabel(plano.livreMes) : '—'}</div><div className="kpi-sub">{plano.livreEm != null ? `em ${prazo(plano.livreEm)} · ${ESTRATEGIAS[estrategia].split(' (')[0]}` : 'não quita no prazo com esse valor'}</div></div>
+          <div className="indicadores" aria-label="Resumo das dívidas">
+            <Indicador rotulo="Total devido" valor={<>{fmtK(resumo.total)}</>} tom="erro" sub={<>{resumo.qtd} {resumo.qtd === 1 ? 'dívida' : 'dívidas'}{resumo.atrasadas ? ` · ${resumo.atrasadas} atrasada${resumo.atrasadas > 1 ? 's' : ''}` : ''}</>} />
+            <Indicador rotulo="Mínimo por mês" valor={<>{fmtK(resumo.minimos)}</>} tom="aviso" sub={<>soma das parcelas informadas</>} />
+            <Indicador rotulo="Juros por mês" valor={<>{resumo.jurosMes ? fmtK(resumo.jurosMes) : '—'}</>} sub={<>{resumo.jurosMes ? 'o que a dívida cresce sozinha' : 'informe os juros para estimar'}</>} />
+            <Indicador rotulo="Livre em" valor={<>{plano.livreMes ? mesLabel(plano.livreMes) : '—'}</>} tom="ok" sub={<>{plano.livreEm != null ? `em ${prazo(plano.livreEm)} · ${ESTRATEGIAS[estrategia].split(' (')[0]}` : 'não quita no prazo com esse valor'}</>} />
           </div>
 
           {inicialTotal > 0 && (
@@ -163,7 +160,7 @@ export default function PlanoDividas({ store }) {
                   <span className="dividas-cmp-valor">{c.livreMes ? `Livre em ${mesLabel(c.livreMes)}` : e === 'minimos' ? 'Não quita só com o mínimo' : 'Não quita no prazo'}</span>
                   <span className="cad-sub">{c.livreEm != null ? `${prazo(c.livreEm)} · juros ${fmt(c.jurosTotal)}` : 'os juros crescem mais que o pagamento'}</span>
                   {c.economia != null && c.economia > 0.5 && <span className="dividas-eco">economiza {fmt(c.economia)} em juros</span>}
-                  {melhor === e && <span className="badge badge-green">menos juros</span>}
+                  {melhor === e && <Selo tom="ok">menos juros</Selo>}
                   {e === 'minimos' && <span className="cad-sub">referência: sem reforço</span>}
                 </button>
               )
@@ -172,39 +169,37 @@ export default function PlanoDividas({ store }) {
           <div className="cad-sub" style={{ margin: '6px 2px 14px' }}>Avalanche paga primeiro as dívidas de juros mais altos (gasta menos no total). Bola de neve paga primeiro as de menor saldo (você quita rápido e libera parcela).</div>
 
           <div className="section-label">ordem de pagamento ({ESTRATEGIAS[estrategia].split(' (')[0]})</div>
-          <div className="card" style={{ padding: 0 }}>
-            {lista.map((d, i) => {
-              const q = plano.ordemQuitacao.find((o) => o.id === d.id)
-              const nao = plano.naoQuitam.find((o) => o.id === d.id)
-              return (
-                <div key={d.id} className="divida-linha">
-                  <div className="divida-ordem">{i + 1}º</div>
-                  <div className="divida-corpo">
-                    <div><b>{d.nome}</b> <span className="badge badge-gray">{TIPOS_DIVIDA[d.tipo] || 'Outra'}</span>{d.atrasada && <span className="badge badge-red" style={{ marginLeft: 6 }}>atrasada</span>}</div>
-                    <div className="cad-sub">
-                      deve {fmt(Number(d.saldo))}{Number(d.parcela) ? ` · mínimo ${fmt(Number(d.parcela))}` : ''}{Number(d.juros_mes) ? ` · juros ${String(d.juros_mes).replace('.', ',')}% ao mês` : ''}{d.vencimento_dia ? ` · vence dia ${d.vencimento_dia}` : ''}
-                    </div>
+          <div className="card">
+            <Lista rotulo="Ordem de pagamento das dívidas">
+              {lista.map((d, i) => {
+                const q = plano.ordemQuitacao.find((o) => o.id === d.id)
+                const nao = plano.naoQuitam.find((o) => o.id === d.id)
+                return (
+                  <ItemLista key={d.id} ordem={`${i + 1}º`} titulo={d.nome}
+                    selos={<><Selo tom="neutro">{TIPOS_DIVIDA[d.tipo] || 'Outra'}</Selo>{d.atrasada && <Selo tom="erro">atrasada</Selo>}</>}
+                    valor={fmt(Number(d.saldo))}
+                    meta={<span>{[Number(d.parcela) ? `mínimo ${fmt(Number(d.parcela))}` : '', Number(d.juros_mes) ? `juros ${String(d.juros_mes).replace('.', ',')}% ao mês` : '', d.vencimento_dia ? `vence dia ${d.vencimento_dia}` : ''].filter(Boolean).join(' · ') || 'saldo devedor'}</span>}
+                    acoes={<>
+                      <button className="btn btn-ghost btn-sm" onClick={() => paguei(d)}>Paguei</button>
+                      <button className="btn btn-ghost btn-sm" onClick={() => setModal({ divida: d })}>Editar</button>
+                    </>}>
                     <div className="divida-quita">{q ? <>Quita em <b>{mesLabel(q.mes)}</b> ({prazo(q.idx)}){q.jurosPagos > 0.5 ? ` · juros ${fmt(q.jurosPagos)}` : ''}</> : nao ? <span style={{ color: 'var(--red)' }}>Não quita no prazo: os juros comem o pagamento. Renegocie ou aumente o valor.</span> : null}</div>
-                  </div>
-                  <div className="divida-acoes">
-                    <button className="btn btn-ghost btn-sm" onClick={() => paguei(d)}>Paguei</button>
-                    <button className="btn btn-ghost btn-sm" onClick={() => setModal({ divida: d })}>Editar</button>
-                  </div>
-                </div>
-              )
-            })}
+                  </ItemLista>
+                )
+              })}
+            </Lista>
           </div>
 
           {atrasadasApp.length > 0 && (
             <>
               <div className="section-label">contas atrasadas no app (ainda sem pagar)</div>
-              <div className="card" style={{ padding: 0 }}>
-                {atrasadasApp.slice(0, 12).map((a) => (
-                  <div key={a.origem} className="divida-linha">
-                    <div className="divida-corpo"><b>{a.nome}</b><div className="cad-sub">{mesLabel(a.mes)} · {fmt(a.valor)}</div></div>
-                    <button className="btn btn-ghost btn-sm" onClick={() => setModal({ sugestao: a })}>Adicionar ao plano</button>
-                  </div>
-                ))}
+              <div className="card">
+                <Lista rotulo="Contas atrasadas no app">
+                  {atrasadasApp.slice(0, 12).map((a) => (
+                    <ItemLista key={a.origem} titulo={a.nome} valor={fmt(a.valor)} meta={<span>{mesLabel(a.mes)}</span>}
+                      acoes={<button className="btn btn-ghost btn-sm" onClick={() => setModal({ sugestao: a })}>Adicionar ao plano</button>} />
+                  ))}
+                </Lista>
               </div>
               <div className="cad-sub" style={{ margin: '6px 2px 14px' }}>Contas de meses passados que continuam sem o "pago". Se já pagou, marque em Pagamentos. Se não, adicione ao plano para somar na estratégia.</div>
             </>
@@ -213,13 +208,13 @@ export default function PlanoDividas({ store }) {
           {terminando.length > 0 && (
             <>
               <div className="section-label">parcelamentos do app que terminam (liberam dinheiro)</div>
-              <div className="card" style={{ padding: 0 }}>
-                {terminando.map((t) => (
-                  <div key={t.compra.id} className="divida-linha">
-                    <div className="divida-corpo"><b>{tituloCompra(t.compra)}</b><div className="cad-sub">última parcela em {mesLabel(t.termino)} · {t.parcelasRestantes} {t.parcelasRestantes === 1 ? 'parcela restante' : 'parcelas restantes'}</div></div>
-                    <span className="mono" style={{ color: 'var(--green)' }}>libera {fmt(t.libera)}/mês</span>
-                  </div>
-                ))}
+              <div className="card">
+                <Lista rotulo="Parcelamentos que terminam">
+                  {terminando.map((t) => (
+                    <ItemLista key={t.compra.id} titulo={tituloCompra(t.compra)} valor={`libera ${fmt(t.libera)}/mês`} tomValor="ok"
+                      meta={<span>última parcela em {mesLabel(t.termino)} · {t.parcelasRestantes} {t.parcelasRestantes === 1 ? 'parcela restante' : 'parcelas restantes'}</span>} />
+                  ))}
+                </Lista>
               </div>
               <div className="cad-sub" style={{ margin: '6px 2px 14px' }}>Esses já estão na sua sobra projetada: quando terminam, a sobra sobe e o plano acelera sozinho.</div>
             </>
