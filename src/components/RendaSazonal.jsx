@@ -94,7 +94,7 @@ function ValorNosDozeMeses({ rotulo, desabilitado, onAplicar }) {
 export default function RendaSazonal({ store }) {
   const { rendas, rendaSazonal, rendaSazonalOk, definirFatorSazonal, definirValorSazonal, definirSazonalEmLote, aulasPausas } = store
   const { perfil, meses, plano } = useProjecaoSazonal(store)
-  const [abertas, setAbertas] = useState({ resumo: true, perfil: true, proj: true, fontes: true, plano: true })
+  const [abertas, setAbertas] = useState(() => ({ resumo: true, perfil: false, proj: false, fontes: false, plano: !!plano.tem }))
   const [visao, setVisaoEstado] = useState(lerVisao)
   const [mesAberto, setMesAberto] = useState(null)
   const setVisao = (v) => { setVisaoEstado(v); gravarVisao(v) }

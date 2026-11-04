@@ -1388,3 +1388,9 @@ input[type="month"], input[type="date"] { max-width: 100%; }
 .fx-meses p { margin: 0 0 8px; color: var(--text2); line-height: 1.6; }
 .fx-meses li { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; padding: 4px 0; }
 .fx-mes-origem { font-size: 11px; color: var(--text3); min-width: 56px; }
+.rd-atual { background: var(--cor-ok-bg); }
+.rd-ok { color: var(--cor-ok); }
+.rd-fontes { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 6px 0 0; font-size: 12px; }
+.rd-fontes > div { display: flex; flex-wrap: wrap; gap: 2px 6px; align-items: baseline; }
+.rd-fontes dt { color: var(--text2); } .rd-fontes dd { margin: 0; }
+.rd-sub { font-size: 11px; color: var(--text3); }
