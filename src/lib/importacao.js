@@ -5,7 +5,7 @@ import { normBasico, normNome, round2 } from './normalizacao.js'
 import { sugerirIdentificacao } from './nomesAmigaveis.js'
 import { comprasComGruposSomados } from './divisaoCompra.js'
 import { itensDaFatura } from './financeiro.js'
-import { mesDaFatura, gerarParcelas } from './utils.js'
+import { mesDaFatura, gerarParcelas, fixosAtivos } from './utils.js'
 
 // Inteligência da importação de fatura (CSV): reconhecer o que já está lançado, sugerir categoria e nome.
 // Tudo puro e testável; a tela só mostra o resultado.
@@ -257,6 +257,28 @@ export function conferirFatura({ linhas, compras, cartoes, fixos = [], cartaoId,
     return false
   })
 
+  // conta fixa DO CARTÃO com o mesmo nome e valor diferente (conta de valor variável, ou preço que mudou): pergunta, não vincula sozinho
+  const contaFixaProvavel = []
+  faltaLancar = faltaLancar.filter((l) => {
+    const v = valorParcelaLinha(l, modo)
+    const i = fixosLivres.findIndex((f) => similaridadeEstabelecimento(chaveDe(l.descricao), chaveDe(f.nome)) >= 0.8 && Math.abs(f.valor - v) <= Math.max(1, f.valor * 0.5))
+    if (i < 0) return true
+    contaFixaProvavel.push({ linha: l, fixo: fixosLivres[i], valor: v })
+    fixosLivres.splice(i, 1)
+    return false
+  })
+  // conta fixa SEM cartão (paga fora dele) com o mesmo nome e valor parecido: importar a linha contaria a cobrança duas vezes
+  const contaFixaFora = []
+  const foraDoCartao = fixosAtivos(fixos, mes).filter((f) => !f.cartao_id).map((f) => ({ id: f.id, nome: f.nome, valor: Number(f.valor), variavel: !!f.variavel }))
+  faltaLancar = faltaLancar.filter((l) => {
+    const v = valorParcelaLinha(l, modo)
+    const i = foraDoCartao.findIndex((f) => similaridadeEstabelecimento(chaveDe(l.descricao), chaveDe(f.nome)) >= 0.8 && Math.abs(f.valor - v) <= Math.max(1, f.valor * 0.3))
+    if (i < 0) return true
+    contaFixaFora.push({ linha: l, fixo: foraDoCartao[i], valor: v })
+    foraDoCartao.splice(i, 1)
+    return false
+  })
+
   // mesma compra com valor diferente: já veio pareada da análise (tipo 'valor_diferente')
   const valorDiferente = []
   for (const l of doCartao.filter((x) => x.correspondencia?.tipo === 'valor_diferente')) {
@@ -292,6 +314,8 @@ export function conferirFatura({ linhas, compras, cartoes, fixos = [], cartaoId,
     ],
     valorDiferente,
     contaFixa,
+    contaFixaProvavel,
+    contaFixaFora,
     foraDoMes,
     totais: {
       fora: soma(foraDoMes, (f) => f.valor),

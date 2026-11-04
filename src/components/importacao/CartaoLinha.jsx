@@ -15,6 +15,7 @@ function situacao(l) {
     if (l.moverParaEstaFatura) return ['badge-blue', 'Será movida para esta fatura']
     if (l.decisao === 'atualizar') return ['badge-blue', 'Valor será atualizado']
     if (l.decisao === 'manter') return ['badge-gray', 'Mesma compra · valor mantido']
+    if (l.fixoVinculado) return ['badge-blue', { passar: 'Conta fixa passa para este cartão', valor: 'Mesma conta fixa', nenhuma: 'Mesma conta fixa (como está)' }[l.fixoVinculado.acao]]
     return ['badge-green', l.confirmada ? 'Mesma compra (confirmada)' : 'Já registrada']
   }
   if (l.grupo === 'nova') return l.selecionada ? ['badge-blue', 'Nova · será importada'] : ['badge-gray', 'Nova · deixada de fora']
@@ -84,6 +85,22 @@ export default function CartaoLinha({ l, aberto: abertoInicial, valorLinha, mesF
             ) : (
               <div className="imp-acoes">{botao('É a mesma compra', 'mesma', { primario: true, dica: 'Vincula ao lançamento existente, sem criar outro' })}{botao('É outra compra', 'outra', { dica: 'Cria um novo lançamento' })}{botao('Revisar depois', 'depois')}</div>
             )
+          )}
+          {l.grupo === 'revisao' && l.fixoCandidato && (
+            <>
+              <p className="imp-explica" style={{ margin: 0 }}>
+                {motivo === 'conta_fixa_valor'
+                  ? <>Conta fixa <b>{l.fixoCandidato.nome}</b> deste cartão: cadastrada em <b>{fmt(l.fixoCandidato.valor)}</b>, a fatura traz <b>{fmt(valorLinha)}</b>.{l.fixoCandidato.variavel ? ' É uma conta de valor variável: o valor deste mês passa a ser o da fatura.' : ' O valor cadastrado é fixo: se o preço mudou, atualize em Contas fixas.'}</>
+                  : <>Conta fixa <b>{l.fixoCandidato.nome}</b> ({fmt(l.fixoCandidato.valor)}) está cadastrada <b>fora do cartão</b>. Importar esta linha contaria a cobrança duas vezes.</>}
+              </p>
+              <div className="imp-acoes">
+                {motivo === 'conta_fixa_valor'
+                  ? botao(l.fixoCandidato.variavel ? `É a conta fixa: registrar ${fmt(valorLinha)} neste mês` : 'É a conta fixa (não importar)', 'mesma', { primario: true, dica: 'Vincula à conta fixa, sem criar outra compra' })
+                  : <>{botao('Passar a conta fixa para este cartão', 'passar', { primario: true, dica: 'A conta fixa passa a ser cobrada neste cartão (vale para todos os meses) e a linha não é importada' })}{botao('É a mesma, deixar como está', 'mesma', { dica: 'Não importa a linha e não mexe na conta fixa' })}</>}
+                {botao('É outra compra', 'outra', { dica: 'Importa como compra normal' })}
+                {botao('Revisar depois', 'depois')}
+              </div>
+            </>
           )}
           {l.grupo === 'revisao' && motivo === 'valor_diferente' && (
             <>

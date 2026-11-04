@@ -305,3 +305,45 @@ describe('linhas ignoradas e natureza manual', () => {
     expect(depois.painel.totalExtraido).toBe(84.33)
   })
 })
+
+describe('contas fixas na fatura (valor variável e fora do cartão)', () => {
+  const comFixos = (ls, fixos, extra = {}) => analisarFatura({ linhas: preparar(ls, []), compras: [], cartoes, fixos, cartaoId: 'c1', mes: MES, categorias, ...extra })
+  const netflixNoCartao = { id: 'f1', nome: 'Netflix', valor: 59.9, ativo: true, mes_inicio: '2026-01', cartao_id: 'c1', variavel: true }
+  const netflixFora = { id: 'f2', nome: 'Netflix', valor: 55.9, ativo: true, mes_inicio: '2026-01', cartao_id: null }
+  const linhaNetflix = (o) => linha({ descricao: 'Netflix', descricaoOriginal: 'NETFLIX', valor: 55.9, ...o })
+
+  it('conta fixa do cartão com valor diferente vai para revisão (não importa em dobro) e o fixo sai de "só no app"', () => {
+    const a = comFixos([linhaNetflix()], [netflixNoCartao])
+    const l = a.linhas[0]
+    expect(l.grupo).toBe('revisao'); expect(l.motivos).toEqual(['conta_fixa_valor']); expect(l.fixoCandidato).toMatchObject({ id: 'f1', variavel: true })
+    expect(a.grupos.divergenciasApp).toHaveLength(0)
+  })
+  it('"é a mesma" vincula (nada é criado) e a projeção troca o valor estimado pelo da fatura', () => {
+    const a = comFixos([{ ...linhaNetflix(), ...decisaoPatch('mesma') }], [netflixNoCartao])
+    const l = a.linhas[0]
+    expect(l.grupo).toBe('registrada'); expect(l.fixoVinculado).toMatchObject({ acao: 'valor', variavel: true })
+    expect(a.painel.novasSelecionadas).toBe(0); expect(a.painel.ajusteFixos).toBe(-4) // 55,90 − 59,90
+  })
+  it('"é outra compra" segue o fluxo normal (vira compra nova)', () => {
+    const a = comFixos([{ ...linhaNetflix(), ...decisaoPatch('outra') }], [netflixNoCartao])
+    expect(a.linhas[0].grupo).toBe('nova')
+  })
+  it('conta fixa paga FORA do cartão: pergunta; "passar para o cartão" soma o valor da conta fixa na fatura', () => {
+    const base = comFixos([linhaNetflix()], [netflixFora])
+    expect(base.linhas[0]).toMatchObject({ grupo: 'revisao', motivos: ['conta_fixa_fora_do_cartao'] })
+    const passar = comFixos([{ ...linhaNetflix(), ...decisaoPatch('passar') }], [netflixFora])
+    expect(passar.linhas[0]).toMatchObject({ grupo: 'registrada', fixoVinculado: { acao: 'passar' } })
+    expect(passar.painel.ajusteFixos).toBe(55.9)
+    const mesma = comFixos([{ ...linhaNetflix(), ...decisaoPatch('mesma') }], [netflixFora])
+    expect(mesma.linhas[0].fixoVinculado.acao).toBe('nenhuma'); expect(mesma.painel.ajusteFixos).toBe(0)
+  })
+  it('nome diferente ou valor muito distante não vira conta fixa; revisar depois mantém pendente', () => {
+    expect(comFixos([linha({ descricao: 'Padaria', descricaoOriginal: 'PADARIA', valor: 55.9 })], [netflixNoCartao]).linhas[0].grupo).toBe('nova')
+    expect(comFixos([linhaNetflix({ valor: 300 })], [netflixNoCartao]).linhas[0].grupo).toBe('nova')
+    expect(comFixos([{ ...linhaNetflix(), ...decisaoPatch('depois') }], [netflixNoCartao]).linhas[0]).toMatchObject({ grupo: 'revisao', adiada: true })
+  })
+  it('valor igual continua automático (comportamento anterior)', () => {
+    const a = comFixos([linhaNetflix({ valor: 59.9 })], [netflixNoCartao])
+    expect(a.linhas[0].grupo).toBe('registrada'); expect(a.linhas[0].fixoVinculado).toBeUndefined()
+  })
+})
