@@ -1362,3 +1362,29 @@ input[type="month"], input[type="date"] { max-width: 100%; }
 .imp-recorrente { display: flex; gap: var(--espaco-3); align-items: flex-start; background: var(--cor-info-bg); border: 1px solid var(--cor-info-borda); border-radius: var(--raio-md); padding: var(--espaco-3); font-size: var(--texto-sm); color: var(--text2); }
 .imp-recorrente input { width: 22px; height: 22px; min-width: 22px; margin-top: 2px; accent-color: var(--brand); }
 .imp-recorrente b { color: var(--text); }
+
+/* Contas fixas e renda: listas em cartões (mobile-first) */
+.indicadores { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--espaco-3); margin-bottom: var(--espaco-4); }
+@media (min-width: 720px) { .indicadores { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.fx-lista, .fx-recorrentes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.fx-item, .fx-recorrentes > li { padding: var(--espaco-3) var(--espaco-4); border-top: 1px solid var(--border); }
+.fx-item:first-child, .fx-recorrentes > li:first-child { border-top: 0; }
+.fx-parado .fx-titulo, .fx-parado .fx-valor { color: var(--text3); }
+.fx-topo { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--espaco-3); }
+.fx-nome { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+.fx-titulo { font-weight: 600; font-size: 15px; overflow-wrap: anywhere; }
+.fx-valor { font-size: 15px; font-weight: 600; white-space: nowrap; text-align: right; }
+.fx-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-top: 4px; font-size: 12px; color: var(--text2); }
+.fx-ate { color: var(--cor-aviso); }
+.fx-aviso { margin: 8px 0 0; padding: 6px 10px; font-size: 12px; }
+.fx-historico { margin-top: 6px; font-size: 12px; }
+.fx-historico summary { cursor: pointer; color: var(--text2); min-height: 28px; display: flex; align-items: center; }
+.fx-historico ul, .fx-meses ul { list-style: none; margin: 4px 0 0; padding: 0; }
+.fx-historico li { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; padding: 3px 0; color: var(--text2); }
+.fx-acoes { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.fx-acoes .btn { min-height: 36px; }
+.fx-remover { margin-left: auto; }
+.fx-meses { margin-top: 10px; padding: var(--espaco-3); background: var(--bg3); border-radius: var(--raio-md); font-size: 12px; }
+.fx-meses p { margin: 0 0 8px; color: var(--text2); line-height: 1.6; }
+.fx-meses li { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; padding: 4px 0; }
+.fx-mes-origem { font-size: 11px; color: var(--text3); min-width: 56px; }

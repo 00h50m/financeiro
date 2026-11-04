@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { compilar } from '../lib/filtro'
 import { mediaRecente } from '../lib/fixosVariaveis'
 import { agruparVersoes, versoesRedundantes } from '../lib/fixosVersoes'
@@ -9,6 +9,9 @@ import { indexarAliases } from '../lib/estabelecimento'
 import { paraCsv, baixarCsv } from '../lib/csvExport'
 import { CampoBusca, ResumoFiltro, BotaoFiltros } from './FiltroLista'
 import Secao from './Secao'
+import Selo from './ui/Selo'
+import Indicador from './ui/Indicador'
+import EstadoVazio from './ui/EstadoVazio'
 import { Pilulas } from './NavMes'
 import { fmt, fmtK, mesLabel, nowYM, addMonths, fixosAtivos, corPessoa, nomeCasa, donoDoFixo } from '../lib/utils'
 import { confirmar, pedir } from '../lib/dialogos'
@@ -181,118 +184,82 @@ export default function Fixos({ store }) {
     // meses em que a conta vale (últimos 12 até o próximo), cada um com a versão que vale nele
     const mesesDaConta = f.variavel ? Array.from({ length: 13 }, (_, i) => addMonths(mesAtual, i - 11)).map((m) => ({ m, v: fixosAtivos(versoes, m)[0] })).filter((x) => x.v).reverse() : []
     const painelAberto = !!mesesAbertos[f.id]
+    const atual = ativosAgora.find((x) => x.id === f.id)
+    const cartaoDaConta = f.cartao_id ? cartoes.find((c) => c.id === f.cartao_id) : null
+    const parado = !f.ativo || encerrado
+    const historico = [...versoes].filter((v) => !redundantes.some((r) => r.id === v.id)).reverse()
     return (
-      <Fragment key={f.id}>
-      <tr>
-        <td className="nome-cel" style={{ fontWeight: 500 }}>
-          {f.nome}
-          {f.variavel && <span className="badge badge-amber" style={{ marginLeft: 6, fontSize: 10 }}>valor variável</span>}
-          {redundantes.length > 0 && (
-            <div className="alert alert-amber" style={{ margin: '6px 0 0', padding: '6px 10px', fontSize: 11, fontWeight: 400 }}>
-              {redundantes.length} cópia{redundantes.length > 1 ? 's' : ''} repetida{redundantes.length > 1 ? 's' : ''} desta conta (o total já conta só uma).{' '}
-              <button className="link-btn" onClick={async () => { if (await confirmar(`Juntar as cópias de "${f.nome}"?\n\nFica só a versão em vigor (${fmt(f.valor)}); os valores reais e pagamentos das cópias passam para ela. Não dá para desfazer.`)) await juntarVersoes(f.id, redundantes.map((v) => v.id)) }}>Juntar agora</button>
-            </div>
-          )}
-          {versoes.length > 1 && (
-            <details style={{ fontWeight: 400, marginTop: 4 }}>
-              <summary style={{ fontSize: 11, color: 'var(--text3)', cursor: 'pointer' }}>histórico de valores ({versoes.length - redundantes.length} {versoes.length - redundantes.length === 1 ? 'período' : 'períodos'})</summary>
-              <table style={{ marginTop: 4, width: 'auto' }}>
-                <tbody>
-                  {[...versoes].filter((v) => !redundantes.some((r) => r.id === v.id)).reverse().map((v) => (
-                    <tr key={v.id}>
-                      <td style={{ fontSize: 11, color: 'var(--text2)', padding: '2px 14px 2px 0', border: 0 }}>
-                        {v.mes_inicio ? `de ${mesLabel(v.mes_inicio)}` : 'desde o início'}{v.mes_fim ? ` até ${mesLabel(v.mes_fim)}` : ' em diante'}
-                      </td>
-                      <td className="mono" style={{ fontSize: 11, padding: '2px 10px 2px 0', border: 0 }}>{fmt(v.valor)}{v.id === f.id && <span className="badge badge-green" style={{ marginLeft: 6, fontSize: 9 }}>em vigor</span>}</td>
-                      <td style={{ border: 0, padding: '2px 0', whiteSpace: 'nowrap' }}>
-                        {v.id !== f.id && <>
-                          <button className="link-btn" onClick={() => abrir(v)}>editar</button>{' · '}
-                          <button className="link-btn" onClick={async () => { if (await confirmar(`Apagar o período ${v.mes_inicio ? 'de ' + mesLabel(v.mes_inicio) : 'desde o início'}${v.mes_fim ? ' até ' + mesLabel(v.mes_fim) : ''} (${fmt(v.valor)})?\n\nOs meses desse período deixam de ter essa conta. Dá para desfazer logo depois.`)) apagarVersaoFixo(v) }}>apagar</button>
-                        </>}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </details>
-          )}
-          {f.mes_fim && (
-            <div style={{ fontSize: 11, color: encerrado ? 'var(--text3)' : 'var(--amber)', marginTop: 2, fontWeight: 400 }}>
-              {encerrado ? `encerrado em ${mesLabel(f.mes_fim)}` : `até ${mesLabel(f.mes_fim)}`}
-            </div>
-          )}
-          <div className="so-mobile">
-            {donoDoFixo(f, pessoas)} · {f.categoria || 'sem categoria'}{f.subcategoria ? ` › ${f.subcategoria}` : ''}
-            {f.cartao_id && cartoes.find((c) => c.id === f.cartao_id) ? ` · no cartão ${cartoes.find((c) => c.id === f.cartao_id).nome}` : f.dia_vencimento ? ` · vence dia ${f.dia_vencimento}` : ''}
-            {' · '}{!f.ativo ? 'pausado' : encerrado ? 'encerrado' : 'ativo'}
+      <li key={f.id} className={`fx-item${parado ? ' fx-parado' : ''}`}>
+        <div className="fx-topo">
+          <div className="fx-nome">
+            <span className="fx-titulo">{f.nome}</span>
+            {f.variavel && <Selo tom="info">valor variável</Selo>}
+            {parado && <Selo tom="neutro">{!f.ativo ? 'Pausado' : 'Encerrado'}</Selo>}
           </div>
-        </td>
-        <td className="col-opc">
+          <div className="fx-valor mono">
+            {f.variavel && !parado && atual ? (
+              <ValorDoMes fixo={atual} mes={mesAtual} real={f.valores?.[mesAtual]} definirValorFixo={definirValorFixo} />
+            ) : fmt(atual?.valor ?? f.valor)}
+          </div>
+        </div>
+        <div className="fx-meta">
           <span className={`badge badge-${corPessoa(pessoas, donoDoFixo(f, pessoas))}`}>{donoDoFixo(f, pessoas)}</span>
-        </td>
-        <td className="col-opc" style={{ fontSize: 12, color: 'var(--text2)' }}>
-          {f.categoria ? (
-            <>
-              {f.categoria}<br />
-              <span style={{ color: 'var(--text3)' }}>{f.subcategoria}</span>
-            </>
-          ) : (
-            <span style={{ color: 'var(--text3)' }}>sem categoria</span>
-          )}
-          {f.cartao_id && cartoes.find((c) => c.id === f.cartao_id) ? (
-            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>no cartão {cartoes.find((c) => c.id === f.cartao_id).nome}</div>
-          ) : f.dia_vencimento ? (
-            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>vence dia {f.dia_vencimento}</div>
-          ) : null}
-        </td>
-        <td className="valor-cel" style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13 }}>
-          {f.variavel && !encerrado && f.ativo && ativosAgora.find((x) => x.id === f.id) ? (
-            <ValorDoMes fixo={ativosAgora.find((x) => x.id === f.id)} mes={mesAtual} real={f.valores?.[mesAtual]} definirValorFixo={definirValorFixo} />
-          ) : fmt(ativosAgora.find((x) => x.id === f.id)?.valor ?? f.valor)}
-        </td>
-        <td className="col-opc" style={{ textAlign: 'center' }}>
-          <button
-            className={`badge ${f.ativo && !encerrado ? 'badge-green' : 'badge-gray'}`}
-            style={{ cursor: 'pointer' }}
-            onClick={() => alternarAtivo(f, encerrado)}
-          >
-            {!f.ativo ? 'Pausado' : encerrado ? 'Encerrado' : 'Ativo'}
-          </button>
-        </td>
-        <td className="acoes-cel" style={{ display: 'flex', gap: 6 }}>
-          <button className="btn btn-ghost btn-sm so-mobile" style={{ color: 'var(--text2)', fontSize: 12 }} onClick={() => alternarAtivo(f, encerrado)}>{!f.ativo || encerrado ? 'Reativar' : 'Pausar'}</button>
+          <span>{f.categoria || 'sem categoria'}{f.subcategoria ? ` › ${f.subcategoria}` : ''}</span>
+          {cartaoDaConta ? <span>no cartão {cartaoDaConta.nome}</span> : f.dia_vencimento ? <span>vence dia {f.dia_vencimento}</span> : null}
+          {f.mes_fim && <span className={encerrado ? '' : 'fx-ate'}>{encerrado ? `encerrado em ${mesLabel(f.mes_fim)}` : `até ${mesLabel(f.mes_fim)}`}</span>}
+        </div>
+        {redundantes.length > 0 && (
+          <div className="alert alert-amber fx-aviso">
+            {redundantes.length} cópia{redundantes.length > 1 ? 's' : ''} repetida{redundantes.length > 1 ? 's' : ''} desta conta (o total já conta só uma).{' '}
+            <button className="link-btn" onClick={async () => { if (await confirmar(`Juntar as cópias de "${f.nome}"?\n\nFica só a versão em vigor (${fmt(f.valor)}); os valores reais e pagamentos das cópias passam para ela. Não dá para desfazer.`)) await juntarVersoes(f.id, redundantes.map((v) => v.id)) }}>Juntar agora</button>
+          </div>
+        )}
+        {versoes.length > 1 && (
+          <details className="fx-historico">
+            <summary>histórico de valores ({historico.length} {historico.length === 1 ? 'período' : 'períodos'})</summary>
+            <ul>
+              {historico.map((v) => (
+                <li key={v.id}>
+                  <span>{v.mes_inicio ? `de ${mesLabel(v.mes_inicio)}` : 'desde o início'}{v.mes_fim ? ` até ${mesLabel(v.mes_fim)}` : ' em diante'}</span>
+                  <span className="mono">{fmt(v.valor)}</span>
+                  {v.id === f.id && <Selo tom="ok">em vigor</Selo>}
+                  {v.id !== f.id && <span className="fx-hist-acoes">
+                    <button className="link-btn" onClick={() => abrir(v)}>editar</button>{' · '}
+                    <button className="link-btn" onClick={async () => { if (await confirmar(`Apagar o período ${v.mes_inicio ? 'de ' + mesLabel(v.mes_inicio) : 'desde o início'}${v.mes_fim ? ' até ' + mesLabel(v.mes_fim) : ''} (${fmt(v.valor)})?\n\nOs meses desse período deixam de ter essa conta. Dá para desfazer logo depois.`)) await apagarVersaoFixo(v) }}>apagar</button>
+                  </span>}
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
+        <div className="fx-acoes">
           {f.variavel && <button className="btn btn-ghost btn-sm" onClick={() => setMesesAbertos((a) => ({ ...a, [f.id]: a[f.id] ? false : 'curto' }))} aria-expanded={painelAberto} title="Ver, corrigir ou apagar o valor real de cada mês">{painelAberto ? '▾' : '▸'} Meses</button>}
           <button className="btn btn-ghost btn-sm" onClick={() => abrir(f)}>Editar</button>
-          <button className="btn btn-danger" onClick={async () => { if (await confirmar(`Remover "${f.nome}"${versoes.length > 1 ? ` e o histórico de valores (${versoes.length} versões)` : ''}?`)) for (const v of versoes) await delFixo(v.id) }}>×</button>
-        </td>
-      </tr>
-      {painelAberto && (
-        <tr>
-          <td colSpan={6} style={{ background: 'var(--bg3)', padding: '12px 16px' }}>
-            <div style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 8, lineHeight: 1.6 }}>
+          <button className="btn btn-ghost btn-sm" onClick={() => alternarAtivo(f, encerrado)}>{parado ? 'Reativar' : 'Pausar'}</button>
+          <button className="btn btn-danger fx-remover" aria-label={`Remover ${f.nome}`} onClick={async () => { if (await confirmar(`Remover "${f.nome}"${versoes.length > 1 ? ` e o histórico de valores (${versoes.length} versões)` : ''}?`)) for (const v of versoes) await delFixo(v.id) }}>Remover</button>
+        </div>
+        {painelAberto && (
+          <div className="fx-meses">
+            <p>
               <b>Valor real de cada mês.</b> Digite para lançar ou corrigir; <b>"usar estimativa"</b> apaga o valor daquele mês. Só o mês escolhido muda. Meses já fechados ficam travados até você pedir para alterar.
-            </div>
-            <table style={{ width: 'auto', minWidth: 360 }}>
-              <thead><tr><th>Mês</th><th style={{ textAlign: 'right' }}>Valor</th><th /></tr></thead>
-              <tbody>
-                {(mesesAbertos[f.id] === 'todos' ? mesesDaConta : mesesDaConta.slice(0, 6)).map(({ m, v }) => (
-                  <tr key={m}>
-                    <td className="mono" style={{ fontSize: 12 }}>{mesLabel(m)}{m === mesAtual && <span className="badge badge-green" style={{ marginLeft: 6, fontSize: 9 }}>este mês</span>}</td>
-                    <td style={{ textAlign: 'right' }}><ValorDoMes fixo={v} mes={m} real={v.valores?.[m]} definirValorFixo={definirValorFixo} compacto fechado={mesFechado(fechamentos, m)} /></td>
-                    <td style={{ fontSize: 11, color: 'var(--text3)' }}>{v.valores?.[m] != null ? 'real' : 'estimado'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            </p>
+            <ul>
+              {(mesesAbertos[f.id] === 'todos' ? mesesDaConta : mesesDaConta.slice(0, 6)).map(({ m, v }) => (
+                <li key={m}>
+                  <span className="mono">{mesLabel(m)}{m === mesAtual && <Selo tom="ok">este mês</Selo>}</span>
+                  <ValorDoMes fixo={v} mes={m} real={v.valores?.[m]} definirValorFixo={definirValorFixo} compacto fechado={mesFechado(fechamentos, m)} />
+                  <span className="fx-mes-origem">{v.valores?.[m] != null ? 'real' : 'estimado'}</span>
+                </li>
+              ))}
+            </ul>
             {mesesDaConta.length > 6 && (
-              <button className="link-btn" style={{ marginTop: 8, fontSize: 12 }} onClick={() => setMesesAbertos((a) => ({ ...a, [f.id]: a[f.id] === 'todos' ? 'curto' : 'todos' }))}>
+              <button className="link-btn" onClick={() => setMesesAbertos((a) => ({ ...a, [f.id]: a[f.id] === 'todos' ? 'curto' : 'todos' }))}>
                 {mesesAbertos[f.id] === 'todos' ? 'mostrar só os 6 meses mais recentes' : `mostrar os ${mesesDaConta.length} meses`}
               </button>
             )}
-          </td>
-        </tr>
-      )}
-      </Fragment>
+          </div>
+        )}
+      </li>
     )
   }
 
@@ -429,11 +396,11 @@ export default function Fixos({ store }) {
         </div>
       )}
 
-      <div className="metric-grid">
-        <div className="metric"><div className="metric-label">Total por mês{filtroPessoa ? ` · ${filtroPessoa}` : ''}</div><div className="metric-val amber">{fmtK(total)}</div></div>
-        <div className="metric"><div className="metric-label">Pagas no cartão</div><div className="metric-val">{fmtK(totalCartao)}</div></div>
-        <div className="metric"><div className="metric-label">Pagas à parte</div><div className="metric-val">{fmtK(total - totalCartao)}</div></div>
-        <div className="metric"><div className="metric-label">Valor variável</div><div className="metric-val">{qtdVariaveis} {qtdVariaveis === 1 ? 'conta' : 'contas'}</div></div>
+      <div className="indicadores">
+        <Indicador rotulo={`Total por mês${filtroPessoa ? ` · ${filtroPessoa}` : ''}`} valor={fmtK(total)} tom="aviso" />
+        <Indicador rotulo="Pagas no cartão" valor={fmtK(totalCartao)} />
+        <Indicador rotulo="Pagas à parte" valor={fmtK(total - totalCartao)} />
+        <Indicador rotulo="Valor variável" valor={`${qtdVariaveis} ${qtdVariaveis === 1 ? 'conta' : 'contas'}`} />
       </div>
 
       <div className="toolbar">
@@ -479,50 +446,32 @@ export default function Fixos({ store }) {
             <span style={{ color: 'var(--text3)' }}> — aparecem todo mês nas compras e ainda não são contas fixas</span>
             {recorrentes.some((r) => r.aumento) && <span className="badge badge-amber" style={{ marginLeft: 8, fontSize: 10 }}>preço subiu</span>}
           </summary>
-          <table style={{ marginTop: 10 }}>
-            <thead><tr><th>Cobrança</th><th style={{ textAlign: 'right' }}>Última</th><th>Histórico</th><th /></tr></thead>
-            <tbody>
-              {recorrentes.map((r) => (
-                <tr key={r.chave + r.cartao_id}>
-                  <td>{r.nome}<div style={{ fontSize: 11, color: 'var(--text3)' }}>{r.categoria}{!r.valorFixo && !r.aumento && ' · valor varia'}</div></td>
-                  <td style={{ textAlign: 'right' }} className="mono">
-                    {fmt(r.ultimo)}
-                    {r.aumento && <div style={{ fontSize: 11, color: 'var(--amber)' }}>↑ {r.aumento.pct}% (era {fmt(r.aumento.de)})</div>}
-                  </td>
-                  <td style={{ fontSize: 12, color: 'var(--text2)' }}>{r.meses.length} meses seguidos · média {fmt(r.medio)}</td>
-                  <td style={{ whiteSpace: 'nowrap' }}>
-                    <button className="btn btn-primary btn-sm" onClick={() => cadastrarRecorrente(r)}>Cadastrar como conta fixa</button>{' '}
-                    <button className="btn btn-ghost btn-sm" onClick={() => ignorar(r.chave)}>Ignorar</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <ul className="fx-recorrentes">
+            {recorrentes.map((r) => (
+              <li key={r.chave + r.cartao_id}>
+                <div className="fx-topo">
+                  <div className="fx-nome"><span className="fx-titulo">{r.nome}</span>{r.aumento && <Selo tom="aviso">↑ {r.aumento.pct}% (era {fmt(r.aumento.de)})</Selo>}</div>
+                  <div className="fx-valor mono">{fmt(r.ultimo)}</div>
+                </div>
+                <div className="fx-meta"><span>{r.categoria}{!r.valorFixo && !r.aumento && ' · valor varia'}</span><span>{r.meses.length} meses seguidos · média {fmt(r.medio)}</span></div>
+                <div className="fx-acoes">
+                  <button className="btn btn-primary btn-sm" onClick={() => cadastrarRecorrente(r)}>Cadastrar como conta fixa</button>
+                  <button className="btn btn-ghost btn-sm" onClick={() => ignorar(r.chave)}>Ignorar</button>
+                </div>
+              </li>
+            ))}
+          </ul>
         </details>
       )}
       <ResumoFiltro ativo={filtroAtivo} mostrando={fixosVisiveis.length} total={fixos.length} onLimpar={limparFiltros} />
       {secoes.length === 0 ? (
-        <div className="card">
-          <div className="empty">{fixos.length === 0 ? 'Nenhum gasto fixo cadastrado.' : 'Nenhuma conta fixa com esses filtros.\nTente outro termo ou clique em "Limpar filtros".'}</div>
-        </div>
+        <EstadoVazio titulo={fixos.length === 0 ? 'Nenhuma conta fixa cadastrada' : 'Nenhuma conta fixa com esses filtros'}
+          texto={fixos.length === 0 ? 'Cadastre aluguel, assinaturas e contas de todo mês para o app prever quanto já está comprometido.' : 'Tente outro termo ou limpe os filtros.'}
+          acao={fixos.length === 0 ? '+ Novo fixo' : 'Limpar filtros'} aoClicar={fixos.length === 0 ? () => abrir(null) : limparFiltros} />
       ) : secoes.map((sec) => (
         <Secao key={sec.chave} titulo={sec.titulo} info={`${sec.itens.length} ${sec.itens.length === 1 ? 'conta' : 'contas'}`} destaque={`${fmt(totalSecao(sec))}/mês`}
           aberto={secAberta(sec.chave)} onToggle={() => setSecFechadas((m) => ({ ...m, [sec.chave]: secAberta(sec.chave) }))}>
-          <table className="tabela-compacta lista-cartoes tabela-fixa tabela-fixos">
-            <thead>
-              <tr>
-                <th>Nome</th>
-                <th className="col-opc">De quem</th>
-                <th className="col-opc">Categoria</th>
-                <th style={{ textAlign: 'right' }} title="Contas de valor variável mostram a estimativa até você informar o valor real">Valor/mês</th>
-                <th className="col-opc" style={{ textAlign: 'center' }}>Status</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {sec.itens.map(linhaGrupo)}
-            </tbody>
-          </table>
+          <ul className="fx-lista">{sec.itens.map(linhaGrupo)}</ul>
         </Secao>
       ))}
     </div>
