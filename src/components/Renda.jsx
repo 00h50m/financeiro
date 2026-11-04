@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import RendaSazonal from './RendaSazonal'
+import Selo from './ui/Selo'
 import { lerNum } from '../lib/adiamentoPref'
 import { perfil, rotuloRenda } from '../lib/perfil'
 import { fmt, fmtK, mesLabel, nowYM, addMonths, RENDA_CAMPOS, totalRenda } from '../lib/utils'
@@ -135,45 +136,36 @@ export default function Renda({ store, irPara }) {
         <button className="link-btn" onClick={() => setInicio((i) => i + 6)}>próximos meses →</button>
       </div>
       <div className="card">
-        <table className="tabela-compacta">
-          <thead>
-            <tr>
-              <th>Mês</th>
-              {RENDA_CAMPOS.map(([k, l]) => (
-                <th key={k} className="col-opc" style={{ textAlign: 'right' }}>{curto(l)}</th>
-              ))}
-              <th style={{ textAlign: 'right' }}>Total</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {meses.map((m) => {
-              const r = rendas.find((x) => x.mes === m) || null
-              const tot = totalRenda(r)
-              return (
-                <tr key={m} style={m === mes ? { background: 'rgba(34,197,94,0.04)' } : {}}>
-                  <td>
-                    {mesLabel(m)}
-                    {m === mes && <span className="badge badge-green" style={{ marginLeft: 6, fontSize: 10 }}>atual</span>}
-                    <div className="so-mobile">{RENDA_CAMPOS.filter(([k]) => r?.[k] && Number(r[k]) > 0).map(([k, l]) => `${curto(l)} ${fmt(r[k])}`).join(' · ') || 'sem renda cadastrada'}</div>
-                  </td>
-                  {RENDA_CAMPOS.map(([k]) => (
-                    <td key={k} className="col-opc" style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 12, color: r?.[k] && Number(r[k]) > 0 ? 'var(--text)' : 'var(--text3)' }}>
-                      {r?.[k] && Number(r[k]) > 0 ? fmt(r[k]) : '—'}
-                      {k === 'extra_sabrina' && r?.extra_aulas > 0 && <div style={{ fontSize: 10, color: 'var(--text3)' }}>{perfil.aulas ? 'aulas' : 'atendimentos'} {fmt(r.extra_aulas)}{r.aulas_projetadas ? ' (prev.)' : ''}</div>}
-                    </td>
-                  ))}
-                  <td style={{ textAlign: 'right', fontFamily: 'DM Mono', fontSize: 13, fontWeight: 500, color: tot > 0 ? 'var(--green)' : 'var(--text3)' }}>
-                    {tot > 0 ? fmt(tot) : '—'}
-                  </td>
-                  <td>
-                    <button className="btn btn-ghost btn-sm" onClick={() => abrir(m)}>Editar</button>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+        <ul className="fx-lista rd-lista" aria-label="Renda mês a mês">
+          {meses.map((m) => {
+            const r = rendas.find((x) => x.mes === m) || null
+            const tot = totalRenda(r)
+            const fontes = RENDA_CAMPOS.filter(([k]) => r?.[k] && Number(r[k]) > 0)
+            return (
+              <li key={m} className={`fx-item${m === mes ? ' rd-atual' : ''}`}>
+                <div className="fx-topo">
+                  <div className="fx-nome">
+                    <span className="fx-titulo">{mesLabel(m)}</span>
+                    {m === mes && <Selo tom="ok">atual</Selo>}
+                  </div>
+                  <div className={`fx-valor mono${tot > 0 ? ' rd-ok' : ''}`}>{tot > 0 ? fmt(tot) : '—'}</div>
+                </div>
+                {fontes.length > 0 ? (
+                  <dl className="rd-fontes">
+                    {fontes.map(([k, l]) => (
+                      <div key={k}>
+                        <dt>{curto(l)}</dt>
+                        <dd className="mono">{fmt(r[k])}</dd>
+                        {k === 'extra_sabrina' && r?.extra_aulas > 0 && <dd className="rd-sub">{perfil.aulas ? 'aulas' : 'atendimentos'} {fmt(r.extra_aulas)}{r.aulas_projetadas ? ' (prev.)' : ''}</dd>}
+                      </div>
+                    ))}
+                  </dl>
+                ) : <div className="fx-meta"><span>sem renda cadastrada</span></div>}
+                <div className="fx-acoes"><button className="btn btn-ghost btn-sm" onClick={() => abrir(m)}>{tot > 0 ? 'Editar' : 'Cadastrar'}<span className="so-leitor"> renda de {mesLabel(m)}</span></button></div>
+              </li>
+            )
+          })}
+        </ul>
       </div>
 
       <RendaSazonal store={{ ...store, irPara }} />
