@@ -1400,3 +1400,20 @@ input[type="month"], input[type="date"] { max-width: 100%; }
 .meta-mov-data { font-size: 12px; color: var(--text3); white-space: nowrap; }
 .meta-mov-tipo small { display: block; font-size: 12px; color: var(--text2); }
 .meta-mov-valor.neg { color: var(--cor-erro); } .meta-mov-valor.pos { color: var(--cor-ok); }
+
+/* Fechamento do mês */
+.fch-destaque { font-weight: 600; } .fch-destaque.pos { color: var(--cor-ok); } .fch-destaque.neg { color: var(--cor-erro); }
+.fch-itens { margin: 6px 0 0 18px; padding: 0; }
+.fch-campo { max-width: 140px; text-align: right; }
+.fch-sugestao { margin-top: var(--espaco-3); }
+.fch-nota { font-size: 11px; color: var(--text3); }
+.fch-pe { margin-top: 6px; line-height: 1.5; }
+.fch-usar { margin-top: 8px; }
+.fch-acao { margin-top: var(--espaco-4); }
+.fch-confirma { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; cursor: pointer; min-height: var(--alvo-toque); }
+.fch-lista { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--border); }
+.fch-lista li { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 9px var(--espaco-4); border-top: 1px solid var(--border); font-size: 13px; }
+.fch-lista li:first-child { border-top: 0; }
+.fch-lista small { display: block; font-size: 12px; color: var(--text2); }
+.fch-hist li { justify-content: flex-start; }
+.fch-quando { font-size: 12px; color: var(--text3); white-space: nowrap; }
