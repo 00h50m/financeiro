@@ -3,7 +3,7 @@ import {
   datasDaSemanaNoMes, diaDaSemana, somarDias, valorAula, lerDuracao, textoDuracao, reaisParaCentavos, gerarOcorrencias, planejarGeracao,
   aulasDoMes, valorDaAula, duracaoEfetiva, patchRealizar, patchEncerrar, patchDesfazer, patchRemarcar, patchEditar, novaReposicao,
   novaAvulsa, reposicaoAtiva, pendenteDeAtualizacao, aulasParaNovoValor, afetadasPorMudanca, diferencaProgramacao, programacaoVigente,
-  resumoMes, frasePrevistoRealizado, previstasNaPausa,
+  resumoMes, frasePrevistoRealizado, previstasNaPausa, ordenarListaAulas,
 } from '../aulas'
 
 const aluno = (o = {}) => ({ id: 'a1', nome: 'Ana', valor_hora_centavos: 12000, inicio: '2026-11-01', fim: null, ativo: true, inativado_em: null, ...o })
@@ -328,5 +328,25 @@ describe('remarcar com nova duração', () => {
   it('mesma duração ou sem duração não mexe no valor', () => {
     expect(patchRemarcar(a, '2026-10-15', { duracao_min: 60 }, AGORA).duracao_min).toBeUndefined()
     expect(patchRemarcar(a, '2026-10-15', {}, AGORA).duracao_min).toBeUndefined()
+  })
+})
+
+describe('ordenarListaAulas', () => {
+  const a = (id, data, status) => ({ id, data, horario: null, status })
+  it('manda as realizadas para o fim e mantém a ordem de data dentro de cada grupo', () => {
+    const lista = [a('1', '2026-11-02', 'realizada'), a('2', '2026-11-03', 'prevista'), a('3', '2026-11-04', 'realizada'), a('4', '2026-11-05', 'cancelada'), a('5', '2026-11-06', 'prevista')]
+    expect(ordenarListaAulas(lista).map((x) => x.id)).toEqual(['2', '4', '5', '1', '3'])
+  })
+  it('marcar uma aula como realizada a move para baixo', () => {
+    const antes = [a('1', '2026-11-02', 'prevista'), a('2', '2026-11-03', 'prevista')]
+    const depois = antes.map((x) => (x.id === '1' ? { ...x, status: 'realizada' } : x))
+    expect(ordenarListaAulas(antes).map((x) => x.id)).toEqual(['1', '2'])
+    expect(ordenarListaAulas(depois).map((x) => x.id)).toEqual(['2', '1'])
+  })
+  it('não altera a lista original e aceita lista vazia', () => {
+    const l = [a('1', '2026-11-02', 'realizada'), a('2', '2026-11-03', 'prevista')]
+    ordenarListaAulas(l)
+    expect(l.map((x) => x.id)).toEqual(['1', '2'])
+    expect(ordenarListaAulas([])).toEqual([])
   })
 })
