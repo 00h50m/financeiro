@@ -1,4 +1,4 @@
-// Teste da lista de Aulas: ao marcar como realizada, a aula desce para o grupo 'Realizadas'. Rode com: bash scripts/e2e/rodar-aulas-ordem.sh
+// Teste da lista de Aulas: seções recolhíveis por situação e por aluno; realizadas e canceladas descem. Rode com: bash scripts/e2e/rodar-aulas-ordem.sh
 /* global process, console, window, document, localStorage */
 import { createServer } from 'node:http'
 import { readFileSync, existsSync, writeFileSync } from 'node:fs'
@@ -20,9 +20,9 @@ const DB = {
   fixos_valores: [], orcamentos: [{ id: 'o1', categoria: 'Alimentação', valor: 500 }], metas: [{ id: 'm1', nome: 'Viagem', tipo: 'objetivo', valor_alvo: 3000, prazo: null, prioridade: 2, ativa: true }], metas_movimentos: [{ id: 'mv1', meta_id: 'm1', data: '2026-10-10', tipo: 'aporte', valor: 750 }], fixos_pagamentos: [], compras_pagamentos: [], faturas: [], eventos_financeiros: [], importacoes_fatura: [], compras: [{ id: 'cc1', data_compra: '2026-10-20', descricao: 'MERCADO', categoria: 'Alimentação', subcategoria: 'Mercado', pessoa: 'Giovanna', cartao_id: 'c1', valor_total: 620, parcelas: 1, origem: 'manual', pago: false, fatura_mes: null }],
 }
 const aula = (id, data, status, extra) => ({ id, aluno_id: 'al1', data, data_original: data, horario: null, duracao_min: 60, duracao_real_min: status === 'realizada' ? 60 : null, valor_hora_centavos: 12000, valor_centavos: status === 'realizada' ? 12000 : null, status, origem: 'recorrente', programacao_id: 'pg1', historico: [], ...extra })
-DB.alunos = [{ id: 'al1', nome: 'Ana', responsavel: 'Mãe', valor_hora_centavos: 12000, inicio: '2026-10-01', ativo: true }]
+DB.alunos = [{ id: 'al1', nome: 'Ana', responsavel: 'Mãe', valor_hora_centavos: 12000, inicio: '2026-10-01', ativo: true }, { id: 'al2', nome: 'Bia', responsavel: 'Pai', valor_hora_centavos: 10000, inicio: '2026-10-01', ativo: true }]
 DB.aulas_programacao = [{ id: 'pg1', aluno_id: 'al1', dia_semana: 2, horario: null, duracao_min: 60, vigencia_inicio: '2026-10-01', vigencia_fim: null }]
-DB.aulas = [aula('x1', '2026-11-03', 'realizada'), aula('x2', '2026-11-10', 'prevista'), aula('x3', '2026-11-17', 'prevista')]
+DB.aulas = []
 const escritas = []; const rpcs = []
 const sessao = { access_token: 'x.y.z', refresh_token: 'r', token_type: 'bearer', expires_in: 99999, expires_at: 4102444800, user: { id: 'u1', email: 'gi@teste.com', aud: 'authenticated', role: 'authenticated', app_metadata: {}, user_metadata: {}, created_at: '2026-01-01' } }
 const browser = await chromium.launch()
@@ -50,21 +50,39 @@ async function abrir(vp) {
   return ctx
 }
 const erros = []
+const base = () => [aula('x1', '2026-11-03', 'realizada'), aula('x2', '2026-11-10', 'prevista'), aula('x3', '2026-11-17', 'prevista'), aula('x4', '2026-11-05', 'cancelada', { motivo: 'gripe', quem: 'aluno' }), aula('x5', '2026-11-12', 'realizada', { aluno_id: 'al2' })]
 for (const [nome, vp] of [['celular', { width: 390, height: 844 }], ['desktop', { width: 1280, height: 800 }]]) {
-  DB.aulas = [aula('x1', '2026-11-03', 'realizada'), aula('x2', '2026-11-10', 'prevista'), aula('x3', '2026-11-17', 'prevista')]
+  DB.aulas = base()
   const ctx = await abrir(vp)
   const p = await ctx.newPage()
   p.on('pageerror', (e) => erros.push(e.message))
   await p.goto(`http://127.0.0.1:${PORTA}/#/aulas`)
   await p.waitForSelector('.aula-card')
-  const ordem = async () => p.locator('.aulas-lista .aula-card').evaluateAll((els) => els.map((e) => e.className.split(' ')[1]))
-  ok(JSON.stringify(await ordem()) === JSON.stringify(['prevista', 'prevista', 'realizada']), `${nome}: previstas em cima e a realizada no fim → ${JSON.stringify(await ordem())}`)
-  ok((await p.locator('.aulas-feitas-titulo').count()) === 1 && /realizadas \(1\)/i.test(await p.locator('.aulas-feitas-titulo').innerText()), `${nome}: título "Realizadas (1)" antes do grupo`)
+  const titulos = async () => (await p.locator('.grupo-nome').allInnerTexts()).map((t) => t.trim())
+  const cab = (t) => p.locator('.grupo-cab').filter({ has: p.locator('.grupo-nome', { hasText: new RegExp(`^${t}$`) }) })
+  const visiveis = async () => p.locator('.aulas-lista .aula-card').count()
+  const sit = await titulos()
+  ok(JSON.stringify(sit.slice(-3)) === JSON.stringify(['A fazer', 'Realizadas', 'Canceladas e não realizadas']), `${nome}: seções por situação na ordem A fazer → Realizadas → Canceladas (${sit.slice(-3).join(' | ')})`)
+  ok((await visiveis()) === 2, `${nome}: só "A fazer" começa aberta (2 aulas visíveis)`)
+  await cab('Realizadas').click()
+  ok((await visiveis()) === 4, `${nome}: abrir "Realizadas" mostra mais 2 aulas`)
+  await cab('Canceladas e não realizadas').click()
+  ok((await visiveis()) === 5, `${nome}: abrir "Canceladas" mostra a aula cancelada`)
+  await cab('Realizadas').click()
+  ok((await visiveis()) === 3, `${nome}: recolher "Realizadas" esconde as aulas dela`)
+  // marcar como realizada: a aula sai de "A fazer" e vai para "Realizadas"
   await p.locator('.aula-card.prevista').first().getByRole('button', { name: /Realizada/ }).click()
-  for (let i = 0; i < 40 && (await ordem()).filter((c) => c === 'realizada').length < 2; i++) await p.waitForTimeout(100)
-  ok(JSON.stringify(await ordem()) === JSON.stringify(['prevista', 'realizada', 'realizada']), `${nome}: ao marcar como realizada, a aula desce → ${JSON.stringify(await ordem())}`)
-  const textos = await p.locator('.aulas-lista .aula-card').allInnerTexts()
-  ok(textos.length === 3 && !/✓ Realizada/.test(textos[1]) && !/✓ Realizada/.test(textos[2]) && /✓ Realizada/.test(textos[0]), `${nome}: só a aula ainda prevista mantém o botão de realizar`)
+  for (let i = 0; i < 40 && (await cab('A fazer').innerText()).indexOf('1 aula') < 0; i++) await p.waitForTimeout(100)
+  ok(/1 aula\b/.test(await cab('A fazer').innerText()) && /3 aulas/.test(await cab('Realizadas').innerText()), `${nome}: ao marcar como realizada, "A fazer" cai para 1 e "Realizadas" sobe para 3`)
+  // por aluno
+  await p.getByRole('button', { name: 'Por aluno' }).click()
+  const alunos = (await titulos()).slice(-2)
+  ok(JSON.stringify(alunos) === JSON.stringify(['Ana', 'Bia']), `${nome}: por aluno lista Ana e Bia em ordem alfabética`)
+  const ana = (await cab('Ana').innerText()).replace(/\s+/g, ' ')
+  ok(/a fazer/.test(ana) && /realizada/.test(ana) && /cancelada/.test(ana), `${nome}: seção do aluno resume a fazer / realizadas / canceladas (${ana})`)
+  const bia = cab('Bia')
+  await bia.click()
+  ok((await p.locator('.aula-card').count()) >= 1, `${nome}: seção do aluno abre e recolhe`)
   ok((await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)) <= 1, `${nome}: sem rolagem horizontal`)
   await ctx.close()
 }

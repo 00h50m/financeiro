@@ -1,10 +1,10 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { fmt, fmtK, mesLabel, nowYM, hojeSP } from '../lib/utils'
 import {
-  aulasDoMes, ordenarListaAulas, centavosParaReais, diaDaSemana, frasePrevistoRealizado, gerarOcorrencias, mesDe, patchDesfazer, patchRealizar, pendenteDeAtualizacao,
+  aulasDoMes, ordenarListaAulas, agruparAulas, situacaoDaAula, centavosParaReais, diaDaSemana, frasePrevistoRealizado, gerarOcorrencias, mesDe, patchDesfazer, patchRealizar, pendenteDeAtualizacao,
   planejarGeracao, reposicaoAtiva, resumoMes, textoDuracao, valorAula, valorDaAula, duracaoEfetiva, STATUS, DIAS_CURTOS,
 } from '../lib/aulas'
-import NavMes from './NavMes'
+import NavMes, { Pilulas } from './NavMes'
 import Secao from './Secao'
 import ModalAluno from './aulas/ModalAluno'
 import DialogosAula, { rotuloData } from './aulas/DialogosAula'
@@ -43,6 +43,8 @@ export default function Aulas({ store }) {
   const [sel, setSel] = useState(() => new Set())
   const [lote, setLote] = useState(false)
   const [compAberto, setCompAberto] = useState(false)
+  const [agrupar, setAgrupar] = useState('situacao') // 'situacao' | 'aluno'
+  const [secAulas, setSecAulas] = useState({}) // seções da lista abertas/fechadas pela pessoa (chave → boolean)
   const [pausasAberto, setPausasAberto] = useState(false)
   const [simuladorAberto, setSimuladorAberto] = useState(false)
   const [reposicaoAberta, setReposicaoAberta] = useState(false)
@@ -351,15 +353,25 @@ export default function Aulas({ store }) {
             {visao === 'relatorio' || (visao === 'calendario' && doMes.length > 0) ? null : doMes.length === 0 ? (
               <div className="card"><div className="empty">Nenhuma aula em {mesLabel(mes)}{filtro ? ' para este aluno' : ''}.{'\n'}As aulas aparecem sozinhas pela programação semanal; use "+ Aula avulsa" para uma aula fora dela.</div></div>
             ) : visao === 'calendario' ? null : (() => {
-              const ordenadas = ordenarListaAulas(doMes)
-              const nFeitas = ordenadas.filter((a) => a.status === 'realizada').length
-              const nPend = ordenadas.length - nFeitas
-              return ordenadas.map((a, i) => (
-                <Fragment key={a.id}>
-                  {nFeitas > 0 && i === nPend && <div className="section-label aulas-feitas-titulo">Realizadas ({nFeitas})</div>}
-                  {cardAula(a)}
-                </Fragment>
-              ))
+              const grupos = agruparAulas(doMes, agrupar, (id) => alunoPorId.get(id)?.nome || 'Aluno')
+              // abertas por padrão: o que falta fazer (ou, por aluno, quem ainda tem aula a fazer); o resto começa recolhido
+              const abertoPadrao = (g) => (agrupar === 'aluno' ? g.itens.some((a) => situacaoDaAula(a) === 'fazer') : g.chave === 'fazer')
+              const aberta = (g) => (secAulas[`${agrupar}|${g.chave}`] ?? abertoPadrao(g))
+              const resumo = (g) => {
+                if (agrupar !== 'aluno') return `${g.itens.length} ${g.itens.length === 1 ? 'aula' : 'aulas'}`
+                const n = (k) => g.itens.filter((a) => situacaoDaAula(a) === k).length
+                return [`${n('fazer')} a fazer`, `${n('realizadas')} realizada${n('realizadas') === 1 ? '' : 's'}`, n('canceladas') ? `${n('canceladas')} cancelada${n('canceladas') === 1 ? '' : 's'}` : ''].filter(Boolean).join(' · ')
+              }
+              return (
+                <>
+                  <Pilulas rotulo="Organizar aulas" valor={agrupar} onChange={setAgrupar} opcoes={[['situacao', 'Por situação'], ['aluno', 'Por aluno']]} />
+                  {grupos.map((g) => (
+                    <Secao key={`${agrupar}|${g.chave}`} titulo={g.titulo} info={resumo(g)} infoSempre aberto={aberta(g)} onToggle={() => setSecAulas((m) => ({ ...m, [`${agrupar}|${g.chave}`]: !aberta(g) }))}>
+                      <div className="aulas-lista aulas-grupo">{g.itens.map((a) => cardAula(a))}</div>
+                    </Secao>
+                  ))}
+                </>
+              )
             })()}
           </div>
         </>

@@ -109,12 +109,28 @@ export function planejarGeracao(aluno, programacoes, aulasExistentes, mes, pausa
 export const aulasDoMes = (aulas, mes, alunoId = null) => aulas.filter((a) => mesDe(a.data) === mes && (!alunoId || a.aluno_id === alunoId))
   .sort((a, b) => a.data.localeCompare(b.data) || (a.horario || '').localeCompare(b.horario || ''))
 
-// Ordem da lista na tela: o que ainda precisa de atenção (previstas, canceladas, não realizadas) vem primeiro, e as
-// já realizadas vão para o fim. Dentro de cada grupo mantém a ordem de data e horário. Marcar como realizada
-// move a aula para baixo, sem o usuário precisar rolar por cima do que já fez.
+// Situação de uma aula para organizar a lista: "fazer" (prevista), "realizadas" ou "canceladas" (canceladas e não realizadas).
+export const situacaoDaAula = (a) => (a.status === 'realizada' ? 'realizadas' : a.status === 'cancelada' || a.status === 'nao_realizada' ? 'canceladas' : 'fazer')
+const RANK_SITUACAO = { fazer: 0, realizadas: 1, canceladas: 2 }
+
+// Ordem da lista na tela: o que ainda falta fazer vem primeiro; depois as realizadas e, por último, as canceladas /
+// não realizadas. Dentro de cada grupo mantém a ordem de data e horário. Marcar como realizada ou cancelar move a aula para baixo.
 export function ordenarListaAulas(aulas) {
-  const feita = (a) => a.status === 'realizada'
-  return [...aulas.filter((a) => !feita(a)), ...aulas.filter(feita)]
+  return aulas.map((a, i) => [a, i]).sort((x, y) => RANK_SITUACAO[situacaoDaAula(x[0])] - RANK_SITUACAO[situacaoDaAula(y[0])] || x[1] - y[1]).map(([a]) => a)
+}
+
+// Seções da lista: por situação (a fazer / realizadas / canceladas) ou por aluno (cada aluno com suas aulas já na ordem acima).
+// Seções vazias não aparecem. `nomeDoAluno(id)` dá o título da seção por aluno.
+export function agruparAulas(aulas, por, nomeDoAluno = (id) => id) {
+  const ord = ordenarListaAulas(aulas)
+  if (por === 'aluno') {
+    const mapa = new Map()
+    for (const a of ord) { if (!mapa.has(a.aluno_id)) mapa.set(a.aluno_id, []); mapa.get(a.aluno_id).push(a) }
+    return [...mapa.entries()].map(([id, itens]) => ({ chave: `aluno:${id}`, titulo: nomeDoAluno(id), itens }))
+      .sort((x, y) => String(x.titulo).localeCompare(String(y.titulo), 'pt-BR'))
+  }
+  const T = { fazer: 'A fazer', realizadas: 'Realizadas', canceladas: 'Canceladas e não realizadas' }
+  return ['fazer', 'realizadas', 'canceladas'].map((k) => ({ chave: k, titulo: T[k], itens: ord.filter((a) => situacaoDaAula(a) === k) })).filter((g) => g.itens.length)
 }
 
 // ---------- valores de uma aula ----------

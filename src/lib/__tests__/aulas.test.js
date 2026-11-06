@@ -3,7 +3,7 @@ import {
   datasDaSemanaNoMes, diaDaSemana, somarDias, valorAula, lerDuracao, textoDuracao, reaisParaCentavos, gerarOcorrencias, planejarGeracao,
   aulasDoMes, valorDaAula, duracaoEfetiva, patchRealizar, patchEncerrar, patchDesfazer, patchRemarcar, patchEditar, novaReposicao,
   novaAvulsa, reposicaoAtiva, pendenteDeAtualizacao, aulasParaNovoValor, afetadasPorMudanca, diferencaProgramacao, programacaoVigente,
-  resumoMes, frasePrevistoRealizado, previstasNaPausa, ordenarListaAulas,
+  resumoMes, frasePrevistoRealizado, previstasNaPausa, ordenarListaAulas, agruparAulas,
 } from '../aulas'
 
 const aluno = (o = {}) => ({ id: 'a1', nome: 'Ana', valor_hora_centavos: 12000, inicio: '2026-11-01', fim: null, ativo: true, inativado_em: null, ...o })
@@ -331,22 +331,33 @@ describe('remarcar com nova duração', () => {
   })
 })
 
-describe('ordenarListaAulas', () => {
-  const a = (id, data, status) => ({ id, data, horario: null, status })
-  it('manda as realizadas para o fim e mantém a ordem de data dentro de cada grupo', () => {
-    const lista = [a('1', '2026-11-02', 'realizada'), a('2', '2026-11-03', 'prevista'), a('3', '2026-11-04', 'realizada'), a('4', '2026-11-05', 'cancelada'), a('5', '2026-11-06', 'prevista')]
-    expect(ordenarListaAulas(lista).map((x) => x.id)).toEqual(['2', '4', '5', '1', '3'])
+describe('ordenarListaAulas e agruparAulas', () => {
+  const a = (id, data, status, aluno_id = 'a1') => ({ id, data, horario: null, status, aluno_id })
+  const lista = [a('1', '2026-11-02', 'realizada'), a('2', '2026-11-03', 'prevista'), a('3', '2026-11-04', 'nao_realizada'), a('4', '2026-11-05', 'cancelada'), a('5', '2026-11-06', 'prevista'), a('6', '2026-11-07', 'realizada', 'a2')]
+  it('ordem: a fazer, depois realizadas, por último canceladas e não realizadas (data dentro de cada grupo)', () => {
+    expect(ordenarListaAulas(lista).map((x) => x.id)).toEqual(['2', '5', '1', '6', '3', '4'])
   })
-  it('marcar uma aula como realizada a move para baixo', () => {
+  it('marcar como realizada ou cancelar move a aula para baixo', () => {
     const antes = [a('1', '2026-11-02', 'prevista'), a('2', '2026-11-03', 'prevista')]
-    const depois = antes.map((x) => (x.id === '1' ? { ...x, status: 'realizada' } : x))
     expect(ordenarListaAulas(antes).map((x) => x.id)).toEqual(['1', '2'])
-    expect(ordenarListaAulas(depois).map((x) => x.id)).toEqual(['2', '1'])
+    expect(ordenarListaAulas(antes.map((x) => (x.id === '1' ? { ...x, status: 'realizada' } : x))).map((x) => x.id)).toEqual(['2', '1'])
+    expect(ordenarListaAulas(antes.map((x) => (x.id === '1' ? { ...x, status: 'cancelada' } : x))).map((x) => x.id)).toEqual(['2', '1'])
   })
   it('não altera a lista original e aceita lista vazia', () => {
     const l = [a('1', '2026-11-02', 'realizada'), a('2', '2026-11-03', 'prevista')]
     ordenarListaAulas(l)
     expect(l.map((x) => x.id)).toEqual(['1', '2'])
     expect(ordenarListaAulas([])).toEqual([])
+    expect(agruparAulas([], 'situacao')).toEqual([])
+  })
+  it('agrupa por situação e omite seções vazias', () => {
+    const g = agruparAulas(lista, 'situacao')
+    expect(g.map((x) => [x.chave, x.itens.map((i) => i.id)])).toEqual([['fazer', ['2', '5']], ['realizadas', ['1', '6']], ['canceladas', ['3', '4']]])
+    expect(agruparAulas([a('1', '2026-11-02', 'prevista')], 'situacao').map((x) => x.chave)).toEqual(['fazer'])
+  })
+  it('agrupa por aluno (ordem alfabética) com as aulas de cada um já ordenadas', () => {
+    const nomes = { a1: 'Ana', a2: 'Bia' }
+    const g = agruparAulas(lista, 'aluno', (id) => nomes[id])
+    expect(g.map((x) => [x.titulo, x.itens.map((i) => i.id)])).toEqual([['Ana', ['2', '5', '1', '3', '4']], ['Bia', ['6']]])
   })
 })
