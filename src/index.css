@@ -1423,3 +1423,4 @@ input[type="month"], input[type="date"] { max-width: 100%; }
 .card > .fx-lista .fx-item:first-child { border-top: 0; }
 .il-barra { margin-top: 8px; }
 .il-banco { margin: 8px 0; max-width: 320px; }
+.aulas-feitas-titulo { margin-top: var(--espaco-4); }

@@ -109,6 +109,14 @@ export function planejarGeracao(aluno, programacoes, aulasExistentes, mes, pausa
 export const aulasDoMes = (aulas, mes, alunoId = null) => aulas.filter((a) => mesDe(a.data) === mes && (!alunoId || a.aluno_id === alunoId))
   .sort((a, b) => a.data.localeCompare(b.data) || (a.horario || '').localeCompare(b.horario || ''))
 
+// Ordem da lista na tela: o que ainda precisa de atenção (previstas, canceladas, não realizadas) vem primeiro, e as
+// já realizadas vão para o fim. Dentro de cada grupo mantém a ordem de data e horário. Marcar como realizada
+// move a aula para baixo, sem o usuário precisar rolar por cima do que já fez.
+export function ordenarListaAulas(aulas) {
+  const feita = (a) => a.status === 'realizada'
+  return [...aulas.filter((a) => !feita(a)), ...aulas.filter(feita)]
+}
+
 // ---------- valores de uma aula ----------
 
 export const duracaoEfetiva = (a) => (a.status === 'realizada' ? Number(a.duracao_real_min || a.duracao_min) : Number(a.duracao_min))

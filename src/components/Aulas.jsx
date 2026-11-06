@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { fmt, fmtK, mesLabel, nowYM, hojeSP } from '../lib/utils'
 import {
-  aulasDoMes, centavosParaReais, diaDaSemana, frasePrevistoRealizado, gerarOcorrencias, mesDe, patchDesfazer, patchRealizar, pendenteDeAtualizacao,
+  aulasDoMes, ordenarListaAulas, centavosParaReais, diaDaSemana, frasePrevistoRealizado, gerarOcorrencias, mesDe, patchDesfazer, patchRealizar, pendenteDeAtualizacao,
   planejarGeracao, reposicaoAtiva, resumoMes, textoDuracao, valorAula, valorDaAula, duracaoEfetiva, STATUS, DIAS_CURTOS,
 } from '../lib/aulas'
 import NavMes from './NavMes'
@@ -342,7 +342,7 @@ export default function Aulas({ store }) {
             <>
               <Calendario mes={mes} aulas={doMes} pausas={aulasPausas.filter((x) => !filtro || !x.aluno_id || x.aluno_id === filtro)} alunoPorId={alunoPorId} hoje={hoje} dia={dia} onDia={setDia} mostrarAluno={!filtro} />
               <div className="aulas-lista">
-                {dia ? (doMes.filter((a) => a.data === dia).length ? doMes.filter((a) => a.data === dia).map((a) => cardAula(a)) : <div className="card"><div className="empty" style={{ padding: 14 }}>Sem aulas em {rotuloData(dia)}.{ativos.length > 0 && <> <button className="link-btn" onClick={() => setDialogo({ tipo: 'avulsa', data: dia })}>Criar aula avulsa neste dia</button></>}</div></div>) : <div className="cad-sub" style={{ textAlign: 'center' }}>Toque em um dia para ver as aulas.</div>}
+                {dia ? (doMes.filter((a) => a.data === dia).length ? ordenarListaAulas(doMes.filter((a) => a.data === dia)).map((a) => cardAula(a)) : <div className="card"><div className="empty" style={{ padding: 14 }}>Sem aulas em {rotuloData(dia)}.{ativos.length > 0 && <> <button className="link-btn" onClick={() => setDialogo({ tipo: 'avulsa', data: dia })}>Criar aula avulsa neste dia</button></>}</div></div>) : <div className="cad-sub" style={{ textAlign: 'center' }}>Toque em um dia para ver as aulas.</div>}
               </div>
             </>
           )}
@@ -350,7 +350,17 @@ export default function Aulas({ store }) {
           <div className="aulas-lista">
             {visao === 'relatorio' || (visao === 'calendario' && doMes.length > 0) ? null : doMes.length === 0 ? (
               <div className="card"><div className="empty">Nenhuma aula em {mesLabel(mes)}{filtro ? ' para este aluno' : ''}.{'\n'}As aulas aparecem sozinhas pela programação semanal; use "+ Aula avulsa" para uma aula fora dela.</div></div>
-            ) : visao === 'calendario' ? null : doMes.map((a) => cardAula(a))}
+            ) : visao === 'calendario' ? null : (() => {
+              const ordenadas = ordenarListaAulas(doMes)
+              const nFeitas = ordenadas.filter((a) => a.status === 'realizada').length
+              const nPend = ordenadas.length - nFeitas
+              return ordenadas.map((a, i) => (
+                <Fragment key={a.id}>
+                  {nFeitas > 0 && i === nPend && <div className="section-label aulas-feitas-titulo">Realizadas ({nFeitas})</div>}
+                  {cardAula(a)}
+                </Fragment>
+              ))
+            })()}
           </div>
         </>
       )}
