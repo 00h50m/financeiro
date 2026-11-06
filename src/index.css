@@ -1424,3 +1424,4 @@ input[type="month"], input[type="date"] { max-width: 100%; }
 .il-barra { margin-top: 8px; }
 .il-banco { margin: 8px 0; max-width: 320px; }
 .aulas-feitas-titulo { margin-top: var(--espaco-4); }
+.aulas-grupo { padding: var(--espaco-3); border-top: 1px solid var(--border); }
