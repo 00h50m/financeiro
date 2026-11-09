@@ -20,6 +20,7 @@ import CalendarioMes from './CalendarioMes'
 import EstadoVazio from './ui/EstadoVazio'
 import { listaDePagamentos, filtrarPorAba, contagemPorAba, resumoCompacto, podeMarcarEmLote } from '../lib/pagamentosLista'
 import { resumoDoMes, sobraAnterior, lerUsarSaldoAnterior, gravarUsarSaldoAnterior } from '../lib/financeiro'
+import CampoDinheiro from './ui/CampoDinheiro'
 
 export default function Pagamentos({ store, irPara, sub = null, aoMudarSub }) {
   const {
@@ -463,9 +464,9 @@ export default function Pagamentos({ store, irPara, sub = null, aoMudarSub }) {
             (útil para dinheiro que não está na renda cadastrada, como uma reserva que você já tinha).
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <input
-              type="number" step="0.01" placeholder="Saldo real da conta (R$)"
-              value={saldoReal} onChange={(e) => setSaldoReal(e.target.value)}
+            <CampoDinheiro
+              placeholder="Saldo real da conta" negativo aria-label="Saldo real da conta (R$)"
+              value={saldoReal} onChange={setSaldoReal}
               onKeyDown={(e) => { if (e.key === 'Enter') acertar() }}
               style={{ maxWidth: 220 }}
             />

@@ -8,6 +8,7 @@ import { detalhePagamentos } from '../lib/financeiro'
 import { pedir } from '../lib/dialogos'
 import Selo from './ui/Selo'
 import Indicador from './ui/Indicador'
+import CampoDinheiro from './ui/CampoDinheiro'
 
 const dataHora = (iso) => {
   if (!iso) return ''
@@ -170,7 +171,7 @@ export default function Fechamento({ store }) {
               {fechado ? (
                 <div className="mono">− {fmt(f.reserva_destinada)}</div>
               ) : (
-                <input type="number" min="0" step="0.01" placeholder="0,00" value={reserva} onChange={(e) => setReserva(e.target.value)} className="fch-campo" aria-label="Valor destinado à reserva" />
+                <CampoDinheiro value={reserva} onChange={setReserva} className="fch-campo" aria-label="Valor destinado à reserva" />
               )}
             </div>
             <Linha rotulo={`Saldo transportado para ${mesLabel(addMonths(mes, 1))}`} valor={Number(f.saldo_transportado)} destaque />

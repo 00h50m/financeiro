@@ -15,6 +15,7 @@ import EstadoVazio from './ui/EstadoVazio'
 import { Pilulas } from './NavMes'
 import { fmt, fmtK, mesLabel, nowYM, addMonths, fixosAtivos, corPessoa, nomeCasa, donoDoFixo } from '../lib/utils'
 import { confirmar, pedir } from '../lib/dialogos'
+import CampoDinheiro from './ui/CampoDinheiro'
 
 export default function Fixos({ store }) {
   const { fixos, categorias, pessoas, cartoes, addFixo, updateFixo, delFixo, fixosValoresOk, definirValorFixo, juntarVersoes, apagarVersaoFixo, fechamentos, registrarAuditoria } = store
@@ -286,7 +287,7 @@ export default function Fixos({ store }) {
               </div>
               <div className="form-group">
                 <label>{form.variavel ? 'Valor estimado (R$)' : 'Valor mensal (R$)'}</label>
-                <input type="number" step="0.01" value={form.valor} onChange={s('valor')} placeholder="0,00" />
+                <CampoDinheiro value={form.valor} onChange={(v) => s('valor')({ target: { value: v } })} />
               </div>
             </div>
             {editId && !form.variavel && (() => {

@@ -8,6 +8,7 @@ import { confirmar, avisar } from '../lib/dialogos'
 import Selo from './ui/Selo'
 import Indicador from './ui/Indicador'
 import EstadoVazio from './ui/EstadoVazio'
+import CampoDinheiro from './ui/CampoDinheiro'
 
 const ORDEM = { estourou: 0, perto: 1, ok: 2, sem: 3 }
 const STATUS = {
@@ -132,7 +133,7 @@ export default function Orcamento({ store }) {
                 <label className="orc-sug-topo">
                   <input type="checkbox" checked={s.marcada} onChange={(e) => mudarSugestao(s.categoria, { marcada: e.target.checked })} aria-label={`Aplicar sugestão para ${s.categoria}`} />
                   <span className="orc-sug-nome">{s.categoria}</span>
-                  <input type="number" min="0" step="10" value={s.valor} onChange={(e) => mudarSugestao(s.categoria, { valor: e.target.value })} className="orc-sug-valor" aria-label={`Teto sugerido para ${s.categoria}`} />
+                  <CampoDinheiro value={s.valor} onChange={(v) => mudarSugestao(s.categoria, { valor: v })} className="orc-sug-valor" aria-label={`Teto sugerido para ${s.categoria}`} />
                 </label>
                 <div className="orc-sug-linha">
                   <span>Teto atual <b className="mono">{s.atual ? fmt(s.atual) : '—'}</b></span>

@@ -7,6 +7,7 @@ import { explicarErro } from '../lib/erros'
 import { compilar } from '../lib/filtro'
 import { CampoBusca, ResumoFiltro } from './FiltroLista'
 import { confirmar, avisar } from '../lib/dialogos'
+import CampoDinheiro from './ui/CampoDinheiro'
 
 const ORIGENS = {
   manual: '✍️ Manual',
@@ -129,7 +130,7 @@ function CartaoEvento({ ev, store }) {
         <div style={{ marginTop: 8 }}>
           <div className="form-row cols2">
             <div className="form-group"><label>Descrição</label><input value={f.descricao} onChange={s('descricao')} /></div>
-            <div className="form-group"><label>Valor total</label><input type="number" step="0.01" value={f.valor} onChange={s('valor')} /></div>
+            <div className="form-group"><label>Valor total</label><CampoDinheiro value={f.valor} onChange={(v) => s('valor')({ target: { value: v } })} /></div>
           </div>
           <div className="form-row cols3">
             <div className="form-group"><label>Data</label><input type="date" value={f.data} onChange={s('data')} /></div>
@@ -236,7 +237,7 @@ function NovoNoInbox({ store, onFechar }) {
     <div className="card" style={{ padding: 16, overflow: 'visible' }}>
       <div className="form-row cols3">
         <div className="form-group"><label>Descrição</label><input value={f.descricao} onChange={s('descricao')} placeholder="Ex: iFood" autoFocus /></div>
-        <div className="form-group"><label>Valor</label><input type="number" step="0.01" value={f.valor} onChange={s('valor')} /></div>
+        <div className="form-group"><label>Valor</label><CampoDinheiro value={f.valor} onChange={(v) => s('valor')({ target: { value: v } })} /></div>
         <div className="form-group"><label>Data</label><input type="date" value={f.data} onChange={s('data')} /></div>
       </div>
       <div className="form-row cols3">
