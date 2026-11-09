@@ -18,6 +18,8 @@ import Indicador from './ui/Indicador'
 import EstadoVazio from './ui/EstadoVazio'
 import { useDialogos } from './ui/Dialogos'
 import CartaoFatura from './faturas/CartaoFatura'
+import CampoDinheiro from './ui/CampoDinheiro'
+import { paraCampoDinheiro } from '../lib/dinheiroCampo'
 
 const CHAVE_REVISADAS = 'faturas_revisadas'
 const lerRevisadas = () => {
@@ -137,7 +139,7 @@ export default function Faturas({ store, irPara }) {
     setForm({
       cartao_id: fat.cartao_id,
       mes: fat.mes,
-      valor_real: temReal(fat) ? String(fat.valor_real) : '',
+      valor_real: temReal(fat) ? paraCampoDinheiro(fat.valor_real) : '',
       pago: !!fat.pago,
       data_pagamento: fat.data_pagamento ? String(fat.data_pagamento).slice(0, 10) : '',
     })
@@ -243,8 +245,8 @@ export default function Faturas({ store, irPara }) {
             </div>
             <div className="form-row">
               <div className="form-group">
-                <label>Valor real da fatura (R$){editId ? ' — opcional' : ''}</label>
-                <input type="number" step="0.01" min="0" placeholder="0,00" value={form.valor_real} onChange={s('valor_real')} autoFocus />
+                <label htmlFor="fat-valor-real">Valor real da fatura (R$){editId ? ' — opcional' : ''}</label>
+                <CampoDinheiro id="fat-valor-real" value={form.valor_real} onChange={(v) => setForm((f) => ({ ...f, valor_real: v }))} autoFocus />
               </div>
             </div>
             {form.cartao_id && form.mes && (

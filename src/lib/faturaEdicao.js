@@ -5,8 +5,10 @@ const DATA = /^\d{4}-\d{2}-\d{2}$/
 
 // Valor digitado: '' = sem valor do banco (a fatura volta a valer o lançado). Aceita vírgula.
 export function lerValorReal(txt) {
-  const t = String(txt ?? '').trim().replace(',', '.')
-  if (t === '') return { vazio: true, valor: null }
+  const bruto = String(txt ?? '').trim()
+  if (bruto === '') return { vazio: true, valor: null }
+  // "1.234,56" (vírgula decimal, ponto de milhar), "1234,56", "1234.56" e "1.234" (mil duzentos e trinta e quatro)
+  const t = bruto.includes(',') ? bruto.replace(/\./g, '').replace(',', '.') : /^\d{1,3}(\.\d{3})+$/.test(bruto) ? bruto.replace(/\./g, '') : bruto
   const n = Number(t)
   return Number.isFinite(n) && n >= 0 ? { vazio: false, valor: Math.round(n * 100) / 100 } : { vazio: false, valor: NaN }
 }
