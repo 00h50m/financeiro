@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { fmt, fmtK, mesLabel, nowYM, addMonths, calcMesInicio, limiteUsado, totalRenda, hojeSP } from '../lib/utils'
 import { detalhePagamentos } from '../lib/financeiro'
 import { perfilDeLinhas, temPerfil, rendaProjetada } from '../lib/rendaSazonal'
+import CampoDinheiro from './ui/CampoDinheiro'
 
 const MAX_PARCELAS = 48
 const CENARIOS = [1, 2, 3, 4, 5, 6, 10, 12, 18, 24]
@@ -180,7 +181,7 @@ export default function Simulador({ store }) {
             <div className="form-row cols2">
               <div className="form-group">
                 <label>{modo === 'total' ? 'Valor total (R$)' : 'Valor da parcela (R$)'}</label>
-                <input type="number" step="0.01" min="0" placeholder="0,00" value={valor} onChange={(e) => setValor(e.target.value)} />
+                <CampoDinheiro value={valor} onChange={setValor} />
               </div>
               <div className="form-group">
                 <label>Parcelas</label>
@@ -208,7 +209,7 @@ export default function Simulador({ store }) {
               {modo === 'total' && (
                 <div className="form-group">
                   <label>Juros ao mês (%)</label>
-                  <input type="number" step="0.01" min="0" value={juros} onChange={(e) => setJuros(e.target.value)} />
+                  <CampoDinheiro value={juros} onChange={setJuros} prefixo={null} placeholder="0,00" />
                 </div>
               )}
             </div>

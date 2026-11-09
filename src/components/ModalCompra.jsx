@@ -3,6 +3,7 @@ import { fmt, calcMesInicio, addMonths, mesLabel, hojeSP } from '../lib/utils'
 import { acharSemelhantes } from '../lib/duplicadas'
 import { restante, somaPartes, validarDivisao, planoDeDivisao, planoDeUniao } from '../lib/divisaoCompra'
 import { confirmar } from '../lib/dialogos'
+import CampoDinheiro from './ui/CampoDinheiro'
 
 const brl = (v) => fmt(Math.abs(v))
 
@@ -246,7 +247,7 @@ export default function ModalCompra({
           </div>
           <div className="form-group">
             <label>{dividir ? 'Valor total da compra (R$)' : 'Valor total (R$)'}</label>
-            <input type="number" step="0.01" min="0" placeholder="0,00" value={f.valor_total} onChange={s('valor_total')} />
+            <CampoDinheiro value={f.valor_total} onChange={(v) => s('valor_total')({ target: { value: v } })} />
           </div>
           <div className="form-group">
             <label>Parcelas</label>
@@ -312,7 +313,7 @@ export default function ModalCompra({
                   <div className="form-row cols2" style={{ marginBottom: 8 }}>
                     <div className="form-group">
                       <label>Valor (R$)</label>
-                      <input type="number" step="0.01" min="0" placeholder="0,00" value={it.valor} onChange={(e) => mudarItem(i, { valor: e.target.value })} />
+                      <CampoDinheiro value={it.valor} onChange={(v) => mudarItem(i, { valor: v })} />
                     </div>
                     <div className="form-group">
                       <label>O que é (opcional)</label>

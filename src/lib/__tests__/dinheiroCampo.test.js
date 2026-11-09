@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { limparDinheiro, paraCampoDinheiro } from '../dinheiroCampo'
+import { limparDinheiro, paraCampoDinheiro, canonicoDinheiro } from '../dinheiroCampo'
 import { lerValorReal } from '../faturaEdicao'
 
 describe('campo de dinheiro', () => {
@@ -36,5 +36,21 @@ describe('lerValorReal com formatos brasileiros', () => {
   it('vazio e inválido', () => {
     expect(lerValorReal('').vazio).toBe(true)
     expect(Number.isNaN(lerValorReal('abc').valor)).toBe(true)
+  })
+})
+
+describe('canonicoDinheiro (texto do campo → número em texto)', () => {
+  it('converte vírgula em ponto e ignora digitação incompleta', () => {
+    expect(canonicoDinheiro('777,24')).toBe('777.24')
+    expect(canonicoDinheiro('777,')).toBe('777')
+    expect(canonicoDinheiro('')).toBe('')
+    expect(canonicoDinheiro('abc')).toBe('')
+    expect(canonicoDinheiro('1.234,56')).toBe('1234.56')
+    expect(canonicoDinheiro('777.24')).toBe('777.24')
+  })
+  it('respeita casas e sinal', () => {
+    expect(canonicoDinheiro('1,23456', { casas: 4 })).toBe('1.2345')
+    expect(canonicoDinheiro('-50,5', { negativo: true })).toBe('-50.5')
+    expect(canonicoDinheiro('-50,5')).toBe('50.5')
   })
 })

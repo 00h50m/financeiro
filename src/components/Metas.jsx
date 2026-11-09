@@ -9,6 +9,7 @@ import { fmt, fmtK, hojeSP, mesLabel } from '../lib/utils'
 import { detalhePagamentos } from '../lib/financeiro'
 import { situacaoDaMeta, saldoMeta, movimentosDaMeta, valorComSinal, deltaParaSaldo, mesesParaAlvo } from '../lib/metas'
 import { confirmar } from '../lib/dialogos'
+import CampoDinheiro from './ui/CampoDinheiro'
 
 const ROTULO = { aporte: 'Aporte', retirada: 'Retirada', ajuste: 'Ajuste' }
 const dataFmt = (d) => (d ? String(d).slice(0, 10).split('-').reverse().join('/') : '')
@@ -47,7 +48,7 @@ function Movimento({ meta, store, onFechar }) {
         </div>
         <div className="form-group">
           <label>{tipo === 'ajuste' ? 'Saldo correto (R$)' : 'Valor (R$)'}</label>
-          <input type="number" min="0" step="0.01" value={valor} onChange={(e) => setValor(e.target.value)} placeholder={tipo === 'ajuste' ? String(saldoAtual) : '0,00'} />
+          <CampoDinheiro value={valor} onChange={setValor} placeholder={tipo === 'ajuste' ? String(saldoAtual).replace('.', ',') : '0,00'} />
         </div>
         <div className="form-group">
           <label>Observação (opcional)</label>
@@ -187,7 +188,7 @@ export default function Metas({ store }) {
       <div style={{ padding: '4px 16px 16px', borderTop: '1px solid var(--border)' }}>
         <div className="form-row cols3" style={{ marginBottom: 8 }}>
           <div className="form-group"><label>Nome</label><input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex.: Viagem, Notebook" /></div>
-          <div className="form-group"><label>Quanto quer juntar (R$)</label><input type="number" min="0" step="0.01" value={alvo} onChange={(e) => setAlvo(e.target.value)} /></div>
+          <div className="form-group"><label>Quanto quer juntar (R$)</label><CampoDinheiro value={alvo} onChange={setAlvo} /></div>
           <div className="form-group"><label>Prazo (opcional)</label><input type="date" value={prazo} onChange={(e) => setPrazo(e.target.value)} /></div>
         </div>
         <div className="form-row cols3" style={{ marginBottom: 8 }}>

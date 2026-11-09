@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { perfil } from '../lib/perfil'
 import { corPessoa, fmt, fmtK, limiteUsado, nowYM } from '../lib/utils'
 import { confirmar } from '../lib/dialogos'
+import CampoDinheiro from './ui/CampoDinheiro'
 
 export default function Cartoes({ store }) {
   const { cartoes, pessoas, compras, faturas, addCartao, updateCartao, delCartao } = store
@@ -106,7 +107,7 @@ export default function Cartoes({ store }) {
             <div className="form-row" style={{ marginTop: 0 }}>
               <div className="form-group">
                 <label>Limite do cartão (R$) — opcional</label>
-                <input type="number" min="0" step="100" placeholder="Ex: 5000" value={form.limite} onChange={s('limite')} />
+                <CampoDinheiro value={form.limite} onChange={(v) => s('limite')({ target: { value: v } })} placeholder="Ex: 5000,00" />
               </div>
             </div>
             {form.fechamento && (
