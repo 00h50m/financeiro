@@ -1,6 +1,7 @@
 import { chaveEstabelecimento, indexarAliases } from './estabelecimento.js'
 import { sugerirCategoria, sugerirPorNome, sugerirCartao, regrasParaSugestao, categoriaValida } from './categorizacao.js'
 import { encontrarCorrespondencia } from './reconciliacao.js'
+import { ehLojaGenerica } from './nomesAmigaveis.js'
 
 // Porta de entrada comum a qualquer fonte (Telegram, notificação Android, CSV, ...):
 //   entrada bruta -> validação -> normalização -> sugestão de categoria -> correspondência
@@ -29,7 +30,10 @@ export function prepararEvento(entrada, ctx) {
   const indice = indexarAliases(aliases)
   const { chave, nome } = chaveEstabelecimento(descricao, indice)
   const sugestao = sugerirCategoria({ chave, regras: regrasParaSugestao(regras, compras, indice), categorias })
-  const porNome = sugestao ? null : sugerirPorNome({ chave, categorias })
+  // loja genérica (Amazon, Mercado Livre...): a categoria de compras antigas com o mesmo texto não diz o que é esta compra, então
+  // não sugere categoria pela regra (pessoa e cartão habituais da regra continuam valendo). Nunca é lançada sozinha.
+  const catDaRegra = sugestao && !ehLojaGenerica(chave) ? sugestao : null
+  const porNome = catDaRegra ? null : sugerirPorNome({ chave, categorias })
 
   // Só aceita o que existe no cadastro; o resto vira "falta informar", nunca um chute.
   const cartao = cartoes.find((c) => c.id === entrada.cartao_id)
@@ -43,7 +47,7 @@ export function prepararEvento(entrada, ctx) {
   const forma = cartaoId ? 'cartao' : FORMAS_SEM_CARTAO.includes(entrada.forma_pagamento) ? entrada.forma_pagamento : null
   const infoCat = entrada.categoria && categoriaValida(categorias, entrada.categoria, entrada.subcategoria)
     ? { categoria: entrada.categoria, subcategoria: entrada.subcategoria, regra_id: null, confianca: null }
-    : sugestao || porNome
+    : catDaRegra || porNome
   const pago = cartaoId ? null : typeof entrada.pago === 'boolean' ? entrada.pago : null
 
   const faltando = []

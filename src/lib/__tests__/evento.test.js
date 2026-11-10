@@ -135,3 +135,27 @@ describe('cartão sugerido pelo histórico', () => {
     expect(prepararEvento({ ...base, descricao_original: 'padaria' }, c2([compraCom('a', 'c-nu'), compraCom('b', 'c-nu')])).evento.faltando).toContain('cartao')
   })
 })
+
+describe('lojas genéricas (Amazon, Mercado Livre...)', () => {
+  const amazon = ['a1', 'a2', 'a3'].map((id, i) => compra({ id, descricao: 'AMAZON BR', categoria: 'Saúde', subcategoria: 'Farmácia', data_compra: `2026-09-0${i + 1}` }))
+  it('não sugere categoria pelo histórico: pede a categoria e não fica pronta para lançar sozinha', () => {
+    const { evento } = prepararEvento(entrada({ id_externo: 'z', descricao_original: 'AMAZON BR', valor: 40 }), ctx({ compras: amazon }))
+    expect(evento.categoria).toBeNull()
+    expect(evento.faltando).toContain('categoria')
+    expect(evento.status).toBe('aguardando_dados')
+  })
+  it('regra do banco para a loja genérica também não define a categoria', () => {
+    const regra = { id: 'r1', estabelecimento_chave: 'amazon br', categoria: 'Saúde', subcategoria: 'Farmácia', confirmacoes: 9, rejeicoes: 0, confianca: 0.9 }
+    const { evento } = prepararEvento(entrada({ id_externo: 'y', descricao_original: 'AMAZON BR', valor: 40 }), ctx({ regras: [regra] }))
+    expect(evento.categoria).toBeNull()
+  })
+  it('a categoria informada pela pessoa continua valendo', () => {
+    const { evento } = prepararEvento(entrada({ id_externo: 'x', descricao_original: 'AMAZON BR', valor: 40, categoria: 'Saúde', subcategoria: 'Farmácia' }), ctx({ compras: amazon }))
+    expect(evento.categoria).toBe('Saúde')
+  })
+  it('"aprender com o histórico" não cria regra para loja genérica, mas cria para as demais', () => {
+    const regras = construirRegrasDoHistorico([...amazon, ...hist])
+    expect(regras.some((r) => /amazon/.test(r.estabelecimento_chave))).toBe(false)
+    expect(regras.some((r) => /drogasil/.test(r.estabelecimento_chave))).toBe(true)
+  })
+})
