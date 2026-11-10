@@ -12,7 +12,7 @@ const srv = createServer((req, res) => { const c = new URL(req.url, 'http://x').
 const SB = 'http://localhost:54321'
 const CART = [{ id: 'c1', nome: 'Nubank', titular: 'Giovanna', fechamento: 3, vencimento: 25, ativo: true, limite: 8000 }]
 const CATS = [{ id: 'k1', nome: 'Alimentação', subcategorias: ['Mercado'] }, { id: 'k2', nome: 'Assinaturas', subcategorias: ['Outros'] }]
-const PESS = [{ id: 'p1', nome: 'Giovanna', cor: 'purple', apelidos: [] }]
+const PESS = [{ id: 'p1', nome: 'Giovanna', cor: 'purple', apelidos: [] }, { id: 'p2', nome: 'Sabrina', cor: 'blue', apelidos: [] }]
 const fx = (id, nome, valor, extra) => ({ id, nome, valor, ativo: true, dia_vencimento: 10, mes_inicio: '2026-01', categoria: 'Assinaturas', subcategoria: 'Outros', pessoa: 'Giovanna', ...extra })
 const DB = {
   cartoes: CART, categorias: [{ id: 'k1', nome: 'Alimentação', subcategorias: ['Mercado', 'Lanche/Café'] }, { id: 'k2', nome: 'Casa', subcategorias: ['Limpeza', 'Móveis'] }], pessoas: PESS, rendas: [{ mes: '2026-11', giovanna: 8000, sabrina: 0, extra_sabrina: 0, mesada: 0, outros: 0 }],
@@ -62,12 +62,15 @@ if ((await linha.locator('details.imp-editar').count()) === 0) await linha.locat
 const topo = (await linha.innerText()).replace(/\s+/g, ' ')
 ok(/Finish/.test(topo) && /Casa › Limpeza/.test(topo), `a linha mostra o nome e a categoria da compra lançada, não a sugestão (${topo.slice(0, 110)})`)
 ok(/Valor diferente/i.test(topo), 'motivo "Valor diferente"')
-const ed = linha.locator('details.imp-editar', { hasText: 'Corrigir nome e categoria' })
+const ed = linha.locator('details.imp-editar', { hasText: 'Corrigir nome, categoria e pessoa' })
 await ed.locator('summary').click()
 ok((await ed.locator('input').first().inputValue()) === 'Finish', 'o campo de nome começa com o nome lançado (Finish)')
 await ed.locator('input').first().fill('Detergente Finish')
 await ed.locator('select').first().selectOption('Alimentação')
 await ed.locator('select').nth(1).selectOption('Mercado')
+ok(/Giovanna/.test(await linha.locator('.imp-selos').innerText()), 'a pessoa mostrada é a da compra lançada (Giovanna)')
+await ed.locator('select').nth(2).selectOption('Sabrina')
+ok(/Sabrina/.test(await linha.locator('.imp-selos').innerText()), 'ao trocar a pessoa, o selo do cartão muda para Sabrina')
 ok(/\(alterado\)/.test(await ed.locator('summary').innerText()), 'o resumo indica que foi alterado')
 const t2 = (await linha.innerText()).replace(/\s+/g, ' ')
 ok(/Detergente Finish/.test(t2) && /Alimentação › Mercado/.test(t2), `o cabeçalho passa a mostrar a correção (${t2.slice(0, 90)})`)
@@ -75,12 +78,12 @@ await linha.getByRole('button', { name: 'Manter o valor lançado' }).click()
 await p.getByRole('button', { name: /Continuar para confirmar/ }).click()
 await p.waitForSelector('.imp-confirmar-grade')
 const grav = (await p.locator('.imp-gravar').innerText()).replace(/\s+/g, ' ')
-ok(/Correções em compras já lançadas/.test(grav) && /Detergente Finish/.test(grav) && /Alimentação › Mercado/.test(grav), 'a confirmação lista a correção da compra lançada')
+ok(/Correções em compras já lançadas/.test(grav) && /Detergente Finish/.test(grav) && /Alimentação › Mercado/.test(grav) && /de quem é: Giovanna para Sabrina/.test(grav), 'a confirmação lista a correção da compra lançada (nome, categoria e pessoa)')
 ok(escritas.length === 0, 'nada é gravado antes de confirmar')
 await p.getByRole('button', { name: 'Confirmar importação' }).click()
 for (let i = 0; i < 40 && !escritas.some(([t, m]) => t === 'compras' && m === 'PATCH'); i++) await p.waitForTimeout(100)
 const patch = escritas.find(([t, m]) => t === 'compras' && m === 'PATCH')
-ok(patch && patch[2].identificacao === 'Detergente Finish' && patch[2].categoria === 'Alimentação' && patch[2].subcategoria === 'Mercado' && /cp1/.test(patch[3]), `a compra cp1 foi atualizada com nome e categoria (${JSON.stringify(patch?.[2])})`)
+ok(patch && patch[2].identificacao === 'Detergente Finish' && patch[2].categoria === 'Alimentação' && patch[2].subcategoria === 'Mercado' && patch[2].pessoa === 'Sabrina' && /cp1/.test(patch[3]), `a compra cp1 foi atualizada com nome e categoria (${JSON.stringify(patch?.[2])})`)
 ok(!rpcs.some(([n]) => n === 'aplicar_importacao'), 'sem outras alterações na fatura: a importação em si não foi gravada (só a correção)')
 ok(/Correções aplicadas/.test(await p.locator('.imp-assistente').innerText()), 'o resultado informa as correções')
 await cel.close()
