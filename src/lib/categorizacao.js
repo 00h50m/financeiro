@@ -1,4 +1,5 @@
 import { chaveEstabelecimento, similaridadeEstabelecimento } from './estabelecimento.js'
+import { ehLojaGenerica } from './nomesAmigaveis.js'
 import { normBasico } from './normalizacao.js'
 
 // Sugestão determinística de categoria, a partir de regras aprendidas com o uso
@@ -87,7 +88,7 @@ export function construirRegrasDoHistorico(compras, indiceAliases = new Map()) {
   compras.forEach((c) => {
     if (!c.categoria || !c.subcategoria) return
     const { chave } = chaveEstabelecimento(c.descricao, indiceAliases)
-    if (!chave) return
+    if (!chave || ehLojaGenerica(chave)) return // loja genérica: o que se comprou lá muda a cada compra, não há regra a aprender
     const k = `${c.categoria}|||${c.subcategoria}`
     porChave[chave] = porChave[chave] || {}
     porChave[chave][k] = (porChave[chave][k] || 0) + 1
