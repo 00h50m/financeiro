@@ -866,6 +866,24 @@ export function useStore(email = null) {
     const r = await sb.from('divisoes').insert(data)
     if (r.error) throw r.error
   }, ['divisoes'], 'salvar a divisão')
+  // Editar uma divisão (quem paga, valor/porcentagem, observação). Os recebimentos já marcados ficam com a divisão (mesmo se trocar a pessoa).
+  // Mudar o valor de uma divisão com recebimento em mês fechado muda os números dele: pede o motivo e registra na auditoria.
+  const updateDivisao = async (divisao, patch) => {
+    const recebidos = divisoesRepasses.filter((x) => x.divisao_id === divisao.id)
+    const mudouValor = ['modo', 'valor', 'parcela_de', 'parcela_ate'].some((k) => k in patch && String(patch[k] ?? '') !== String(divisao[k] ?? ''))
+    const fechados = mudouValor ? recebidos.map((x) => x.mes).filter((m) => fechamentos.some((f) => f.mes === m && f.status === 'fechado')) : []
+    let motivo = null
+    if (fechados.length) {
+      motivo = await pedir(`Esta divisão tem valores recebidos em ${fechados.map(mesLabel).join(', ')} (mês fechado). Mudar o valor muda os números dele.\n\nPara continuar, escreva o motivo:`)
+      if (!motivo || motivo.trim().length < 3) return false
+    }
+    const ok = await op(async () => {
+      const r = await sb.from('divisoes').update(patch).eq('id', divisao.id)
+      if (r.error) throw r.error
+    }, ['divisoes'], 'salvar a divisão')
+    if (ok && motivo) await registrarAuditoria({ entidade: 'divisao', entidade_id: divisao.id, acao: 'editar_valor_em_mes_fechado', antes: divisao, depois: patch, motivo: motivo.trim() })
+    return ok
+  }
   const delDivisao = async (divisao) => {
     const recebidos = divisoesRepasses.filter((x) => x.divisao_id === divisao.id)
     const fechados = recebidos.map((x) => x.mes).filter((m) => fechamentos.some((f) => f.mes === m && f.status === 'fechado'))
@@ -1214,7 +1232,7 @@ export function useStore(email = null) {
     criarPausa, removerPausa, marcarFollowup, salvarFonteReserva, removerFonteReserva, salvarPlanoVida, salvarCliente, salvarServico, salvarAtendimento, removerCliente, removerServico, removerAtendimento, salvarPacote, removerPacote, salvarProduto, removerProduto, registrarVendaProduto, removerVendaProduto, salvarVendaProduto,
     criarAluno, atualizarAluno, mudarProgramacao, gerarAulas, inserirAula, atualizarAula, atualizarAulasLote, excluirAula,
     atualizarRegra, esquecerRegra,
-    addDivisao, delDivisao, marcarRepasse, desmarcarRepasse,
+    addDivisao, updateDivisao, delDivisao, marcarRepasse, desmarcarRepasse,
     addMeta, updateMeta, registrarMovimentoMeta, delMovimentoMeta,
     definirOrcamento, definirOrcamentos, definirConfig,
     addCategoria, delCategoria, renomearCategoria,

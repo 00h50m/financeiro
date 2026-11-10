@@ -124,6 +124,16 @@ export function saldoPorPessoa(d, meses, hoje = nowYM()) {
   return mapa
 }
 
+// A soma das partes de um item (compra: parcela a parcela; conta fixa: no mês) passa do valor dele?
+// `outras` = as demais divisões do mesmo item (sem a que está sendo criada/editada); `nova` = a divisão com os valores novos.
+export function somaPassaDoValor(d, item, outras, nova) {
+  if (!item) return false
+  if (nova.tipo === 'fixo') return outras.reduce((t, x) => t + parteTotal(x, Number(item.valor)), parteTotal(nova, Number(item.valor))) > Number(item.valor) + 0.005
+  const nova2 = parcelasDaParte(item, nova, d.cartoes || [])
+  const outras2 = outras.map((x) => parcelasDaParte(item, x, d.cartoes || []))
+  return nova2.some((p, i) => p.esperado + outras2.reduce((t, o) => t + (o[i]?.esperado || 0), 0) > p.valorParcela + 0.005)
+}
+
 // ---------- Valores líquidos (só a parte de quem usa o app) para categorias e teto ----------
 
 // Compras com o valor reduzido pela parte dos outros. Sem divisões devolve a MESMA lista.
