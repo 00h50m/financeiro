@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   parteTotal, parcelasDaParte, esperadoDoMes, repassesDoMes, resumoRepasses, saldoPorPessoa,
-  comprasLiquidas, fixosLiquidos, parteDosOutrosNoMes,
+  comprasLiquidas, fixosLiquidos, parteDosOutrosNoMes, parcelaDoMes,
 } from '../divisoes'
 import { resumoDoMes, sobraAnterior } from '../financeiro'
 import { montarFoto, validarFechamento } from '../fechamento'
@@ -142,5 +142,28 @@ describe('fechamento com divisões', () => {
   it('só repasse, sem renda cadastrada, continua bloqueando o fechamento', () => {
     const sem = { ...d, rendas: [] }
     expect(validarFechamento(sem, '2026-10').bloqueantes.some((b) => /não tem renda/.test(b))).toBe(true)
+  })
+})
+
+describe('compra parcelada dividida', () => {
+  const c = compra({ valor_total: 400, parcelas: 4, data_compra: '2026-10-05', cartao_id: null })
+  it('100% da pessoa: cada parcela é toda dela', () => {
+    const dv = divisao({ modo: 'percentual', valor: 100 })
+    const ps = parcelasDaParte(c, dv, [])
+    expect(ps.map((p) => p.esperado)).toEqual([100, 100, 100, 100])
+  })
+  it('"R$ 30 por parcela" = total 120 (30 × 4): cada parcela dela é 30', () => {
+    const ps = parcelasDaParte(c, divisao({ modo: 'valor', valor: 30 * 4 }), [])
+    expect(ps.map((p) => p.esperado)).toEqual([30, 30, 30, 30])
+  })
+  it('a parcela do mês é informada nas linhas de repasse (3/4 em dezembro)', () => {
+    const d = base({ compras: [c], divisoes: [divisao({ modo: 'percentual', valor: 50 })] })
+    expect(parcelaDoMes(d, d.divisoes[0], '2026-12')).toEqual({ num: 3, total: 4 })
+    expect(repassesDoMes(d, '2026-12')[0].parcela).toEqual({ num: 3, total: 4 })
+    expect(parcelaDoMes(d, d.divisoes[0], '2027-03')).toBeNull()
+  })
+  it('compra à vista e conta fixa não têm parcela', () => {
+    const d = base({ compras: [compra()], divisoes: [divisao()] })
+    expect(parcelaDoMes(d, d.divisoes[0], '2026-10')).toBeNull()
   })
 })

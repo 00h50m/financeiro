@@ -30,8 +30,8 @@ function NovaDivisao({ store, onFeito }) {
 
   // tudo que dá para dividir, já com o texto de busca; o limite de 300 acabou: a busca e os filtros acham qualquer compra
   const todos = tipo === 'compra'
-    ? compras.map((c) => ({ id: c.id, titulo: tituloCompra(c), valor: Number(c.valor_total), data: c.data_compra, cartaoId: c.cartao_id || '', mes: String(c.data_compra || '').slice(0, 7), extra: [c.categoria, c.pessoa, nomeCartao(c.cartao_id)].filter(Boolean).join(' · '), texto: [c.descricao, c.identificacao, c.categoria, c.subcategoria, c.pessoa, c.obs, nomeCartao(c.cartao_id)].filter(Boolean).join(' '), base: Number(c.valor_total) }))
-    : fixos.filter((f) => f.ativo).map((f) => ({ id: f.id, titulo: f.nome, valor: Number(f.valor), data: null, cartaoId: f.cartao_id || '', mes: '', extra: [f.categoria, f.cartao_id ? nomeCartao(f.cartao_id) : ''].filter(Boolean).join(' · '), texto: [f.nome, f.categoria, f.subcategoria, nomeCartao(f.cartao_id)].filter(Boolean).join(' '), base: Number(f.valor) }))
+    ? compras.map((c) => ({ id: c.id, titulo: tituloCompra(c), valor: Number(c.valor_total), parcelas: Number(c.parcelas) || 1, data: c.data_compra, cartaoId: c.cartao_id || '', mes: String(c.data_compra || '').slice(0, 7), extra: [c.categoria, c.pessoa, nomeCartao(c.cartao_id)].filter(Boolean).join(' · '), texto: [c.descricao, c.identificacao, c.categoria, c.subcategoria, c.pessoa, c.obs, nomeCartao(c.cartao_id)].filter(Boolean).join(' '), base: Number(c.valor_total) }))
+    : fixos.filter((f) => f.ativo).map((f) => ({ id: f.id, titulo: f.nome, valor: Number(f.valor), parcelas: 1, data: null, cartaoId: f.cartao_id || '', mes: '', extra: [f.categoria, f.cartao_id ? nomeCartao(f.cartao_id) : ''].filter(Boolean).join(' · '), texto: [f.nome, f.categoria, f.subcategoria, nomeCartao(f.cartao_id)].filter(Boolean).join(' '), base: Number(f.valor) }))
   const { combina } = compilar(busca)
   const filtrados = todos
     .filter((i) => (!cartaoF || (cartaoF === '_sem' ? !i.cartaoId : i.cartaoId === cartaoF)) && (!mesF || i.mes === mesF) && combina({ texto: i.texto, valor: [i.valor], data: i.data }))
@@ -42,17 +42,23 @@ function NovaDivisao({ store, onFeito }) {
 
   const item = todos.find((i) => i.id === refId)
   const nomes = [...new Set([...pessoas.map((p) => p.nome), ...divisoes.map((d) => d.pessoa)])].filter(Boolean)
+  const nParc = item?.parcelas || 1
+  const parcelada = tipo === 'compra' && nParc > 1
+  const modoUso = modo === 'parcela' && !parcelada ? 'valor' : modo // "por parcela" só existe em compra parcelada
   const v = lerNum(valor)
-  const parte = item && v > 0 ? parteTotal({ modo, valor: v }, item.base) : 0
+  // "R$ 30 por parcela" é guardado como o total (30 × nº de parcelas): a divisão é sempre proporcional às parcelas
+  const vTotal = modoUso === 'parcela' ? Math.round(v * nParc * 100) / 100 : v
+  const modoGravar = modoUso === 'parcela' ? 'valor' : modoUso
+  const parte = item && v > 0 ? parteTotal({ modo: modoGravar, valor: vTotal }, item.base) : 0
   const jaDividido = item ? dividido(item.id).reduce((s, d) => s + parteTotal(d, item.base), 0) : 0
   const excede = item && parte > 0 && jaDividido + parte > item.base + 0.005
-  const valido = item && pessoa.trim() && v > 0 && (modo !== 'percentual' || v <= 100) && !excede
+  const valido = item && pessoa.trim() && v > 0 && (modoUso !== 'percentual' || v <= 100) && !excede
 
   function escolher(id) { setRefId(id); setTrocando(false); setValor(''); }
   function trocarTipo(t) { setTipo(t); setRefId(''); setTrocando(true); setBusca(''); setCartaoF(''); setMesF('') }
   async function salvar() {
     if (!valido) return
-    const ok = await addDivisao({ tipo, ref_id: item.id, pessoa: pessoa.trim(), modo, valor: v, observacao: obs.trim() || null })
+    const ok = await addDivisao({ tipo, ref_id: item.id, pessoa: pessoa.trim(), modo: modoGravar, valor: vTotal, observacao: obs.trim() || null })
     if (ok) { setRefId(''); setTrocando(true); setValor(''); setObs(''); onFeito?.() }
   }
 
@@ -66,7 +72,7 @@ function NovaDivisao({ store, onFeito }) {
       {item && !trocando ? (
         <div className="dv-escolhida">
           <div>
-            <b>{item.titulo}</b> <span className="mono">{fmt(item.base)}{tipo === 'fixo' ? ' por mês' : ''}</span>
+            <b>{item.titulo}</b> <span className="mono">{fmt(item.base)}{tipo === 'fixo' ? ' por mês' : ''}</span>{parcelada && <span className="cad-sub"> · {nParc}× de {fmt(item.base / nParc)}</span>}
             <div className="cad-sub">{[item.data ? brData(item.data) : '', item.extra].filter(Boolean).join(' · ')}</div>
             {dividido(item.id).length > 0 && <div className="cad-sub">Já dividida: {dividido(item.id).map((d) => `${d.pessoa} ${d.modo === 'percentual' ? `${Number(d.valor)}%` : fmt(d.valor)}`).join(' · ')}</div>}
           </div>
@@ -124,16 +130,18 @@ function NovaDivisao({ store, onFeito }) {
       </div>
 
       <div className="dv-passo"><span className="dv-num">3</span> Quanto ela paga</div>
-      <Pilulas rotulo="Como informar" valor={modo} onChange={(m) => { setModo(m); setValor('') }} opcoes={[['valor', `Em reais${tipo === 'fixo' ? ' (por mês)' : ''}`], ['percentual', 'Em porcentagem']]} />
+      <Pilulas rotulo="Como informar" valor={modoUso} onChange={(m) => { setModo(m); setValor('') }} opcoes={[['valor', parcelada ? 'Em reais (total da compra)' : `Em reais${tipo === 'fixo' ? ' (por mês)' : ''}`], ...(parcelada ? [['parcela', 'Em reais por parcela']] : []), ['percentual', 'Em porcentagem']]} />
+      {parcelada && <p className="cad-sub" style={{ margin: '4px 0 8px' }}>Compra em {nParc}× de {fmt(item.base / nParc)}. A parte dela é dividida igualmente pelas parcelas. Para ela pagar <b>tudo</b>, use 100%.</p>}
       <div className="dv-valor-linha">
         <div className="form-group">
-          <label htmlFor="dv-valor">{modo === 'valor' ? 'Valor (R$)' : 'Porcentagem (%)'}</label>
-          {modo === 'valor'
+          <label htmlFor="dv-valor">{modoUso === 'valor' ? 'Valor (R$)' : modoUso === 'parcela' ? 'Valor por parcela (R$)' : 'Porcentagem (%)'}</label>
+          {modoUso !== 'percentual'
             ? <CampoDinheiro id="dv-valor" value={valor} onChange={setValor} />
             : <CampoDinheiro id="dv-valor" value={valor} onChange={setValor} prefixo={null} casas={2} placeholder="50" />}
         </div>
         {item && (
           <div className="dv-atalhos" aria-label="Atalhos">
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setModo('percentual'); setValor('100') }}>Tudo dela (100%)</button>
             <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setModo('percentual'); setValor('50') }}>Metade (50%)</button>
             <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setModo('valor'); setValor(String(Math.max(0, Math.round((item.base - jaDividido) * 100) / 100))) }}>Tudo que sobra ({fmt(Math.max(0, item.base - jaDividido))})</button>
           </div>
@@ -145,7 +153,7 @@ function NovaDivisao({ store, onFeito }) {
       </div>
       {item && parte > 0 && !excede && (
         <div className="alert alert-blue">
-          {pessoa.trim() || 'A pessoa'} paga {fmt(parte)}{tipo === 'fixo' ? ' por mês' : ''}; a sua parte fica {fmt(item.base - jaDividido - parte)}{tipo === 'fixo' ? ' por mês' : ''}.
+          {pessoa.trim() || 'A pessoa'} paga {fmt(parte)}{tipo === 'fixo' ? ' por mês' : ''}{parcelada ? <> no total (<b>{nParc}× de {fmt(parte / nParc)}</b>)</> : ''}; a sua parte fica {fmt(item.base - jaDividido - parte)}{tipo === 'fixo' ? ' por mês' : ''}{parcelada ? <> (<b>{nParc}× de {fmt((item.base - jaDividido - parte) / nParc)}</b>)</> : ''}.
         </div>
       )}
       {excede && <div className="alert alert-red">A soma das partes passa do valor total ({fmt(item.base)}). Diminua o valor.</div>}
@@ -258,7 +266,7 @@ export default function Divididos({ store }) {
           <Lista rotulo={`Partes a receber em ${mesLabel(mes)}`}>
             {itensF.map((i) => (
               <ItemLista key={i.divisao.id} titulo={`${i.pessoa} · ${i.descricao}`} valor={fmt(i.recebido ? i.valorRecebido : i.esperado)} tomValor={i.recebido ? 'ok' : undefined}
-                selos={i.recebido ? <Selo tom="ok">{`recebido${i.recebidoEm ? ` em ${brData(i.recebidoEm)}` : ''}`}</Selo> : <Selo tom="aviso">a receber</Selo>}
+                selos={<>{i.parcela && <Selo tom="neutro">{`parcela ${i.parcela.num}/${i.parcela.total}`}</Selo>}{i.recebido ? <Selo tom="ok">{`recebido${i.recebidoEm ? ` em ${brData(i.recebidoEm)}` : ''}`}</Selo> : <Selo tom="aviso">a receber</Selo>}</>}
                 meta={i.divisao.observacao ? <span>{i.divisao.observacao}</span> : null}
                 acoes={i.recebido
                   ? <button className="btn btn-ghost btn-sm" onClick={() => desmarcarRepasse(i.divisao.id, mes)}>Desfazer<span className="so-leitor"> recebimento de {i.pessoa}</span></button>
@@ -278,6 +286,7 @@ export default function Divididos({ store }) {
           <Lista rotulo="Divisões cadastradas">
             {divisoesF.map((d) => (
               <ItemLista key={d.id} titulo={`${d.pessoa} · ${descricaoDoItem(store, d)}`} selos={<Selo tom="neutro">{d.tipo === 'fixo' ? 'conta fixa' : 'compra'}</Selo>}
+                meta={(() => { const c = d.tipo === 'compra' ? (store.compras || []).find((x) => x.id === d.ref_id) : null; const n = Number(c?.parcelas) || 1; return n > 1 ? <span>em {n}× · ela paga {fmt(parteTotal(d, Number(c.valor_total)) / n)} por parcela (total {fmt(parteTotal(d, Number(c.valor_total)))})</span> : null })()}
                 valor={`${d.modo === 'percentual' ? `${Number(d.valor)}%` : fmt(d.valor)}${d.tipo === 'fixo' ? ' /mês' : ''}`}
                 acoes={<button className="btn btn-danger fx-remover" onClick={async () => { if (await confirmar(`Apagar a divisão com ${d.pessoa}? Os valores já recebidos dela também somem.`)) delDivisao(d) }} aria-label={`Apagar divisão com ${d.pessoa}`}>Apagar</button>} />
             ))}

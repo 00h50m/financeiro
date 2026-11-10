@@ -54,6 +54,15 @@ export function esperadoDoMes(d, divisao, mes) {
 
 const repasseDe = (d, divisaoId, mes) => (d.divisoesRepasses || []).find((r) => r.divisao_id === divisaoId && r.mes === mes)
 
+// Qual parcela da compra cai no mês ({ num, total }), ou null (conta fixa, compra à vista ou mês fora do parcelamento).
+export function parcelaDoMes(d, divisao, mes) {
+  if (divisao.tipo !== 'compra') return null
+  const c = compraDe(d, divisao)
+  if (!c || !(Number(c.parcelas) > 1)) return null
+  const p = parcelasDaParte(c, divisao, d.cartoes || []).find((x) => x.mes === mes)
+  return p ? { num: p.num, total: p.total } : null
+}
+
 // Linhas do mês: o que cada pessoa deve e se já foi recebido.
 export function repassesDoMes(d, mes) {
   return (d.divisoes || [])
@@ -62,7 +71,7 @@ export function repassesDoMes(d, mes) {
       const reg = repasseDe(d, div.id, mes)
       if (!esperado && !reg) return null
       return {
-        divisao: div, mes, pessoa: div.pessoa, tipo: div.tipo, descricao: descricaoDoItem(d, div),
+        divisao: div, mes, pessoa: div.pessoa, tipo: div.tipo, descricao: descricaoDoItem(d, div), parcela: parcelaDoMes(d, div, mes),
         esperado, recebido: !!reg, valorRecebido: reg ? Number(reg.valor_recebido) : 0, recebidoEm: reg?.recebido_em || null,
       }
     })
