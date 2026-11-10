@@ -18,18 +18,34 @@ export function parteTotal(divisao, base) {
   return arred(Math.max(0, Math.min(bruta, b)))
 }
 
-// Parte esperada de cada parcela de uma compra: proporcional ao valor da parcela; a última fecha a conta.
+// Parcelas (números) em que a divisão vale: de `parcela_de` até `parcela_ate` (vazio = desde a 1ª / até a última).
+export function parcelasDaDivisao(divisao, totalParcelas) {
+  const n = Math.max(1, Number(totalParcelas) || 1)
+  const de = Math.min(n, Math.max(1, Number(divisao?.parcela_de) || 1))
+  const ate = Math.min(n, Math.max(de, Number(divisao?.parcela_ate) || n))
+  return { de, ate, todas: de === 1 && ate === n, qtd: ate - de + 1 }
+}
+
+// Parte esperada de cada parcela de uma compra: proporcional ao valor da parcela; a última parcela dela fecha a conta.
+// Com `parcela_de/ate`, só as parcelas desse intervalo têm parte (as outras ficam em 0): o valor em reais é dividido entre elas
+// e a porcentagem vale para cada uma. Sem intervalo é exatamente o comportamento de antes (todas as parcelas).
 export function parcelasDaParte(compra, divisao, cartoes) {
   const parcelas = gerarParcelas(compra, cartoes)
-  const total = parteTotal(divisao, Number(compra.valor_total))
-  const valorTotal = Number(compra.valor_total) || 0
+  const { de, ate } = parcelasDaDivisao(divisao, parcelas.length)
+  const dentro = parcelas.filter((p) => p.num >= de && p.num <= ate)
+  const valorDentro = arred(dentro.reduce((t, p) => t + p.valor, 0))
+  const total = parteTotal(divisao, valorDentro)
   let acumulado = 0
-  return parcelas.map((p, i) => {
-    const esperado = i === parcelas.length - 1 ? arred(total - acumulado) : arred(valorTotal > 0 ? (p.valor * total) / valorTotal : 0)
+  return parcelas.map((p) => {
+    if (p.num < de || p.num > ate) return { mes: p.mes, num: p.num, total: p.total, esperado: 0, valorParcela: p.valor }
+    const esperado = p.num === ate ? arred(total - acumulado) : arred(valorDentro > 0 ? (p.valor * total) / valorDentro : 0)
     acumulado = arred(acumulado + esperado)
     return { mes: p.mes, num: p.num, total: p.total, esperado, valorParcela: p.valor }
   })
 }
+
+// Parte total (R$) de uma divisão de COMPRA somando as parcelas dela (respeita o intervalo de parcelas).
+export const parteDaCompra = (compra, divisao, cartoes) => arred(parcelasDaParte(compra, divisao, cartoes).reduce((t, p) => t + p.esperado, 0))
 
 const compraDe = (d, divisao) => (d.compras || []).find((c) => c.id === divisao.ref_id)
 const fixoDe = (d, divisao) => (d.fixos || []).find((f) => f.id === divisao.ref_id)
@@ -105,17 +121,33 @@ export function saldoPorPessoa(d, meses) {
 // ---------- Valores líquidos (só a parte de quem usa o app) para categorias e teto ----------
 
 // Compras com o valor reduzido pela parte dos outros. Sem divisões devolve a MESMA lista.
+// Divisão de só algumas parcelas: além do valor total líquido, a compra leva `_valoresParcelas` (valor líquido de cada parcela),
+// que gerarParcelas usa para o gasto cair no mês certo. Sem divisão parcial nada muda (mesma conta de antes).
 export function comprasLiquidas(d) {
   const divs = (d.divisoes || []).filter((x) => x.tipo === 'compra')
   if (!divs.length) return d.compras
   const partes = new Map()
+  const parciais = new Map() // compra.id -> true se alguma divisão vale só para algumas parcelas
   for (const div of divs) {
     const c = compraDe(d, div)
     if (!c) continue
     const ja = partes.get(c.id) || 0
-    partes.set(c.id, arred(ja + Math.min(parteTotal(div, Number(c.valor_total)), Number(c.valor_total) - ja)))
+    const cheia = parcelasDaDivisao(div, Number(c.parcelas) || 1).todas
+    if (!cheia) parciais.set(c.id, true)
+    const parte = cheia ? parteTotal(div, Number(c.valor_total)) : parteDaCompra(c, div, d.cartoes || [])
+    partes.set(c.id, arred(ja + Math.min(parte, Number(c.valor_total) - ja)))
   }
-  return d.compras.map((c) => (partes.has(c.id) ? { ...c, valor_total: arred(Number(c.valor_total) - partes.get(c.id)) } : c))
+  return d.compras.map((c) => {
+    if (!partes.has(c.id)) return c
+    const liquida = { ...c, valor_total: arred(Number(c.valor_total) - partes.get(c.id)) }
+    if (!parciais.has(c.id)) return liquida
+    // por parcela: valor da parcela menos as partes dos outros (sem deixar negativo)
+    const base = gerarParcelas(c, d.cartoes || [])
+    const abate = base.map(() => 0)
+    for (const div of divs.filter((x) => x.ref_id === c.id)) parcelasDaParte(c, div, d.cartoes || []).forEach((p, i) => { abate[i] = arred(abate[i] + p.esperado) })
+    const valores = base.map((p, i) => arred(Math.max(0, p.valor - Math.min(abate[i], p.valor))))
+    return { ...liquida, valor_total: arred(valores.reduce((t, v) => t + v, 0)), _valoresParcelas: valores }
+  })
 }
 
 // Contas fixas com o valor mensal reduzido pela parte dos outros. Sem divisões devolve a MESMA lista.

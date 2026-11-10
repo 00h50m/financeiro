@@ -38,6 +38,9 @@ export function explicarErro(e, acao = 'concluir a ação') {
   if (cod === '23505' || /duplicate key/i.test(msg)) {
     return caso('Já existe um registro igual a este (duplicado).', 'Confira se não foi lançado antes; se for outro, mude o nome, o mês ou o cartão.')
   }
+  if (/parcela_de|parcela_ate|divisoes_parcelas_check/.test(msg)) {
+    return caso('O banco ainda não tem a atualização das parcelas em Divididos (dividir só algumas parcelas).', 'Rode o arquivo inbox/41_divisoes_parcelas.sql no Supabase e tente de novo. Nada foi gravado. Enquanto isso, dá para dividir a compra inteira.')
+  }
   if (/compras_importacao_id_fkey/.test(msg)) {
     return caso('O banco tem uma ligação antiga na coluna de importação das compras, e por isso a fatura não pôde ser gravada.', 'Rode o arquivo inbox/40_importacao_corrige_ligacao.sql no Supabase e tente de novo. Nada foi gravado.')
   }
