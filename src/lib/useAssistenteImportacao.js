@@ -16,7 +16,7 @@ import { indexarAliases } from './estabelecimento'
 import { recorrenciasAntesDaFatura, recorrenciaDaLinha, contaFixaDaLinha } from './recorrenciaImportacao'
 
 const MAX_PDF = 3 * 1024 * 1024
-const CAMPOS_DE_TRABALHO = ['_id', 'data', 'descricao', 'descricaoOriginal', 'identificacao', 'identificacaoSugerida', 'valor', 'categoria', 'subcategoria', 'sugerida', 'fonteSugestao', 'parcela_atual', 'parcela_total', 'cartaoNome', 'cartao_id', 'pessoa', 'pessoaManual', 'observacao', 'incluir', 'incluirManual', 'decisao', 'parcelamentoConfirmado', 'parcelamentoOpcao', 'naturezaManual', 'manual']
+const CAMPOS_DE_TRABALHO = ['_id', 'data', 'descricao', 'descricaoOriginal', 'identificacao', 'identificacaoSugerida', 'valor', 'categoria', 'subcategoria', 'sugerida', 'fonteSugestao', 'parcela_atual', 'parcela_total', 'cartaoNome', 'cartao_id', 'pessoa', 'pessoaManual', 'ajusteNome', 'ajusteCategoria', 'ajustePessoa', 'observacao', 'incluir', 'incluirManual', 'decisao', 'parcelamentoConfirmado', 'parcelamentoOpcao', 'naturezaManual', 'manual']
 const enxuta = (l) => Object.fromEntries(CAMPOS_DE_TRABALHO.filter((k) => l[k] !== undefined).map((k) => [k, l[k]]))
 const maisComum = (xs) => { const c = {}; xs.filter(Boolean).forEach((x) => { c[x] = (c[x] || 0) + 1 }); return Object.entries(c).sort((a, b) => b[1] - a[1])[0]?.[0] || '' }
 
@@ -196,15 +196,16 @@ export function useAssistenteImportacao(store, inicial = null) {
   }
 
   // correções de nome/categoria pedidas em linhas que já têm compra lançada no app (a pessoa editou na conciliação): aplicadas depois da importação
-  const ajustesCompras = useMemo(() => (analise?.linhas || []).filter((l) => l.grupo === 'registrada' && l.correspondencia?.compra && (l.ajusteNome || l.ajusteCategoria)).flatMap((l) => {
+  const ajustesCompras = useMemo(() => (analise?.linhas || []).filter((l) => l.grupo === 'registrada' && l.correspondencia?.compra && (l.ajusteNome || l.ajusteCategoria || l.ajustePessoa)).flatMap((l) => {
     const c = l.correspondencia.compra
     const patch = {}
     const nome = (l.identificacao || '').trim()
     if (l.ajusteNome && nome && nome !== (c.identificacao || '') && nome !== c.descricao) patch.identificacao = nome
     if (l.ajusteNome && !nome && c.identificacao) patch.identificacao = null // apagou o nome: volta a valer a descrição do cartão
     if (l.ajusteCategoria && l.categoria && !ehCompraDividida(c) && (l.categoria !== c.categoria || (l.subcategoria || '') !== (c.subcategoria || ''))) { patch.categoria = l.categoria; patch.subcategoria = l.subcategoria || null }
+    if (l.ajustePessoa && l.pessoa && l.pessoa !== c.pessoa) patch.pessoa = l.pessoa
     if (!Object.keys(patch).length) return []
-    return [{ linhaId: l._id, compraId: c.id, nomeAtual: c.identificacao || c.descricao, antes: { categoria: c.categoria, subcategoria: c.subcategoria }, patch }]
+    return [{ linhaId: l._id, compraId: c.id, nomeAtual: c.identificacao || c.descricao, antes: { categoria: c.categoria, subcategoria: c.subcategoria, pessoa: c.pessoa }, patch }]
   }), [analise])
 
   // contas fixas que serão cadastradas depois da importação (só de linhas novas, selecionadas e marcadas)

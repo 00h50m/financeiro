@@ -31,6 +31,7 @@ export default function CartaoLinha({ l, aberto: abertoInicial, valorLinha, mesF
   // linha que já tem compra lançada no app: mostra o nome e a categoria DA COMPRA (a sugestão do app para linha nova não vale aqui), a menos que a pessoa tenha corrigido
   const vinculada = (l.grupo === 'revisao' || l.grupo === 'registrada') && corr?.compra && !l.fixoCandidato && !l.fixoVinculado
   const nome = vinculada && !l.ajusteNome ? (corr.compra.identificacao?.trim() || corr.compra.descricao) : (l.identificacao?.trim() || l.descricao)
+  const pessoaMostrada = vinculada && !l.ajustePessoa ? (corr.compra.pessoa || l.pessoa) : l.pessoa
   const catMostrada = vinculada && !l.ajusteCategoria ? { c: corr.compra.categoria, s: corr.compra.subcategoria } : { c: l.categoria, s: l.subcategoria }
   const emAndamento = (Number(l.parcela_atual) || 1) > 1
   const parcelaEsperada = corr?.parcelaEsperada ?? (corr?.compra && mesFatura ? gerarParcelas(corr.compra, cartoes).find((p) => p.mes === mesFatura)?.num : undefined)
@@ -58,7 +59,7 @@ export default function CartaoLinha({ l, aberto: abertoInicial, valorLinha, mesF
       </button>
       <div className="imp-linha-meta">
         <span className="cad-sub">{catMostrada.c ? `${catMostrada.c}${catMostrada.s ? ` › ${catMostrada.s}` : ''}` : 'sem categoria'}{emAndamento ? ` · parcela ${l.parcela_atual}/${l.parcela_total}` : Number(l.parcela_total) > 1 ? ` · 1/${l.parcela_total}` : ''}{l.natureza === 'credito' ? ' · estorno/crédito' : l.natureza === 'encargo' ? ' · encargo' : ''}{l.repetidaNoArquivo ? ' · repetida no arquivo' : ''}</span>
-        <span className="imp-selos">{recorrente && <span className="badge badge-blue" title="Aparece todo mês: pode virar conta fixa">recorrente</span>}{l.pessoa && <span className={`badge badge-${corPessoa(pessoas, l.pessoa)}`} title="Pessoa do lançamento">{l.pessoa}</span>}<span className={`badge ${cor}`}>{texto}</span></span>
+        <span className="imp-selos">{recorrente && <span className="badge badge-blue" title="Aparece todo mês: pode virar conta fixa">recorrente</span>}{pessoaMostrada && <span className={`badge badge-${corPessoa(pessoas, pessoaMostrada)}`} title="Pessoa do lançamento">{pessoaMostrada}</span>}<span className={`badge ${cor}`}>{texto}</span></span>
       </div>
 
       {aberto && (
@@ -132,8 +133,8 @@ export default function CartaoLinha({ l, aberto: abertoInicial, valorLinha, mesF
 
           {/* compra já lançada no app: dá para corrigir o nome e a categoria dela (o app às vezes sugere errado) */}
           {vinculada && (
-            <details className="imp-editar" open={!!(l.ajusteNome || l.ajusteCategoria)}>
-              <summary>Corrigir nome e categoria{l.ajusteNome || l.ajusteCategoria ? ' (alterado)' : ''}</summary>
+            <details className="imp-editar" open={!!(l.ajusteNome || l.ajusteCategoria || l.ajustePessoa)}>
+              <summary>Corrigir nome, categoria e pessoa{l.ajusteNome || l.ajusteCategoria || l.ajustePessoa ? ' (alterado)' : ''}</summary>
               <p className="cad-sub" style={{ margin: '6px 0' }}>Aqui aparece o que está lançado no aplicativo. O que você mudar vale para a compra lançada depois que você confirmar{dividida ? ' (compra dividida em categorias: só o nome muda)' : ''}.</p>
               <div className="imp-grade-campos">
                 <label>Nome (o que é)<input value={l.ajusteNome ? l.identificacao : (corr.compra.identificacao || '')} onChange={(e) => atualizarLinha(l._id, { identificacao: e.target.value, identificacaoSugerida: false, ajusteNome: true })} placeholder={corr.compra.descricao} /></label>
@@ -141,8 +142,9 @@ export default function CartaoLinha({ l, aberto: abertoInicial, valorLinha, mesF
                   <label>Categoria<select value={catEditor} onChange={(e) => { const cat = e.target.value; const sb = categorias.find((c) => c.nome === cat)?.subcategorias || []; atualizarLinha(l._id, { categoria: cat, subcategoria: sb.length === 1 ? sb[0] : '', sugerida: false, ajusteCategoria: true }) }}><option value="">Selecione…</option>{categorias.map((c) => <option key={c.id}>{c.nome}</option>)}</select></label>
                   <label>Subcategoria<select value={subEditor} disabled={!catEditor} onChange={(e) => atualizarLinha(l._id, { categoria: catEditor, subcategoria: e.target.value, sugerida: false, ajusteCategoria: true })}><option value="">{catEditor ? 'Escolha a subcategoria…' : 'Escolha a categoria antes'}</option>{subs.map((x) => <option key={x}>{x}</option>)}</select></label>
                 </>}
+                <label>Pessoa (de quem é)<select value={pessoaMostrada} onChange={(e) => atualizarLinha(l._id, { pessoa: e.target.value, ajustePessoa: true })}>{!pessoas.some((p) => p.nome === pessoaMostrada) && pessoaMostrada && <option>{pessoaMostrada}</option>}{pessoas.map((p) => <option key={p.id}>{p.nome}</option>)}</select></label>
               </div>
-              {(l.ajusteNome || l.ajusteCategoria) && <button type="button" className="link-btn" onClick={() => atualizarLinha(l._id, { ajusteNome: false, ajusteCategoria: false })}>desfazer e usar os dados do aplicativo</button>}
+              {(l.ajusteNome || l.ajusteCategoria || l.ajustePessoa) && <button type="button" className="link-btn" onClick={() => atualizarLinha(l._id, { ajusteNome: false, ajusteCategoria: false, ajustePessoa: false })}>desfazer e usar os dados do aplicativo</button>}
             </details>
           )}
 

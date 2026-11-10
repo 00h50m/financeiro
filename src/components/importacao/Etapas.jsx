@@ -280,7 +280,7 @@ export function EtapaConfirmar({ a }) {
           {a.ajustesCompras?.length > 0 && (
             <div><b>Correções em compras já lançadas{previa.temAlgoParaGravar || a.conciliando ? ', depois da importação' : ''}</b>
               <ul className="imp-lista">{a.ajustesCompras.map((x) => (
-                <li key={x.linhaId}>{x.nomeAtual}: {x.patch.identificacao !== undefined && <>nome passa a ser <b>{x.patch.identificacao || 'o da descrição do cartão'}</b></>}{x.patch.identificacao !== undefined && x.patch.categoria && ' · '}{x.patch.categoria && <>categoria de {x.antes.categoria || 'sem categoria'}{x.antes.subcategoria ? ` › ${x.antes.subcategoria}` : ''} para <b>{x.patch.categoria}{x.patch.subcategoria ? ` › ${x.patch.subcategoria}` : ''}</b></>}</li>
+                <li key={x.linhaId}>{x.nomeAtual}: {x.patch.identificacao !== undefined && <>nome passa a ser <b>{x.patch.identificacao || 'o da descrição do cartão'}</b></>}{x.patch.identificacao !== undefined && (x.patch.categoria || x.patch.pessoa) && ' · '}{x.patch.categoria && <>categoria de {x.antes.categoria || 'sem categoria'}{x.antes.subcategoria ? ` › ${x.antes.subcategoria}` : ''} para <b>{x.patch.categoria}{x.patch.subcategoria ? ` › ${x.patch.subcategoria}` : ''}</b></>}{x.patch.categoria && x.patch.pessoa && ' · '}{x.patch.pessoa && <>de quem é: {x.antes.pessoa || 'sem pessoa'} para <b>{x.patch.pessoa}</b></>}</li>
               ))}</ul>
             </div>
           )}
