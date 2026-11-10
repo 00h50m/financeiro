@@ -256,7 +256,7 @@ export function EtapaConfirmar({ a }) {
       <div className="imp-confirmar-grade">
         <section className="card imp-gravar">
           <h3>Será gravado</h3>
-          {!previa.temAlgoParaGravar && <p className="cad-sub">{a.conciliando ? 'Nada a gravar: ao confirmar, só o estado da conciliação é atualizado.' : 'Nada a gravar com as decisões atuais. Suas decisões ficam salvas como rascunho.'}</p>}
+          {!previa.temAlgoParaGravar && !(a.ajustesCompras?.length > 0) && <p className="cad-sub">{a.conciliando ? 'Nada a gravar: ao confirmar, só o estado da conciliação é atualizado.' : 'Nada a gravar com as decisões atuais. Suas decisões ficam salvas como rascunho.'}</p>}
           {gravar.criar.qtd > 0 && (
             <div><b>{gravar.criar.qtd} nova{gravar.criar.qtd === 1 ? '' : 's'} compra{gravar.criar.qtd === 1 ? '' : 's'}</b> · {fmt(gravar.criar.valor)}
               <ul className="imp-lista">{gravar.criar.itens.slice(0, 6).map((i) => <li key={i.id}>{i.nome} <span className="cad-sub">· {i.categoria}</span> <span className="mono">{fmt(i.valor)}</span></li>)}{gravar.criar.itens.length > 6 && <li className="cad-sub">+ {gravar.criar.itens.length - 6} compras</li>}</ul>
@@ -275,6 +275,13 @@ export function EtapaConfirmar({ a }) {
           {gravar.mover.length > 0 && (
             <div><b>{gravar.mover.length} compra{gravar.mover.length === 1 ? '' : 's'} movida{gravar.mover.length === 1 ? '' : 's'} para esta fatura</b>
               <ul className="imp-lista">{gravar.mover.map((m) => <li key={m.compra_id}>{m.descricao}: {m.fatura_mes_anterior ? mesLabel(m.fatura_mes_anterior) : 'fatura automática'} → {mesLabel(m.fatura_mes)} <span className="mono">{fmt(m.valor)}</span></li>)}</ul>
+            </div>
+          )}
+          {a.ajustesCompras?.length > 0 && (
+            <div><b>Correções em compras já lançadas{previa.temAlgoParaGravar || a.conciliando ? ', depois da importação' : ''}</b>
+              <ul className="imp-lista">{a.ajustesCompras.map((x) => (
+                <li key={x.linhaId}>{x.nomeAtual}: {x.patch.identificacao !== undefined && <>nome passa a ser <b>{x.patch.identificacao || 'o da descrição do cartão'}</b></>}{x.patch.identificacao !== undefined && x.patch.categoria && ' · '}{x.patch.categoria && <>categoria de {x.antes.categoria || 'sem categoria'}{x.antes.subcategoria ? ` › ${x.antes.subcategoria}` : ''} para <b>{x.patch.categoria}{x.patch.subcategoria ? ` › ${x.patch.subcategoria}` : ''}</b></>}</li>
+              ))}</ul>
             </div>
           )}
           {a.efeitosFixos?.length > 0 && (
@@ -323,13 +330,13 @@ export function EtapaConfirmar({ a }) {
         </section>
       )}
       <div className="imp-estados">
-        <span>Importação: <span className="badge badge-blue">{a.conciliando ? 'já concluída' : previa.temAlgoParaGravar ? 'será concluída' : 'nada a gravar'}</span></span>
+        <span>Importação: <span className="badge badge-blue">{a.conciliando ? 'já concluída' : previa.temAlgoParaGravar ? 'será concluída' : a.ajustesCompras?.length ? 'só correções nas compras' : 'nada a gravar'}</span></span>
         <span>Conciliação depois de gravar: <span className={`badge ${corConc}`}>{rotConc}</span></span>
       </div>
       {a.erro && <div className="alert alert-red" role="alert" style={{ whiteSpace: 'pre-line' }}>{a.erro}</div>}
       <div className="imp-navegacao">
         <button type="button" className="btn btn-ghost" onClick={() => a.irPara(3)}>← Voltar</button>
-        <button type="button" className="btn btn-primary" disabled={(!previa.temAlgoParaGravar && !a.conciliando) || a.confirmando} onClick={a.confirmar}>{a.confirmando ? 'Gravando…' : a.conciliando ? 'Confirmar conferência' : 'Confirmar importação'}</button>
+        <button type="button" className="btn btn-primary" disabled={(!previa.temAlgoParaGravar && !a.conciliando && !(a.ajustesCompras?.length > 0)) || a.confirmando} onClick={a.confirmar}>{a.confirmando ? 'Gravando…' : a.conciliando ? 'Confirmar conferência' : 'Confirmar importação'}</button>
       </div>
     </div>
   )
@@ -347,6 +354,7 @@ export function Resultado({ a, aoVerFaturas }) {
         <b>{r.tipo === 'ok' ? '✓ ' : ''}{r.titulo}</b>
         <div style={{ fontSize: 13, marginTop: 4 }}>{r.detalhe}</div>
         {r.fixos && <div style={{ fontSize: 13, marginTop: 6 }}>🔁 {r.fixos}</div>}
+        {r.comprasAjuste && <div style={{ fontSize: 13, marginTop: 6 }}>✏️ {r.comprasAjuste}</div>}
         {r.fixosAjuste && <div style={{ fontSize: 13, marginTop: 6 }}>🔁 {r.fixosAjuste}</div>}
         {r.aviso && <div style={{ fontSize: 12, marginTop: 6 }}>⚠ {r.aviso}</div>}
       </div>
