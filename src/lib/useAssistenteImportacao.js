@@ -6,6 +6,7 @@ import { sb } from './supabase'
 import { lerFaturaPdf } from './automacoes'
 import { explicarErro } from './erros'
 import { analisarFatura, decisaoPatch } from './conciliacaoFatura'
+import { ehCompraDividida } from './planoImportacao'
 import { COLUNAS_ESPERADAS, prepararLinhas, reanalisar } from './leituraFatura'
 import { montarPlano } from './planoImportacao'
 import { chaveDoArquivo, novoIdImportacao, salvarRascunho, descartarRascunho, listarRascunhos, listarImportadas, registrosDoLote, textoResultado } from './importacaoLote'
@@ -20,7 +21,7 @@ const maisComum = (xs) => { const c = {}; xs.filter(Boolean).forEach((x) => { c[
 
 // `inicial` (para testes e pré-visualização): { registros, nome, origem, totalBanco, etapa } carrega o arquivo já na primeira renderização.
 export function useAssistenteImportacao(store, inicial = null) {
-  const { cartoes, categorias, compras, pessoas, fixos = [], regras = [], aliases = [], importarFatura, conciliarFatura, addFixo, updateFixo, definirValorFixo, fixosValoresOk } = store
+  const { cartoes, categorias, compras, pessoas, fixos = [], regras = [], aliases = [], importarFatura, conciliarFatura, updateCompra, addFixo, updateFixo, definirValorFixo, fixosValoresOk } = store
   const faturaMesOk = compras.some((c) => 'fatura_mes' in c)
 
   const pre = useRef(null)
@@ -182,6 +183,18 @@ export function useAssistenteImportacao(store, inicial = null) {
     return ef
   }), [analise, mesFatura, cartaoId])
 
+  // correções de nome/categoria pedidas em linhas que já têm compra lançada no app (a pessoa editou na conciliação): aplicadas depois da importação
+  const ajustesCompras = useMemo(() => (analise?.linhas || []).filter((l) => l.grupo === 'registrada' && l.correspondencia?.compra && (l.ajusteNome || l.ajusteCategoria)).flatMap((l) => {
+    const c = l.correspondencia.compra
+    const patch = {}
+    const nome = (l.identificacao || '').trim()
+    if (l.ajusteNome && nome && nome !== (c.identificacao || '') && nome !== c.descricao) patch.identificacao = nome
+    if (l.ajusteNome && !nome && c.identificacao) patch.identificacao = null // apagou o nome: volta a valer a descrição do cartão
+    if (l.ajusteCategoria && l.categoria && !ehCompraDividida(c) && (l.categoria !== c.categoria || (l.subcategoria || '') !== (c.subcategoria || ''))) { patch.categoria = l.categoria; patch.subcategoria = l.subcategoria || null }
+    if (!Object.keys(patch).length) return []
+    return [{ linhaId: l._id, compraId: c.id, nomeAtual: c.identificacao || c.descricao, antes: { categoria: c.categoria, subcategoria: c.subcategoria }, patch }]
+  }), [analise])
+
   // contas fixas que serão cadastradas depois da importação (só de linhas novas, selecionadas e marcadas)
   const fixosAPlanejar = useMemo(() => (analise?.linhas || []).filter((l) => l.grupo === 'nova' && l.selecionada && fixosMarcados.has(l._id)).map((l) => {
     const rec = recorrenciaDaLinha(l, recorrencias, indiceAliases)
@@ -246,11 +259,14 @@ export function useAssistenteImportacao(store, inicial = null) {
   }
 
   async function confirmar() {
-    if (!plano || (!plano.previa.temAlgoParaGravar && !conciliando) || confirmando) return
+    const somenteAjustes = !!plano && !plano.previa.temAlgoParaGravar && !conciliando && ajustesCompras.length > 0
+    if (!plano || (!plano.previa.temAlgoParaGravar && !conciliando && !somenteAjustes) || confirmando) return
     setConfirmando(true); setErro('')
     try {
       let r
-      if (conciliando) {
+      if (somenteAjustes) {
+        r = { criadas: 0, atualizadas: 0, movidas: 0, somenteAjustes: true } // nada a gravar na fatura: só as correções nas compras já lançadas (a importação continua como rascunho)
+      } else if (conciliando) {
         const { cartao_id, mes, arquivo_nome, origem_leitura, chave, total_banco, total_extraido, linhas: _l, ...resto } = plano.dados // eslint-disable-line no-unused-vars
         r = await conciliarFatura({ importacaoId, operacaoId: conciliando.operacaoId, dados: resto })
         listarImportadas(sb).then(setImportadas).catch(() => {})
@@ -278,8 +294,16 @@ export function useAssistenteImportacao(store, inicial = null) {
           r = { ...r, fixosAjustadas: ajustadas, fixosAjusteFalhou: falharam }
         }
       }
+      if (!r.repetida && ajustesCompras.length && typeof updateCompra === 'function') {
+        let feitas = 0
+        let falharam = 0
+        for (const a of ajustesCompras) {
+          try { (await updateCompra(a.compraId, a.patch)) === false ? falharam++ : feitas++ } catch { falharam++ }
+        }
+        r = { ...r, comprasAjustadas: feitas, comprasAjusteFalhou: falharam }
+      }
       setResultado({ ...textoResultado(r), r, pendencias: plano.previa.emAberto, importacaoId })
-      setRascunhos((rs) => rs.filter((x) => x.id !== importacaoId))
+      if (!r.somenteAjustes) setRascunhos((rs) => rs.filter((x) => x.id !== importacaoId))
       irPara(5)
     } catch (e) {
       setErro(explicarErro(e, 'importar a fatura')) // mantém tudo: tentar de novo é seguro (mesmo id do lote)
@@ -291,6 +315,6 @@ export function useAssistenteImportacao(store, inicial = null) {
   return {
     etapa, maxEtapa, irPara, arquivo, linhas, cartaoId, mesFatura, modoValor, importacaoId, lendo, erro, setErro, confirmando, resultado, rascunhos, importadas, conciliando, bancoV2, salvoEm, faturaMesOk,
     analise, plano, cartoes, categorias, pessoas, fechamentos: store.fechamentos || [],
-    abrirCsv, abrirPdf, definirCartao, definirMes, definirModo, definirTotalBanco, atualizarLinha, decidir, escolherParcelamento, mudarCategoria, adicionarLinha, retomar, reconferir, descartar, confirmar, limpar, recorrenciaDe, alternarFixo, fixosMarcados, fixosAPlanejar, efeitosFixos,
+    ajustesCompras, abrirCsv, abrirPdf, definirCartao, definirMes, definirModo, definirTotalBanco, atualizarLinha, decidir, escolherParcelamento, mudarCategoria, adicionarLinha, retomar, reconferir, descartar, confirmar, limpar, recorrenciaDe, alternarFixo, fixosMarcados, fixosAPlanejar, efeitosFixos,
   }
 }
