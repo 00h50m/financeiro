@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   parteTotal, parcelasDaParte, esperadoDoMes, repassesDoMes, resumoRepasses, saldoPorPessoa,
-  comprasLiquidas, fixosLiquidos, parteDosOutrosNoMes, parcelaDoMes, parcelasDaDivisao, parteDaCompra,
+  comprasLiquidas, fixosLiquidos, parteDosOutrosNoMes, parcelaDoMes, parcelasDaDivisao, parteDaCompra, somaPassaDoValor,
 } from '../divisoes'
 import { resumoDoMes, sobraAnterior } from '../financeiro'
 import { montarFoto, validarFechamento } from '../fechamento'
@@ -235,5 +235,25 @@ describe('saldo por pessoa de conta fixa (não soma meses que não eram devidos)
     const c = compra({ valor_total: 300, parcelas: 3, data_compra: '2026-11-05', cartao_id: null })
     const dc = base({ compras: [c], divisoes: [divisao({ modo: 'percentual', valor: 100 })] })
     expect(saldoPorPessoa(dc, meses, '2026-11')).toEqual({ Mãe: 300 })
+  })
+})
+
+describe('somaPassaDoValor (editar divisão)', () => {
+  const c = compra({ valor_total: 300, parcelas: 3, cartao_id: null })
+  const d = base({ compras: [c] })
+  it('compra: soma das partes dentro do valor não passa; acima, passa', () => {
+    const outra = divisao({ id: 'o', modo: 'percentual', valor: 60 })
+    expect(somaPassaDoValor(d, c, [outra], divisao({ id: 'n', pessoa: 'Pai', modo: 'percentual', valor: 40 }))).toBe(false)
+    expect(somaPassaDoValor(d, c, [outra], divisao({ id: 'n', pessoa: 'Pai', modo: 'percentual', valor: 50 }))).toBe(true)
+  })
+  it('parcelas diferentes não se somam: 100% das parcelas 1-2 e 100% da 3 cabem', () => {
+    const a = divisao({ id: 'a', modo: 'percentual', valor: 100, parcela_ate: 2 })
+    expect(somaPassaDoValor(d, c, [a], divisao({ id: 'n', pessoa: 'Pai', modo: 'percentual', valor: 100, parcela_de: 3 }))).toBe(false)
+  })
+  it('conta fixa: soma mensal das partes', () => {
+    const f = fixo({ valor: 1000 })
+    const a = divisao({ id: 'a', tipo: 'fixo', ref_id: 'f1', modo: 'valor', valor: 600 })
+    expect(somaPassaDoValor(base({ fixos: [f] }), f, [a], { ...a, id: 'n', valor: 400 })).toBe(false)
+    expect(somaPassaDoValor(base({ fixos: [f] }), f, [a], { ...a, id: 'n', valor: 500 })).toBe(true)
   })
 })

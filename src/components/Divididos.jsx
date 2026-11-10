@@ -5,7 +5,7 @@ import { CampoBusca, ResumoFiltro } from './FiltroLista'
 import { Pilulas } from './NavMes'
 import CampoDinheiro from './ui/CampoDinheiro'
 import { addMonths, fmt, mesLabel, nowYM, tituloCompra } from '../lib/utils'
-import { descricaoDoItem, parteTotal, parteDaCompra, parcelasDaParte, parcelasDaDivisao, resumoRepasses, saldoPorPessoa } from '../lib/divisoes'
+import { descricaoDoItem, parteTotal, parteDaCompra, parcelasDaParte, parcelasDaDivisao, resumoRepasses, saldoPorPessoa, somaPassaDoValor } from '../lib/divisoes'
 import { confirmar, avisar, pedir } from '../lib/dialogos'
 import Selo from './ui/Selo'
 import Indicador from './ui/Indicador'
@@ -64,7 +64,7 @@ function NovaDivisao({ store, onFeito }) {
   const parte = item && v > 0 ? parteDe(novaDiv) : 0
   const jaDividido = item ? dividido(item.id).reduce((s, d) => s + parteDe(d), 0) : 0
   // não pode passar do valor de nenhuma parcela (compra parcelada) nem do total
-  const excede = !!item && parte > 0 && (compraSel
+  const excede = !!item && v > 0 && (vTotal > item.base + 0.005 && modoGravar === 'valor') || !!item && parte > 0 && (compraSel
     ? parcelasDaParte(compraSel, novaDiv, cartoes).some((p, i) => p.esperado + dividido(item.id).reduce((s, d) => s + (parcelasDaParte(compraSel, d, cartoes)[i]?.esperado || 0), 0) > p.valorParcela + 0.005)
     : jaDividido + parte > item.base + 0.005)
   const valido = item && pessoa.trim() && v > 0 && (modoUso !== 'percentual' || v <= 100) && !excede
@@ -196,12 +196,82 @@ function NovaDivisao({ store, onFeito }) {
   )
 }
 
+// Editar uma divisão já cadastrada: trocar quem paga (ex.: era a Mãe, na verdade é a Rose), o valor/porcentagem e a observação.
+function EditarDivisao({ store, divisao, nomes, aoFechar }) {
+  const { compras, fixos, divisoes, cartoes = [], divisoesRepasses = [], updateDivisao } = store
+  const [pessoa, setPessoa] = useState(divisao.pessoa)
+  const [modo, setModo] = useState(divisao.modo)
+  const [valor, setValor] = useState(String(Number(divisao.valor)))
+  const [obs, setObs] = useState(divisao.observacao || '')
+  const [salvando, setSalvando] = useState(false)
+  const item = divisao.tipo === 'compra' ? compras.find((c) => c.id === divisao.ref_id) : fixos.find((x) => x.id === divisao.ref_id)
+  const base = item ? Number(divisao.tipo === 'compra' ? item.valor_total : item.valor) : 0
+  const nParc = divisao.tipo === 'compra' ? Number(item?.parcelas) || 1 : 1
+  const intervalo = parcelasDaDivisao(divisao, nParc)
+  const v = lerNum(valor)
+  const nova = { ...divisao, pessoa: pessoa.trim(), modo, valor: v }
+  const parte = item && v > 0 ? (divisao.tipo === 'compra' ? parteDaCompra(item, nova, cartoes) : parteTotal(nova, base)) : 0
+  const outras = divisoes.filter((x) => x.tipo === divisao.tipo && x.ref_id === divisao.ref_id && x.id !== divisao.id)
+  const excede = !!item && v > 0 && ((modo === 'valor' && v > base + 0.005) || (parte > 0 && somaPassaDoValor({ cartoes }, item, outras, nova)))
+  const jaRecebido = divisoesRepasses.filter((r) => r.divisao_id === divisao.id)
+  const valido = item && pessoa.trim() && v > 0 && (modo !== 'percentual' || v <= 100) && !excede
+  const mudou = pessoa.trim() !== divisao.pessoa || modo !== divisao.modo || v !== Number(divisao.valor) || (obs.trim() || null) !== (divisao.observacao || null)
+
+  async function salvar() {
+    if (!valido || !mudou) return
+    setSalvando(true)
+    const patch = { pessoa: pessoa.trim(), modo, valor: v, observacao: obs.trim() || null }
+    const ok = await updateDivisao(divisao, patch)
+    setSalvando(false)
+    if (ok !== false) aoFechar()
+  }
+
+  return (
+    <div className="overlay" onClick={(e) => { if (e.target.className === 'overlay') aoFechar() }}>
+      <div className="modal" role="dialog" aria-modal="true" aria-label="Editar divisão">
+        <div className="modal-title">Editar divisão</div>
+        <p className="cad-sub" style={{ marginTop: 0 }}><b>{descricaoDoItem(store, divisao)}</b> · {fmt(base)}{divisao.tipo === 'fixo' ? ' por mês' : nParc > 1 ? ` em ${nParc}×` : ''}{!intervalo.todas ? ` · vale só para as parcelas ${intervalo.de} a ${intervalo.ate}` : ''}</p>
+        <div className="dv-passo">Quem paga a parte</div>
+        <div className="dv-nomes">
+          {nomes.map((n) => <button key={n} type="button" className={`btn btn-sm ${pessoa.trim() === n ? 'btn-primary' : 'btn-ghost'}`} aria-pressed={pessoa.trim() === n} onClick={() => setPessoa(n)}>{n}</button>)}
+        </div>
+        <div className="form-group">
+          <label htmlFor="ed-pessoa">Nome (ou digite outro)</label>
+          <input id="ed-pessoa" value={pessoa} onChange={(e) => setPessoa(e.target.value)} autoFocus />
+        </div>
+        {jaRecebido.length > 0 && pessoa.trim() !== divisao.pessoa && (
+          <div className="alert alert-amber" role="status">Os {jaRecebido.length} recebimento{jaRecebido.length === 1 ? '' : 's'} já marcado{jaRecebido.length === 1 ? '' : 's'} desta divisão ({fmt(jaRecebido.reduce((t, r) => t + Number(r.valor_recebido), 0))}) passa{jaRecebido.length === 1 ? '' : 'm'} a ser de <b>{pessoa.trim() || 'quem você digitar'}</b>.</div>
+        )}
+        <div className="dv-passo">Quanto ela paga</div>
+        <Pilulas rotulo="Como informar" valor={modo} onChange={(m) => { setModo(m); setValor('') }} opcoes={[['valor', divisao.tipo === 'fixo' ? 'Em reais (por mês)' : 'Em reais (total)'], ['percentual', 'Em porcentagem']]} />
+        <div className="dv-valor-linha">
+          <div className="form-group">
+            <label htmlFor="ed-valor">{modo === 'valor' ? 'Valor (R$)' : 'Porcentagem (%)'}</label>
+            <CampoDinheiro id="ed-valor" value={valor} onChange={setValor} prefixo={modo === 'valor' ? 'R$' : null} />
+          </div>
+        </div>
+        <div className="form-group">
+          <label htmlFor="ed-obs">Observação (opcional)</label>
+          <input id="ed-obs" value={obs} onChange={(e) => setObs(e.target.value)} />
+        </div>
+        {parte > 0 && !excede && <div className="alert alert-blue">{pessoa.trim() || 'A pessoa'} paga {fmt(parte)}{divisao.tipo === 'fixo' ? ' por mês' : ''}.</div>}
+        {excede && <div className="alert alert-red">A soma das partes passa do valor do item ({fmt(base)}). Diminua o valor.</div>}
+        <div className="modal-footer">
+          <button type="button" className="btn btn-ghost" onClick={aoFechar}>Cancelar</button>
+          <button type="button" className="btn btn-primary" disabled={!valido || !mudou || salvando} onClick={salvar}>{salvando ? 'Salvando…' : 'Salvar alterações'}</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function Divididos({ store }) {
   const { divisoes, divisoesOk, marcarRepasse, desmarcarRepasse, delDivisao } = store
   const [mes, setMes] = useState(nowYM())
   const [pessoaF, setPessoaF] = useState('') // '' = todas as pessoas
   const [situacaoF, setSituacaoF] = useState('') // '' | 'receber' | 'recebido'
   const [buscaL, setBuscaL] = useState('')
+  const [editando, setEditando] = useState(null) // divisão em edição
   const noInicio = !!store.inicioApp && mes <= store.inicioApp
 
   if (!divisoesOk) {
@@ -254,6 +324,7 @@ export default function Divididos({ store }) {
       </div>
 
       <NovaDivisao store={store} />
+      {editando && <EditarDivisao store={store} divisao={editando} nomes={[...new Set([...pessoasDiv, ...(store.pessoas || []).map((p) => p.nome)])]} aoFechar={() => setEditando(null)} />}
 
       {pessoasDiv.length > 0 && (
         <div className="dv-quem" role="group" aria-label="Filtrar por pessoa">
@@ -302,8 +373,8 @@ export default function Divididos({ store }) {
                 selos={<>{i.parcela && <Selo tom="neutro">{`parcela ${i.parcela.num}/${i.parcela.total}`}</Selo>}{i.recebido ? <Selo tom="ok">{`recebido${i.recebidoEm ? ` em ${brData(i.recebidoEm)}` : ''}`}</Selo> : <Selo tom="aviso">a receber</Selo>}</>}
                 meta={i.divisao.observacao ? <span>{i.divisao.observacao}</span> : null}
                 acoes={i.recebido
-                  ? <button className="btn btn-ghost btn-sm" onClick={() => desmarcarRepasse(i.divisao.id, mes)}>Desfazer<span className="so-leitor"> recebimento de {i.pessoa}</span></button>
-                  : <button className="btn btn-primary btn-sm" onClick={() => receber(i)}>Recebi<span className="so-leitor"> de {i.pessoa}</span></button>} />
+                  ? <><button className="btn btn-ghost btn-sm" onClick={() => desmarcarRepasse(i.divisao.id, mes)}>Desfazer<span className="so-leitor"> recebimento de {i.pessoa}</span></button><button className="btn btn-ghost btn-sm" onClick={() => setEditando(i.divisao)}>Editar<span className="so-leitor"> divisão de {i.pessoa}</span></button></>
+                  : <><button className="btn btn-primary btn-sm" onClick={() => receber(i)}>Recebi<span className="so-leitor"> de {i.pessoa}</span></button><button className="btn btn-ghost btn-sm" onClick={() => setEditando(i.divisao)}>Editar<span className="so-leitor"> divisão de {i.pessoa}</span></button></>} />
             ))}
           </Lista>
         </div>
@@ -321,7 +392,7 @@ export default function Divididos({ store }) {
               <ItemLista key={d.id} titulo={`${d.pessoa} · ${descricaoDoItem(store, d)}`} selos={<Selo tom="neutro">{d.tipo === 'fixo' ? 'conta fixa' : 'compra'}</Selo>}
                 meta={(() => { const c = d.tipo === 'compra' ? (store.compras || []).find((x) => x.id === d.ref_id) : null; const n = Number(c?.parcelas) || 1; if (n <= 1) return null; const it = parcelasDaDivisao(d, n); const tot = parteDaCompra(c, d, store.cartoes || []); return <span>em {n}×{it.todas ? '' : ` · só as parcelas ${it.de} a ${it.ate}`} · ela paga {fmt(tot / it.qtd)} por parcela (total {fmt(tot)})</span> })()}
                 valor={`${d.modo === 'percentual' ? `${Number(d.valor)}%` : fmt(d.valor)}${d.tipo === 'fixo' ? ' /mês' : ''}`}
-                acoes={<button className="btn btn-danger fx-remover" onClick={async () => { if (await confirmar(`Apagar a divisão com ${d.pessoa}? Os valores já recebidos dela também somem.`)) delDivisao(d) }} aria-label={`Apagar divisão com ${d.pessoa}`}>Apagar</button>} />
+                acoes={<><button className="btn btn-ghost btn-sm" onClick={() => setEditando(d)}>Editar<span className="so-leitor"> divisão com {d.pessoa}</span></button><button className="btn btn-danger fx-remover" onClick={async () => { if (await confirmar(`Apagar a divisão com ${d.pessoa}? Os valores já recebidos dela também somem.`)) delDivisao(d) }} aria-label={`Apagar divisão com ${d.pessoa}`}>Apagar</button></>} />
             ))}
           </Lista>
         </div>
