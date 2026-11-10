@@ -381,3 +381,23 @@ describe('pareamento das sobras (IOF, encargos e estornos)', () => {
     expect(rs.filter((r) => r.correspondencia).length).toBe(1)
   })
 })
+
+describe('nome sugerido: lojas genéricas e nomes em disputa', () => {
+  const c = (id, identificacao, valor, parcelas = 1) => ({ id, descricao: 'AMAZON BR', identificacao, valor_total: valor, parcelas })
+  const historico = [c('1', 'Fralda Vó', 17.5 * 5, 5), c('2', 'Fralda Vó', 40), c('3', 'Fralda Vó', 31), c('4', 'Finish', 17.57 * 5, 5), c('5', 'Livro', 59.9)]
+  it('Amazon: o nome mais usado no histórico NÃO é aplicado a uma compra nova de outro valor', () => {
+    expect(sugerirNomeLinha('AMAZON BR', { compras: historico, valor: 99.99 })?.nome).toBe('Amazon')
+  })
+  it('Amazon: reaproveita o nome só de compra com o mesmo valor (compra repetida)', () => {
+    expect(sugerirNomeLinha('AMAZON BR', { compras: historico, valor: 59.9 })).toEqual({ nome: 'Livro', fonte: 'historico' })
+    expect(sugerirNomeLinha('AMAZON BR', { compras: historico, valor: 17.57 })?.nome).toBe('Finish') // valor da parcela
+  })
+  it('sem o valor, loja genérica não usa o histórico', () => {
+    expect(sugerirNomeLinha('AMAZON BR', { compras: historico })?.nome).toBe('Amazon')
+  })
+  it('loja comum: com vários nomes disputando, nenhum domina → não chuta; com um nome dominante, reaproveita', () => {
+    const p = (id, nome) => ({ id, descricao: 'PADARIA SAO JOSE', identificacao: nome, valor_total: 10, parcelas: 1 })
+    expect(sugerirNomeLinha('PADARIA SAO JOSE', { compras: [p('1', 'Pão'), p('2', 'Bolo'), p('3', 'Pão'), p('4', 'Bolo')] })?.nome).toBe('Padaria Sao Jose')
+    expect(sugerirNomeLinha('PADARIA SAO JOSE', { compras: [p('1', 'Pão'), p('2', 'Pão'), p('3', 'Pão'), p('4', 'Bolo')] })).toEqual({ nome: 'Pão', fonte: 'historico' })
+  })
+})

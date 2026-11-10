@@ -225,8 +225,8 @@ export function resumirAnalise(linhas) {
 }
 
 // Sugestão de nome para a coluna Identificação.
-export const sugerirNomeLinha = (descricao, { compras = [], aliases = [] } = {}) =>
-  sugerirIdentificacao({ descricao, compras, indiceAliases: indexarAliases(aliases) })
+export const sugerirNomeLinha = (descricao, { compras = [], aliases = [], valor = null } = {}) =>
+  sugerirIdentificacao({ descricao, compras, indiceAliases: indexarAliases(aliases), valor })
 
 const dif = (a, b) => Math.round((a - b) * 100) / 100
 

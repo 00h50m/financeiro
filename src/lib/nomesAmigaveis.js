@@ -29,23 +29,34 @@ function marcaDaChave(chave) {
   return null
 }
 
+// Lojas onde cada compra é de uma coisa diferente (a mesma descrição na fatura vira fralda, detergente, livro...): o que já foi
+// lançado com esse texto NÃO diz o que é a compra nova. Para elas o histórico só vale para compras de MESMO valor (compra repetida).
+const LOJAS_GENERICAS = new Set(['Mercado Livre', 'Amazon', 'Shopee', 'AliExpress', 'Magalu', 'Americanas', 'Shein'])
+export const ehLojaGenerica = (chave) => LOJAS_GENERICAS.has(marcaDaChave(String(chave || '')) || '')
+
 // descricao: texto como veio da fatura. compras: já lançadas (com identificacao). aliases: tabela estabelecimento_aliases.
 // Devolve { nome, fonte } ou null (quando não há nada melhor que o texto original).
-export function sugerirIdentificacao({ descricao, compras = [], indiceAliases = new Map() }) {
+export function sugerirIdentificacao({ descricao, compras = [], indiceAliases = new Map(), valor = null }) {
   const { chave, nome: nomeAlias } = chaveEstabelecimento(descricao, indiceAliases)
   if (!chave) return null
 
   // 1) a pessoa já deu um nome a esse mesmo texto (ou a um parecido): reaproveita o mais usado
   const exato = normNome(descricao)
   const contagem = {}
+  const generica = ehLojaGenerica(chave)
+  const v = Number(valor)
+  const mesmoValor = (c) => Number.isFinite(v) && v > 0 && [Number(c.valor_total), Number(c.valor_total) / (Number(c.parcelas) || 1)].some((x) => Math.abs(x - v) < 0.01)
   for (const c of compras) {
     if (!c.identificacao) continue
+    if (generica && !mesmoValor(c)) continue // loja genérica: só reaproveita o nome de uma compra de mesmo valor
     const mesmoTexto = normNome(c.descricao) === exato
     if (!mesmoTexto && similaridadeEstabelecimento(chaveEstabelecimento(c.descricao, indiceAliases).chave, chave) < 0.95) continue
     contagem[c.identificacao] = (contagem[c.identificacao] || 0) + (mesmoTexto ? 2 : 1)
   }
-  const [maisUsado] = Object.entries(contagem).sort((a, b) => b[1] - a[1])[0] || []
-  if (maisUsado) return { nome: maisUsado, fonte: 'historico' }
+  const ordenados = Object.entries(contagem).sort((a, b) => b[1] - a[1])
+  const [maisUsado, nMaior] = ordenados[0] || []
+  // só reaproveita quando um nome domina (o dobro do segundo): com vários nomes para o mesmo texto, qualquer escolha seria um palpite
+  if (maisUsado && (ordenados.length === 1 || nMaior >= 2 * ordenados[1][1])) return { nome: maisUsado, fonte: 'historico' }
 
   // 2) nome de exibição cadastrado em estabelecimento_aliases
   if (nomeAlias) return { nome: nomeAlias, fonte: 'cadastro' }

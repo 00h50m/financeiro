@@ -5,6 +5,7 @@ import { normalizarData, normalizarValor } from './csvFormato.js'
 import { calcMesInicio, nowYM } from './utils.js'
 import { extrairParcela, limparDescricao, normBasico } from './normalizacao.js'
 import { chaveEstabelecimento, indexarAliases } from './estabelecimento.js'
+import { ehLojaGenerica } from './nomesAmigaveis.js'
 import { analisarLinhas, prepararRegras, sugerirCategoriaLinha, sugerirNomeLinha, resolverCartaoPorNome } from './importacao.js'
 
 export const COLUNAS_ESPERADAS = ['data', 'descricao', 'valor', 'categoria', 'parcela_atual', 'parcela_total', 'cartao', 'observacao']
@@ -62,7 +63,9 @@ export function prepararLinhas(registros, { categorias, cartoes, pessoas, aliase
       const descricao = limparDescricao(descricaoBruta)
 
       const { chave } = chaveEstabelecimento(descricao, indiceAliases)
-      const sugestao = sugerirCategoriaLinha(chave, { categorias, preparadas })
+      // loja genérica (Amazon, Mercado Livre...): a categoria de compras antigas com o mesmo texto não diz o que é esta compra
+      const sugBruta = sugerirCategoriaLinha(chave, { categorias, preparadas })
+      const sugestao = sugBruta && sugBruta.fonte === 'historico' && ehLojaGenerica(chave) ? null : sugBruta
       let categoria = ''
       let subcategoria = ''
       let fonteSugestao = ''
@@ -82,7 +85,7 @@ export function prepararLinhas(registros, { categorias, cartoes, pessoas, aliase
       }
 
       // nome "de gente" sugerido para Identificação (o texto original da fatura continua em "No cartão")
-      const nomeSug = sugerirNomeLinha(descricao, { compras, aliases })
+      const nomeSug = sugerirNomeLinha(descricao, { compras, aliases, valor: normalizarValor(r.valor) })
 
       return {
         _id: i,
