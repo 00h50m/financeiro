@@ -91,6 +91,21 @@ for (const [nome, vp] of [['celular', { width: 390, height: 844 }], ['desktop', 
   ok((await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)) <= 1, `${nome}: sem rolagem horizontal`)
   await ctx.close()
 }
+// conta fixa dividida: o saldo não soma 3 anos de meses
+{
+  DB.compras = []
+  DB.fixos = [{ id: 'cv', nome: 'Convênio', valor: 470, ativo: true, dia_vencimento: 10, mes_inicio: '2025-01', categoria: 'Saúde', subcategoria: 'Plano', pessoa: 'Giovanna', cartao_id: null, variavel: false }]
+  DB.divisoes = [{ id: 'dr', tipo: 'fixo', ref_id: 'cv', pessoa: 'Rose', modo: 'valor', valor: 470, criada_em: '2026-10-01T10:00:00Z' }]
+  DB.divisoes_repasses = [{ divisao_id: 'dr', mes: '2026-11', valor_recebido: 470, recebido_em: '2026-11-10' }]
+  const ctx = await abrir({ width: 1280, height: 800 })
+  const p = await ctx.newPage()
+  p.on('pageerror', (e) => erros.push(e.message))
+  await p.goto(`http://127.0.0.1:${PORTA}/#/divididos`)
+  await p.waitForSelector('.dv-quem')
+  const t = (await p.locator('.dv-quem').innerText()).replace(/\s+/g, ' ')
+  ok(/Rose R\$\s?470,00/.test(t) && !/16\.450/.test(t), `conta fixa: Rose deve só outubro (R$ 470,00), não 3 anos de meses (${t.slice(0, 120)})`)
+  await ctx.close()
+}
 ok(erros.length === 0, `sem erros de JavaScript ${erros.slice(0, 2).join(' | ').slice(0, 160)}`)
 await browser.close(); srv.close()
 console.log(falhas.length ? `\n${falhas.length} FALHA(S)` : '\nTUDO OK')

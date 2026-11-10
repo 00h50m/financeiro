@@ -219,3 +219,21 @@ describe('divisão de só algumas parcelas (parcela_de / parcela_ate)', () => {
 
 import { gerarParcelas } from '../utils'
 const gerarParcelasMes = (c) => Object.fromEntries(gerarParcelas(c, []).map((p) => [p.mes, p.valor]))
+
+describe('saldo por pessoa de conta fixa (não soma meses que não eram devidos)', () => {
+  const dv = divisao({ id: 'dx', tipo: 'fixo', ref_id: 'f1', pessoa: 'Rose', modo: 'valor', valor: 470, criada_em: '2026-09-15T10:00:00Z' })
+  const d = base({ fixos: [fixo({ valor: 1000, mes_inicio: '2025-01' })], divisoes: [dv] })
+  const meses = Array.from({ length: 37 }, (_, i) => { const t = 2025 * 12 + 10 - 1 + i; return `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, '0')}` }) // 2025-11 .. 2028-11
+  it('conta do mês em que a divisão foi criada até o mês atual: set, out e nov = 3 × 470', () => {
+    expect(saldoPorPessoa(d, meses, '2026-11')).toEqual({ Rose: 1410 })
+  })
+  it('o que já foi recebido sai da conta', () => {
+    const dd = { ...d, divisoesRepasses: [{ divisao_id: 'dx', mes: '2026-10', valor_recebido: 470, recebido_em: '2026-10-10' }] }
+    expect(saldoPorPessoa(dd, meses, '2026-11')).toEqual({ Rose: 940 })
+  })
+  it('divisão de compra continua somando todas as parcelas em aberto (inclusive as futuras)', () => {
+    const c = compra({ valor_total: 300, parcelas: 3, data_compra: '2026-11-05', cartao_id: null })
+    const dc = base({ compras: [c], divisoes: [divisao({ modo: 'percentual', valor: 100 })] })
+    expect(saldoPorPessoa(dc, meses, '2026-11')).toEqual({ Mãe: 300 })
+  })
+})

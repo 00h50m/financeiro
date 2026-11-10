@@ -5,7 +5,7 @@
 //  - A parte dos outros fica "a receber" até ser marcada como recebida; só então entra como receita do mês
 //    (divisoes_repasses), então a sobra nunca conta com dinheiro que ainda não chegou.
 // Funções puras. `d` = { divisoes, divisoesRepasses, compras, fixos, cartoes }.
-import { fixosAtivos, gerarParcelas, tituloCompra } from './utils.js'
+import { fixosAtivos, gerarParcelas, tituloCompra, nowYM } from './utils.js'
 
 const arred = (n) => Math.round(n * 100) / 100
 
@@ -106,12 +106,18 @@ export function resumoRepasses(d, mes) {
   }
 }
 
-// Tudo que ainda falta receber, por pessoa, em todos os meses (competência já começada ou não).
-export function saldoPorPessoa(d, meses) {
+// Tudo que ainda falta receber, por pessoa. Compra: todas as parcelas em aberto (as já cobradas e as que ainda vão cair).
+// Conta fixa (todo mês, sem fim): só conta do mês em que a divisão foi criada até o mês atual. Os meses de antes de começar a dividir
+// não eram devidos, e os meses que ainda não chegaram ainda não são devidos (antes, uma conta fixa somava 3 anos de meses).
+export function saldoPorPessoa(d, meses, hoje = nowYM()) {
   const mapa = {}
   for (const mes of meses) {
     for (const i of repassesDoMes(d, mes)) {
       if (i.recebido) continue
+      if (i.tipo === 'fixo') {
+        const desde = String(i.divisao.criada_em || '').slice(0, 7)
+        if (mes > hoje || (desde && mes < desde)) continue
+      }
       mapa[i.pessoa] = arred((mapa[i.pessoa] || 0) + i.esperado)
     }
   }
