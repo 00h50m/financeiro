@@ -16,7 +16,7 @@ import { indexarAliases } from './estabelecimento'
 import { recorrenciasAntesDaFatura, recorrenciaDaLinha, contaFixaDaLinha } from './recorrenciaImportacao'
 
 const MAX_PDF = 3 * 1024 * 1024
-const CAMPOS_DE_TRABALHO = ['_id', 'data', 'descricao', 'descricaoOriginal', 'identificacao', 'identificacaoSugerida', 'valor', 'categoria', 'subcategoria', 'sugerida', 'fonteSugestao', 'parcela_atual', 'parcela_total', 'cartaoNome', 'cartao_id', 'pessoa', 'pessoaManual', 'ajusteNome', 'ajusteCategoria', 'ajustePessoa', 'vinculoManual', 'observacao', 'incluir', 'incluirManual', 'decisao', 'parcelamentoConfirmado', 'parcelamentoOpcao', 'naturezaManual', 'manual']
+const CAMPOS_DE_TRABALHO = ['_id', 'data', 'descricao', 'descricaoOriginal', 'identificacao', 'identificacaoSugerida', 'valor', 'categoria', 'subcategoria', 'sugerida', 'fonteSugestao', 'parcela_atual', 'parcela_total', 'cartaoNome', 'cartao_id', 'pessoa', 'pessoaManual', 'ajusteNome', 'ajusteCategoria', 'ajustePessoa', 'vinculoManual', 'vinculoFixoManual', 'observacao', 'incluir', 'incluirManual', 'decisao', 'parcelamentoConfirmado', 'parcelamentoOpcao', 'naturezaManual', 'manual']
 const enxuta = (l) => Object.fromEntries(CAMPOS_DE_TRABALHO.filter((k) => l[k] !== undefined).map((k) => [k, l[k]]))
 const maisComum = (xs) => { const c = {}; xs.filter(Boolean).forEach((x) => { c[x] = (c[x] || 0) + 1 }); return Object.entries(c).sort((a, b) => b[1] - a[1])[0]?.[0] || '' }
 
@@ -138,6 +138,7 @@ export function useAssistenteImportacao(store, inicial = null) {
   // aba "Só no app": a pessoa confirma que uma linha do arquivo é a compra que já estava lançada (mesmo valor, outro nome) ou descarta a sugestão
   const [paresDispensados, setParesDispensados] = useState(() => new Set())
   const vincularLinha = (linhaId, compraId) => atualizarLinha(linhaId, { vinculoManual: compraId, ...decisaoPatch('mesma') })
+  const vincularLinhaFixo = (linhaId, fixoId) => atualizarLinha(linhaId, { vinculoFixoManual: fixoId, ...decisaoPatch('mesma') })
   const dispensarPar = (compraId, linhaId) => setParesDispensados((p) => new Set(p).add(`${compraId}|${linhaId}`))
   // Lançamento que a leitura perdeu: entra como uma linha nova do arquivo (marcada como adicionada à mão).
   function adicionarLinha({ data, descricao, valor, categoria, subcategoria, pessoa }) {
@@ -332,6 +333,6 @@ export function useAssistenteImportacao(store, inicial = null) {
   return {
     etapa, maxEtapa, irPara, arquivo, linhas, cartaoId, mesFatura, modoValor, importacaoId, lendo, erro, setErro, confirmando, resultado, rascunhos, importadas, conciliando, bancoV2, salvoEm, faturaMesOk,
     analise, plano, cartoes, categorias, pessoas, fechamentos: store.fechamentos || [],
-    ajustesCompras, excluirCompra, vincularLinha, dispensarPar, paresDispensados, abrirCsv, abrirPdf, definirCartao, definirMes, definirModo, definirTotalBanco, atualizarLinha, decidir, escolherParcelamento, mudarCategoria, adicionarLinha, retomar, reconferir, descartar, confirmar, limpar, recorrenciaDe, alternarFixo, fixosMarcados, fixosAPlanejar, efeitosFixos,
+    ajustesCompras, excluirCompra, vincularLinha, vincularLinhaFixo, dispensarPar, paresDispensados, abrirCsv, abrirPdf, definirCartao, definirMes, definirModo, definirTotalBanco, atualizarLinha, decidir, escolherParcelamento, mudarCategoria, adicionarLinha, retomar, reconferir, descartar, confirmar, limpar, recorrenciaDe, alternarFixo, fixosMarcados, fixosAPlanejar, efeitosFixos,
   }
 }

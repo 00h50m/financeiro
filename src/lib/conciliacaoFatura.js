@@ -37,7 +37,7 @@ export function decisaoPatch(decisao) {
   switch (decisao) {
     case 'mesma': case 'manter': case 'atualizar': case 'mover': case 'passar': case 'depois': return { decisao, incluir: false, incluirManual: true }
     case 'outra': return { decisao, incluir: true, incluirManual: true }
-    default: return { decisao: undefined, incluirManual: false, vinculoManual: undefined }
+    default: return { decisao: undefined, incluirManual: false, vinculoManual: undefined, vinculoFixoManual: undefined }
   }
 }
 
@@ -132,7 +132,14 @@ export function analisarFatura({ linhas, compras, cartoes, fixos = [], cartaoId,
   // ou mesma parcela). Só sugere: quem decide é a pessoa (aba Só no app).
   const diasEntre = (a, b) => Math.abs(Math.round((new Date(`${String(a).slice(0, 10)}T12:00:00Z`) - new Date(`${String(b).slice(0, 10)}T12:00:00Z`)) / 86400000))
   const divergenciasApp = conf.sobrandoNoFinapp.map((d) => {
-    if (!d.compra) return d
+    if (!d.compra) {
+      // conta fixa deste cartão que não casou com nenhuma linha: sugere as linhas novas de mesmo valor (nome costuma ser outro: "AMIL" x "Plano de Saúde")
+      const valorF = r2(Number(d.valor))
+      const pares = [...novas, ...revisao.filter((x) => !x.correspondencia)]
+        .filter((l) => Math.abs(valorParcelaLinha(l, modo) - valorF) < 0.02)
+        .map((l) => ({ linhaId: l._id, nome: l.identificacao?.trim() || l.descricao, descricaoOriginal: l.descricaoOriginal, data: l.data, valor: r2(valorParcelaLinha(l, modo)), dias: null }))
+      return pares.length && d.fixo ? { ...d, paresPossiveis: pares } : d
+    }
     const c = d.compra
     const np = Number(c.parcelas) || 1
     const valorC = r2(Number(d.valor))
