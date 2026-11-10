@@ -80,8 +80,20 @@ export function analisarLinhas(linhas, { compras: comprasLancadas = [], aliases 
   }))
   const resultado = linhas.map(() => null)
 
+  // vínculo escolhido pela pessoa ("é a mesma compra", na aba Só no app): vale antes de qualquer pareamento automático
+  linhas.forEach((l, idx) => {
+    if (!l.vinculoManual) return
+    const c = compras.find((x) => x.id === l.vinculoManual && !usadas.has(x.id))
+    if (!c) return
+    usadas.add(c.id)
+    const { chave, n, k } = infos[idx]
+    const igual = Math.abs((n > 1 ? Number(c.valor_total) / (Number(c.parcelas) || 1) : Number(c.valor_total)) - (n > 1 ? valorParcelaLinha(l, modo) : valorTotalLinha(l, modo))) < TOLERANCIA_VALOR
+    resultado[idx] = { tipo: igual ? 'parecida' : 'valor_diferente', compra: c, score: 1, avisos: ['vinculo_manual'], evidencias: evidenciasDe(l, c, { n, k, modo, chave, indice }) }
+  })
+
   // 1ª passada: o que casa com valor igual (exata / parecida / parcelamento)
   linhas.forEach((l, idx) => {
+    if (resultado[idx]) return
     const { chave, n, k } = infos[idx]
     const livres = compras.filter((c) => !usadas.has(c.id))
     if (k > 1 && l.cartao_id) {
