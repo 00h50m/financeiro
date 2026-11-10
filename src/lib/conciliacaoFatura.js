@@ -37,7 +37,7 @@ export function decisaoPatch(decisao) {
   switch (decisao) {
     case 'mesma': case 'manter': case 'atualizar': case 'mover': case 'passar': case 'depois': return { decisao, incluir: false, incluirManual: true }
     case 'outra': return { decisao, incluir: true, incluirManual: true }
-    default: return { decisao: undefined, incluirManual: false }
+    default: return { decisao: undefined, incluirManual: false, vinculoManual: undefined }
   }
 }
 
@@ -128,7 +128,24 @@ export function analisarFatura({ linhas, compras, cartoes, fixos = [], cartaoId,
   const registradas = por('registrada'), novas = por('nova'), revisao = por('revisao'), ignoradas = por('ignorada')
   const selecionadas = novas.filter((l) => l.selecionada)
   const deixadasDeFora = novas.filter((l) => !l.selecionada)
-  const divergenciasApp = conf.sobrandoNoFinapp
+  // para cada compra que só está no app: linhas NOVAS do arquivo que podem ser a mesma compra com outro nome (mesmo valor e data próxima,
+  // ou mesma parcela). Só sugere: quem decide é a pessoa (aba Só no app).
+  const diasEntre = (a, b) => Math.abs(Math.round((new Date(`${String(a).slice(0, 10)}T12:00:00Z`) - new Date(`${String(b).slice(0, 10)}T12:00:00Z`)) / 86400000))
+  const divergenciasApp = conf.sobrandoNoFinapp.map((d) => {
+    if (!d.compra) return d
+    const c = d.compra
+    const np = Number(c.parcelas) || 1
+    const valorC = r2(Number(d.valor))
+    const paresPossiveis = [...novas, ...revisao.filter((x) => !x.correspondencia)]
+      .filter((l) => {
+        if ((Number(l.parcela_total) || 1) !== np) return false
+        if (Math.abs(valorParcelaLinha(l, modo) - valorC) >= 0.02) return false
+        return np > 1 ? (Number(l.parcela_atual) || 1) === (Number(d.parcela) || 0) : diasEntre(l.data, c.data_compra) <= 5
+      })
+      .map((l) => ({ linhaId: l._id, nome: l.identificacao?.trim() || l.descricao, descricaoOriginal: l.descricaoOriginal, data: l.data, valor: r2(valorParcelaLinha(l, modo)), dias: np > 1 ? null : diasEntre(l.data, c.data_compra) }))
+      .sort((a, b) => (a.dias ?? 0) - (b.dias ?? 0))
+    return paresPossiveis.length ? { ...d, paresPossiveis } : d
+  })
   const bloqueadas = revisao.filter((l) => l.bloqueios.length)
 
   const v = (l) => valorParcelaLinha(l, modo)

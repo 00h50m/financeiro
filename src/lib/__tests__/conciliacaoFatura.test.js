@@ -347,3 +347,31 @@ describe('contas fixas na fatura (valor variável e fora do cartão)', () => {
     expect(a.linhas[0].grupo).toBe('registrada'); expect(a.linhas[0].fixoVinculado).toBeUndefined()
   })
 })
+
+describe('aba Só no app: pares possíveis e vínculo manual', () => {
+  const compras = [compra({ id: 'no-app', descricao: 'Livraria Cultura', valor_total: 88, data_compra: '2026-09-10' })]
+  const nova = linha({ descricao: 'Loja Outra Cidade', descricaoOriginal: 'LOJA OUTRA', valor: 88, data: '2026-09-11' })
+  it('sugere a linha nova de mesmo valor e data próxima como possível par da compra que só está no app', () => {
+    const a = analisar([nova], compras)
+    const d = a.grupos.divergenciasApp.find((x) => x.compra?.id === 'no-app')
+    expect(d.paresPossiveis).toHaveLength(1)
+    expect(d.paresPossiveis[0]).toMatchObject({ nome: 'Loja Outra Cidade', valor: 88, dias: 1 })
+  })
+  it('não sugere com valor diferente ou data distante', () => {
+    expect(analisar([linha({ descricao: 'Loja X', valor: 90, data: '2026-09-11' })], compras).grupos.divergenciasApp.find((x) => x.compra?.id === 'no-app').paresPossiveis).toBeUndefined()
+    expect(analisar([linha({ descricao: 'Loja X', valor: 88, data: '2026-09-25' })], compras).grupos.divergenciasApp.find((x) => x.compra?.id === 'no-app').paresPossiveis).toBeUndefined()
+  })
+  it('confirmar "é a mesma compra" vincula a linha à compra: sai da aba Só no app e a linha vira registrada (não será criada)', () => {
+    const a = analisar([{ ...nova, vinculoManual: 'no-app', ...decisaoPatch('mesma') }], compras)
+    expect(a.grupos.divergenciasApp.some((x) => x.compra?.id === 'no-app')).toBe(false)
+    expect(a.grupos.registradas).toHaveLength(1)
+    expect(a.grupos.registradas[0].confirmada).toBe(true)
+    expect(a.grupos.novas).toHaveLength(0)
+  })
+  it('desfazer a decisão remove o vínculo e a compra volta para Só no app', () => {
+    const l = { ...nova, vinculoManual: 'no-app', ...decisaoPatch('mesma') }
+    const desfeita = { ...l, ...decisaoPatch(null) }
+    expect(desfeita.vinculoManual).toBeUndefined()
+    expect(analisar([desfeita], compras).grupos.divergenciasApp.some((x) => x.compra?.id === 'no-app')).toBe(true)
+  })
+})

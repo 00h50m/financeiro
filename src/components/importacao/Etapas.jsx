@@ -194,7 +194,7 @@ export function EtapaRevisar({ a, filtroInicial, abrirCompra }) {
           <>
             <div className="alert alert-blue imp-so-app-explica">
               <b>O que é esta aba?</b>
-              <div style={{ fontSize: 13, marginTop: 4 }}>São compras que <b>já estão lançadas no app</b> neste cartão e mês, mas que <b>não aparecem no arquivo</b> da fatura. Elas entram na soma do app e podem explicar a diferença com o banco. Nada é alterado sem você pedir.</div>
+              <div style={{ fontSize: 13, marginTop: 4 }}>São compras que <b>já estão lançadas no app</b> neste cartão e mês, mas que <b>não aparecem no arquivo</b> da fatura. Elas entram na soma do app e podem explicar a diferença com o banco. Quando o app acha uma linha do arquivo com o mesmo valor e data próxima, ele sugere "pode ser a mesma compra" (com outro nome) e você confirma. Nada é alterado sem você pedir.</div>
               <div style={{ fontSize: 13, marginTop: 6 }}>O que costuma ser: compra de <b>outra fatura</b> (o fechamento cai em outro mês), <b>valor lançado errado</b>, compra de <b>outro cartão</b>, ou algo que o banco ainda não mostrou. Abra a compra para corrigir o mês da fatura, o cartão ou o valor, ou exclua se ela foi lançada por engano (dá para desfazer logo depois).</div>
             </div>
             {analise.grupos.divergenciasApp.map((d, i) => (
@@ -205,6 +205,16 @@ export function EtapaRevisar({ a, filtroInicial, abrirCompra }) {
                   <span className="imp-valor mono">{fmt(d.valor)}</span>
                 </div>
                 {d.compra && <div className="imp-linha-meta"><span className="imp-selos">{d.compra.pessoa && <span className={`badge badge-${corPessoa(a.pessoas, d.compra.pessoa)}`} title="Pessoa do lançamento">{d.compra.pessoa}</span>}<span className="cad-sub">Lançada no app, fora do arquivo</span></span><span className="imp-linha-botoes"><button type="button" className="btn btn-ghost btn-sm" onClick={() => abrirCompra(d.compra)}>Editar a compra</button><button type="button" className="btn btn-danger btn-sm" onClick={() => a.excluirCompra(d.compra)} aria-label={`Excluir a compra ${d.compra.identificacao || d.compra.descricao}`}>Excluir</button></span></div>}
+                {(d.paresPossiveis || []).filter((p) => !a.paresDispensados?.has(`${d.compra?.id}|${p.linhaId}`)).map((p) => (
+                  <div key={p.linhaId} className="imp-par alert alert-blue">
+                    <div><b>Pode ser a mesma compra</b> que esta linha do arquivo, com outro nome: <b>{p.nome}</b>{p.descricaoOriginal && p.descricaoOriginal !== p.nome ? <span className="cad-sub"> ({p.descricaoOriginal})</span> : null} · <span className="mono">{fmt(p.valor)}</span> · {p.data ? p.data.slice(8, 10) + '/' + p.data.slice(5, 7) : ''}
+                      <span className="cad-sub"> — {p.dias == null ? 'mesma parcela e mesmo valor' : p.dias === 0 ? 'mesmo valor e mesmo dia' : `mesmo valor, ${p.dias} dia${p.dias === 1 ? '' : 's'} de diferença`}</span></div>
+                    <div className="imp-acoes">
+                      <button type="button" className="btn btn-primary btn-sm" onClick={() => a.vincularLinha(p.linhaId, d.compra.id)} title="A linha do arquivo passa a valer como esta compra: não cria outra e ela sai desta aba">É a mesma compra</button>
+                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => a.dispensarPar(d.compra.id, p.linhaId)} title="São compras diferentes: esconde esta sugestão">É outra compra</button>
+                    </div>
+                  </div>
+                ))}
               </article>
             ))}
           </>
