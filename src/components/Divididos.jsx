@@ -258,11 +258,11 @@ export default function Divididos({ store }) {
       {pessoasDiv.length > 0 && (
         <div className="dv-quem" role="group" aria-label="Filtrar por pessoa">
           <button type="button" className={`dv-quem-card${!pessoaF ? ' ativo' : ''}`} aria-pressed={!pessoaF} onClick={() => setPessoaF('')}>
-            <span>Todas</span><b className="mono">{fmt(totalDeve)}</b><small>a receber, todos os meses</small>
+            <span>Todas</span><b className="mono">{fmt(totalDeve)}</b><small>em aberto</small>
           </button>
           {pessoasDiv.map((n) => (
             <button key={n} type="button" className={`dv-quem-card${pessoaF === n ? ' ativo' : ''}`} aria-pressed={pessoaF === n} onClick={() => setPessoaF(pessoaF === n ? '' : n)}>
-              <span>{n}</span><b className="mono">{fmt(deve[n] || 0)}</b><small>{(deve[n] || 0) > 0 ? 'deve, todos os meses' : 'nada a receber'}</small>
+              <span>{n}</span><b className="mono">{fmt(deve[n] || 0)}</b><small>{(deve[n] || 0) > 0 ? 'em aberto' : 'nada a receber'}</small>
             </button>
           ))}
         </div>
@@ -279,7 +279,7 @@ export default function Divididos({ store }) {
       <div className="indicadores">
         <Indicador rotulo={`A receber neste mês${pessoaF ? ` · ${pessoaF}` : ''}`} valor={fmt(filtroLigado ? aReceberF : r.aReceber)} tom="aviso" />
         <Indicador rotulo={`Recebido neste mês${pessoaF ? ` · ${pessoaF}` : ''}`} valor={fmt(filtroLigado ? recebidoF : r.recebido)} tom="ok" />
-        <Indicador rotulo={pessoaF ? `${pessoaF} deve (todos os meses)` : 'A receber (todos os meses)'} valor={fmt(pessoaF ? deve[pessoaF] || 0 : totalDeve)} />
+        <Indicador rotulo={pessoaF ? `${pessoaF} deve (em aberto)` : 'A receber (em aberto)'} valor={fmt(pessoaF ? deve[pessoaF] || 0 : totalDeve)} />
       </div>
       <ResumoFiltro ativo={filtroLigado} mostrando={itensF.length} total={r.itens.length} onLimpar={() => { setPessoaF(''); setSituacaoF(''); setBuscaL('') }} />
 
