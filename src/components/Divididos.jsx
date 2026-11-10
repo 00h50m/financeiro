@@ -1,4 +1,9 @@
 import { useState } from 'react'
+import { compilar } from '../lib/filtro'
+import { lerNum } from '../lib/adiamentoPref'
+import { CampoBusca } from './FiltroLista'
+import { Pilulas } from './NavMes'
+import CampoDinheiro from './ui/CampoDinheiro'
 import { addMonths, fmt, mesLabel, nowYM, tituloCompra } from '../lib/utils'
 import { descricaoDoItem, parteTotal, resumoRepasses, saldoPorPessoa } from '../lib/divisoes'
 import { confirmar, avisar, pedir } from '../lib/dialogos'
@@ -11,68 +16,129 @@ const num = (t) => Number(String(t).replace(',', '.'))
 const brData = (iso) => (iso ? iso.split('-').reverse().join('/') : '')
 
 function NovaDivisao({ store, onFeito }) {
-  const { compras, fixos, divisoes, pessoas, addDivisao } = store
+  const { compras, fixos, divisoes, pessoas, cartoes = [], addDivisao } = store
   const [tipo, setTipo] = useState('compra')
   const [refId, setRefId] = useState('')
   const [pessoa, setPessoa] = useState('')
   const [modo, setModo] = useState('valor')
   const [valor, setValor] = useState('')
   const [obs, setObs] = useState('')
+  const [busca, setBusca] = useState('')
+  const [cartaoF, setCartaoF] = useState('')
+  const [mesF, setMesF] = useState('')
+  const [trocando, setTrocando] = useState(true) // lista de resultados aberta (enquanto nada foi escolhido)
+  const nomeCartao = (id) => cartoes.find((c) => c.id === id)?.nome || ''
 
-  const itens = tipo === 'compra'
-    ? [...compras].sort((a, b) => (a.data_compra < b.data_compra ? 1 : -1)).slice(0, 300)
-      .map((c) => ({ id: c.id, rotulo: `${tituloCompra(c)} · ${fmt(c.valor_total)} · ${brData(c.data_compra)}`, base: Number(c.valor_total) }))
-    : fixos.filter((f) => f.ativo).map((f) => ({ id: f.id, rotulo: `${f.nome} · ${fmt(f.valor)} por mês`, base: Number(f.valor) }))
-  const item = itens.find((i) => i.id === refId)
-  const nomes = [...new Set([...pessoas.map((p) => p.nome), ...divisoes.map((d) => d.pessoa)])]
-  const v = num(valor)
+  // tudo que dá para dividir, já com o texto de busca; o limite de 300 acabou: a busca e os filtros acham qualquer compra
+  const todos = tipo === 'compra'
+    ? compras.map((c) => ({ id: c.id, titulo: tituloCompra(c), valor: Number(c.valor_total), data: c.data_compra, cartaoId: c.cartao_id || '', mes: String(c.data_compra || '').slice(0, 7), extra: [c.categoria, c.pessoa, nomeCartao(c.cartao_id)].filter(Boolean).join(' · '), texto: [c.descricao, c.identificacao, c.categoria, c.subcategoria, c.pessoa, c.obs, nomeCartao(c.cartao_id)].filter(Boolean).join(' '), base: Number(c.valor_total) }))
+    : fixos.filter((f) => f.ativo).map((f) => ({ id: f.id, titulo: f.nome, valor: Number(f.valor), data: null, cartaoId: f.cartao_id || '', mes: '', extra: [f.categoria, f.cartao_id ? nomeCartao(f.cartao_id) : ''].filter(Boolean).join(' · '), texto: [f.nome, f.categoria, f.subcategoria, nomeCartao(f.cartao_id)].filter(Boolean).join(' '), base: Number(f.valor) }))
+  const { combina } = compilar(busca)
+  const filtrados = todos
+    .filter((i) => (!cartaoF || (cartaoF === '_sem' ? !i.cartaoId : i.cartaoId === cartaoF)) && (!mesF || i.mes === mesF) && combina({ texto: i.texto, valor: [i.valor], data: i.data }))
+    .sort((a, b) => String(b.data || '').localeCompare(String(a.data || '')) || a.titulo.localeCompare(b.titulo))
+  const mesesDisponiveis = [...new Set(todos.map((i) => i.mes).filter(Boolean))].sort().reverse()
+  const filtroLigado = !!(busca.trim() || cartaoF || mesF)
+  const dividido = (id) => divisoes.filter((d) => d.tipo === tipo && d.ref_id === id)
+
+  const item = todos.find((i) => i.id === refId)
+  const nomes = [...new Set([...pessoas.map((p) => p.nome), ...divisoes.map((d) => d.pessoa)])].filter(Boolean)
+  const v = lerNum(valor)
   const parte = item && v > 0 ? parteTotal({ modo, valor: v }, item.base) : 0
-  const jaDividido = item ? divisoes.filter((d) => d.tipo === tipo && d.ref_id === item.id).reduce((s, d) => s + parteTotal(d, item.base), 0) : 0
+  const jaDividido = item ? dividido(item.id).reduce((s, d) => s + parteTotal(d, item.base), 0) : 0
   const excede = item && parte > 0 && jaDividido + parte > item.base + 0.005
   const valido = item && pessoa.trim() && v > 0 && (modo !== 'percentual' || v <= 100) && !excede
 
+  function escolher(id) { setRefId(id); setTrocando(false); setValor(''); }
+  function trocarTipo(t) { setTipo(t); setRefId(''); setTrocando(true); setBusca(''); setCartaoF(''); setMesF('') }
   async function salvar() {
     if (!valido) return
     const ok = await addDivisao({ tipo, ref_id: item.id, pessoa: pessoa.trim(), modo, valor: v, observacao: obs.trim() || null })
-    if (ok) { setRefId(''); setValor(''); setObs(''); onFeito?.() }
+    if (ok) { setRefId(''); setTrocando(true); setValor(''); setObs(''); onFeito?.() }
   }
 
   return (
     <div className="card" style={{ padding: 16, marginBottom: 20 }}>
       <div className="section-label" style={{ marginTop: 0 }}>Nova divisão</div>
-      <div className="form-row cols2">
-        <div className="form-group">
-          <label htmlFor="dv-tipo">O que será dividido</label>
-          <select id="dv-tipo" value={tipo} onChange={(e) => { setTipo(e.target.value); setRefId('') }}>
-            <option value="compra">Uma compra (cartão ou outra)</option>
-            <option value="fixo">Uma conta fixa (ex.: convênio)</option>
-          </select>
+
+      <div className="dv-passo"><span className="dv-num">1</span> O que será dividido</div>
+      <Pilulas rotulo="Tipo" valor={tipo} onChange={trocarTipo} opcoes={[['compra', 'Uma compra'], ['fixo', 'Uma conta fixa (ex.: convênio)']]} />
+
+      {item && !trocando ? (
+        <div className="dv-escolhida">
+          <div>
+            <b>{item.titulo}</b> <span className="mono">{fmt(item.base)}{tipo === 'fixo' ? ' por mês' : ''}</span>
+            <div className="cad-sub">{[item.data ? brData(item.data) : '', item.extra].filter(Boolean).join(' · ')}</div>
+            {dividido(item.id).length > 0 && <div className="cad-sub">Já dividida: {dividido(item.id).map((d) => `${d.pessoa} ${d.modo === 'percentual' ? `${Number(d.valor)}%` : fmt(d.valor)}`).join(' · ')}</div>}
+          </div>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setTrocando(true)}>Trocar</button>
         </div>
-        <div className="form-group">
-          <label htmlFor="dv-item">{tipo === 'compra' ? 'Compra' : 'Conta fixa'}</label>
-          <select id="dv-item" value={refId} onChange={(e) => setRefId(e.target.value)}>
-            <option value="">Escolha…</option>
-            {itens.map((i) => <option key={i.id} value={i.id}>{i.rotulo}</option>)}
-          </select>
-        </div>
+      ) : (
+        <>
+          <div className="dv-filtros">
+            <CampoBusca valor={busca} onChange={setBusca} placeholder={tipo === 'compra' ? 'Buscar compra: nome, valor (149), data (01/08)…' : 'Buscar conta fixa…'} largura={360} />
+            {tipo === 'compra' && (
+              <>
+                <select value={cartaoF} onChange={(e) => setCartaoF(e.target.value)} aria-label="Filtrar por cartão">
+                  <option value="">Todos os cartões</option>
+                  {cartoes.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                  <option value="_sem">Sem cartão (Pix, dinheiro…)</option>
+                </select>
+                <select value={mesF} onChange={(e) => setMesF(e.target.value)} aria-label="Filtrar por mês">
+                  <option value="">Qualquer mês</option>
+                  {mesesDisponiveis.map((m) => <option key={m} value={m}>{mesLabel(m)}</option>)}
+                </select>
+              </>
+            )}
+            {tipo === 'fixo' && cartoes.length > 0 && (
+              <select value={cartaoF} onChange={(e) => setCartaoF(e.target.value)} aria-label="Filtrar por cartão">
+                <option value="">Todos</option>
+                {cartoes.map((c) => <option key={c.id} value={c.id}>No cartão {c.nome}</option>)}
+                <option value="_sem">Pagas à parte</option>
+              </select>
+            )}
+            {filtroLigado && <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setBusca(''); setCartaoF(''); setMesF('') }}>Limpar</button>}
+          </div>
+          <div className="cad-sub" role="status">{filtrados.length === 0 ? 'Nada encontrado com esses filtros.' : `${filtrados.length} ${tipo === 'compra' ? (filtrados.length === 1 ? 'compra' : 'compras') : (filtrados.length === 1 ? 'conta fixa' : 'contas fixas')}${filtrados.length > 40 ? ' — mostrando as 40 mais recentes; refine a busca' : ''}`}</div>
+          <ul className="dv-resultados" aria-label="Resultados">
+            {filtrados.slice(0, 40).map((i) => (
+              <li key={i.id}>
+                <button type="button" className={`dv-res${i.id === refId ? ' ativo' : ''}`} onClick={() => escolher(i.id)}>
+                  <span className="dv-res-nome"><b>{i.titulo}</b><small>{[i.data ? brData(i.data) : '', i.extra].filter(Boolean).join(' · ')}</small></span>
+                  <span className="mono">{fmt(i.base)}</span>
+                  {dividido(i.id).length > 0 && <Selo tom="info">já dividida</Selo>}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+
+      <div className="dv-passo"><span className="dv-num">2</span> Quem paga a parte</div>
+      <div className="dv-nomes">
+        {nomes.map((n) => <button key={n} type="button" className={`btn btn-sm ${pessoa.trim() === n ? 'btn-primary' : 'btn-ghost'}`} aria-pressed={pessoa.trim() === n} onClick={() => setPessoa(n)}>{n}</button>)}
       </div>
-      <div className="form-row cols3">
-        <div className="form-group">
-          <label htmlFor="dv-pessoa">Quem paga a parte</label>
-          <input id="dv-pessoa" list="dv-nomes" value={pessoa} onChange={(e) => setPessoa(e.target.value)} placeholder="ex.: Mãe" />
-          <datalist id="dv-nomes">{nomes.map((n) => <option key={n} value={n} />)}</datalist>
-        </div>
-        <div className="form-group">
-          <label htmlFor="dv-modo">Como informar</label>
-          <select id="dv-modo" value={modo} onChange={(e) => setModo(e.target.value)}>
-            <option value="valor">Em reais{tipo === 'fixo' ? ' (por mês)' : ' (total da compra)'}</option>
-            <option value="percentual">Em porcentagem</option>
-          </select>
-        </div>
+      <div className="form-group">
+        <label htmlFor="dv-pessoa">Nome {nomes.length ? '(ou digite outro)' : ''}</label>
+        <input id="dv-pessoa" list="dv-nomes" value={pessoa} onChange={(e) => setPessoa(e.target.value)} placeholder="ex.: Mãe" />
+        <datalist id="dv-nomes">{nomes.map((n) => <option key={n} value={n} />)}</datalist>
+      </div>
+
+      <div className="dv-passo"><span className="dv-num">3</span> Quanto ela paga</div>
+      <Pilulas rotulo="Como informar" valor={modo} onChange={(m) => { setModo(m); setValor('') }} opcoes={[['valor', `Em reais${tipo === 'fixo' ? ' (por mês)' : ''}`], ['percentual', 'Em porcentagem']]} />
+      <div className="dv-valor-linha">
         <div className="form-group">
           <label htmlFor="dv-valor">{modo === 'valor' ? 'Valor (R$)' : 'Porcentagem (%)'}</label>
-          <input id="dv-valor" inputMode="decimal" value={valor} onChange={(e) => setValor(e.target.value)} placeholder={modo === 'valor' ? '0,00' : '50'} />
+          {modo === 'valor'
+            ? <CampoDinheiro id="dv-valor" value={valor} onChange={setValor} />
+            : <CampoDinheiro id="dv-valor" value={valor} onChange={setValor} prefixo={null} casas={2} placeholder="50" />}
         </div>
+        {item && (
+          <div className="dv-atalhos" aria-label="Atalhos">
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setModo('percentual'); setValor('50') }}>Metade (50%)</button>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setModo('valor'); setValor(String(Math.max(0, Math.round((item.base - jaDividido) * 100) / 100))) }}>Tudo que sobra ({fmt(Math.max(0, item.base - jaDividido))})</button>
+          </div>
+        )}
       </div>
       <div className="form-group" style={{ marginBottom: 12 }}>
         <label htmlFor="dv-obs">Observação (opcional)</label>
@@ -85,6 +151,7 @@ function NovaDivisao({ store, onFeito }) {
       )}
       {excede && <div className="alert alert-red">A soma das partes passa do valor total ({fmt(item.base)}). Diminua o valor.</div>}
       <button className="btn btn-primary" disabled={!valido} onClick={salvar}>Salvar divisão</button>
+      {!valido && <span className="cad-sub" style={{ marginLeft: 10 }}>{!item ? 'Escolha a compra acima.' : !pessoa.trim() ? 'Diga quem paga a parte.' : !(v > 0) ? 'Informe quanto ela paga.' : ''}</span>}
     </div>
   )
 }
