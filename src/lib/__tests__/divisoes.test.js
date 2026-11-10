@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   parteTotal, parcelasDaParte, esperadoDoMes, repassesDoMes, resumoRepasses, saldoPorPessoa,
-  comprasLiquidas, fixosLiquidos, parteDosOutrosNoMes, parcelaDoMes,
+  comprasLiquidas, fixosLiquidos, parteDosOutrosNoMes, parcelaDoMes, parcelasDaDivisao, parteDaCompra,
 } from '../divisoes'
 import { resumoDoMes, sobraAnterior } from '../financeiro'
 import { montarFoto, validarFechamento } from '../fechamento'
@@ -167,3 +167,55 @@ describe('compra parcelada dividida', () => {
     expect(parcelaDoMes(d, d.divisoes[0], '2026-10')).toBeNull()
   })
 })
+
+describe('divisão de só algumas parcelas (parcela_de / parcela_ate)', () => {
+  const c = compra({ valor_total: 600, parcelas: 6, data_compra: '2026-10-05', cartao_id: null })
+  it('intervalo padrão: todas as parcelas', () => {
+    expect(parcelasDaDivisao({}, 6)).toEqual({ de: 1, ate: 6, todas: true, qtd: 6 })
+    expect(parcelasDaDivisao({ parcela_de: 4 }, 6)).toEqual({ de: 4, ate: 6, todas: false, qtd: 3 })
+    expect(parcelasDaDivisao({ parcela_de: 2, parcela_ate: 99 }, 6).ate).toBe(6)
+  })
+  it('da parcela 4 em diante, 100%: ela paga 4, 5 e 6; as primeiras ficam com você', () => {
+    const ps = parcelasDaParte(c, divisao({ modo: 'percentual', valor: 100, parcela_de: 4 }), [])
+    expect(ps.map((p) => p.esperado)).toEqual([0, 0, 0, 100, 100, 100])
+    expect(parteDaCompra(c, divisao({ modo: 'percentual', valor: 100, parcela_de: 4 }), [])).toBe(300)
+  })
+  it('R$ 60 no total só nas parcelas 2 a 3: 30 em cada, fechando a conta', () => {
+    const ps = parcelasDaParte(c, divisao({ modo: 'valor', valor: 60, parcela_de: 2, parcela_ate: 3 }), [])
+    expect(ps.map((p) => p.esperado)).toEqual([0, 30, 30, 0, 0, 0])
+  })
+  it('50% só das 3 primeiras parcelas', () => {
+    const ps = parcelasDaParte(c, divisao({ modo: 'percentual', valor: 50, parcela_ate: 3 }), [])
+    expect(ps.map((p) => p.esperado)).toEqual([50, 50, 50, 0, 0, 0])
+  })
+  it('o esperado do mês e a parcela do mês seguem o intervalo', () => {
+    const dv = divisao({ modo: 'percentual', valor: 100, parcela_de: 4 })
+    const d = base({ compras: [c], divisoes: [dv] })
+    expect(esperadoDoMes(d, dv, '2026-11')).toBe(0)
+    expect(esperadoDoMes(d, dv, '2027-01')).toBe(100)
+    expect(repassesDoMes(d, '2026-11')).toHaveLength(0)
+    expect(repassesDoMes(d, '2027-01')[0].parcela).toEqual({ num: 4, total: 6 })
+  })
+  it('teto/categorias: o valor líquido por mês só cai nas parcelas dela (total líquido correto)', () => {
+    const dv = divisao({ modo: 'percentual', valor: 100, parcela_de: 4 })
+    const d = base({ compras: [c], divisoes: [dv] })
+    const [liq] = comprasLiquidas(d)
+    expect(liq.valor_total).toBe(300)
+    expect(liq._valoresParcelas).toEqual([100, 100, 100, 0, 0, 0])
+    const gastosPorMes = gerarParcelasMes(liq)
+    expect(gastosPorMes).toEqual({ '2026-10': 100, '2026-11': 100, '2026-12': 100, '2027-01': 0, '2027-02': 0, '2027-03': 0 })
+  })
+  it('sem intervalo, comprasLiquidas continua igual a antes (sem _valoresParcelas)', () => {
+    const d = base({ compras: [c], divisoes: [divisao({ modo: 'percentual', valor: 50 })] })
+    const [liq] = comprasLiquidas(d)
+    expect(liq.valor_total).toBe(300)
+    expect(liq._valoresParcelas).toBeUndefined()
+  })
+  it('duas divisões parciais na mesma compra somam sem passar do valor da parcela', () => {
+    const d = base({ compras: [c], divisoes: [divisao({ id: 'a', modo: 'percentual', valor: 70, parcela_de: 4 }), divisao({ id: 'b', pessoa: 'Pai', modo: 'percentual', valor: 70, parcela_de: 4 })] })
+    expect(comprasLiquidas(d)[0]._valoresParcelas).toEqual([100, 100, 100, 0, 0, 0])
+  })
+})
+
+import { gerarParcelas } from '../utils'
+const gerarParcelasMes = (c) => Object.fromEntries(gerarParcelas(c, []).map((p) => [p.mes, p.valor]))
