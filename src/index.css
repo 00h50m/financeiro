@@ -812,11 +812,12 @@ input[type='checkbox'] { width: auto; min-height: 0; accent-color: var(--brand);
 
 /* Faixa de resumo do Dashboard: 6 cartões em uma linha no computador (2 ou 3 por linha nas telas menores, nunca um sozinho) */
 .kpi-faixa { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 16px; }
-@media (min-width: 640px) { .kpi-faixa { grid-template-columns: repeat(3, 1fr); } }
-@media (min-width: 1360px) { .kpi-faixa { grid-template-columns: repeat(6, 1fr); } }
+/* a partir de 640px o número de colunas se ajusta ao espaço, e cada cartão tem largura mínima para o valor em reais caber inteiro */
+@media (min-width: 640px) { .kpi-faixa { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); } }
 .kpi { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 14px 14px 12px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .kpi-rotulo { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: .06em; }
-.kpi-valor { font-family: 'DM Mono', monospace; font-size: 21px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kpi-valor { font-family: 'DM Mono', monospace; font-size: 21px; font-weight: 500; white-space: nowrap; } /* nunca corta o valor com reticências */
+@media (max-width: 639px) { .kpi-valor { font-size: 17px; } }
 .kpi-valor.verde { color: var(--green); } .kpi-valor.ambar { color: var(--amber); } .kpi-valor.vermelho { color: var(--red); } .kpi-valor.azul { color: var(--blue); }
 .kpi-sub { font-size: 11px; color: var(--text3); line-height: 1.4; }
 .kpi-sub.ruim { color: var(--red); }
