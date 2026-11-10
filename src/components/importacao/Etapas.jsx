@@ -194,8 +194,8 @@ export function EtapaRevisar({ a, filtroInicial, abrirCompra }) {
           <>
             <div className="alert alert-blue imp-so-app-explica">
               <b>O que é esta aba?</b>
-              <div style={{ fontSize: 13, marginTop: 4 }}>São compras que <b>já estão lançadas no app</b> neste cartão e mês, mas que <b>não aparecem no arquivo</b> da fatura. Elas entram na soma do app e podem explicar a diferença com o banco. Nada é alterado aqui.</div>
-              <div style={{ fontSize: 13, marginTop: 6 }}>O que costuma ser: compra de <b>outra fatura</b> (o fechamento cai em outro mês), <b>valor lançado errado</b>, compra de <b>outro cartão</b>, ou algo que o banco ainda não mostrou. Abra a compra para corrigir o mês da fatura, o cartão ou o valor.</div>
+              <div style={{ fontSize: 13, marginTop: 4 }}>São compras que <b>já estão lançadas no app</b> neste cartão e mês, mas que <b>não aparecem no arquivo</b> da fatura. Elas entram na soma do app e podem explicar a diferença com o banco. Nada é alterado sem você pedir.</div>
+              <div style={{ fontSize: 13, marginTop: 6 }}>O que costuma ser: compra de <b>outra fatura</b> (o fechamento cai em outro mês), <b>valor lançado errado</b>, compra de <b>outro cartão</b>, ou algo que o banco ainda não mostrou. Abra a compra para corrigir o mês da fatura, o cartão ou o valor, ou exclua se ela foi lançada por engano (dá para desfazer logo depois).</div>
             </div>
             {analise.grupos.divergenciasApp.map((d, i) => (
               <article key={d.compra?.id || d.fixo?.id || i} className="imp-linha so-app">
@@ -204,7 +204,7 @@ export function EtapaRevisar({ a, filtroInicial, abrirCompra }) {
                   <span className="imp-nome"><b>{d.compra ? (d.compra.identificacao || d.compra.descricao) : d.fixo.nome}</b><small>{d.compra ? `${d.compra.categoria}${d.compra.subcategoria ? ` › ${d.compra.subcategoria}` : ''}${d.compra.pessoa ? ` · ${d.compra.pessoa}` : ''}${Number(d.compra.parcelas) > 1 ? ` · parcela ${d.parcela}/${d.de}` : ''}` : 'conta fixa neste cartão'}</small></span>
                   <span className="imp-valor mono">{fmt(d.valor)}</span>
                 </div>
-                {d.compra && <div className="imp-linha-meta"><span className="imp-selos">{d.compra.pessoa && <span className={`badge badge-${corPessoa(a.pessoas, d.compra.pessoa)}`} title="Pessoa do lançamento">{d.compra.pessoa}</span>}<span className="cad-sub">Lançada no app, fora do arquivo</span></span><button type="button" className="btn btn-ghost btn-sm" onClick={() => abrirCompra(d.compra)}>Editar a compra</button></div>}
+                {d.compra && <div className="imp-linha-meta"><span className="imp-selos">{d.compra.pessoa && <span className={`badge badge-${corPessoa(a.pessoas, d.compra.pessoa)}`} title="Pessoa do lançamento">{d.compra.pessoa}</span>}<span className="cad-sub">Lançada no app, fora do arquivo</span></span><span className="imp-linha-botoes"><button type="button" className="btn btn-ghost btn-sm" onClick={() => abrirCompra(d.compra)}>Editar a compra</button><button type="button" className="btn btn-danger btn-sm" onClick={() => a.excluirCompra(d.compra)} aria-label={`Excluir a compra ${d.compra.identificacao || d.compra.descricao}`}>Excluir</button></span></div>}
               </article>
             ))}
           </>

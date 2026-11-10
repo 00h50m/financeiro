@@ -10,7 +10,8 @@ import { ehCompraDividida } from './planoImportacao'
 import { COLUNAS_ESPERADAS, prepararLinhas, reanalisar } from './leituraFatura'
 import { montarPlano } from './planoImportacao'
 import { chaveDoArquivo, novoIdImportacao, salvarRascunho, descartarRascunho, listarRascunhos, listarImportadas, registrosDoLote, textoResultado } from './importacaoLote'
-import { nowYM, addMonths } from './utils'
+import { nowYM, addMonths, fmt } from './utils'
+import { confirmar as confirmarDialogo } from './dialogos'
 import { indexarAliases } from './estabelecimento'
 import { recorrenciasAntesDaFatura, recorrenciaDaLinha, contaFixaDaLinha } from './recorrenciaImportacao'
 
@@ -21,7 +22,7 @@ const maisComum = (xs) => { const c = {}; xs.filter(Boolean).forEach((x) => { c[
 
 // `inicial` (para testes e pré-visualização): { registros, nome, origem, totalBanco, etapa } carrega o arquivo já na primeira renderização.
 export function useAssistenteImportacao(store, inicial = null) {
-  const { cartoes, categorias, compras, pessoas, fixos = [], regras = [], aliases = [], importarFatura, conciliarFatura, updateCompra, addFixo, updateFixo, definirValorFixo, fixosValoresOk } = store
+  const { cartoes, categorias, compras, pessoas, fixos = [], regras = [], aliases = [], importarFatura, conciliarFatura, updateCompra, delCompra, addFixo, updateFixo, definirValorFixo, fixosValoresOk } = store
   const faturaMesOk = compras.some((c) => 'fatura_mes' in c)
 
   const pre = useRef(null)
@@ -183,6 +184,17 @@ export function useAssistenteImportacao(store, inicial = null) {
     return ef
   }), [analise, mesFatura, cartaoId])
 
+  // "Só no app": compra lançada que não está na fatura pode ser excluída daqui (com confirmação; dá para desfazer logo depois)
+  async function excluirCompra(c) {
+    const parte = c.grupo_id && compras.filter((x) => x.grupo_id === c.grupo_id).length > 1
+    const nomeC = c.identificacao || c.descricao
+    const texto = parte
+      ? `Remover só esta parte de "${nomeC}" (${fmt(c.valor_total)})? As outras partes da compra dividida continuam.`
+      : `Excluir "${nomeC}" (${fmt(c.valor_total)}) do aplicativo? Ela não aparece nesta fatura. Dá para desfazer logo depois.`
+    if (!await confirmarDialogo({ titulo: 'Excluir compra', texto, confirmar: 'Excluir', perigoso: true })) return
+    await delCompra?.(c.id)
+  }
+
   // correções de nome/categoria pedidas em linhas que já têm compra lançada no app (a pessoa editou na conciliação): aplicadas depois da importação
   const ajustesCompras = useMemo(() => (analise?.linhas || []).filter((l) => l.grupo === 'registrada' && l.correspondencia?.compra && (l.ajusteNome || l.ajusteCategoria)).flatMap((l) => {
     const c = l.correspondencia.compra
@@ -315,6 +327,6 @@ export function useAssistenteImportacao(store, inicial = null) {
   return {
     etapa, maxEtapa, irPara, arquivo, linhas, cartaoId, mesFatura, modoValor, importacaoId, lendo, erro, setErro, confirmando, resultado, rascunhos, importadas, conciliando, bancoV2, salvoEm, faturaMesOk,
     analise, plano, cartoes, categorias, pessoas, fechamentos: store.fechamentos || [],
-    ajustesCompras, abrirCsv, abrirPdf, definirCartao, definirMes, definirModo, definirTotalBanco, atualizarLinha, decidir, escolherParcelamento, mudarCategoria, adicionarLinha, retomar, reconferir, descartar, confirmar, limpar, recorrenciaDe, alternarFixo, fixosMarcados, fixosAPlanejar, efeitosFixos,
+    ajustesCompras, excluirCompra, abrirCsv, abrirPdf, definirCartao, definirMes, definirModo, definirTotalBanco, atualizarLinha, decidir, escolherParcelamento, mudarCategoria, adicionarLinha, retomar, reconferir, descartar, confirmar, limpar, recorrenciaDe, alternarFixo, fixosMarcados, fixosAPlanejar, efeitosFixos,
   }
 }
