@@ -156,13 +156,14 @@ export function EtapaAnalise({ a, aoAbrirGrupo }) {
 
 // ============ 3. Revisar ============
 // Aba "Só no app": a pessoa escolhe QUALQUER linha nova do arquivo para dizer "é esta compra" (mesmo quando valor, nome e data não batem).
-function RelacionarManual({ d, a, linhas }) {
+function RelacionarManual({ d, a, linhas, onRelacionar }) {
   const [aberto, setAberto] = useState(false)
   const [linhaId, setLinhaId] = useState('')
   const alvo = Number(d.valor)
   const opcoes = [...linhas].sort((x, y) => Math.abs(valorParcelaLinha(x, a.modoValor) - alvo) - Math.abs(valorParcelaLinha(y, a.modoValor) - alvo) || String(x.data).localeCompare(String(y.data)))
   const escolhida = opcoes.find((l) => String(l._id) === linhaId)
-  const nomeC = d.compra.identificacao || d.compra.descricao
+  const idAlvo = d.compra?.id ?? d.fixo?.id
+  const nomeC = d.compra ? (d.compra.identificacao || d.compra.descricao) : d.fixo?.nome
   if (!opcoes.length) return null
   return (
     <div className="imp-relacionar">
@@ -170,14 +171,14 @@ function RelacionarManual({ d, a, linhas }) {
         ? <button type="button" className="link-btn" onClick={() => setAberto(true)}>Relacionar com uma linha do arquivo…</button>
         : (
           <div className="imp-par alert alert-blue">
-            <label htmlFor={`rel-${d.compra.id}`}><b>Qual linha do arquivo é a compra "{nomeC}"?</b> <span className="cad-sub">(as de valor mais próximo aparecem primeiro)</span></label>
-            <select id={`rel-${d.compra.id}`} value={linhaId} onChange={(e) => setLinhaId(e.target.value)}>
+            <label htmlFor={`rel-${idAlvo}`}><b>Qual linha do arquivo é {d.compra ? 'a compra' : 'a conta fixa'} "{nomeC}"?</b> <span className="cad-sub">(as de valor mais próximo aparecem primeiro)</span></label>
+            <select id={`rel-${idAlvo}`} value={linhaId} onChange={(e) => setLinhaId(e.target.value)}>
               <option value="">Escolha a linha…</option>
               {opcoes.map((l) => <option key={l._id} value={String(l._id)}>{`${String(l.data).slice(8, 10)}/${String(l.data).slice(5, 7)} · ${l.identificacao?.trim() || l.descricao} · ${fmt(valorParcelaLinha(l, a.modoValor))}`}</option>)}
             </select>
             {escolhida && Math.abs(valorParcelaLinha(escolhida, a.modoValor) - alvo) >= 0.02 && <p className="cad-sub" style={{ margin: 0 }}>O valor da linha ({fmt(valorParcelaLinha(escolhida, a.modoValor))}) é diferente do lançado ({fmt(alvo)}). Vale como a mesma compra e o valor lançado continua como está; corrija em "Editar a compra" se quiser.</p>}
             <div className="imp-acoes">
-              <button type="button" className="btn btn-primary btn-sm" disabled={!escolhida} onClick={() => { a.vincularLinha(escolhida._id, d.compra.id); setAberto(false); setLinhaId('') }}>Relacionar</button>
+              <button type="button" className="btn btn-primary btn-sm" disabled={!escolhida} onClick={() => { onRelacionar(escolhida._id); setAberto(false); setLinhaId('') }}>Relacionar</button>
               <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setAberto(false); setLinhaId('') }}>Cancelar</button>
             </div>
           </div>
@@ -236,17 +237,18 @@ export function EtapaRevisar({ a, filtroInicial, abrirCompra }) {
                   <span className="imp-valor mono">{fmt(d.valor)}</span>
                 </div>
                 {d.compra && <div className="imp-linha-meta"><span className="imp-selos">{d.compra.pessoa && <span className={`badge badge-${corPessoa(a.pessoas, d.compra.pessoa)}`} title="Pessoa do lançamento">{d.compra.pessoa}</span>}<span className="cad-sub">Lançada no app, fora do arquivo</span></span><span className="imp-linha-botoes"><button type="button" className="btn btn-ghost btn-sm" onClick={() => abrirCompra(d.compra)}>Editar a compra</button><button type="button" className="btn btn-danger btn-sm" onClick={() => a.excluirCompra(d.compra)} aria-label={`Excluir a compra ${d.compra.identificacao || d.compra.descricao}`}>Excluir</button></span></div>}
-                {(d.paresPossiveis || []).filter((p) => !a.paresDispensados?.has(`${d.compra?.id}|${p.linhaId}`)).map((p) => (
+                {(d.paresPossiveis || []).filter((p) => !a.paresDispensados?.has(`${d.compra?.id ?? d.fixo?.id}|${p.linhaId}`)).map((p) => (
                   <div key={p.linhaId} className="imp-par alert alert-blue">
-                    <div><b>Pode ser a mesma compra</b> que esta linha do arquivo, com outro nome: <b>{p.nome}</b>{p.descricaoOriginal && p.descricaoOriginal !== p.nome ? <span className="cad-sub"> ({p.descricaoOriginal})</span> : null} · <span className="mono">{fmt(p.valor)}</span> · {p.data ? p.data.slice(8, 10) + '/' + p.data.slice(5, 7) : ''}
-                      <span className="cad-sub"> — {p.dias == null ? 'mesma parcela e mesmo valor' : p.dias === 0 ? 'mesmo valor e mesmo dia' : `mesmo valor, ${p.dias} dia${p.dias === 1 ? '' : 's'} de diferença`}</span></div>
+                    <div><b>Pode ser {d.compra ? 'a mesma compra' : 'esta conta fixa'}</b> que esta linha do arquivo, com outro nome: <b>{p.nome}</b>{p.descricaoOriginal && p.descricaoOriginal !== p.nome ? <span className="cad-sub"> ({p.descricaoOriginal})</span> : null} · <span className="mono">{fmt(p.valor)}</span> · {p.data ? p.data.slice(8, 10) + '/' + p.data.slice(5, 7) : ''}
+                      <span className="cad-sub"> — {p.dias == null ? (d.compra ? 'mesma parcela e mesmo valor' : 'mesmo valor') : p.dias === 0 ? 'mesmo valor e mesmo dia' : `mesmo valor, ${p.dias} dia${p.dias === 1 ? '' : 's'} de diferença`}</span></div>
                     <div className="imp-acoes">
-                      <button type="button" className="btn btn-primary btn-sm" onClick={() => a.vincularLinha(p.linhaId, d.compra.id)} title="A linha do arquivo passa a valer como esta compra: não cria outra e ela sai desta aba">É a mesma compra</button>
-                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => a.dispensarPar(d.compra.id, p.linhaId)} title="São compras diferentes: esconde esta sugestão">É outra compra</button>
+                      <button type="button" className="btn btn-primary btn-sm" onClick={() => (d.compra ? a.vincularLinha(p.linhaId, d.compra.id) : a.vincularLinhaFixo(p.linhaId, d.fixo.id))} title={d.compra ? 'A linha do arquivo passa a valer como esta compra: não cria outra e ela sai desta aba' : 'A linha do arquivo passa a valer como esta conta fixa: não cria compra e ela sai desta aba'}>{d.compra ? 'É a mesma compra' : 'É esta conta fixa'}</button>
+                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => a.dispensarPar(d.compra?.id ?? d.fixo?.id, p.linhaId)} title="São compras diferentes: esconde esta sugestão">É outra compra</button>
                     </div>
                   </div>
                 ))}
-                {d.compra && <RelacionarManual d={d} a={a} linhas={analise.grupos.novas} />}
+                {d.compra && <RelacionarManual d={d} a={a} linhas={analise.grupos.novas} onRelacionar={(linhaId) => a.vincularLinha(linhaId, d.compra.id)} />}
+                {!d.compra && d.fixo && <RelacionarManual d={d} a={a} linhas={analise.grupos.novas} onRelacionar={(linhaId) => a.vincularLinhaFixo(linhaId, d.fixo.id)} />}
               </article>
             ))}
           </>

@@ -261,6 +261,18 @@ export function conferirFatura({ linhas, compras, cartoes, fixos = [], cartaoId,
   // linhas do CSV que são uma conta fixa deste cartão (mesmo lugar e valor): não faltam, já existem como fixo
   const contaFixa = []
   const fixosLivres = [...fixosNoCartao]
+  // conta fixa escolhida pela pessoa para a linha (aba Só no app, "é esta conta"): vale antes dos pareamentos por nome
+  const contaFixaProvavel = []
+  faltaLancar = faltaLancar.filter((l) => {
+    if (!l.vinculoFixoManual) return true
+    const i = fixosLivres.findIndex((f) => String(f.id) === String(l.vinculoFixoManual))
+    if (i < 0) return true
+    const v = valorParcelaLinha(l, modo)
+    if (Math.abs(fixosLivres[i].valor - v) < TOLERANCIA_VALOR) contaFixa.push({ linha: l, fixo: fixosLivres[i] })
+    else contaFixaProvavel.push({ linha: l, fixo: fixosLivres[i], valor: v })
+    fixosLivres.splice(i, 1)
+    return false
+  })
   faltaLancar = faltaLancar.filter((l) => {
     const i = fixosLivres.findIndex((f) => Math.abs(f.valor - valorParcelaLinha(l, modo)) < TOLERANCIA_VALOR && similaridadeEstabelecimento(chaveDe(l.descricao), chaveDe(f.nome)) >= 0.8)
     if (i < 0) return true
@@ -270,7 +282,6 @@ export function conferirFatura({ linhas, compras, cartoes, fixos = [], cartaoId,
   })
 
   // conta fixa DO CARTÃO com o mesmo nome e valor diferente (conta de valor variável, ou preço que mudou): pergunta, não vincula sozinho
-  const contaFixaProvavel = []
   faltaLancar = faltaLancar.filter((l) => {
     const v = valorParcelaLinha(l, modo)
     const i = fixosLivres.findIndex((f) => similaridadeEstabelecimento(chaveDe(l.descricao), chaveDe(f.nome)) >= 0.8 && Math.abs(f.valor - v) <= Math.max(1, f.valor * 0.5))

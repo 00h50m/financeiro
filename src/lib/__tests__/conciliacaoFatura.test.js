@@ -375,3 +375,32 @@ describe('aba Só no app: pares possíveis e vínculo manual', () => {
     expect(analisar([desfeita], compras).grupos.divergenciasApp.some((x) => x.compra?.id === 'no-app')).toBe(true)
   })
 })
+
+describe('aba Só no app: conta fixa do cartão sem linha pareada', () => {
+  const fixos = [{ id: 'f9', nome: 'Plano de Saúde 02', valor: 27.92, ativo: true, cartao_id: 'c1', mes_inicio: '2026-01' }]
+  const comF = (ls, extra = {}) => analisarFatura({ linhas: preparar(ls, []), compras: [], cartoes, fixos, cartaoId: 'c1', mes: MES, categorias, ...extra })
+  const amil = linha({ descricao: 'AMIL ASSIST MEDICA', valor: 27.92, categoria: 'Alimentação', subcategoria: 'Mercado' })
+  it('com nome diferente, a conta fixa aparece em Só no app e sugere a linha de mesmo valor', () => {
+    const a = comF([amil])
+    const d = a.grupos.divergenciasApp.find((x) => x.fixo?.id === 'f9')
+    expect(d).toBeTruthy()
+    expect(d.paresPossiveis).toHaveLength(1)
+    expect(d.paresPossiveis[0]).toMatchObject({ valor: 27.92 })
+  })
+  it('"é esta conta fixa": a linha vira registrada (não será criada) e a conta sai de Só no app', () => {
+    const a = comF([{ ...amil, vinculoFixoManual: 'f9', ...decisaoPatch('mesma') }])
+    expect(a.grupos.divergenciasApp.some((x) => x.fixo?.id === 'f9')).toBe(false)
+    expect(a.grupos.registradas).toHaveLength(1)
+    expect(a.grupos.novas).toHaveLength(0)
+  })
+  it('valor diferente da conta fixa: vincula e registra o vínculo (conta variável ajusta o valor do mês ao confirmar)', () => {
+    const a = comF([{ ...amil, valor: 30, vinculoFixoManual: 'f9', ...decisaoPatch('mesma') }])
+    expect(a.grupos.divergenciasApp.some((x) => x.fixo?.id === 'f9')).toBe(false)
+    expect(a.grupos.registradas[0].fixoVinculado).toMatchObject({ id: 'f9' })
+  })
+  it('desfazer a decisão remove o vínculo com a conta fixa', () => {
+    const desfeita = { ...amil, vinculoFixoManual: 'f9', ...decisaoPatch('mesma'), ...decisaoPatch(null) }
+    expect(desfeita.vinculoFixoManual).toBeUndefined()
+    expect(comF([desfeita]).grupos.divergenciasApp.some((x) => x.fixo?.id === 'f9')).toBe(true)
+  })
+})
