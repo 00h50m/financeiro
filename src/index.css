@@ -1454,3 +1454,8 @@ input[type=number]::-webkit-outer-spin-button, input[type=number]::-webkit-inner
 .dv-valor-linha { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
 .dv-valor-linha .form-group { flex: 1 1 180px; max-width: 260px; }
 .dv-atalhos { display: flex; flex-wrap: wrap; gap: 8px; padding-bottom: 12px; }
+.dv-quem { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: var(--espaco-4); }
+.dv-quem-card { display: flex; flex-direction: column; gap: 2px; min-width: 140px; padding: 10px 14px; background: var(--bg2); border: 1px solid var(--border); border-radius: var(--raio-lg); text-align: left; color: inherit; cursor: pointer; }
+.dv-quem-card.ativo { border-color: var(--brand); background: var(--bg3); }
+.dv-quem-card span { font-size: 13px; color: var(--text2); } .dv-quem-card b { font-size: 17px; } .dv-quem-card small { font-size: 11px; color: var(--text3); }
+.dv-lote { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 14px; border-bottom: 1px solid var(--border); }

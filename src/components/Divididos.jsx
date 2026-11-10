@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { compilar } from '../lib/filtro'
 import { lerNum } from '../lib/adiamentoPref'
-import { CampoBusca } from './FiltroLista'
+import { CampoBusca, ResumoFiltro } from './FiltroLista'
 import { Pilulas } from './NavMes'
 import CampoDinheiro from './ui/CampoDinheiro'
 import { addMonths, fmt, mesLabel, nowYM, tituloCompra } from '../lib/utils'
@@ -12,7 +12,6 @@ import Indicador from './ui/Indicador'
 import EstadoVazio from './ui/EstadoVazio'
 import { Lista, ItemLista } from './ui/Lista'
 
-const num = (t) => Number(String(t).replace(',', '.'))
 const brData = (iso) => (iso ? iso.split('-').reverse().join('/') : '')
 
 function NovaDivisao({ store, onFeito }) {
@@ -159,6 +158,9 @@ function NovaDivisao({ store, onFeito }) {
 export default function Divididos({ store }) {
   const { divisoes, divisoesOk, marcarRepasse, desmarcarRepasse, delDivisao } = store
   const [mes, setMes] = useState(nowYM())
+  const [pessoaF, setPessoaF] = useState('') // '' = todas as pessoas
+  const [situacaoF, setSituacaoF] = useState('') // '' | 'receber' | 'recebido'
+  const [buscaL, setBuscaL] = useState('')
   const noInicio = !!store.inicioApp && mes <= store.inicioApp
 
   if (!divisoesOk) {
@@ -175,13 +177,32 @@ export default function Divididos({ store }) {
   const meses = Array.from({ length: 37 }, (_, i) => addMonths(nowYM(), i - 24))
   const deve = saldoPorPessoa(store, meses)
   const totalDeve = Object.values(deve).reduce((s, x) => s + x, 0)
+  // quem aparece nos filtros: quem tem divisão cadastrada (mesmo sem nada a receber agora)
+  const pessoasDiv = [...new Set([...divisoes.map((d) => d.pessoa), ...r.itens.map((i) => i.pessoa)])].filter(Boolean).sort((x, y) => x.localeCompare(y, 'pt-BR'))
+  const { combina } = compilar(buscaL)
+  const filtroLigado = !!(pessoaF || situacaoF || buscaL.trim())
+  const itensF = r.itens.filter((i) => (!pessoaF || i.pessoa === pessoaF)
+    && (!situacaoF || (situacaoF === 'receber' ? !i.recebido : i.recebido))
+    && combina({ texto: `${i.pessoa} ${i.descricao} ${i.divisao.observacao || ''}`, valor: [i.esperado, i.valorRecebido], data: null }))
+  const somaF = (f) => Math.round(itensF.reduce((t, i) => t + f(i), 0) * 100) / 100
+  const aReceberF = somaF((i) => (i.recebido ? 0 : i.esperado))
+  const recebidoF = somaF((i) => i.valorRecebido || 0)
+  const divisoesF = divisoes.filter((d) => (!pessoaF || d.pessoa === pessoaF) && combina({ texto: `${d.pessoa} ${descricaoDoItem(store, d)} ${d.observacao || ''}`, valor: [Number(d.valor)], data: null }))
+  const pendentesF = itensF.filter((i) => !i.recebido)
 
   async function receber(i) {
     const t = await pedir(`Quanto ${i.pessoa} pagou de "${i.descricao}"? (R$)`, String(i.esperado).replace('.', ','))
     if (t === null) return
-    const v = num(t)
+    const v = lerNum(t)
     if (!(v >= 0) || Number.isNaN(v)) return avisar('Valor inválido.\n\nDigite só números, com vírgula nos centavos (ex.: 312,40).')
     await marcarRepasse(i.divisao.id, mes, v)
+  }
+  // "ela pagou tudo": marca como recebidas, pelo valor esperado, todas as partes pendentes que estão na lista filtrada
+  async function receberTodas() {
+    const total = Math.round(pendentesF.reduce((t, i) => t + i.esperado, 0) * 100) / 100
+    const quem = pessoaF || 'as pessoas da lista'
+    if (!await confirmar({ titulo: 'Marcar como recebido', texto: `Marcar ${pendentesF.length} ${pendentesF.length === 1 ? 'parte' : 'partes'} de ${quem} em ${mesLabel(mes)} como recebidas, pelo valor esperado (${fmt(total)})?\n\nVocê pode desfazer cada uma depois.`, confirmar: 'Marcar como recebido' })) return
+    for (const i of pendentesF) { const ok = await marcarRepasse(i.divisao.id, mes, i.esperado); if (ok === false) break }
   }
 
   return (
@@ -193,31 +214,49 @@ export default function Divididos({ store }) {
 
       <NovaDivisao store={store} />
 
+      {pessoasDiv.length > 0 && (
+        <div className="dv-quem" role="group" aria-label="Filtrar por pessoa">
+          <button type="button" className={`dv-quem-card${!pessoaF ? ' ativo' : ''}`} aria-pressed={!pessoaF} onClick={() => setPessoaF('')}>
+            <span>Todas</span><b className="mono">{fmt(totalDeve)}</b><small>a receber, todos os meses</small>
+          </button>
+          {pessoasDiv.map((n) => (
+            <button key={n} type="button" className={`dv-quem-card${pessoaF === n ? ' ativo' : ''}`} aria-pressed={pessoaF === n} onClick={() => setPessoaF(pessoaF === n ? '' : n)}>
+              <span>{n}</span><b className="mono">{fmt(deve[n] || 0)}</b><small>{(deve[n] || 0) > 0 ? 'deve, todos os meses' : 'nada a receber'}</small>
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="toolbar" style={{ marginBottom: 12 }}>
         <button className="btn btn-ghost btn-sm" onClick={() => setMes(addMonths(mes, -1))} disabled={noInicio} title={noInicio ? `O app começou em ${mesLabel(store.inicioApp)}` : undefined} aria-label="Mês anterior">←</button>
         <strong style={{ minWidth: 110, textAlign: 'center' }}>{mesLabel(mes)}</strong>
         <button className="btn btn-ghost btn-sm" onClick={() => setMes(addMonths(mes, 1))} aria-label="Próximo mês">→</button>
+        <CampoBusca valor={buscaL} onChange={setBuscaL} placeholder="Buscar nas partes e divisões…" largura={260} />
+        <Pilulas rotulo="Situação" valor={situacaoF} onChange={setSituacaoF} opcoes={[['', 'Todas'], ['receber', 'A receber'], ['recebido', 'Recebidas']]} />
       </div>
 
       <div className="indicadores">
-        <Indicador rotulo="A receber neste mês" valor={fmt(r.aReceber)} tom="aviso" />
-        <Indicador rotulo="Recebido neste mês" valor={fmt(r.recebido)} tom="ok" />
-        <Indicador rotulo="A receber (todos os meses)" valor={fmt(totalDeve)} />
+        <Indicador rotulo={`A receber neste mês${pessoaF ? ` · ${pessoaF}` : ''}`} valor={fmt(filtroLigado ? aReceberF : r.aReceber)} tom="aviso" />
+        <Indicador rotulo={`Recebido neste mês${pessoaF ? ` · ${pessoaF}` : ''}`} valor={fmt(filtroLigado ? recebidoF : r.recebido)} tom="ok" />
+        <Indicador rotulo={pessoaF ? `${pessoaF} deve (todos os meses)` : 'A receber (todos os meses)'} valor={fmt(pessoaF ? deve[pessoaF] || 0 : totalDeve)} />
       </div>
-
-      {Object.keys(deve).length > 0 && (
-        <p style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 16 }}>
-          Quem deve (todos os meses): {Object.entries(deve).map(([p, v]) => `${p} ${fmt(v)}`).join(' · ')}
-        </p>
-      )}
+      <ResumoFiltro ativo={filtroLigado} mostrando={itensF.length} total={r.itens.length} onLimpar={() => { setPessoaF(''); setSituacaoF(''); setBuscaL('') }} />
 
       <div className="section-label">{mesLabel(mes)}</div>
       {r.itens.length === 0 ? (
         <EstadoVazio titulo="Nenhuma parte de outras pessoas neste mês" texto="Quando você dividir uma compra ou conta fixa, a parte de cada pessoa aparece aqui." />
+      ) : itensF.length === 0 ? (
+        <EstadoVazio titulo="Nada com esses filtros" texto="Tente outra pessoa, outra situação ou limpe a busca." acao="Limpar filtros" aoClicar={() => { setPessoaF(''); setSituacaoF(''); setBuscaL('') }} />
       ) : (
         <div className="card">
+          {pendentesF.length > 1 && (
+            <div className="dv-lote">
+              <span className="cad-sub">{pendentesF.length} partes a receber{pessoaF ? ` de ${pessoaF}` : ''}</span>
+              <button type="button" className="btn btn-primary btn-sm" onClick={receberTodas}>{pessoaF ? `${pessoaF} pagou tudo` : 'Marcar todas como recebidas'}</button>
+            </div>
+          )}
           <Lista rotulo={`Partes a receber em ${mesLabel(mes)}`}>
-            {r.itens.map((i) => (
+            {itensF.map((i) => (
               <ItemLista key={i.divisao.id} titulo={`${i.pessoa} · ${i.descricao}`} valor={fmt(i.recebido ? i.valorRecebido : i.esperado)} tomValor={i.recebido ? 'ok' : undefined}
                 selos={i.recebido ? <Selo tom="ok">{`recebido${i.recebidoEm ? ` em ${brData(i.recebidoEm)}` : ''}`}</Selo> : <Selo tom="aviso">a receber</Selo>}
                 meta={i.divisao.observacao ? <span>{i.divisao.observacao}</span> : null}
@@ -229,13 +268,15 @@ export default function Divididos({ store }) {
         </div>
       )}
 
-      <div className="section-label" style={{ marginTop: 24 }}>Divisões cadastradas</div>
+      <div className="section-label" style={{ marginTop: 24 }}>Divisões cadastradas{pessoaF ? ` · ${pessoaF}` : ''}</div>
       {divisoes.length === 0 ? (
         <EstadoVazio titulo="Nenhuma divisão cadastrada ainda" texto="Use o formulário acima para dividir uma compra ou conta fixa com outra pessoa." />
+      ) : divisoesF.length === 0 ? (
+        <EstadoVazio titulo="Nenhuma divisão com esses filtros" texto="Tente outra pessoa ou limpe a busca." />
       ) : (
         <div className="card">
           <Lista rotulo="Divisões cadastradas">
-            {divisoes.map((d) => (
+            {divisoesF.map((d) => (
               <ItemLista key={d.id} titulo={`${d.pessoa} · ${descricaoDoItem(store, d)}`} selos={<Selo tom="neutro">{d.tipo === 'fixo' ? 'conta fixa' : 'compra'}</Selo>}
                 valor={`${d.modo === 'percentual' ? `${Number(d.valor)}%` : fmt(d.valor)}${d.tipo === 'fixo' ? ' /mês' : ''}`}
                 acoes={<button className="btn btn-danger fx-remover" onClick={async () => { if (await confirmar(`Apagar a divisão com ${d.pessoa}? Os valores já recebidos dela também somem.`)) delDivisao(d) }} aria-label={`Apagar divisão com ${d.pessoa}`}>Apagar</button>} />
