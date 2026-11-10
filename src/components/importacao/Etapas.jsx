@@ -155,6 +155,37 @@ export function EtapaAnalise({ a, aoAbrirGrupo }) {
 }
 
 // ============ 3. Revisar ============
+// Aba "Só no app": a pessoa escolhe QUALQUER linha nova do arquivo para dizer "é esta compra" (mesmo quando valor, nome e data não batem).
+function RelacionarManual({ d, a, linhas }) {
+  const [aberto, setAberto] = useState(false)
+  const [linhaId, setLinhaId] = useState('')
+  const alvo = Number(d.valor)
+  const opcoes = [...linhas].sort((x, y) => Math.abs(valorParcelaLinha(x, a.modoValor) - alvo) - Math.abs(valorParcelaLinha(y, a.modoValor) - alvo) || String(x.data).localeCompare(String(y.data)))
+  const escolhida = opcoes.find((l) => String(l._id) === linhaId)
+  const nomeC = d.compra.identificacao || d.compra.descricao
+  if (!opcoes.length) return null
+  return (
+    <div className="imp-relacionar">
+      {!aberto
+        ? <button type="button" className="link-btn" onClick={() => setAberto(true)}>Relacionar com uma linha do arquivo…</button>
+        : (
+          <div className="imp-par alert alert-blue">
+            <label htmlFor={`rel-${d.compra.id}`}><b>Qual linha do arquivo é a compra "{nomeC}"?</b> <span className="cad-sub">(as de valor mais próximo aparecem primeiro)</span></label>
+            <select id={`rel-${d.compra.id}`} value={linhaId} onChange={(e) => setLinhaId(e.target.value)}>
+              <option value="">Escolha a linha…</option>
+              {opcoes.map((l) => <option key={l._id} value={String(l._id)}>{`${String(l.data).slice(8, 10)}/${String(l.data).slice(5, 7)} · ${l.identificacao?.trim() || l.descricao} · ${fmt(valorParcelaLinha(l, a.modoValor))}`}</option>)}
+            </select>
+            {escolhida && Math.abs(valorParcelaLinha(escolhida, a.modoValor) - alvo) >= 0.02 && <p className="cad-sub" style={{ margin: 0 }}>O valor da linha ({fmt(valorParcelaLinha(escolhida, a.modoValor))}) é diferente do lançado ({fmt(alvo)}). Vale como a mesma compra e o valor lançado continua como está; corrija em "Editar a compra" se quiser.</p>}
+            <div className="imp-acoes">
+              <button type="button" className="btn btn-primary btn-sm" disabled={!escolhida} onClick={() => { a.vincularLinha(escolhida._id, d.compra.id); setAberto(false); setLinhaId('') }}>Relacionar</button>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setAberto(false); setLinhaId('') }}>Cancelar</button>
+            </div>
+          </div>
+        )}
+    </div>
+  )
+}
+
 export function EtapaRevisar({ a, filtroInicial, abrirCompra }) {
   const { analise } = a
   const [filtro, setFiltro] = useState(filtroInicial || (analise?.contadores.revisao ? 'revisao' : 'novas'))
@@ -215,6 +246,7 @@ export function EtapaRevisar({ a, filtroInicial, abrirCompra }) {
                     </div>
                   </div>
                 ))}
+                {d.compra && <RelacionarManual d={d} a={a} linhas={analise.grupos.novas} />}
               </article>
             ))}
           </>
