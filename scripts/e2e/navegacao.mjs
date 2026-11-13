@@ -82,6 +82,7 @@ ok(JSON.stringify(grupos.map((g) => g.trim().toLowerCase())) === JSON.stringify(
 await p.locator('.sidebar.aberta .sidebar-item', { hasText: 'Análises' }).click()
 ok((await titulo(p)) === 'Análises' && p.url().endsWith('#/analises'), 'Análises abre pelo menu')
 ok(await p.locator('.bottom-nav button.ativo').innerText().then((t) => t.includes('Mais')), 'Análises destaca "Mais" na barra inferior')
+await p.waitForSelector('.analises-abas .pag-aba') // a tela de Análises carrega sob demanda: espera aparecer antes de contar
 ok((await p.locator('.analises-abas .pag-aba').count()) === 6, 'Análises tem 6 abas internas (Visão geral, Evolução, Categorias, Pessoas, Compromissos, Orçado × realizado)')
 
 // endereço digitado com o app aberto
