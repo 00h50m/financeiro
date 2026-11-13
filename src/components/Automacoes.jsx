@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { sb } from '../lib/supabase'
 import { corPessoa } from '../lib/utils'
 import { formatarCodigo } from '../lib/pareamento'
-import { chamarAdminTelegram } from '../lib/automacoes'
+import { chamarAdminTelegram, chamarApi } from '../lib/automacoes'
 import { explicarErro } from '../lib/erros'
 import { confirmar, avisar } from '../lib/dialogos'
 
@@ -98,6 +98,91 @@ function DispositivosAndroid({ store }) {
   )
 }
 
+// Conectar o celular sem Telegram: gera o token aqui, mostra o corpo da macro pronto para copiar e testa se o servidor reconhece o token.
+async function copiar(texto) {
+  try { await navigator.clipboard.writeText(texto); return true } catch { /* sem permissão de área de transferência */ }
+  try {
+    const t = document.createElement('textarea'); t.value = texto; t.style.position = 'fixed'; t.style.opacity = '0'
+    document.body.appendChild(t); t.select(); const ok = document.execCommand('copy'); document.body.removeChild(t); return ok
+  } catch { return false }
+}
+function ConectarCelular({ store, aoGerar }) {
+  const { pessoas = [] } = store
+  const [pessoaId, setPessoaId] = useState(pessoas[0]?.id || '')
+  const [token, setToken] = useState('')
+  const [gerando, setGerando] = useState(false)
+  const [erro, setErro] = useState('')
+  const [copiado, setCopiado] = useState('')
+  const [teste, setTeste] = useState(null) // { ok, texto }
+  const [testando, setTestando] = useState(false)
+  const url = `${typeof window !== 'undefined' ? window.location.origin : 'https://SEU-SITE'}/api/notificacao`
+  const corpo = `token: ${token || 'COLE_O_TOKEN_AQUI'}\napp: [nome do aplicativo]\ntitulo: [título da notificação]\ntexto: [texto da notificação]`
+
+  async function gerar() {
+    if (!pessoaId || gerando) return
+    setGerando(true); setErro(''); setTeste(null)
+    const r = await chamarApi('/api/android-token', { acao: 'gerar', pessoa_id: pessoaId, nome: 'Celular Android' })
+    setGerando(false)
+    if (!r.ok) return setErro(r.indisponivel ? 'Não consegui falar com o servidor agora (se estiver testando localmente, essa função só existe no site publicado).' : r.erro || 'Não consegui gerar o token.')
+    setToken(r.token); aoGerar?.()
+  }
+  async function testar() {
+    if (!token.trim() || testando) return
+    setTestando(true); setTeste(null)
+    let resp
+    try {
+      const x = await fetch('/api/notificacao', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token: token.trim(), teste: true, app: 'Teste', texto: 'teste' }) })
+      resp = { status: x.status, json: await x.json().catch(() => ({})) }
+    } catch { resp = null }
+    setTestando(false)
+    if (!resp) return setTeste({ ok: false, texto: 'O site não respondeu. Confira a internet e tente de novo.' })
+    if (resp.status === 200 && resp.json?.ok) return setTeste({ ok: true, texto: 'Conexão OK: o servidor reconheceu o token. Agora é só a macro do celular mandar a notificação.' })
+    if (resp.status === 401) return setTeste({ ok: false, texto: 'O servidor não reconheceu esse token (errado, incompleto ou já substituído por outro). Gere um novo token aqui e copie de novo.' })
+    setTeste({ ok: false, texto: resp.status === 503 ? 'O servidor ainda não está configurado (faltam variáveis na Vercel).' : `O servidor respondeu com erro (${resp.status}).` })
+  }
+  async function copia(chave, texto) { const ok = await copiar(texto); setCopiado(ok ? chave : 'erro'); setTimeout(() => setCopiado(''), 2500) }
+
+  return (
+    <div className="conectar-celular">
+      <div className="section-label" style={{ marginTop: 0 }}>Conectar o celular (sem Telegram)</div>
+      <p className="cad-sub" style={{ marginTop: 0 }}>Passo 1 de 3: gere o token do seu celular. Ele aparece <b>uma vez só</b> e funciona como senha. Gerar de novo desconecta o celular anterior.</p>
+      <div className="cc-linha">
+        {pessoas.length > 1 && (
+          <select value={pessoaId} onChange={(e) => setPessoaId(e.target.value)} aria-label="De quem é o celular">
+            {pessoas.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
+          </select>
+        )}
+        <button type="button" className="btn btn-primary" disabled={gerando || !pessoaId} onClick={gerar}>{gerando ? 'Gerando…' : token ? 'Gerar outro token' : 'Gerar o token do meu celular'}</button>
+      </div>
+      {erro && <div className="alert alert-red" role="alert">{erro}</div>}
+      {token && (
+        <>
+          <div className="cc-bloco">
+            <div className="cc-rotulo">Seu token <button type="button" className="btn btn-ghost btn-sm" onClick={() => copia('token', token)}>{copiado === 'token' ? '✓ Copiado' : 'Copiar'}</button></div>
+            <code className="cc-codigo">{token}</code>
+          </div>
+          <p className="cad-sub">Passo 2 de 3: na macro do MacroDroid (ação <b>Requisição HTTP</b>, método <b>POST</b>), use este endereço e este corpo. Troque cada texto entre colchetes pela variável do MacroDroid (botão <b>{'{ }'}</b> ou <b>+</b>).</p>
+          <div className="cc-bloco">
+            <div className="cc-rotulo">Endereço <button type="button" className="btn btn-ghost btn-sm" onClick={() => copia('url', url)}>{copiado === 'url' ? '✓ Copiado' : 'Copiar'}</button></div>
+            <code className="cc-codigo">{url}</code>
+          </div>
+          <div className="cc-bloco">
+            <div className="cc-rotulo">Corpo (com o token já preenchido) <button type="button" className="btn btn-ghost btn-sm" onClick={() => copia('corpo', corpo)}>{copiado === 'corpo' ? '✓ Copiado' : 'Copiar'}</button></div>
+            <pre className="cc-codigo">{corpo}</pre>
+          </div>
+        </>
+      )}
+      <p className="cad-sub">Passo 3 de 3: teste se o servidor reconhece o token{token ? '' : ' (cole o token abaixo)'}.</p>
+      {!token && <input className="cc-token" placeholder="Cole aqui o token (fin_…)" onChange={(e) => setToken(e.target.value)} aria-label="Token para testar" />}
+      <div className="cc-linha">
+        <button type="button" className="btn btn-ghost" disabled={!token.trim() || testando} onClick={testar}>{testando ? 'Testando…' : 'Testar conexão'}</button>
+      </div>
+      {copiado === 'erro' && <div className="alert alert-amber" role="status">Não consegui copiar sozinho. Toque no texto para selecionar tudo e use Copiar do celular.</div>}
+      {teste && <div className={`alert alert-${teste.ok ? 'green' : 'red'}`} role="status">{teste.texto}</div>}
+    </div>
+  )
+}
+
 // Passo a passo da captura de compras pelas notificações do celular (MacroDroid), na ordem que funciona no Android.
 function GuiaAndroid() {
   const url = `${typeof window !== 'undefined' ? window.location.origin : 'https://SEU-SITE'}/api/notificacao`
@@ -107,7 +192,7 @@ function GuiaAndroid() {
       <p className="guia-intro">O celular manda o texto das notificações de compra do banco para o Sobrou!, que deixa cada compra pronta no <b>Inbox</b> para você confirmar (ou pergunta no Telegram, se você escolher abaixo). Só notificações de <b>compra</b> viram lançamento; Pix, estorno, fatura e compra recusada são ignorados.</p>
       <ol>
         <li>
-          <b>Pegue o token.</b> No Telegram, mande <code>/android</code> para o bot. Ele responde <b>uma vez só</b> com o token (começa com <code>fin_</code>). Copie. Para desligar um celular, mande <code>/android revogar</code>.
+          <b>Pegue o token</b> no quadro "Conectar o celular" acima (ou, se preferir, mande <code>/android</code> no Telegram). Ele aparece <b>uma vez só</b> e começa com <code>fin_</code>. Copie.
           <div className="guia-aviso">O token é como uma senha do seu celular: não envie em prints nem em conversas.</div>
         </li>
         <li>
@@ -192,6 +277,7 @@ export default function Automacoes({ store }) {
   const [bot, setBot] = useState(null) // resposta de { acao: 'status' }
   const [carregando, setCarregando] = useState(true)
   const [msg, setMsg] = useState(null)
+  const [recarregarDisp, setRecarregarDisp] = useState(0)
 
   async function verificar() {
     setCarregando(true)
@@ -301,7 +387,7 @@ export default function Automacoes({ store }) {
       {bot?.ok && <ConectarPessoa store={store} bot={bot} />}
 
       <div className="section-label">Captura de notificações (Android)</div>
-      <div className="card"><ModoNotificacao store={store} /><DispositivosAndroid store={store} /><GuiaAndroid /></div>
+      <div className="card"><ModoNotificacao store={store} /><DispositivosAndroid key={`d${recarregarDisp}`} store={store} /><ConectarCelular store={store} aoGerar={() => setRecarregarDisp((n) => n + 1)} /><GuiaAndroid /></div>
     </div>
   )
 }

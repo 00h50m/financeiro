@@ -5,7 +5,7 @@ Cada compra no cartão gera uma notificação do banco. Com o app **MacroDroid**
 Só funciona no Android. Vale para qualquer banco cuja notificação traga valor e local da compra (o Nubank já foi testado com um exemplo real).
 
 ## Passo 1 · pegar o token
-No Telegram, mande **/android** para o bot. Ele responde com um token (começa com `fin_`). Ele aparece **uma vez só**: copie. Para desconectar o celular depois: `/android revogar`.
+O jeito mais simples é no próprio app: **Mais › Automações › Conectar o celular › Gerar o token do meu celular** (não precisa de Telegram). Ele mostra o token, o endereço e o corpo da macro prontos para copiar, e o botão **Testar conexão** confirma se o servidor reconhece o token. Se preferir, no Telegram, mande **/android** para o bot. Ele responde com um token (começa com `fin_`). Ele aparece **uma vez só**: copie. Para desconectar o celular depois: `/android revogar`.
 
 ## Passo 2 · criar a macro no MacroDroid
 1. Instale o MacroDroid e abra. Toque em **Adicionar macro**.

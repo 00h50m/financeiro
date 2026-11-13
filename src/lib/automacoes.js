@@ -19,6 +19,19 @@ export async function chamarAdminTelegram(acao, extra = {}) {
   return { status: r.status, ...(await r.json()) }
 }
 
+// Chamada genérica a uma função de servidor que exige login (ex.: api/android-token.js). Devolve { ok, ... } ou { ok: false, indisponivel }.
+export async function chamarApi(caminho, corpo) {
+  const { data } = await sb.auth.getSession()
+  let r
+  try {
+    r = await fetch(caminho, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${data.session?.access_token}` }, body: JSON.stringify(corpo) })
+  } catch {
+    return { ok: false, indisponivel: true }
+  }
+  if (!(r.headers.get('content-type') || '').includes('json')) return { ok: false, indisponivel: true }
+  return { status: r.status, ...(await r.json()) }
+}
+
 // Manda o PDF da fatura (base64) para api/ler-fatura.js e devolve { ok, linhas, cartao, totalFatura, descartadas } ou { ok: false, erro }.
 export async function lerFaturaPdf(pdfBase64) {
   const { data } = await sb.auth.getSession()
