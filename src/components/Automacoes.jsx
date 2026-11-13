@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { sb } from '../lib/supabase'
 import { corPessoa } from '../lib/utils'
 import { formatarCodigo } from '../lib/pareamento'
 import { chamarAdminTelegram } from '../lib/automacoes'
@@ -22,13 +23,88 @@ function Copiar({ texto, rotulo = 'Copiar' }) {
   )
 }
 
+// Para onde vai a notificação do banco: só para o Inbox do app (padrão) ou também com pergunta no Telegram.
+function ModoNotificacao({ store }) {
+  const { config = {}, definirConfig } = store
+  const modo = String(config.notificacao_modo || 'inbox') === 'telegram' ? 'telegram' : 'inbox'
+  const [salvando, setSalvando] = useState(false)
+  async function escolher(novo) {
+    if (novo === modo || salvando) return
+    setSalvando(true)
+    await definirConfig?.('notificacao_modo', novo)
+    setSalvando(false)
+  }
+  const opcoes = [
+    ['inbox', 'Só deixar no Inbox (recomendado)', 'A compra aparece no Inbox do app, com cartão e categoria sugeridos. Nada é lançado sem o seu toque em Confirmar e o Telegram não precisa estar conectado.'],
+    ['telegram', 'Perguntar também no Telegram', 'Além do Inbox, o bot manda a pergunta com o botão Confirmar. Se o Telegram não estiver conectado, cai no Inbox.'],
+  ]
+  return (
+    <fieldset className="modo-notif" disabled={salvando}>
+      <legend>O que fazer quando chega uma notificação de compra</legend>
+      {opcoes.map(([v, t, d]) => (
+        <label key={v} className={`modo-notif-op${modo === v ? ' ativo' : ''}`}>
+          <input type="radio" name="modo-notif" checked={modo === v} onChange={() => escolher(v)} />
+          <span><b>{t}</b><small>{d}</small></span>
+        </label>
+      ))}
+    </fieldset>
+  )
+}
+
+// Celulares que já têm token: mostra se a notificação está chegando (última notificação recebida), para saber se a macro funciona.
+function aHa(iso) {
+  if (!iso) return null
+  const min = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000))
+  if (min < 1) return 'agora há pouco'
+  if (min < 60) return `há ${min} min`
+  if (min < 60 * 24) return `há ${Math.round(min / 60)} h`
+  return `há ${Math.round(min / 1440)} dia${Math.round(min / 1440) === 1 ? '' : 's'}`
+}
+function DispositivosAndroid({ store }) {
+  const { pessoas = [] } = store
+  const [lista, setLista] = useState(null) // null = carregando; [] = nenhum; undefined = tabela ausente
+  const [recarregando, setRecarregando] = useState(false)
+  const carregar = async () => {
+    setRecarregando(true)
+    const r = await sb.from('dispositivos_android').select('id,pessoa_id,nome,criado_em,ultimo_uso,revogado_em').order('criado_em', { ascending: false })
+    setLista(r.error ? undefined : r.data || [])
+    setRecarregando(false)
+  }
+  useEffect(() => { carregar() }, [])
+  if (lista === undefined) return null // sem o inbox/04 no banco: o guia abaixo já explica
+  const ativos = (lista || []).filter((d) => !d.revogado_em)
+  return (
+    <div className="disp-android">
+      <div className="disp-topo">
+        <b>Celulares conectados</b>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={carregar} disabled={recarregando}>{recarregando ? 'Atualizando…' : 'Atualizar'}</button>
+      </div>
+      {lista === null ? <div className="cad-sub">Carregando…</div> : ativos.length === 0 ? (
+        <div className="cad-sub">Nenhum celular conectado ainda. Faça o passo 1 do guia abaixo para pegar o token.</div>
+      ) : (
+        <ul>
+          {ativos.map((d) => (
+            <li key={d.id}>
+              <span>{d.nome || 'Celular'} <span className="cad-sub">· {pessoas.find((p) => p.id === d.pessoa_id)?.nome || 'pessoa'}</span></span>
+              {d.ultimo_uso
+                ? <span className="badge badge-green">✓ última notificação {aHa(d.ultimo_uso)}</span>
+                : <span className="badge badge-amber">ainda nenhuma notificação recebida</span>}
+            </li>
+          ))}
+        </ul>
+      )}
+      {ativos.length > 0 && ativos.every((d) => !d.ultimo_uso) && <div className="cad-sub">Se já fez a macro e nada chegou: confira o endereço (termina em <code>/api/notificacao</code>), o token e a bateria do MacroDroid ("Sem restrições"). Dica: toque em "Executar" na macro para testar.</div>}
+    </div>
+  )
+}
+
 // Passo a passo da captura de compras pelas notificações do celular (MacroDroid), na ordem que funciona no Android.
 function GuiaAndroid() {
   const url = `${typeof window !== 'undefined' ? window.location.origin : 'https://SEU-SITE'}/api/notificacao`
   const corpo = 'token: COLE_O_TOKEN_AQUI\napp: [nome do aplicativo]\ntitulo: [título da notificação]\ntexto: [texto da notificação]'
   return (
     <div className="guia-android">
-      <p className="guia-intro">O celular manda o texto das notificações de compra do banco para o Sobrou!, que pergunta no Telegram se você confirma o lançamento. Só notificações de <b>compra</b> viram lançamento; Pix, estorno, fatura e compra recusada são ignorados.</p>
+      <p className="guia-intro">O celular manda o texto das notificações de compra do banco para o Sobrou!, que deixa cada compra pronta no <b>Inbox</b> para você confirmar (ou pergunta no Telegram, se você escolher abaixo). Só notificações de <b>compra</b> viram lançamento; Pix, estorno, fatura e compra recusada são ignorados.</p>
       <ol>
         <li>
           <b>Pegue o token.</b> No Telegram, mande <code>/android</code> para o bot. Ele responde <b>uma vez só</b> com o token (começa com <code>fin_</code>). Copie. Para desligar um celular, mande <code>/android revogar</code>.
@@ -49,7 +125,7 @@ function GuiaAndroid() {
           <p>Troque <code>COLE_O_TOKEN_AQUI</code> pelo seu token e cada texto entre colchetes pela variável do MacroDroid (botão <b>{'{ }'}</b> ou <b>+</b> no campo: nome do aplicativo, título e texto da notificação; os nomes mudam de versão). Se o corpo for em JSON, também funciona.</p>
         </li>
         <li>
-          <b>Teste</b> com uma compra pequena. O gatilho só dispara em notificação <b>nova</b>. Em segundos o bot manda "📱 Notificação do Nubank..." com o botão <b>Confirmar</b>.
+          <b>Teste</b> com uma compra pequena. O gatilho só dispara em notificação <b>nova</b>. Em segundos a compra aparece em <b>Movimentações › Inbox</b> (ou o bot manda "📱 Notificação do Nubank..." com o botão <b>Confirmar</b>, no modo Telegram).
         </li>
       </ol>
       <div className="guia-dicas">
@@ -225,7 +301,7 @@ export default function Automacoes({ store }) {
       {bot?.ok && <ConectarPessoa store={store} bot={bot} />}
 
       <div className="section-label">Captura de notificações (Android)</div>
-      <div className="card"><GuiaAndroid /></div>
+      <div className="card"><ModoNotificacao store={store} /><DispositivosAndroid store={store} /><GuiaAndroid /></div>
     </div>
   )
 }

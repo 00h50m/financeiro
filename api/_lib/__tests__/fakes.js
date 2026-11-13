@@ -86,6 +86,7 @@ export function criarFakeDb({ comprasIniciais = [], regras = REGRAS, planoVida =
     async dispositivoPorHash(hash) { return (s.dispositivos || []).find((d) => d.token_hash === hash && !d.revogado_em) || null },
     async revogarDispositivos(pessoa_id) { (s.dispositivos || []).filter((d) => d.pessoa_id === pessoa_id).forEach((d) => { d.revogado_em = 'agora' }) },
     async tocarDispositivo() {},
+    async configMapa() { return s.config || {} },
     async integracaoDaPessoa(pessoa_id) { return [...s.integracoes.values()].find((i) => i.pessoa_id === pessoa_id && i.ativo) || null },
     async definirResumoSemanal(uid, valor) { s.integracoes.get(uid).resumo_semanal = !!valor },
     async definirAutoLancar(uid, valor) { s.integracoes.get(uid).auto_lancar = !!valor },
