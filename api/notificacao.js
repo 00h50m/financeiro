@@ -12,6 +12,10 @@ export const config = { api: { bodyParser: false } }
 
 const corte = (v, n) => String(v ?? '').slice(0, n)
 
+// Modo "só Inbox": a notificação vira um lançamento pendente no Inbox do app, sem mandar nada no Telegram e sem lançar sozinha.
+// Quem toca no Confirmar é a pessoa, no app. O Telegram só entra se a pessoa escolher (Automações › notificações › Perguntar no Telegram).
+const tgMudo = new Proxy({}, { get: () => async () => ({ message_id: 0, ok: true, result: { message_id: 0 } }) })
+
 export default async function handler(req, res, deps = {}) {
   if (req.method !== 'POST') return res.status(405).end()
   const amb = lerAmbiente()
@@ -30,14 +34,19 @@ export default async function handler(req, res, deps = {}) {
     if (!dispositivo) return res.status(401).json({ ok: false })
     const permitidos = dispositivo.apps_permitidos || []
     if (permitidos.length && !permitidos.some((a) => a.toLowerCase() === notificacao.app.toLowerCase())) return res.status(200).json({ ok: true, ignorado: 'app_nao_permitido' })
-    const integ = await db.integracaoDaPessoa(dispositivo.pessoa_id)
-    if (!integ) return res.status(409).json({ ok: false, erro: 'Telegram não conectado' })
+    const config = typeof db.configMapa === 'function' ? await db.configMapa().catch(() => ({})) : {}
+    const querTelegram = String(config?.notificacao_modo || 'inbox') === 'telegram'
+    const integ = querTelegram ? await db.integracaoDaPessoa(dispositivo.pessoa_id) : null
     db.tocarDispositivo(dispositivo.id)?.catch?.(() => {})
+    // Sem Telegram (modo Inbox, ou Telegram escolhido mas não conectado): a leitura fica no Inbox, sem mensagem e sem lançamento automático.
+    const soInbox = !integ
     const r = await lancarNotificacao({
-      db, tg: deps.tg || criarTelegram(amb.token), integ, dispositivo, notificacao, quando: corte(corpo.quando ?? corpo.hora, 40) || new Date().toISOString().slice(0, 16),
+      db, tg: soInbox ? tgMudo : (deps.tg || criarTelegram(amb.token)),
+      integ: integ || { pessoa_id: dispositivo.pessoa_id, chat_id: null, telegram_user_id: null, auto_lancar: false },
+      dispositivo, notificacao, quando: corte(corpo.quando ?? corpo.hora, 40) || new Date().toISOString().slice(0, 16),
       agora: deps.agora, appUrl: amb.appUrl,
     })
-    return res.status(200).json({ ok: true, ...(r.ignorado ? { ignorado: r.ignorado } : { acao: r.acao }) })
+    return res.status(200).json({ ok: true, ...(r.ignorado ? { ignorado: r.ignorado } : { acao: r.acao, destino: soInbox ? 'inbox' : 'telegram' }) })
   } catch (e) {
     console.error('notificacao: erro', e?.message) // nunca o texto da notificação
     return res.status(500).json({ ok: false })

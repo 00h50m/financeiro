@@ -45,6 +45,7 @@ describe('/android e a rota de notificação', () => {
     db = criarFakeDb(); tg = criarFakeTg()
     process.env.TELEGRAM_BOT_TOKEN = 't'; process.env.TELEGRAM_WEBHOOK_SECRET = 's'; process.env.SUPABASE_SERVICE_ROLE_KEY = 'k'; process.env.SUPABASE_URL = 'http://x'
   })
+  const comTelegram = () => ({ ...db, configMapa: async () => ({ notificacao_modo: 'telegram' }) })
   const gerarToken = async () => {
     await processarUpdate(msg(GI, '/android'), { db, tg })
     return tg.ultima().text.match(/fin_[0-9a-f]+/)[0]
@@ -56,10 +57,10 @@ describe('/android e a rota de notificação', () => {
     expect(dev.pessoa_id).toBe('p-gi')
     expect(JSON.stringify(dev)).not.toContain(token)
   })
-  it('notificação do Nubank vira pergunta de Confirmar no Telegram do dono, com o cartão certo', async () => {
+  it('notificação do Nubank vira pergunta de Confirmar no Telegram do dono, com o cartão certo (modo Telegram)', async () => {
     const token = await gerarToken()
     tg.enviadas.length = 0
-    const r = await chamar(token, NUBANK)
+    const r = await chamar(token, NUBANK, { db: comTelegram() })
     expect(r.code).toBe(200)
     const textos = tg.enviadas.map((e) => e.text).join('\n')
     expect(textos).toContain('Notificação do Nubank')
@@ -70,15 +71,40 @@ describe('/android e a rota de notificação', () => {
     expect(ev.cartao_id).toBe('c-nu')
     expect(ev.app_origem).toBe('Nubank')
   })
+  it('modo padrão (Inbox): a notificação vira lançamento pendente no Inbox, sem nada no Telegram e sem lançar sozinha', async () => {
+    const token = await gerarToken()
+    tg.enviadas.length = 0
+    const r = await chamar(token, NUBANK)
+    expect(r.code).toBe(200)
+    expect(r.body).toMatchObject({ ok: true, destino: 'inbox' })
+    expect(tg.enviadas).toHaveLength(0)
+    const ev = await db.buscarEmAndamento(null) // sem Telegram: o lançamento fica no Inbox, sem usuário do Telegram
+    expect(ev).toMatchObject({ origem: 'android_notification', cartao_id: 'c-nu', app_origem: 'Nubank', valor: 19.9 })
+    expect(['pendente', 'aguardando_dados']).toContain(ev.status)
+  })
+  it('modo Inbox funciona mesmo sem o Telegram conectado (antes dava 409) e não duplica o reenvio', async () => {
+    const token = await gerarToken()
+    db.integracoes?.clear?.()
+    const r1 = await chamar(token, { ...NUBANK, quando: '2026-10-06T23:38' })
+    expect(r1.code).toBe(200)
+    const r2 = await chamar(token, { ...NUBANK, quando: '2026-10-06T23:38' })
+    expect(r2.body).toMatchObject({ ok: true, ignorado: 'repetida' })
+  })
+  it('modo Telegram escolhido mas Telegram desconectado: cai no Inbox em vez de perder a notificação', async () => {
+    const token = await gerarToken()
+    const sem = { ...comTelegram(), integracaoDaPessoa: async () => null }
+    const r = await chamar(token, NUBANK, { db: sem })
+    expect(r.body).toMatchObject({ ok: true, destino: 'inbox' })
+  })
   it('a mesma notificação reenviada não cria outro lançamento', async () => {
     const token = await gerarToken()
-    await chamar(token, { ...NUBANK, quando: '2026-10-06T23:38' })
+    await chamar(token, { ...NUBANK, quando: '2026-10-06T23:38' }, { db: comTelegram() })
     const antes = tg.enviadas.length
-    const r = await chamar(token, { ...NUBANK, quando: '2026-10-06T23:38' })
+    const r = await chamar(token, { ...NUBANK, quando: '2026-10-06T23:38' }, { db: comTelegram() })
     expect(r.body).toMatchObject({ ok: true, ignorado: 'repetida' })
     expect(tg.enviadas.length).toBe(antes)
     // outra compra igual em outro horário é outra compra
-    await chamar(token, { ...NUBANK, quando: '2026-10-07T09:10' })
+    await chamar(token, { ...NUBANK, quando: '2026-10-07T09:10' }, { db: comTelegram() })
     expect(tg.enviadas.length).toBeGreaterThan(antes)
   })
   it('token errado ou revogado: 401; sem token: 401', async () => {

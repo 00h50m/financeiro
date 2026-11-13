@@ -1,6 +1,6 @@
 # Notificação de compra do Android → Finapp
 
-Cada compra no cartão gera uma notificação do banco. Com o app **MacroDroid** (grátis, Play Store), o celular manda esse texto para o Finapp, e o bot do Telegram pergunta **Confirmar** (nada vira compra sem o seu toque).
+Cada compra no cartão gera uma notificação do banco. Com o app **MacroDroid** (grátis, Play Store), o celular manda esse texto para o Finapp. Por padrão a compra fica pronta no **Inbox** do app (Movimentações › Inbox), com cartão e categoria sugeridos, e você toca em **Confirmar** (nada vira compra sem o seu toque; o Telegram não precisa estar conectado). Se preferir, em Mais › Automações dá para escolher **Perguntar também no Telegram**.
 
 Só funciona no Android. Vale para qualquer banco cuja notificação traga valor e local da compra (o Nubank já foi testado com um exemplo real).
 
@@ -26,7 +26,7 @@ No Telegram, mande **/android** para o bot. Ele responde com um token (começa c
 Configurações do Android → Apps → MacroDroid → Bateria → **Sem restrições** (ou "Nunca suspender"). Sem isso, algumas notificações podem não ser enviadas.
 
 ## Passo 4 · testar
-Faça uma compra pequena (ou use o botão de testar da macro). Em segundos o bot manda: "📱 Notificação do Nubank: … Confira abaixo antes de confirmar." Toque em **Confirmar**.
+Faça uma compra pequena (ou use o botão de testar da macro). Em segundos a compra aparece no **Inbox** (o ícone de Movimentações ganha um número). No modo Telegram, o bot manda "📱 Notificação do Nubank: …" com o botão **Confirmar**. Em Mais › Automações, "Celulares conectados" mostra a hora da última notificação recebida: é a forma mais rápida de saber se a macro está funcionando.
 
 ## Como funciona o reconhecimento
 - O cartão é escolhido pelo nome do app (app "Nubank" → cartão que tem "Nubank" no nome; com mais de um, o da pessoa dona do token). Se não tiver certeza, o bot pergunta qual cartão.
