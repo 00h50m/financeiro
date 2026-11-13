@@ -19,23 +19,27 @@ const tgMudo = new Proxy({}, { get: () => async () => ({ message_id: 0, ok: true
 export default async function handler(req, res, deps = {}) {
   if (req.method !== 'POST') return res.status(405).end()
   const amb = lerAmbiente()
-  if (amb.faltando.length) return res.status(503).json({ ok: false })
+  // Só o banco é obrigatório: o Telegram é opcional (modo "só Inbox"), então a falta das variáveis do bot não derruba mais a leitura.
+  if (!amb.url || !amb.serviceKey) return res.status(503).json({ ok: false })
   const corpo = await lerCorpo(req)
   if (!corpo || typeof corpo !== 'object') return res.status(400).json({ ok: false, erro: 'corpo inválido' })
   // O MacroDroid nem sempre deixa mexer no cabeçalho: o token também pode ir no corpo.
   const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim() || String(req.headers['x-token'] || corpo.token || '').trim()
   if (!token) return res.status(401).json({ ok: false })
+  const ehTeste = corpo.teste === true || String(corpo.teste || '').toLowerCase() === 'true'
   const notificacao = { app: corte(corpo.app ?? corpo.aplicativo, 60), titulo: corte(corpo.titulo ?? corpo.title, 200), texto: corte(corpo.texto ?? corpo.text, 600) }
-  if (!notificacao.texto) return res.status(400).json({ ok: false, erro: 'sem texto' })
+  if (!notificacao.texto && !ehTeste) return res.status(400).json({ ok: false, erro: 'sem texto' })
 
   try {
     const db = deps.db || criarDb({ url: amb.url, serviceKey: amb.serviceKey })
     const dispositivo = await db.dispositivoPorHash(await hashToken(token))
     if (!dispositivo) return res.status(401).json({ ok: false })
+    // "Testar conexão" do app: só confirma que o endereço e o token funcionam (e marca o celular como visto); não cria lançamento.
+    if (ehTeste) { await db.tocarDispositivo?.(dispositivo.id); return res.status(200).json({ ok: true, teste: true }) }
     const permitidos = dispositivo.apps_permitidos || []
     if (permitidos.length && !permitidos.some((a) => a.toLowerCase() === notificacao.app.toLowerCase())) return res.status(200).json({ ok: true, ignorado: 'app_nao_permitido' })
     const config = typeof db.configMapa === 'function' ? await db.configMapa().catch(() => ({})) : {}
-    const querTelegram = String(config?.notificacao_modo || 'inbox') === 'telegram'
+    const querTelegram = String(config?.notificacao_modo || 'inbox') === 'telegram' && !!amb.token
     const integ = querTelegram ? await db.integracaoDaPessoa(dispositivo.pessoa_id) : null
     db.tocarDispositivo(dispositivo.id)?.catch?.(() => {})
     // Sem Telegram (modo Inbox, ou Telegram escolhido mas não conectado): a leitura fica no Inbox, sem mensagem e sem lançamento automático.
