@@ -18,6 +18,7 @@ import { cartoesDoMes } from '../lib/faturasMes'
 import { detectarRecorrencias } from '../lib/recorrencias'
 import { indexarAliases } from '../lib/estabelecimento'
 import HeroInicio from './inicio/HeroInicio'
+import AjusteLivre from './inicio/AjusteLivre'
 import Atencao from './inicio/Atencao'
 import AcoesRapidas from './inicio/AcoesRapidas'
 
@@ -100,6 +101,7 @@ export default function Inicio({ store, irPara }) {
   const [novaCompra, setNovaCompra] = useState(false)
   const [diaAberto, setDiaAberto] = useState(null)
   const d = useMemo(() => montarInicio(store, mes), [store, mes])
+  const [ajustando, setAjustando] = useState(false)
   const [importadas, setImportadas] = useState([]) // lotes de importação (para saber quais faturas faltam conciliar)
   useEffect(() => { listarImportadas(sb, 60).then(setImportadas).catch(() => setImportadas([])) }, [])
   // Aulas particulares: as de hoje, o que falta atualizar e o que ainda não foi recebido no mês
@@ -162,13 +164,14 @@ export default function Inicio({ store, irPara }) {
         />
       )}
 
+      {ajustando && <AjusteLivre d={d} mes={mes} aoSalvar={(a) => store.definirAjusteSaldo(mes, a)} aoFechar={() => setAjustando(false)} />}
       <div className="ini-topo">
         <NavMes mes={mes} onChange={trocarMes} fechado={fechado} />
         <AcoesRapidas cls="so-desk" compacta aoNovaCompra={() => setNovaCompra(true)} semCartao={store.cartoes.length === 0} irPara={irPara} />
       </div>
 
       <div className="ini-grade">
-        <HeroInicio d={d} mes={mes} semRenda={semRenda} irPara={irPara} />
+        <HeroInicio d={d} mes={mes} semRenda={semRenda} irPara={irPara} aoAjustar={() => setAjustando(true)} />
         <Atencao itens={itensAtencao} irPara={irPara} />
         <AcoesRapidas cls="so-mob" aoNovaCompra={() => setNovaCompra(true)} semCartao={store.cartoes.length === 0} irPara={irPara} />
 
