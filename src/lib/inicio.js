@@ -122,6 +122,14 @@ export function atencaoDoMes(abertas) {
 
 // Tudo o que a tela Início mostra, vindo do mesmo motor financeiro da aba Pagamentos (os números batem).
 //  pode gastar = sobraProjetada = renda + saldo anterior + ajuste − comprometido (depois de pagar tudo do mês)
+// Ajuste manual do "Livre para gastar": quanto somar ao acerto do mês para o número ficar como a pessoa quer.
+// modo 'livre': o livre para gastar deveria ser `valor`; modo 'saldo': a pessoa tem `valor` na conta (disponível). Soma ao ajuste que já existe.
+export function calcularAjusteLivre({ modo, valor, podeGastar, disponivel, ajusteAtual = 0 }) {
+  const alvoAtual = modo === 'saldo' ? disponivel : podeGastar
+  const delta = Math.round((Number(valor) - alvoAtual) * 100) / 100
+  return { delta, novoAjuste: Math.round((Number(ajusteAtual) + delta) * 100) / 100, livreDepois: Math.round((podeGastar + delta) * 100) / 100 }
+}
+
 export function montarInicio(store, mes = nowYM(), hoje = hojeSP()) {
   const r = resumoDoMes(store, mes, { usarSaldoAnterior: lerUsarSaldoAnterior() })
   const contas = contasDoMes(r.detalhe, store.cartoes, mes, hoje)
@@ -136,6 +144,7 @@ export function montarInicio(store, mes = nowYM(), hoje = hojeSP()) {
     pctPago: r.comprometido > 0 ? Math.min(100, Math.round((r.pago / r.comprometido) * 100)) : 0,
     podeGastar: r.sobraProjetada,
     disponivel: r.disponivel,
+    ajuste: r.ajuste, // acerto manual do mês (Ajustar, no Livre para gastar, ou Acerte aqui, em Pagamentos)
     pctComprometido: r.renda > 0 ? Math.round((r.comprometido / r.renda) * 100) : null,
     saldoAnterior: r.saldoAnterior,
     contas,

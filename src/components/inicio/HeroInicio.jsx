@@ -12,12 +12,13 @@ const Mini = ({ rotulo, valor, sub, ajuda, tom }) => (
 
 // Situação do mês: UM número grande ("Livre para gastar", que é estimativa), o que ele significa e três números de apoio.
 // Sem renda cadastrada o número não é apresentado como fato: pede a renda.
-export default function HeroInicio({ d, mes, semRenda, irPara }) {
+export default function HeroInicio({ d, mes, semRenda, irPara, aoAjustar }) {
   const negativo = d.podeGastar < 0
   const g = GLOSSARIO
   const rotulo = negativo ? g.faltandoParaFechar : g.livreParaGastar
   return (
     <section className={`ini-hero ${negativo && !semRenda ? 'neg' : ''}`} aria-label="Situação financeira do mês">
+      {!semRenda && aoAjustar && <button type="button" className="link-btn ini-hero-ajustar" onClick={aoAjustar}>{Math.abs(Number(d.ajuste) || 0) >= 0.005 ? 'Mudar o ajuste' : 'Ajustar o valor'}</button>}
       <div className="ini-hero-rotulo"><span className="indicador-ajuda" title={rotulo.ajuda}>{semRenda ? g.livreParaGastar.rotulo : rotulo.rotulo}</span> <span className="ini-hero-mes">· {mesLabel(mes)}</span></div>
       <div className="ini-hero-valor mono">{semRenda ? '—' : `${negativo ? '−' : ''}${fmt(Math.abs(d.podeGastar))}`}</div>
       {semRenda ? (
@@ -27,7 +28,7 @@ export default function HeroInicio({ d, mes, semRenda, irPara }) {
       ) : d.porDia != null ? (
         <div className="ini-hero-chip"><b className="mono">{fmt(d.porDia)}</b><span>por dia · {d.diasRestantes} {d.diasRestantes === 1 ? 'dia' : 'dias'} até o fim do mês</span></div>
       ) : <div className="ini-hero-sub">Depois de pagar tudo o que falta no mês.</div>}
-      {!semRenda && <div className="ini-hero-nota">Estimativa: o que sobra se tudo o que está previsto acontecer. Não é o saldo da conta.</div>}
+      {!semRenda && <div className="ini-hero-nota">Estimativa: o que sobra se tudo o que está previsto acontecer. Não é o saldo da conta.{Math.abs(Number(d.ajuste) || 0) >= 0.005 && <> Inclui um <b>ajuste manual</b> de <b className="mono">{(d.ajuste > 0 ? '+ ' : '− ') + fmt(Math.abs(d.ajuste))}</b>.</>}</div>}
       {d.reparto.total > 0 && !semRenda && (
         <div className="ini-reparto">
           <div className="ini-reparto-barra" role="img" aria-label={d.reparto.partes.map((p) => `${p.rotulo} ${fmt(p.valor)}`).join(', ')}>
